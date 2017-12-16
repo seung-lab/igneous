@@ -1,0 +1,15 @@
+backports.lzma==0.0.8
+# blosc==1.5.0
+click==6.6
+cryptography==2.0.3
+Cython==0.25.2
+cloud-volume==0.6.3
+google-api-python-client==1.6.2
+networkx==1.11
+numpy==1.13.3
+pyasn1
+pyopenssl==17.2.0
+pytest==3.3.1
+task-queue==0.1.4
+tenacity==4.4.0
+tqdm==4.19.5

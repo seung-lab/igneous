@@ -1,0 +1,22 @@
+language: node_js
+dist: trusty
+sudo: required
+before_install:
+- openssl aes-256-cbc -K $encrypted_5d2bae8122b8_key -iv $encrypted_5d2bae8122b8_iv
+  -in credentials.tar.gz.enc -out credentials.tar.gz -d
+- tar -xzf credentials.tar.gz
+- sudo mv secrets /secrets && sudo chown $USER /secrets
+- sudo mkdir -p $HOME/.cloudvolume
+- sudo ln -s /secrets $HOME/.cloudvolume/secrets # for cloudvolume
+- $(python version.py) #sets APPVERSION
+
+script:
+- 'docker build --tag seunglab/igneous:$APPVERSION . || travis_terminate 1;
+  docker run -it -v /secrets:/secrets seunglab/igneous:$APPVERSION /bin/sh -c "cd /igneous && py.test python/test" || travis_terminate 1;
+  docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD" || travis_terminate 1;
+  if [ "$TRAVIS_BRANCH" == "master" ]; then
+    docker push $DOCKER_USERNAME/igneous || travis_terminate 1;
+  else
+    docker push $DOCKER_USERNAME/igneous:$APPVERSION || travis_terminate 1;
+  fi'
+

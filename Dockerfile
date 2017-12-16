@@ -13,15 +13,15 @@ RUN apt-get update && apt-get install -y -qq --no-install-recommends \
     python \
     python-pip \
     python-dev \
-    python-h5py \
+#    python-h5py \
     python-numpy \
     python-setuptools \
     libboost-all-dev \
-    libhdf5-dev \
+#    libhdf5-dev \
     liblzma-dev \
     libgmp-dev \
-    libmpfr-dev \
-    libxml2-dev \
+#    libmpfr-dev \
+#    libxml2-dev \
     screen \
     software-properties-common \
     unzip \

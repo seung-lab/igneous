@@ -4,7 +4,7 @@ from distutils.command.build import build
 from subprocess import call
 import os
 import shutil
-from setuptools import setup, find_packages, Extension
+import setuptools
 
 # NOTE: You must run cython --cplus ./ext/src/third_party/mc/_mesher.pyx before setup
 # if _mesher.cpp does not exist.
@@ -15,7 +15,7 @@ setuptools.setup(
     setup_requires=['pbr'],
     pbr=True,
     ext_modules=[
-        Extension(
+        setuptools.Extension(
             'igneous._mesher',
             sources=[ os.path.join(third_party_dir, name) for name in ('mc/_mesher.cpp','mc/cMesher.cpp') ],
             depends=[ os.path.join(third_party_dir, 'mc/cMesher.h')],

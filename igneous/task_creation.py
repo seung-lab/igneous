@@ -463,7 +463,7 @@ if __name__ == '__main__':
   map_path = os.path.join(dest_path, 'remap.npy')
   
   with TaskQueue(queue_name='wms-test-pull-queue') as task_queue:
-    create_downsampling_tasks(task_queue, 'gs://neuroglancer/agataf/omni_volume', mip=0, fill_missing=True)
+    create_downsampling_tasks(task_queue, 'gs://neuroglancer/drosophila_v0/image_v14', mip=4, fill_missing=True)
     # create_meshing_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1', mip=3)
 
     # create_mesh_manifest_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1')

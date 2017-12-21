@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import string
 
@@ -7,4 +9,4 @@ def toversion(s):
   s = filter(lambda x: x in allowed, s)
   return s 
 
-print "export APPVERSION="+toversion(os.environ['TRAVIS_BRANCH'])
+print("export APPVERSION="+toversion(os.environ['TRAVIS_BRANCH']))

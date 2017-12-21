@@ -9,8 +9,7 @@ from setuptools import setup, find_packages, Extension
 # NOTE: You must run cython --cplus ./ext/src/third_party/mc/_mesher.pyx before setup
 # if _mesher.cpp does not exist.
 
-setup_dir = os.path.dirname(__file__)
-third_party_dir = os.path.join(setup_dir, 'ext/third_party')
+third_party_dir = './ext/third_party'
 
 setuptools.setup(
     setup_requires=['pbr'],

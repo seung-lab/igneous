@@ -1,7 +1,7 @@
 backports.lzma==0.0.8
 click==6.6
 cryptography==2.0.3
-cloud-volume==0.6.5
+cloud-volume==0.6.6
 google-api-python-client==1.6.2
 networkx==1.11
 numpy==1.13.3

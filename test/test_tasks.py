@@ -277,7 +277,7 @@ def test_mesh_manifests():
     n_fragids = 5
 
     with Storage(layer_path) as stor:
-        stor.put_file('info', '{"mesh":"mesh_mip_3_error_40"}')
+        stor.put_file('info', '{"mesh":"mesh_mip_3_error_40"}'.encode('utf8'))
 
     for segid in range(n_segids):
         for lod in range(n_lods):

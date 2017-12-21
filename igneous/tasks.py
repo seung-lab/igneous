@@ -64,7 +64,7 @@ def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_fi
     for factor3 in factors:
       vol.mip += 1
       image = downsamplefn(image, factor3)
-      new_bounds /= factor3
+      new_bounds //= factor3
       new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
       vol[ new_bounds.to_slices() ] = image
 
@@ -244,7 +244,7 @@ class MeshManifestTask(RegisteredTask):
 
   def execute(self):
     with Storage(self.layer_path) as storage:
-      self._info = json.loads(storage.get_file('info'))
+      self._info = json.loads(storage.get_file('info').decode('utf8'))
 
       self.mesh_dir = None
       if 'meshing' in self._info:

@@ -146,13 +146,13 @@ def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False
     'method': {
       'task': 'DownsampleTask',
       'mip': mip,
-      'shape': list(shape),
+      'shape': shape.tolist(),
       'axis': axis,
-      'method': 'downsample_with_averaging'
+      'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
     },
     'by': 'ws9@princeton.edu',
     'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
+  })
   vol.commit_provenance()
 
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):

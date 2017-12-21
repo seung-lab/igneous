@@ -1,7 +1,6 @@
 dist
 build
 igneous.egg-info
-_igneous.so
-_mesher.so
-snemi3d
-.cache
+*.so
+.eggs
+*.pyc

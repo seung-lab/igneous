@@ -1,3 +1,4 @@
+from builtins import range
 import numpy as np
 
 from igneous import downsample
@@ -226,14 +227,14 @@ def test_downsample_max_pooling():
       np.array([ [ 0, 1 ], [ 0, 2 ] ], dtype=dtype)
     ]
 
-    for i in xrange(len(cases)):
+    for i in range(len(cases)):
       case = cases[i]
       result = downsample.downsample_with_max_pooling(case, (1, 1))
       assert np.all(result == cases[i])
 
     answers = [ 0, 0, 1, 1, 2 ]
 
-    for i in xrange(len(cases)):
+    for i in range(len(cases)):
       case = cases[i]
       result = downsample.downsample_with_max_pooling(case, (2, 2))
       assert result == answers[i]
@@ -241,28 +242,28 @@ def test_downsample_max_pooling():
 
     cast = lambda arr: np.array(arr, dtype=dtype) 
 
-    answers = map(cast, [  
+    answers = list(map(cast, [  
       [[ 0, 0 ]],
       [[ 0, 0 ]],
       [[ 0, 1 ]],
       [[ 1, 1 ]],
       [[ 0, 2 ]],
-    ])
+    ]))
 
-    for i in xrange(len(cases)):
+    for i in range(len(cases)):
       case = cases[i]
       result = downsample.downsample_with_max_pooling(case, (2, 1))
       assert np.all(result == answers[i])
 
-    answers = map(cast, [  
+    answers = list(map(cast, [  
       [[ 0 ], [ 0 ]],
       [[ 0 ], [ 0 ]],
       [[ 1 ], [ 0 ]],
       [[ 1 ], [ 1 ]],
       [[ 1 ], [ 2 ]],
-    ])
+    ]))
 
-    for i in xrange(len(cases)):
+    for i in range(len(cases)):
       case = cases[i]
       result = downsample.downsample_with_max_pooling(case, (1, 2))
       assert np.all(result == answers[i])

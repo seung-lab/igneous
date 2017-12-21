@@ -1,6 +1,6 @@
 from igneous._mesher import Mesher
 from taskqueue import MockTaskQueue, TaskQueue, RegisteredTask
-from tasks import *
+from .tasks import *
 # from tasks_watershed import WatershedTask
 from cloudvolume import CloudVolume, Storage, EmptyVolumeException
 

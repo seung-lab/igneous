@@ -1,3 +1,4 @@
+from builtins import range
 import json
 import os.path
 import shutil
@@ -13,7 +14,7 @@ from igneous import (
 )
 from igneous import downsample
 from igneous.task_creation import create_downsample_scales, create_downsampling_tasks, create_quantized_affinity_info
-from layer_harness import delete_layer, create_layer
+from .layer_harness import delete_layer, create_layer
 
 def test_ingest_image():
     delete_layer()
@@ -278,27 +279,27 @@ def test_mesh_manifests():
     with Storage(layer_path) as stor:
         stor.put_file('info', '{"mesh":"mesh_mip_3_error_40"}')
 
-    for segid in xrange(n_segids):
-        for lod in xrange(n_lods):
-            for fragid in xrange(n_fragids):
+    for segid in range(n_segids):
+        for lod in range(n_lods):
+            for fragid in range(n_fragids):
                 filename = '{}:{}:{}'.format(segid, lod, fragid)
                 lib.touch(to_path(filename))
 
-    for i in xrange(10):
+    for i in range(10):
         MeshManifestTask(layer_path=layer_path, prefix=i, lod=0).execute()
 
-    for segid in xrange(n_segids):
-        for fragid in xrange(n_fragids):
+    for segid in range(n_segids):
+        for fragid in range(n_fragids):
             filename = '{}:0'.format(segid)
             assert os.path.exists(to_path(filename))
             filename = '{}:1'.format(segid)
             assert not os.path.exists(to_path(filename))
 
-    for i in xrange(10):
+    for i in range(10):
         MeshManifestTask(layer_path=layer_path, prefix=i, lod=1).execute()
 
-    for segid in xrange(n_segids):
-        for fragid in xrange(n_fragids):
+    for segid in range(n_segids):
+        for fragid in range(n_fragids):
             filename = '{}:0'.format(segid)
         assert os.path.exists(to_path(filename))
         filename = '{}:1'.format(segid)
@@ -336,9 +337,9 @@ def test_mesh_manifests():
 #     from itertools import product
 #     vol = CloudVolume('s3://neuroglancer/pinky40_v11/affinitymap-jnet')
 #     scale = vol.info['scales'][0]
-#     for x_min in xrange(0, scale['size'][0], 512):
-#         for y_min in xrange(0, scale['size'][1], 512):
-#             for z_min in xrange(0, scale['size'][2], 1024):
+#     for x_min in range(0, scale['size'][0], 512):
+#         for y_min in range(0, scale['size'][1], 512):
+#             for z_min in range(0, scale['size'][2], 1024):
 #                 x_max = min(scale['size'][0], x_min + 768)
 #                 y_max = min(scale['size'][1], y_min + 768)
 #                 z_max = min(scale['size'][2], z_min + 1024)

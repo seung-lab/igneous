@@ -1,6 +1,9 @@
 from __future__ import print_function
-import copy
+
 from itertools import product
+from functools import reduce
+
+import copy
 import json
 import math
 import re
@@ -110,15 +113,15 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
     max_downsampled_size=int(min(*underlying_shape)),
   ) 
   scales = scales[1:] # omit (1,1,1)
-  scales = [ vol.downsample_ratio * Vec(*factor3) for factor3 in scales ]
-  
+  scales = [ list(map(int, vol.downsample_ratio * Vec(*factor3))) for factor3 in scales ]
+
   for scale in scales:
     vol.add_scale(scale)
 
   if preserve_chunk_size:
     for i in range(1, len(vol.scales)):
       vol.scales[i]['chunk_sizes'] = vol.scales[0]['chunk_sizes']
-  
+
   return vol.commit_info()
 
 def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5):

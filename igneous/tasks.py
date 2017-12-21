@@ -1,7 +1,12 @@
 from __future__ import print_function
 
 from collections import defaultdict
-from cStringIO import StringIO
+
+try:
+    from StringIO import cStringIO as BytesIO
+except ImportError:
+    from io import BytesIO
+
 import io
 import itertools
 import json
@@ -636,7 +641,7 @@ class WatershedRemapTask(RegisteredTask):
         downsample_and_upload(image, bounds, destcv, self.shape)
 
     def _get_map(self):
-        file = StringIO(cache(self, self.map_path))
+        file = BytesIO(cache(self, self.map_path))
         remap = np.load(file)
         file.close()
         return remap

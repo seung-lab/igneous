@@ -14,6 +14,9 @@
 
 from __future__ import division
 
+from builtins import range
+from functools import reduce
+
 import math
 import operator
 import numpy as np
@@ -82,7 +85,7 @@ def odd_to_even(image):
 def scale_series_to_downsample_factors(scales):
   fullscales = [ np.array(scale) for scale in scales ] 
   factors = []
-  for i in xrange(1, len(fullscales)):
+  for i in range(1, len(fullscales)):
     factors.append( fullscales[i] / fullscales[i - 1]  )
   return [ factor.astype(int) for factor in factors ]
 
@@ -180,7 +183,7 @@ def downsample_segmentation(data, factor):
     shape=( int(data.shape[0] / 2), int(data.shape[1] / 2), data.shape[2], data.shape[3]), 
     dtype=data.dtype
   )
-  for z in xrange(data.shape[2]):
+  for z in range(data.shape[2]):
     output[:,:,z,:] = downsample_segmentation_2D_4x(data[:,:,z,:])
   
   factor = factor / 2

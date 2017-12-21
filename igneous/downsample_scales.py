@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from __future__ import division
+from builtins import range
 
 import numpy as np
 
@@ -109,7 +110,7 @@ def compute_plane_downsampling_scales(size, preserve_axis='z',
 
     factor = 2
     scales = [ (1,1,1) ]
-    for i in xrange(num_downsamples):
+    for i in range(num_downsamples):
         if factor > max_downsampling:
             break
         elif dimension / factor < max_downsampled_size:

@@ -8,7 +8,7 @@ from cloudvolume.lib import Bbox
 import numpy as np
 
 import igneous.task_creation as task_creation
-from layer_harness import layer_path, delete_layer, create_storage
+from .layer_harness import layer_path, delete_layer, create_storage
 
 def test_upload_build_chunks():
   delete_layer()

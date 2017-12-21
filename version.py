@@ -1,12 +1,11 @@
 from __future__ import print_function
 
 import os
-import string
 
 def toversion(s):
   s = s.lower()
-  allowed = set(string.lowercase + string.digits + '-')
-  s = filter(lambda x: x in allowed, s)
-  return s 
+  allowed = set('abcdefghijklmnopqrstuvwxyz' + '0123456789' + '-')
+  s = [ x for x in s if x in allowed ]
+  return ''.join(s)
 
 print("export APPVERSION="+toversion(os.environ['TRAVIS_BRANCH']))

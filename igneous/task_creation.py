@@ -83,10 +83,10 @@ def create_info_file_from_build(layer_path, layer_type, resolution, encoding):
     data_type=data_type, 
     encoding=encoding, 
     resolution=resolution, 
-    voxel_offset=bounds.minpt, 
+    voxel_offset=bounds.minpt.tolist(), 
     volume_size=bounds.size3(),
     mesh=(layer_type == 'segmentation'), 
-    chunk_size=neuroglancer_chunk_size,
+    chunk_size=list(map(int, neuroglancer_chunk_size)),
   )
 
   vol = CloudVolume(layer_path, mip=0, info=info).commit_info()
@@ -131,7 +131,11 @@ def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False
   shape.y *= 2 ** num_mips
   vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=True)
 
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
+  bounds = vol.bounds.clone()
+  bounds.minpt.z = 281
+  bounds.maxpt.z = 290
+
+  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
     task = DownsampleTask(
       layer_path=layer_path,
       mip=vol.mip,
@@ -463,7 +467,7 @@ if __name__ == '__main__':
   map_path = os.path.join(dest_path, 'remap.npy')
   
   with TaskQueue(queue_name='wms-test-pull-queue') as task_queue:
-    create_downsampling_tasks(task_queue, 'gs://neuroglancer/drosophila_v0/image_v14', mip=4, fill_missing=True)
+    # create_downsampling_tasks(task_queue, 'gs://neuroglancer/drosophila_v0/image_v14', mip=4, fill_missing=True)
     # create_meshing_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1', mip=3)
 
     # create_mesh_manifest_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1')
@@ -491,12 +495,12 @@ if __name__ == '__main__':
     #   fill_missing=True,
     # )
 
-    # create_transfer_tasks(task_queue,
-    #   src_layer_path='gs://neuroglancer/drosophila_v0/aligned', 
-    #   dest_layer_path='gs://neuroglancer/drosophila_v0/aligned_z32',
-    #   fill_missing=True,
-    #   translate=[0, 0, 0],
-    # )
+    create_transfer_tasks(task_queue,
+      src_layer_path='gs://neuroglancer/drosophila_v0/image_v14', 
+      dest_layer_path='gs://neuroglancer/drosophila_v0/image_v14_single_slices',
+      fill_missing=True,
+      translate=[0, 0, 0],
+    )
 
     # create_fixup_downsample_tasks(task_queue, 'gs://neuroglancer/drosophila_v0/image_v14/', 
     #   points=[ (149735, 58982, 136) ], mip=0, shape=(4096,4096,10)) 

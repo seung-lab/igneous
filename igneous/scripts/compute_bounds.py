@@ -33,8 +33,6 @@ layer_path = sys.argv[1]
 
 cv = CloudVolume(layer_path)
 
-print cv.key
-
 bboxes = []
 
 with Storage(layer_path) as stor:

@@ -1,0 +1,14 @@
+CHANGES
+=======
+
+* chore: configured dependencies to enable docker build
+* perf: sped up tests
+* fix: python 2/3 compatibility for version.py
+* fix: several installation issues + multiple travis python versions
+* fix: use relative paths instead of absolute in setup.py
+* fix: passing tests in python3
+* docs: added Travis CI indicator to README.md
+* fix: various python3 compatibility issues
+* test: added credentials for travis
+* init: migrated from seung-lab/neuroglancer
+* Initial commit

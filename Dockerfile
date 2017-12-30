@@ -37,10 +37,10 @@ RUN pip install setuptools Cython wheel numpy
 RUN mkdir /.ssh
 ADD ./ /igneous
 RUN pip install -r /igneous/requirements.txt 
-RUN cd /igneous && pip install . && python setup.py develop
 RUN pip install pyasn1 --upgrade
+RUN cd /igneous && pip install .
 
-CMD cd /igneous/python/ && python -m igneous.task_execution 
+CMD python /igneous/igneous/task_execution.py
 
 
 

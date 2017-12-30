@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import re
 import subprocess
@@ -47,26 +49,26 @@ RED = '\033[1;91m'
 GREEN = '\033[1;92m' 
 
 def colorize(color, array):
-  print color + "\n".join(array) + RESET_COLOR + "\n"
+  print(color + "\n".join(array) + RESET_COLOR + "\n")
 
-print """
+print("""
 The following reports the status of the 'provenance' file in
 each layer of a neuroglancer dataset. 
-"""
+""")
 
 if len(success_report):
-  print "VALID"
+  print("VALID")
   colorize(GREEN, success_report)
 
 if len(invalid_report):
-  print "INVALID"
+  print("INVALID")
   colorize(YELLOW, invalid_report)
 
 if len(missing_report):
-  print "MISSING"
+  print("MISSING")
   colorize(RED, missing_report)
 
-print 'done.'
+print('done.')
 
 
 

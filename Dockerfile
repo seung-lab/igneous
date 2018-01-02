@@ -38,7 +38,7 @@ RUN mkdir /.ssh
 ADD ./ /igneous
 RUN pip install -r /igneous/requirements.txt 
 RUN pip install pyasn1 --upgrade
-RUN cd /igneous && pip install .
+RUN cd /igneous && echo `pwd` && pip install .
 
 CMD python /igneous/igneous/task_execution.py
 

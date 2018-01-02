@@ -9,6 +9,8 @@ from taskqueue import TaskQueue
 from igneous import EmptyVolumeException
 from igneous import logger
 
+from .secrets import QUEUE_NAME, QUEUE_TYPE
+
 LOOP = True
 
 def handler(signum, frame):
@@ -21,7 +23,7 @@ signal.signal(signal.SIGINT, handler)
 @click.command()
 @click.option('--tag', default='',  help='kind of task to execute')
 def execute(tag):
-  tq = TaskQueue(queue_name='pull-queue')
+  tq = TaskQueue(queue_name=QUEUE_NAME, queue_server=QUEUE_TYPE)
 
   with tq:
     while LOOP:

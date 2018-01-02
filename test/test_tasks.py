@@ -10,7 +10,8 @@ from taskqueue import MockTaskQueue
 
 from igneous import (
     DownsampleTask, MeshTask, MeshManifestTask, 
-    QuantizeAffinitiesTask, HyperSquareConsensusTask
+    QuantizeAffinitiesTask, HyperSquareConsensusTask,
+    DeleteTask
 )
 from igneous import downsample
 from igneous.task_creation import create_downsample_scales, create_downsampling_tasks, create_quantized_affinity_info
@@ -202,6 +203,23 @@ def test_downsample_higher_mip():
 
     cv.mip = 3
     assert cv[:,:,:].shape == (64,64,64,1)
+
+def test_delete():
+    delete_layer()
+    storage, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="segmentation")
+    cv = CloudVolume(storage.layer_path)
+
+    DeleteTask(
+        layer_path=storage.layer_path,
+        offset=(0,0,0),
+        shape=(128, 64, 64),
+    ).execute()
+
+    fnames = [ _ for _ in storage.list_files() ]
+    
+    assert '1_1_1/0-64_0-64_0-64' not in fnames
+    assert '1_1_1/64-128_0-64_0-64' not in fnames
+
 
 def test_mesh():
     delete_layer()

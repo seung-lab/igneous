@@ -87,6 +87,16 @@ def cache(task, cloudpath):
 
   return filestr
 
+class PrintTask(RegisteredTask):
+  """For testing the task_execution.py script."""
+
+  def __init__(self, index):
+    super(PrintTask, self).__init__(index)
+    self.index = index
+
+  def execute(self):
+    print(self.index)
+
 class IngestTask(RegisteredTask):
   """Ingests and does downsampling.
      We want tasks execution to be independent of each other, so that no synchronization is
@@ -113,6 +123,25 @@ class IngestTask(RegisteredTask):
     storage = Storage(self.layer_path, n_threads=0)
     relpath = 'build/{}'.format(bounds.to_filename())
     return storage.get_file(relpath)
+
+class DeleteTask(RegisteredTask):
+  """Delete a block of images inside a layer on all mip levels."""
+  def __init__(self, layer_path, shape, offset):
+    super(DeleteTask, self).__init__(layer_path, shape, offset)
+    self.layer_path = layer_path
+    self.shape = Vec(*shape)
+    self.offset = Vec(*offset)
+
+  def execute(self):
+    vol = CloudVolume(self.layer_path)
+
+    bbox = Bbox( self.offset, self.offset + self.shape )
+
+    for mip in vol.available_mips:
+      vol.mip = mip
+      slices = vol.slices_from_global_coords(bbox.to_slices())
+      vol.delete(slices)
+
 
 class DownsampleTask(RegisteredTask):
   def __init__(self, layer_path, mip, shape, offset, fill_missing=False, axis='z'):

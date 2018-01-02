@@ -11,6 +11,9 @@ import setuptools
 
 third_party_dir = './ext/third_party'
 
+print('cwd:', os.getcwd())
+print([ _ for _ in os.walk('.') ])
+
 setuptools.setup(
     setup_requires=['pbr'],
     pbr=True,

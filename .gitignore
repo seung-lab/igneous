@@ -4,3 +4,6 @@ igneous.egg-info
 *.so
 .eggs
 *.pyc
+__pycache__
+.cache
+test.py

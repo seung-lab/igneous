@@ -7,20 +7,24 @@ python:
 dist: trusty
 sudo: required
 before_install:
-- openssl aes-256-cbc -K $encrypted_5be75f4e19c5_key -iv $encrypted_5be75f4e19c5_iv -in credentials.tar.enc -out credentials.tar -d
+- openssl aes-256-cbc -K $encrypted_5be75f4e19c5_key -iv $encrypted_5be75f4e19c5_iv
+  -in credentials.tar.enc -out credentials.tar -d
 - tar -xf credentials.tar
 - sudo mv secrets /secrets && sudo chown $USER /secrets
 - sudo mkdir -p $HOME/.cloudvolume
-- sudo ln -s /secrets $HOME/.cloudvolume/secrets # for cloudvolume
-- $(python version.py) #sets APPVERSION
-
+- sudo ln -s /secrets $HOME/.cloudvolume/secrets
+- $(python version.py)
 script:
-- 'docker build --tag seunglab/igneous:$APPVERSION . || travis_terminate 1;
-  docker run -it -v /secrets:/secrets seunglab/igneous:$APPVERSION /bin/sh -c "cd /igneous && py.test -v -x test" || travis_terminate 1;
-  docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD" || travis_terminate 1;
-  if [ "$TRAVIS_BRANCH" == "master" ]; then
-    docker push $DOCKER_USERNAME/igneous || travis_terminate 1;
-  else
-    docker push $DOCKER_USERNAME/igneous:$APPVERSION || travis_terminate 1;
-  fi'
-
+- docker build --tag seunglab/igneous:$APPVERSION . || travis_terminate 1
+- docker run -it -v /secrets:/secrets seunglab/igneous:$APPVERSION /bin/sh -c "cd /igneous
+  && py.test -v -x test" || travis_terminate 1; 
+- docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD" || travis_terminate 1; 
+- if [ "$TRAVIS_BRANCH" == "master" ];
+  then 
+    docker push $DOCKER_USERNAME/igneous || travis_terminate 1; 
+  else 
+    docker push $DOCKER_USERNAME/igneous:$APPVERSION || travis_terminate 1; 
+  fi
+env:
+  global:
+    secure: I/0iDy0P6UHhhILYNjhjg5cWM4uNfxcpEcJsYGmYhB/m2vkjY35wOvHoEVbUsoRURNG+rwFDI8HDiHHpSN5bCugT4yeZqvryRSzhFRQbDoQIYuk9uj4QmG7vPbYUBuylBxqdhOhU07McBnKPE9bwFgDVmbhE7GNT1g6+fVTxu3P3nPU/ASW5T+HB6CBwZBIuAuvfx48Z7i10UPY5RrR+iERFi3KzYw1OgkujJSTr89Gn4ox7X/klzawLWu5Xs9VnZJtXtmh2qV6rhCDSuNdMNrw0U1A7x8tpIj2B7r+Bj79IttPUMiWJV6/BroLT7wV0WJ2hSSLQvHrn/2vzZhNH1QeY7JOtILpRGvk1psTp70tvKKnawFmdobErpNUWcGemhBsXZr/KybqzNFkLufiH3ndoSIzL+FtKViPnhiQndIQUh6suiGms+wyTmlkcSw21aAXBHq01W66wBfKZ/x+klV1He3+7+Yp6yOZaJzBc0ruAPpuywkx5LUr9E20Rij2CLiV1IOYOZ0FjUuh4huKVeP5t1k1K4fdmAqpuH2tWs1bJoe9OaoUuUceJRBImFZm58sNVvtwbdkVLKNzaT0WzPeWYUPOnalKqWgwjqGaQanzsvDIUudrUP11tVqIOcwc9c2yn2YTw+Rv8RxOwRTUzfo6/HDrXw92cg2gjWcFVBPY=

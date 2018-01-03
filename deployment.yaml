@@ -1,0 +1,38 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: igneous
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: igneous
+    spec:
+      containers:
+        - name: igneous
+          image: seunglab/igneous
+          volumeMounts:
+          - name: secrets
+            mountPath: "/secrets"
+            readOnly: true
+          - name: tmp
+            mountPath: "/tmp"
+            readOnly: false
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 2Gi
+          env:
+            - name: PIPELINE_USER_QUEUE
+              value: wms-pull-queue
+            - name: QUEUE_TYPE
+              value: pull-queue
+            - name: GOOGLE_PROJECT_NAME
+              value: neuromancer-seung-import
+      volumes:
+      - name: secrets
+        secret:
+          secretName: secrets
+      - name: tmp
+        emptyDir: { medium: "Memory" }

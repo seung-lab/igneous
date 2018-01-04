@@ -132,9 +132,6 @@ def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False
   vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=True)
 
   bounds = vol.bounds.clone()
-  bounds.minpt.z = 281
-  bounds.maxpt.z = 290
-
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
     task = DownsampleTask(
       layer_path=layer_path,

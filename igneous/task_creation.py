@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from builtins import range
 from itertools import product
 from functools import reduce
 
@@ -344,12 +345,12 @@ def create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3):
   # For a prefix like 100, tasks 1-99 will be missed. Account for them by
   # enumerating them individually with a suffixed ':' to limit matches to
   # only those small numbers
-  for prefix in xrange(1, start):
+  for prefix in range(1, start):
     task = MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':')
     task_queue.insert(task)
 
   # enumerate from e.g. 100 to 999
-  for prefix in xrange(start, end):
+  for prefix in range(start, end):
     task = MeshManifestTask(layer_path=layer_path, prefix=prefix)
     task_queue.insert(task)
 

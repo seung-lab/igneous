@@ -47,7 +47,7 @@ def command(tag, m, queue, server):
 
 
 def execute(tag, queue, server):
-  tq = TaskQueue(queue_name=queue, queue_server=server)
+  tq = TaskQueue(queue_name=queue, queue_server=server, n_threads=0)
 
   print("Pulling from {}://{}".format(server, queue))
 

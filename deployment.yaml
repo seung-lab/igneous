@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
         - name: igneous
-          image: seunglab/igneous
+          image: seunglab/igneous:master
           volumeMounts:
           - name: secrets
             mountPath: "/secrets"

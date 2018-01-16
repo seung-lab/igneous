@@ -1,5 +1,5 @@
 backports.lzma==0.0.8
-click==6.6
+click==6.7
 cryptography==2.0.3
 cloud-volume==0.7.0
 -e git+https://github.com/seung-lab/intern.git#egg=intern

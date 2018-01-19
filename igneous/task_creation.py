@@ -125,12 +125,20 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
 
   return vol.commit_info()
 
-def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5):
+def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True):
+  
+  def ds_shape(mip):
+    shape = vol.mip_underlying(mip)[:3]
+    shape.x *= 2 ** num_mips
+    shape.y *= 2 ** num_mips
+    return shape
+
   vol = CloudVolume(layer_path, mip=mip)
-  shape = vol.underlying[:3]
-  shape.x *= 2 ** num_mips
-  shape.y *= 2 ** num_mips
-  vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=True)
+  shape = ds_shape(vol.mip)
+  vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=preserve_chunk_size)
+
+  if not preserve_chunk_size:
+    shape = ds_shape(vol.mip + 1)
 
   bounds = vol.bounds.clone()
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
@@ -493,12 +501,12 @@ if __name__ == '__main__':
     #   fill_missing=True,
     # )
 
-    create_transfer_tasks(task_queue,
-      src_layer_path='gs://neuroglancer/drosophila_v0/image_v14', 
-      dest_layer_path='gs://neuroglancer/drosophila_v0/image_v14_single_slices',
-      fill_missing=True,
-      translate=[0, 0, 0],
-    )
+    # create_transfer_tasks(task_queue,
+    #   src_layer_path='gs://neuroglancer/drosophila_v0/image_v14', 
+    #   dest_layer_path='gs://neuroglancer/drosophila_v0/image_v14_single_slices',
+    #   fill_missing=True,
+    #   translate=[0, 0, 0],
+    # )
 
     # create_fixup_downsample_tasks(task_queue, 'gs://neuroglancer/drosophila_v0/image_v14/', 
     #   points=[ (149735, 58982, 136) ], mip=0, shape=(4096,4096,10)) 

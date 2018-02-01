@@ -7,8 +7,9 @@ from functools import reduce
 import copy
 import json
 import math
-import re
 import os
+import re
+import time
 from time import strftime
 
 import numpy as np
@@ -466,14 +467,25 @@ def upload_build_chunks(storage, volume, offset=[0, 0, 0], build_chunk_size=[102
   storage.wait()
 
 
-if __name__ == '__main__':  
+def cascade(tq, fnlist):
+    for fn in fnlist:
+      fn(tq)
+      N = tq.enqueued
+      while N > 0:
+        N = tq.enqueued
+        print('\r {} remaining'.format(N), end='')
+        time.sleep(2)
 
-  src_path = 'gs://neuroglancer/drosophila_v0/watershed/'
-  dest_path = 'gs://neuroglancer/drosophila_v0/watershed_remap_v0/' 
-  map_path = os.path.join(dest_path, 'remap.npy')
-  
-  with TaskQueue(queue_name='wms-test-pull-queue') as task_queue:
-    # create_downsampling_tasks(task_queue, 'gs://neuroglancer/drosophila_v0/image_v14', mip=4, fill_missing=True)
+
+if __name__ == '__main__':  
+  with TaskQueue(queue_name='wms-pull-queue', queue_server='appengine') as task_queue:
+    mesh_set = 'gs://neuroglancer/ranl/flyem_agglomeration_test'
+    cascade(task_queue, [
+      lambda tq: create_meshing_tasks(tq, mesh_set, mip=3),
+      lambda tq: create_mesh_manifest_tasks(tq, mesh_set),
+    ])
+
+    # create_downsampling_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_agglomeration_test', mip=0, fill_missing=True, preserve_chunk_size=False)
     # create_meshing_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1', mip=3)
 
     # create_mesh_manifest_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1')
@@ -508,22 +520,4 @@ if __name__ == '__main__':
     #   translate=[0, 0, 0],
     # )
 
-    # create_fixup_downsample_tasks(task_queue, 'gs://neuroglancer/drosophila_v0/image_v14/', 
-    #   points=[ (149735, 58982, 136) ], mip=0, shape=(4096,4096,10)) 
 
-    # create_fixup_downsample_tasks(task_queue, 'file://~/.cloudvolume/cache/gs/neuroglancer/drosophila_v0/image_v14/', 
-    #   points=[ (146235, 59852, 139) ], mip=0, shape=(4096,4096,10)) 
-
-
-    # create_fixup_quantize_tasks(task_queue, src_layer, dest_layer, shape, 
-    #   points=[ (27955, 21788, 512), (23232, 20703, 559) ],
-    # )
-
-  # create_fixup_quantize_tasks(task_queue, src_layer, dest_layer, shape, 
-  #   points=[ (41740, 30477, 866) ]
-  # )
-
-  # task_queue.kill_threads()
-
-  # with Storage('gs://neuroglancer/pinky40_v11/image') as stor:
-  #   compute_build_bounding_box(stor, '4_4_40/')

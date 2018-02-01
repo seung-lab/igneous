@@ -202,7 +202,9 @@ def downsample_segmentation_2D_4x(data):
   # at the top end by using a bigger type. Without this 255 is handled incorrectly.
   data, upgraded = upgrade_type(data) 
 
-  data = data + 1 # don't use +=, it will affect the original data.
+  # offset from zero, raw countless doesn't handle 0 correctly
+  # we'll remove the extra 1 at the end.
+  data += 1
 
   factor = (2,2)
   for offset in np.ndindex(factor):
@@ -220,6 +222,10 @@ def downsample_segmentation_2D_4x(data):
 
   if upgraded:
     return downgrade_type(result)
+
+  # only need to reset data if we weren't upgraded 
+  # b/c no copy was made
+  data -= 1 
 
   return result
 

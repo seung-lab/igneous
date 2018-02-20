@@ -18,15 +18,15 @@ struct meshobj {
 };
 
 class cMesher {
-public:
-  cMesher();
-  ~cMesher();
-  void mesh(const std::vector<unsigned int> &data,
-            unsigned int sx, unsigned int sy, unsigned int sz);
-  std::vector<unsigned int> ids();
-  meshobj get_mesh(const unsigned int id, const bool generate_normals, const int simplification_factor, const int max_error);
-  bool write_obj(const unsigned int id, const std::string &filename);
-private:
-  zi::mesh::marching_cubes<unsigned int> mc;
-  zi::mesh::simplifier<double> s;
+  private:
+    zi::mesh::marching_cubes<uint64_t> mc;
+    zi::mesh::simplifier<double> s;
+  public:
+    cMesher();
+    ~cMesher();
+    void mesh(const std::vector<uint64_t> &data,
+              unsigned int sx, unsigned int sy, unsigned int sz);
+    std::vector<uint64_t> ids();
+    meshobj get_mesh(const uint64_t id, const bool generate_normals, const int simplification_factor, const int max_error);
+    bool write_obj(const uint64_t id, const std::string &filename);
 };

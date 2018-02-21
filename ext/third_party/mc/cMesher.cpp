@@ -53,13 +53,13 @@ bool WriteObj(zi::mesh::simplifier<double> & s, const std::string & filename) {
   return false;
 }
 
-void cMesher::mesh(const std::vector<unsigned int> &data,
+void cMesher::mesh(const std::vector<uint64_t> &data,
                     unsigned int sx, unsigned int sy, unsigned int sz)
 {
 
   // Create Marching Cubes class for type T volume
 
-  const unsigned int* a = &data[0];
+  const uint64_t* a = &data[0];
   // Run global marching cubes, a mesh is generated for each segment ID group
   this->mc.marche(a, sx, sy, sz);
 
@@ -71,16 +71,16 @@ void cMesher::mesh(const std::vector<unsigned int> &data,
   // }
 }
 
-std::vector<unsigned int> cMesher::ids() {
+std::vector<uint64_t> cMesher::ids() {
 
-  std::vector<unsigned int> keys;
+  std::vector<uint64_t> keys;
   for ( auto it= this->mc.meshes().begin(); it != this->mc.meshes().end(); ++it )
     keys.push_back(it->first);
 
   return keys;
 }
 
-bool cMesher::write_obj(const unsigned int id, const std::string &filename) {
+bool cMesher::write_obj(const uint64_t id, const std::string &filename) {
   zi::mesh::int_mesh im;
   im.add(mc.get_triangles(id));
   im.fill_simplifier<double>(s);
@@ -91,7 +91,7 @@ bool cMesher::write_obj(const unsigned int id, const std::string &filename) {
   return true;
 }
 
-meshobj cMesher::get_mesh(const unsigned int id, const bool generate_normals, const int simplification_factor, const int max_simplification_error) {
+meshobj cMesher::get_mesh(const uint64_t id, const bool generate_normals, const int simplification_factor, const int max_simplification_error) {
   meshobj obj;
 
   if (mc.count(id) == 0) { // MC produces no triangles if either none or all voxels were labeled!

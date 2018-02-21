@@ -26,7 +26,7 @@ from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
-from igneous import Mesher # broken out for ease of commenting out
+from igneous import Mesher8, Mesher16, Mesher32, Mesher64 # broken out for ease of commenting out
 
 def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_first=False):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
@@ -218,19 +218,57 @@ class MeshTask(RegisteredTask):
     self._data = self._volume[data_bounds.to_slices()] # chunk_position includes a 1 pixel overlap
     self._compute_meshes()
 
+  def _do_renumber(self, data):
+    # uniques = np.unique(data)
+    # data = data.copy()
+
+    self._renumber = {}
+
+    # # print(data)
+    # i = 1
+    # for val in uniques:
+    #   if val == 0:
+    #     self._renumber[0] = 0
+    #   else:
+    #     self._renumber[i] = val
+    #     data[ data == val ] = i
+
+    # data = data.astype(np.uint32)
+    mesher = Mesher64()
+
+    # print(data)
+    # if len(uniques) < 2**8:
+    #     data = data.astype(np.uint8)
+    #     mesher = Mesher8()
+    # elif len(uniques) < 2**16:
+    #     data = data.astype(np.uint16)
+    #     mesher = Mesher16()
+    # if len(uniques) < 2**32:
+    #     data = data.astype(np.uint32)
+    #     mesher = Mesher32()
+    # else:
+    #     data = data.astype(np.uint64)
+    #     mesher = Mesher64()
+
+    return data, mesher
+
   def _compute_meshes(self):
+    data = self._data[:,:,:,0].T
+    data, mesher = self._do_renumber(data)
+    
     with Storage(self.layer_path) as storage:
-      data = self._data[:,:,:,0].T
-      self._mesher.mesh(data.flatten(), *data.shape[:3])
-      for obj_id in self._mesher.ids():
+      mesher.mesh(data.flatten(), *data.shape[:3])
+      for obj_id in mesher.ids():
+        content = self._create_mesh(mesher, obj_id)
         storage.put_file(
           file_path='{}/{}:{}:{}'.format(self._mesh_dir, obj_id, self.lod, self._bounds.to_filename()),
-          content=self._create_mesh(obj_id),
+          content=content,
           compress=True,
+          cache_control='no-cache',
         )
 
-  def _create_mesh(self, obj_id):
-    mesh = self._mesher.get_mesh(obj_id, 
+  def _create_mesh(self, mesher, obj_id):
+    mesh = mesher.get_mesh(obj_id, 
       simplification_factor=self.simplification_factor, 
       max_simplification_error=self.max_simplification_error
     )

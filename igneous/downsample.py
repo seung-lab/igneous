@@ -14,7 +14,8 @@
 
 from __future__ import division
 
-from builtins import range
+from six.moves import range
+from itertools import combinations
 from functools import reduce
 
 import math
@@ -156,12 +157,26 @@ def downsample_segmentation(data, factor):
   if np.all(np.array(factor, int) == 1):
       return data
 
+  if data.dtype.kind not in ('u', 'i'): # integer types
+    return downsample_with_striding(data, tuple(factor))
+
   is_pot = lambda x: (x != 0) and not (x & (x - 1)) # is power of two
   is_twod_pot_downsample = np.any(factor == 1) and is_pot(reduce(operator.mul, factor))
-  
+  is_threed_pot_downsample = not np.any(factor == 1) and is_pot(reduce(operator.mul, factor)) 
+
+  shape3d = np.array(data.shape[:3])
+  modulo_shape = shape3d % 2
+  # it's possible to write a 3d even to odd to make this 
+  # work for all data shapes.
+  if is_threed_pot_downsample and sum(modulo_shape) == 0: # power of two downsample on an even shape
+    return downsample_segmentation(countless3d(data), factor / 2)
+
   if not is_twod_pot_downsample:
     return downsample_with_striding(data, tuple(factor))
 
+  return downsample_segmentation_2d(data, factor)
+
+def downsample_segmentation_2d(data, factor):
   preserved_axis = np.where(factor == 1)[0][0] # e.g. 0, 1, 2
 
   shape3d = np.array(data.shape[:3])
@@ -184,7 +199,7 @@ def downsample_segmentation(data, factor):
     dtype=data.dtype
   )
   for z in range(data.shape[2]):
-    output[:,:,z,:] = downsample_segmentation_2D_4x(data[:,:,z,:])
+    output[:,:,z,:] = countless2d(data[:,:,z,:])
   
   factor = factor / 2
   factor[preserved_axis] = 1
@@ -193,9 +208,16 @@ def downsample_segmentation(data, factor):
   
   return downsample_segmentation(output, factor)
 
-def downsample_segmentation_2D_4x(data):
-  """Vectorized implementation of downsampling a 2D 
-  image by 2 on each side using the COUNTLESS algorithm."""
+def countless2d(data):
+  """
+  Vectorized implementation of downsampling a 2D labeled
+  image by 2 on each side using the COUNTLESS algorithm.
+
+  countless2d is slightly faster and more memory efficent than the
+  generalized algorithm countless.
+
+  c.f. https://towardsdatascience.com/countless-high-performance-2x-downsampling-of-labeled-images-using-python-and-numpy-e70ad3275589
+  """
   sections = []
 
   # allows us to prevent losing 1/2 a bit of information 
@@ -228,6 +250,77 @@ def downsample_segmentation_2D_4x(data):
   data -= 1 
 
   return result
+
+def countless3d(data):
+  """return downsampled 2x2x2 data"""
+  return countless(data, (2,2,2))
+
+def countless(data, factor):
+  """
+  countless downsamples labeled images (segmentations)
+  by finding the mode using vectorized instructions.
+
+  It is ill advised to use this O(2^N-1) time algorithm
+  and O(NCN/2) space for N > about 16 tops. 
+  This means it's useful for the following kinds 
+  of downsampling.
+
+  This could be implemented for higher performance in
+  C/Cython more simply, but at least this is easily
+  portable.
+
+  2x2x1 (N=4), 2x2x2 (N=8), 4x4x1 (N=16), 3x2x1 (N=6)
+  and various other configurations of a similar nature.
+
+  c.f. https://medium.com/@willsilversmith/countless-3d-vectorized-2x-downsampling-of-labeled-volume-images-using-python-and-numpy-59d686c2f75
+
+  """
+  sections = []
+
+  mode_of = reduce(lambda x,y: x * y, factor)
+  majority = int(math.ceil(float(mode_of) / 2))
+
+  data += 1 # offset from zero
+  
+  for offset in np.ndindex(factor):
+    part = data[tuple(np.s_[o::f] for o, f in zip(offset, factor))]
+    sections.append(part)
+
+  pick = lambda a,b: a * (a == b)
+  lor = lambda x,y: x + (x == 0) * y # logical or
+
+  subproblems = [ {}, {} ]
+  results2 = None
+  for x,y in combinations(range(len(sections) - 1), 2):
+    res = pick(sections[x], sections[y])
+    subproblems[0][(x,y)] = res
+    if results2 is not None:
+      results2 = lor(results2, res)
+    else:
+      results2 = res
+
+  results = [ results2 ]
+  for r in range(3, majority+1):
+    r_results = None
+    for combo in combinations(range(len(sections)), r):
+      res = pick(subproblems[0][combo[:-1]], sections[combo[-1]])
+      
+      if combo[-1] != len(sections) - 1:
+        subproblems[1][combo] = res
+
+      if r_results is not None:
+        r_results = lor(r_results, res)
+      else:
+        r_results = res
+    results.append(r_results)
+    subproblems[0] = subproblems[1]
+    subproblems[1] = {}
+    
+  results.reverse()
+  final_result = lor(reduce(lor, results), sections[-1]) - 1
+  data -= 1
+  return final_result
+
 
 def upgrade_type(arr):
   dtype = arr.dtype

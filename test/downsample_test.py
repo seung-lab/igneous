@@ -1,4 +1,5 @@
-from builtins import range
+from six.moves import range
+from copy import deepcopy
 import numpy as np
 
 from igneous import downsample
@@ -120,7 +121,7 @@ def test_downsample_segmentation_4x_z():
 
   is_255_handled = np.array([ [ 255, 255 ], [ 1, 2 ] ], dtype=np.uint8).reshape((2,2,1,1))
 
-  test = lambda case: downsample.downsample_segmentation_2D_4x(case)[0][0][0][0]
+  test = lambda case: downsample.countless2d(case)[0][0][0][0]
 
   assert test(case1) == 3 # d
   assert test(case2) == 0 # a==b
@@ -130,7 +131,7 @@ def test_downsample_segmentation_4x_z():
 
   assert test(is_255_handled) == 255 
 
-  assert downsample.downsample_segmentation_2D_4x(case1).dtype == case1.dtype
+  assert downsample.countless2d(case1).dtype == case1.dtype
 
   #  0 0 1 3 
   #  1 1 6 3  => 1 3
@@ -306,3 +307,109 @@ def test_downsample_max_pooling():
 
   assert np.all(result == answer)
 
+def test_countless3d():
+  def test_all_cases(fn):
+    alldifferent = [
+      [
+        [1,2],
+        [3,4],
+      ],
+      [
+        [5,6],
+        [7,8]
+      ]
+    ]
+    allsame = [
+      [
+        [1,1],
+        [1,1],
+      ],
+      [
+        [1,1],
+        [1,1]
+      ]
+    ]
+
+    assert fn(np.array(alldifferent)) == [[[8]]]
+    assert fn(np.array(allsame)) == [[[1]]]
+
+    twosame = deepcopy(alldifferent)
+    twosame[1][1][0] = 2
+
+    assert fn(np.array(twosame)) == [[[2]]]
+
+    threemixed = [
+      [
+        [3,3],
+        [1,2],
+      ],
+      [
+        [2,4],
+        [4,3]
+      ]
+    ]
+    assert fn(np.array(threemixed)) == [[[3]]]
+
+    foursame = [
+      [
+        [4,4],
+        [1,2],
+      ],
+      [
+        [2,4],
+        [4,3]
+      ]
+    ]
+
+    assert fn(np.array(foursame)) == [[[4]]]
+
+    fivesame = [
+      [
+        [5,4],
+        [5,5],
+      ],
+      [
+        [2,4],
+        [5,5]
+      ]
+    ]
+
+    assert fn(np.array(fivesame)) == [[[5]]]
+
+
+  test_all_cases(downsample.countless3d)
+  test_all_cases(lambda case: downsample.downsample_segmentation(case, (2,2,2)))
+
+  odddimension = np.array([
+    [
+      [5,4],
+      [5,5],
+    ],
+    [
+      [2,4],
+      [5,5]
+    ],
+    [
+      [2,4],
+      [5,5]
+    ]
+  ])
+
+  # this should use striding
+  res = downsample.downsample_segmentation(odddimension, (2,2,2))
+  assert res.shape == (2, 1, 1)
+
+  odddimension = np.array([
+    [
+      [5,4],
+      [5,5],
+    ],
+    [
+      [2,4],
+      [5,5]
+    ]
+  ], dtype=np.float32)
+  # this should use striding
+  res = downsample.downsample_segmentation(odddimension, (2,2,2))
+  assert res.dtype == np.float32
+  assert res.shape == (1, 1, 1)

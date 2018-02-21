@@ -193,8 +193,6 @@ class MeshTask(RegisteredTask):
     self.max_simplification_error = max_simplification_error
 
   def execute(self):
-    self._mesher = Mesher()
-
     self._volume = CloudVolume(self.layer_path, self.mip, bounded=False)
     self._bounds = Bbox( self.offset, self.shape + self.offset )
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
@@ -219,36 +217,30 @@ class MeshTask(RegisteredTask):
     self._compute_meshes()
 
   def _do_renumber(self, data):
-    # uniques = np.unique(data)
-    # data = data.copy()
-
+    uniques = np.unique(data)
     self._renumber = {}
 
-    # # print(data)
-    # i = 1
-    # for val in uniques:
-    #   if val == 0:
-    #     self._renumber[0] = 0
-    #   else:
-    #     self._renumber[i] = val
-    #     data[ data == val ] = i
+    i = 1
+    for val in uniques:
+      if val == 0:
+        self._renumber[0] = 0
+      else:
+        self._renumber[i] = val
+        data[ data == val ] = i
+        i += 1
 
-    # data = data.astype(np.uint32)
-    mesher = Mesher64()
-
-    # print(data)
-    # if len(uniques) < 2**8:
-    #     data = data.astype(np.uint8)
-    #     mesher = Mesher8()
-    # elif len(uniques) < 2**16:
-    #     data = data.astype(np.uint16)
-    #     mesher = Mesher16()
-    # if len(uniques) < 2**32:
-    #     data = data.astype(np.uint32)
-    #     mesher = Mesher32()
-    # else:
-    #     data = data.astype(np.uint64)
-    #     mesher = Mesher64()
+    if len(uniques) < 2**8:
+        data = data.astype(np.uint8)
+        mesher = Mesher8()
+    elif len(uniques) < 2**16:
+        data = data.astype(np.uint16)
+        mesher = Mesher16()
+    elif len(uniques) < 2**32:
+        data = data.astype(np.uint32)
+        mesher = Mesher32()
+    else:
+        data = data.astype(np.uint64)
+        mesher = Mesher64()
 
     return data, mesher
 
@@ -261,7 +253,7 @@ class MeshTask(RegisteredTask):
       for obj_id in mesher.ids():
         content = self._create_mesh(mesher, obj_id)
         storage.put_file(
-          file_path='{}/{}:{}:{}'.format(self._mesh_dir, obj_id, self.lod, self._bounds.to_filename()),
+          file_path='{}/{}:{}:{}'.format(self._mesh_dir, self._renumber[obj_id], self.lod, self._bounds.to_filename()),
           content=content,
           compress=True,
           cache_control='no-cache',

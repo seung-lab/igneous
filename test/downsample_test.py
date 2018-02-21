@@ -62,11 +62,11 @@ image4x4x4 = np.array([
   ], 
 ])
 
-def test_even_odd():
-  evenimg = downsample.odd_to_even(image2x2x2)
+def test_even_odd2d():
+  evenimg = downsample.odd_to_even2d(image2x2x2)
   assert np.array_equal(evenimg, image2x2x2)
 
-  oddimg = downsample.odd_to_even(image1x1x1).astype(int)
+  oddimg = downsample.odd_to_even2d(image1x1x1).astype(int)
   
   ans1x1x1 = np.array([
     [
@@ -81,7 +81,7 @@ def test_even_odd():
 
   assert np.array_equal(oddimg, ans1x1x1)
 
-  oddimg = downsample.odd_to_even(image3x3x3)
+  oddimg = downsample.odd_to_even2d(image3x3x3)
 
   ans3x3x3 = np.array([
     [

@@ -43,7 +43,7 @@ def validate_factor(array, factor):
 
   return tuple(factor)
 
-def odd_to_even(image):
+def odd_to_even2d(image):
   """
   To facilitate 2x2 downsampling segmentation, change an odd sized image into an even sized one.
   Works by mirroring the starting 1 pixel edge of the image on odd shaped sides.
@@ -140,14 +140,32 @@ def downsample_with_max_pooling(array, factor):
 
 def downsample_segmentation(data, factor):
   """
-  Downsample by picking the most frequent value within a
-  2x2 square for each 2D image within a 3D stack if factor
-  is specified such that a power of two downsampling is possible.
+  Downsampling machine labels requires choosing an actual
+  pixel, not a linear combination (or otherwise) of the
+  values contained within.
 
-  Otherwise, downsample by striding.
+  Striding is the default choice for such situations, it is fast.
+  However, a fairer way to do this is to pick the most frequent
+  pixel in a patch. 
+
+  Towards this end, the countless2d algorithm handles picking
+  the most frequent pixel in 2^Nx2^Nx1 downsampling, while countless3d
+  handles the 2^Nx2^Nx2^N case. Other factors (and non-integer datatypes)
+  are handled by striding.
+
+  countless2d & 3d both perform a 2x2 and 2x2x2 downsample, the higher power
+  of two factors are handled by recursive calculation (so only the first
+  downsample is fully accurate in the sense of being the mode).
 
   If factor has fewer parameters than data.shape, the remainder
   are assumed to be 1.
+
+  Required:
+    data: A 3d or 4d numpy array representing a segmentation image.
+    factor: a tuple of downsample factors. Commonly: (2,2,1) to achieve
+      a planar downsampling of 2x2 that preserves Z.
+
+  Returns: a downsampled numpy array
   """
   if len(factor) == 4:
     assert factor[3] == 1 
@@ -177,6 +195,11 @@ def downsample_segmentation(data, factor):
   return downsample_segmentation_2d(data, factor)
 
 def downsample_segmentation_2d(data, factor):
+  """
+  Call countless2d but manage the image to make it work
+  for both even and odd sided images. Swap axes to enable
+  alternate axis downsampling.
+  """
   preserved_axis = np.where(factor == 1)[0][0] # e.g. 0, 1, 2
 
   shape3d = np.array(data.shape[:3])
@@ -191,7 +214,7 @@ def downsample_segmentation_2d(data, factor):
   data = np.swapaxes(data, preserved_axis, 2)
 
   if not has_even_dims:
-    data = odd_to_even(data)
+    data = odd_to_even2d(data)
     shape3d = np.array(data.shape[:3])
 
   output = np.zeros(
@@ -252,7 +275,10 @@ def countless2d(data):
   return result
 
 def countless3d(data):
-  """return downsampled 2x2x2 data"""
+  """return downsampled 2x2x2 data for even sided images."""
+  modshape = np.array(data.shape) % 2
+  assert sum(modshape) == 0, "COUNTLESS 3D currently only supports even sided images." # someone has to write even_to_odd3d
+
   return countless(data, (2,2,2))
 
 def countless(data, factor):

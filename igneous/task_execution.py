@@ -1,7 +1,8 @@
 import multiprocessing as mp
+import random
 import signal
 import sys
-from time import sleep
+import time
 import traceback
 
 import click
@@ -46,22 +47,34 @@ def command(tag, m, queue, server):
     pool.join()
 
 
+def random_exponential_window_backoff(n):
+  n = min(n, 30)
+  # 120 sec max b/c on avg a request every ~250msec if 500 containers 
+  # in contention which seems like a quite reasonable volume of traffic 
+  # to handle
+  high = min(2 ** n, 120) 
+  return random.uniform(0, high)
+
+
 def execute(tag, queue, server):
   tq = TaskQueue(queue_name=queue, queue_server=server, n_threads=0)
 
   print("Pulling from {}://{}".format(server, queue))
 
+  tries = 0
   with tq:
     while LOOP:
       task = 'unknown'
       try:
         task = tq.lease(tag)
+        tries += 1
         print(task)
         task.execute()
         tq.delete(task)
         logger.log('INFO', task , "succesfully executed")
+        tries = 0
       except TaskQueue.QueueEmpty:
-        sleep(1)
+        time.sleep(random_exponential_window_backoff(tries))
         continue
       except EmptyVolumeException:
         logger.log('WARNING', task, "raised an EmptyVolumeException")
@@ -69,6 +82,7 @@ def execute(tag, queue, server):
       except Exception as e:
         logger.log('ERROR', task, "raised {}\n {}".format(e , traceback.format_exc()))
         raise #this will restart the container in kubernetes
+
 
 if __name__ == '__main__':
   command()

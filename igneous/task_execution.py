@@ -11,7 +11,7 @@ from taskqueue import TaskQueue
 from igneous import EmptyVolumeException
 from igneous import logger
 
-from igneous.secrets import QUEUE_NAME, QUEUE_TYPE
+from igneous.secrets import QUEUE_NAME, QUEUE_TYPE, SQS_URL
 
 LOOP = True
 
@@ -27,9 +27,10 @@ signal.signal(signal.SIGINT, handler)
 @click.option('-m', default=False,  help='Run in parallel.', is_flag=True)
 @click.option('--queue', default=QUEUE_NAME,  help='Name of pull queue to use.')
 @click.option('--server', default=QUEUE_TYPE,  help='Which queue server to use. (appengine or pull-queue)')
-def command(tag, m, queue, server):
+@click.option('--qurl', default=SQS_URL,  help='SQS Queue URL if using SQS')
+def command(tag, m, queue, server, qurl):
   if not m:
-    execute(tag, queue, server)
+    execute(tag, queue, server, qurl)
     return 
 
   # if multiprocessing
@@ -38,7 +39,7 @@ def command(tag, m, queue, server):
   print("Running %s threads of execution." % proc)
   try:
     for _ in range(proc):
-      pool.apply_async(execute, (tag, queue, server))
+      pool.apply_async(execute, (tag, queue, server, qurl))
     pool.close()
     pool.join()
   except KeyboardInterrupt:
@@ -56,8 +57,8 @@ def random_exponential_window_backoff(n):
   return random.uniform(0, high)
 
 
-def execute(tag, queue, server):
-  tq = TaskQueue(queue_name=queue, queue_server=server, n_threads=0)
+def execute(tag, queue, server, qurl):
+  tq = TaskQueue(queue_name=queue, queue_server=server, n_threads=0, qurl=qurl)
 
   print("Pulling from {}://{}".format(server, queue))
 
@@ -66,7 +67,7 @@ def execute(tag, queue, server):
     while LOOP:
       task = 'unknown'
       try:
-        task = tq.lease(tag)
+        task = tq.lease(tag=tag)
         tries += 1
         print(task)
         task.execute()

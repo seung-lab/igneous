@@ -14,7 +14,7 @@ from cloudvolume.secrets import (
 QUEUE_NAME = 'pull-queue' if 'PIPELINE_USER_QUEUE' not in os.environ else os.environ['PIPELINE_USER_QUEUE']
 TEST_QUEUE_NAME = 'test-pull-queue' if 'TEST_PIPELINE_USER_QUEUE' not in os.environ else os.environ['TEST_PIPELINE_USER_QUEUE']
 QUEUE_TYPE = 'pull-queue' if 'QUEUE_TYPE' not in os.environ else os.environ['QUEUE_TYPE']
-SQS_URL = None if 'SQS_URL' not in os.environ else os.environ['QUEUE_TYPE']
+SQS_URL = None if 'SQS_URL' not in os.environ else os.environ['SQS_URL']
 PROJECT_NAME = 'neuromancer-seung-import'
 APPENGINE_QUEUE_URL = 'https://queue-dot-neuromancer-seung-import.appspot.com'
 

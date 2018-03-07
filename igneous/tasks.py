@@ -548,7 +548,7 @@ class HyperSquareConsensusTask(RegisteredTask):
     srcvol = CloudVolume(self.src_path, fill_missing=True)
     destvol = CloudVolume(self.dest_path)
 
-    consensus = cache(self, self.consensus_map_path)
+    consensus = cache(self, self.consensus_map_path).decode('utf8')
     consensus = json.loads(consensus)
     try:
       consensus = consensus[str(self.ew_volume_id)]

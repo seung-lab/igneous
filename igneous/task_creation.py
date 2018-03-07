@@ -420,7 +420,7 @@ def create_hypersquare_ingest_tasks(task_queue, hypersquare_bucket_name, dataset
     # seg_task.execute()
     tq.insert(seg_task)
 
-def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_map_file, consensus_map_path, shape):
+def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_map_file, consensus_map_path):
   """
   Transfer an Eyewire consensus into neuroglancer. This first requires
   importing the raw segmentation via a hypersquare ingest task. However,
@@ -435,11 +435,13 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
 
   with open(volume_map_file, 'r') as f:
     volume_map = json.loads(f.read())
+    
+  vol = CloudVolume(dest_path)
 
-  create_downsample_scales(dest_path, mip=0, ds_shape=shape)
-
-  for boundstr, volume_id in tqdm(volume_map.iteritems(), desc="Inserting HyperSquare Consensus Remap Tasks"):
+  for boundstr, volume_id in tqdm(volume_map.items(), desc="Inserting HyperSquare Consensus Remap Tasks"):
     bbox = Bbox.from_filename(boundstr)
+    bbox.minpt = Vec.clamp(bbox.minpt, vol.bounds.minpt, vol.bounds.maxpt)
+    bbox.maxpt = Vec.clamp(bbox.maxpt, vol.bounds.minpt, vol.bounds.maxpt)
 
     task = HyperSquareConsensusTask(
       src_path=src_path,

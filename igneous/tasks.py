@@ -563,9 +563,9 @@ class HyperSquareConsensusTask(RegisteredTask):
     except ValueError:
       print("Skipping", bounds)
       zeroshape = list(bounds.size3()) + [ srcvol.num_channels ]
-      image = np.zeros(shape=zeroshape, dtype=np.uint32)
+      image = np.zeros(shape=zeroshape, dtype=destvol.dtype)
 
-    image = image.astype(np.uint32)
+    image = image.astype(destvol.dtype)
 
     # Merge equivalent segments, non-consensus segments are black
     consensus_image = segidmap[ image ] 
@@ -585,7 +585,7 @@ class HyperSquareConsensusTask(RegisteredTask):
     destvol[ bounds.to_slices() ] = final_image
 
   def build_segid_map(self, consensus):
-    segidmap = np.zeros(shape=(2 ** 16), dtype=np.uint32)
+    segidmap = np.zeros(shape=(2 ** 16), dtype=np.uint64)
 
     for cellid in consensus:
       for segid in consensus[cellid]:

@@ -135,12 +135,13 @@ class DeleteTask(RegisteredTask):
   def execute(self):
     vol = CloudVolume(self.layer_path)
 
-    bbox = Bbox( self.offset, self.offset + self.shape )
+    highres_bbox = Bbox( self.offset, self.offset + self.shape )
 
     for mip in vol.available_mips:
       vol.mip = mip
-      slices = vol.slices_from_global_coords(bbox.to_slices())
-      vol.delete(slices)
+      slices = vol.slices_from_global_coords(highres_bbox.to_slices())
+      bbox = Bbox.from_slices(slices).round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)
+      vol.delete(bbox)
 
 
 class DownsampleTask(RegisteredTask):

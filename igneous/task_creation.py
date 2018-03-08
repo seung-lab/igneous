@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from builtins import range
+from six.moves import range
 from itertools import product
 from functools import reduce
 
@@ -22,7 +22,7 @@ from igneous import downsample_scales, chunks
 from igneous.tasks import (
   IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
-  TransferTask, WatershedRemapTask
+  TransferTask, WatershedRemapTask, DeleteTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -165,6 +165,18 @@ def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   })
   vol.commit_provenance()
+
+def create_deletion_tasks(task_queue, layer_path):
+  vol = CloudVolume(layer_path)
+  shape = vol.underlying * 4
+  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks"):
+    task = DeleteTask(
+      layer_path=layer_path,
+      shape=shape.clone(),
+      offset=startpt.clone(),
+    )
+    task_queue.insert(task)
+  task_queue.wait('Uploading DeleteTasks')
 
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
   shape = Vec(*shape)

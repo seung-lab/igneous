@@ -11,7 +11,7 @@ from taskqueue import TaskQueue
 from igneous import EmptyVolumeException
 from igneous import logger
 
-from igneous.secrets import QUEUE_NAME, QUEUE_TYPE, SQS_URL
+from igneous.secrets import QUEUE_NAME, QUEUE_TYPE, SQS_URL, LEASE_SECONDS
 
 LOOP = True
 
@@ -67,7 +67,7 @@ def execute(tag, queue, server, qurl):
     while LOOP:
       task = 'unknown'
       try:
-        task = tq.lease(tag=tag)
+        task = tq.lease(tag=tag, seconds=LEASE_SECONDS)
         tries += 1
         print(task)
         task.execute()

@@ -67,7 +67,7 @@ def execute(tag, queue, server, qurl):
     while LOOP:
       task = 'unknown'
       try:
-        task = tq.lease(tag=tag, seconds=LEASE_SECONDS)
+        task = tq.lease(tag=tag, seconds=int(LEASE_SECONDS))
         tries += 1
         print(task)
         task.execute()

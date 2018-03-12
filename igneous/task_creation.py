@@ -225,7 +225,7 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec
       'task': 'TransferTask',
       'src': src_layer_path,
       'dest': dest_layer_path,
-      'shape': list(shape),
+      'shape': list(map(int, shape)),
     },
     'by': 'ws9@princeton.edu',
     'date': strftime('%Y-%m-%d %H:%M %Z'),

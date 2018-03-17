@@ -135,12 +135,13 @@ class DeleteTask(RegisteredTask):
   def execute(self):
     vol = CloudVolume(self.layer_path)
 
-    bbox = Bbox( self.offset, self.offset + self.shape )
+    highres_bbox = Bbox( self.offset, self.offset + self.shape )
 
     for mip in vol.available_mips:
       vol.mip = mip
-      slices = vol.slices_from_global_coords(bbox.to_slices())
-      vol.delete(slices)
+      slices = vol.slices_from_global_coords(highres_bbox.to_slices())
+      bbox = Bbox.from_slices(slices).round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)
+      vol.delete(bbox)
 
 
 class DownsampleTask(RegisteredTask):
@@ -548,7 +549,7 @@ class HyperSquareConsensusTask(RegisteredTask):
     srcvol = CloudVolume(self.src_path, fill_missing=True)
     destvol = CloudVolume(self.dest_path)
 
-    consensus = cache(self, self.consensus_map_path)
+    consensus = cache(self, self.consensus_map_path).decode('utf8')
     consensus = json.loads(consensus)
     try:
       consensus = consensus[str(self.ew_volume_id)]
@@ -563,9 +564,9 @@ class HyperSquareConsensusTask(RegisteredTask):
     except ValueError:
       print("Skipping", bounds)
       zeroshape = list(bounds.size3()) + [ srcvol.num_channels ]
-      image = np.zeros(shape=zeroshape, dtype=np.uint32)
+      image = np.zeros(shape=zeroshape, dtype=destvol.dtype)
 
-    image = image.astype(np.uint32)
+    image = image.astype(destvol.dtype)
 
     # Merge equivalent segments, non-consensus segments are black
     consensus_image = segidmap[ image ] 
@@ -585,7 +586,7 @@ class HyperSquareConsensusTask(RegisteredTask):
     destvol[ bounds.to_slices() ] = final_image
 
   def build_segid_map(self, consensus):
-    segidmap = np.zeros(shape=(2 ** 16), dtype=np.uint32)
+    segidmap = np.zeros(shape=(2 ** 16), dtype=np.uint64)
 
     for cellid in consensus:
       for segid in consensus[cellid]:

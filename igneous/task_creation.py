@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from builtins import range
+from six.moves import range
 from itertools import product
 from functools import reduce
 
@@ -22,7 +22,7 @@ from igneous import downsample_scales, chunks
 from igneous.tasks import (
   IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
-  TransferTask, WatershedRemapTask
+  TransferTask, WatershedRemapTask, DeleteTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -166,6 +166,18 @@ def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False
   })
   vol.commit_provenance()
 
+def create_deletion_tasks(task_queue, layer_path):
+  vol = CloudVolume(layer_path)
+  shape = vol.underlying * 4
+  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks"):
+    task = DeleteTask(
+      layer_path=layer_path,
+      shape=shape.clone(),
+      offset=startpt.clone(),
+    )
+    task_queue.insert(task)
+  task_queue.wait('Uploading DeleteTasks')
+
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
   shape = Vec(*shape)
   max_simplification_error = 40
@@ -213,7 +225,7 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec
       'task': 'TransferTask',
       'src': src_layer_path,
       'dest': dest_layer_path,
-      'shape': list(shape),
+      'shape': list(map(int, shape)),
     },
     'by': 'ws9@princeton.edu',
     'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -420,7 +432,7 @@ def create_hypersquare_ingest_tasks(task_queue, hypersquare_bucket_name, dataset
     # seg_task.execute()
     tq.insert(seg_task)
 
-def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_map_file, consensus_map_path, shape):
+def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_map_file, consensus_map_path):
   """
   Transfer an Eyewire consensus into neuroglancer. This first requires
   importing the raw segmentation via a hypersquare ingest task. However,
@@ -435,11 +447,13 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
 
   with open(volume_map_file, 'r') as f:
     volume_map = json.loads(f.read())
+    
+  vol = CloudVolume(dest_path)
 
-  create_downsample_scales(dest_path, mip=0, ds_shape=shape)
-
-  for boundstr, volume_id in tqdm(volume_map.iteritems(), desc="Inserting HyperSquare Consensus Remap Tasks"):
+  for boundstr, volume_id in tqdm(volume_map.items(), desc="Inserting HyperSquare Consensus Remap Tasks"):
     bbox = Bbox.from_filename(boundstr)
+    bbox.minpt = Vec.clamp(bbox.minpt, vol.bounds.minpt, vol.bounds.maxpt)
+    bbox.maxpt = Vec.clamp(bbox.maxpt, vol.bounds.minpt, vol.bounds.maxpt)
 
     task = HyperSquareConsensusTask(
       src_path=src_path,

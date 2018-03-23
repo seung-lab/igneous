@@ -492,46 +492,8 @@ def cascade(tq, fnlist):
 
 
 if __name__ == '__main__':  
-  with TaskQueue(queue_name='wms-pull-queue', queue_server='appengine') as task_queue:
-    mesh_set = 'gs://neuroglancer/ranl/flyem_agglomeration_test'
-    cascade(task_queue, [
-      lambda tq: create_meshing_tasks(tq, mesh_set, mip=3),
-      lambda tq: create_mesh_manifest_tasks(tq, mesh_set),
-    ])
-
-    # create_downsampling_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_agglomeration_test', mip=0, fill_missing=True, preserve_chunk_size=False)
-    # create_meshing_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1', mip=3)
-
-    # create_mesh_manifest_tasks(task_queue, 'gs://neuroglancer/ranl/flyem_watershed_1')
-
-    # create_watershed_remap_tasks(task_queue, map_path, src_path, dest_path)
-
-    # create_hypersquare_consensus_tasks(task_queue,
-    #   src_path='gs://neuroglancer/zfish_v0/segmentation/',
-    #   dest_path='gs://neuroglancer/zfish_v0/consensus-2017-07-11',
-    #   volume_map_file='/Users/wms/Desktop/zfish_volumes.json',
-    #   consensus_map_path='gs://neuroglancer/zfish_v0/consensus-2017-07-11/zfish_consensus.json',
-    #   shape=(896, 896, 56),
-    # )
-
-    # create_boss_transfer_tasks(task_queue, 
-    #   src_layer_path='boss://BCMID_8973_AIBSID_243774/neuroanatomical_aibs_pu_dataset/neuroanatomical_aibs_pu_dataset_channel',
-    #   dest_layer_path='gs://neuroglancer/pinky100_v0/image',
-    #   shape=Vec(1024,1024,64),
-    # )
-
-    # create_quantized_affinity_tasks(task_queue,
-    #   src_layer='gs://neuroglancer/zfish_v1/affinitymap',
-    #   dest_layer='gs://neuroglancer/zfish_v1/qaffinitymap-x',
-    #   shape=(2048, 2048, 64),
-    #   fill_missing=True,
-    # )
-
-    # create_transfer_tasks(task_queue,
-    #   src_layer_path='gs://neuroglancer/drosophila_v0/image_v14', 
-    #   dest_layer_path='gs://neuroglancer/drosophila_v0/image_v14_single_slices',
-    #   fill_missing=True,
-    #   translate=[0, 0, 0],
-    # )
+  with MockTaskQueue() as task_queue:
+    pass
+   
 
 

@@ -121,8 +121,8 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
     vol.add_scale(scale)
 
   if preserve_chunk_size:
-    for i in range(1, len(vol.scales)):
-      vol.scales[i]['chunk_sizes'] = vol.scales[0]['chunk_sizes']
+    for i in range(mip + 1, mip + len(scales) + 1):
+      vol.scales[i]['chunk_sizes'] = vol.scales[mip]['chunk_sizes']
 
   return vol.commit_info()
 
@@ -226,6 +226,8 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec
       'src': src_layer_path,
       'dest': dest_layer_path,
       'shape': list(map(int, shape)),
+      'fill_missing': fill_missing,
+      'translate': list(map(int, translate)),
     },
     'by': 'ws9@princeton.edu',
     'date': strftime('%Y-%m-%d %H:%M %Z'),

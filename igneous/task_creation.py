@@ -26,6 +26,8 @@ from igneous.tasks import (
 )
 # from igneous.tasks import BigArrayTask
 
+USER_EMAIL = 'ws9@princeton.edu' # for provenance files
+
 def create_ingest_task(storage, task_queue):
     """
     Creates one task for each ingest chunk present in the build folder.
@@ -161,7 +163,7 @@ def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False
       'axis': axis,
       'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
     },
-    'by': 'ws9@princeton.edu',
+    'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   })
   vol.commit_provenance()
@@ -229,7 +231,7 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec
       'fill_missing': fill_missing,
       'translate': list(map(int, translate)),
     },
-    'by': 'ws9@princeton.edu',
+    'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   dvol.commit_provenance()
@@ -277,7 +279,7 @@ def create_watershed_remap_tasks(task_queue, map_path, src_layer_path, dest_laye
       'remap_file': map_path,
       'shape': list(shape),
     },
-    'by': 'ws9@princeton.edu',
+    'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   dvol.commit_provenance()

@@ -170,8 +170,10 @@ def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False
 
 def create_deletion_tasks(task_queue, layer_path):
   vol = CloudVolume(layer_path)
-  shape = vol.underlying * 4
+  shape = vol.underlying * 10
+
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks"):
+    shape = min2(shape, vol.bounds.maxpt - startpt)
     task = DeleteTask(
       layer_path=layer_path,
       shape=shape.clone(),

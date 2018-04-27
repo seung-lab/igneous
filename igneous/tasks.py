@@ -638,7 +638,7 @@ class LuminanceLevelsTask(RegisteredTask):
     levels_path = os.path.join(self.src_path, 'levels')
     with Storage(levels_path, n_threads=0) as stor:
       stor.put_file(
-        file_path=str(self.offset.z), 
+        file_path="{}/{}".format(self.mip, self.offset.z), 
         content=json.dumps(output), 
         content_type='application/json', 
         cache_control='no-cache'

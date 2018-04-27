@@ -22,7 +22,7 @@ from igneous import downsample_scales, chunks
 from igneous.tasks import (
   IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
-  TransferTask, WatershedRemapTask, DeleteTask
+  TransferTask, WatershedRemapTask, DeleteTask, LuminanceLevelsTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -237,6 +237,41 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   dvol.commit_provenance()
+
+def create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0):
+  vol = CloudVolume(layer_path)
+
+  if shape == None:
+    shape = vol.shape.clone()
+    shape.z = 1
+
+  offset = Vec(*offset)
+
+  for z in range(vol.bounds.minpt.z, vol.bounds.maxpt.z + 1):
+    offset.z = z
+    task = LuminanceLevelsTask( 
+      src_path=layer_path, 
+      shape=shape, 
+      offset=offset, 
+      coverage_factor=coverage_factor,
+      mip=mip,
+    )
+    task_queue.insert(task)
+  task_queue.wait('Uploading Luminance Levels Tasks')
+
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'LuminanceLevelsTask',
+      'src': layer_path,
+      'shape': Vec(*shape).tolist(),
+      'offset': Vec(*offset).tolist(),
+      'coverage_factor': coverage_factor,
+      'mip': mip,
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  vol.commit_provenance()
 
 def create_boss_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec(1024, 1024, 64)):
   # Note: Weird errors with datatype changing to float64 when requesting 2048,2048,64

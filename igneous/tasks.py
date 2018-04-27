@@ -10,7 +10,9 @@ except ImportError:
 import io
 import itertools
 import json
+import math
 import os
+import random
 import re
 from tempfile import NamedTemporaryFile
 
@@ -136,7 +138,6 @@ class DeleteTask(RegisteredTask):
     vol = CloudVolume(self.layer_path)
 
     highres_bbox = Bbox( self.offset, self.offset + self.shape )
-
     for mip in vol.available_mips:
       vol.mip = mip
       slices = vol.slices_from_global_coords(highres_bbox.to_slices())
@@ -594,6 +595,84 @@ class HyperSquareConsensusTask(RegisteredTask):
 
     return segidmap
 
+class LuminanceLevelsTask(RegisteredTask):
+  def __init__(self, src_path, shape, offset, coverage_factor, mip):
+    super(self.__class__, self).__init__(src_path, shape, offset, coverage_factor, mip)
+    self.src_path = src_path
+    self.shape = Vec(*shape)
+    self.offset = Vec(*offset)
+    self.coverage_factor = coverage_factor
+    self.mip = int(mip)
+
+    assert 0 < coverage_factor <= 1, "Coverage Factor must be between 0 and 1"
+
+  def execute(self):
+    srccv = CloudVolume(self.src_path, mip=self.mip, fill_missing=True)
+
+    # Accumulate a histogram of the luminance levels
+    nbits = np.dtype(srccv.dtype).itemsize * 8
+    levels = np.zeros(shape=(2 ** nbits,), dtype=np.uint64)
+    
+    bounds = Bbox( self.offset, self.shape[:3] + self.offset )
+    bounds = Bbox.clamp(bounds, srccv.bounds)
+
+    bboxes = self.select_bounding_boxes(bounds)
+    for bbox in bboxes:
+      img2d = srccv[ bbox.to_slices() ].reshape( ( bbox.volume() ) )
+      cts = np.bincount(img2d)
+      levels[ 0:len(cts) ] += cts.astype(np.uint64)
+
+    covered_area = sum([ bbx.volume() for bbx in bboxes ])
+
+    bboxes = [ (bbox.volume(), bbox.size3()) for bbox in bboxes ]
+    bboxes.sort(key=lambda x: x[0])
+    biggest = bboxes[-1][1]
+
+    output = {
+      "levels": levels.tolist(),
+      "patch_size": biggest.tolist(),
+      "num_patches": len(bboxes),
+      "coverage_ratio": covered_area / self.shape.rectVolume(),
+    }
+
+    levels_path = os.path.join(self.src_path, 'levels')
+    with Storage(levels_path, n_threads=0) as stor:
+      stor.put_file(
+        file_path=str(self.offset.z), 
+        content=json.dumps(output), 
+        content_type='application/json', 
+        cache_control='no-cache'
+      )
+
+  def select_bounding_boxes(self, dataset_bounds):
+    # Sample 1024x1024x1 patches until coverage factor is
+    # satisfied. Ensure the patches are non-overlapping and
+    # random.
+    sample_shape = Bbox( (0,0,0), (2048, 2048, 1) )
+    area = self.shape.rectVolume()
+    
+    total_patches = int(math.ceil(area / sample_shape.volume()))
+    N = int(math.ceil(float(total_patches) * self.coverage_factor))
+
+    # Simplification: We are making patch selection against a discrete 
+    # grid instead of a continuous space. This removes the influence of
+    # overlap in a less complex fashion.
+    patch_indicies = set()
+    while len(patch_indicies) < N:
+      ith_patch = random.randint(0, (total_patches - 1))
+      patch_indicies.add(ith_patch)
+
+    gridx = int(math.ceil(self.shape.x / sample_shape.size3().x))
+
+    bboxes = []
+    for i in patch_indicies:
+      patch_start = Vec( i % gridx, i // gridx, 0 )
+      patch_start *= sample_shape.size3()
+      patch_start += self.offset
+      bbox = Bbox( patch_start, patch_start + sample_shape.size3() )
+      bbox = Bbox.clamp(bbox, dataset_bounds)
+      bboxes.append(bbox)
+    return bboxes
 
 class TransferTask(RegisteredTask):
   # translate = change of origin
@@ -612,7 +691,6 @@ class TransferTask(RegisteredTask):
 
     bounds = Bbox( self.offset, self.shape + self.offset )
     bounds = Bbox.clamp(bounds, srccv.bounds)
-    
     image = srccv[ bounds.to_slices() ]
     bounds += self.translate
     downsample_and_upload(image, bounds, destcv, self.shape)

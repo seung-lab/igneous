@@ -22,7 +22,8 @@ from igneous import downsample_scales, chunks
 from igneous.tasks import (
   IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
-  TransferTask, WatershedRemapTask, DeleteTask, LuminanceLevelsTask
+  TransferTask, WatershedRemapTask, DeleteTask, 
+  LuminanceLevelsTask, ContrastNormalizationTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -232,6 +233,58 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec
       'shape': list(map(int, shape)),
       'fill_missing': fill_missing,
       'translate': list(map(int, translate)),
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  dvol.commit_provenance()
+
+def create_contrast_normalization_tasks(task_queue, src_path, dest_path, 
+  shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0)):
+
+  srcvol = CloudVolume(src_path, mip=mip)
+  
+  try:
+    dvol = CloudVolume(dest_path, mip=mip)
+  except Exception: # no info file
+    info = copy.deepcopy(srcvol.info)
+    dvol = CloudVolume(dest_path, mip=mip, info=info)
+    dvol.info['scales'] = dvol.info['scales'][:mip+1]
+    dvol.commit_info()
+
+  if shape == None:
+    shape = Bbox( (0,0,0), (2048, 2048, 64) )
+    shape = shape.shrink_to_chunk_size(dvol.underlying).size3()
+
+  shape = Vec(*shape)
+
+  create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
+  dvol.refresh_info()
+
+  bounds = srcvol.bounds.clone()
+  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Contrast Normalization Tasks"):
+    task = ContrastNormalizationTask( 
+      src_path=src_path, 
+      dest_path=dest_path,
+      shape=shape.clone(), 
+      offset=startpt.clone(), 
+      clip_fraction=clip_fraction,
+      mip=mip,
+      fill_missing=fill_missing,
+      translate=translate,
+    )
+    task_queue.insert(task)
+  task_queue.wait('Uploading Contrast Normalization Tasks')
+
+  dvol.provenance.processing.append({
+    'method': {
+      'task': 'ContrastNormalizationTask',
+      'src_path': src_path,
+      'dest_path': dest_path,
+      'shape': Vec(*shape).tolist(),
+      'clip_fraction': clip_fraction,
+      'mip': mip,
+      'translate': Vec(*translate).tolist(),
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

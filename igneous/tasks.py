@@ -655,13 +655,13 @@ class ContrastNormalizationTask(RegisteredTask):
 
     lower = 0 
     for i, val in enumerate(cdf):
-      if val / total > lowerfract:
+      if float(val) / float(total) > lowerfract:
         break
       lower = i 
 
     upper = 0
     for i, val in enumerate(cdf):
-      if val / total > upperfract:
+      if float(val) / float(total) > upperfract:
         break
       upper = i 
 

@@ -624,10 +624,12 @@ class ContrastNormalizationTask(RegisteredTask):
     nbits = np.dtype(srccv.dtype).itemsize * 8
     maxval = float(2 ** nbits - 1)
 
-    for z in tqdm(range(bounds.minpt.z, bounds.maxpt.z)):
+    for z in range(bounds.minpt.z, bounds.maxpt.z):
       imagez = z - bounds.minpt.z
       zlevel = zlevels[ imagez ]
       (lower, upper) = self.find_section_clamping_values(zlevel, self.clip_fraction, 1 - self.clip_fraction)
+      if lower == upper:
+        continue
       img = image[:,:,imagez]
       img = (img - float(lower)) * (maxval /  (float(upper) - float(lower)))
       image[:,:,imagez] = img
@@ -652,6 +654,9 @@ class ContrastNormalizationTask(RegisteredTask):
       cdf[i] = cdf[i - 1] + filtered[i]
 
     total = cdf[-1]
+
+    if total == 0:
+      return (0,0)
 
     lower = 0 
     for i, val in enumerate(cdf):

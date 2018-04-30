@@ -263,10 +263,11 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
 
   bounds = srcvol.bounds.clone()
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Contrast Normalization Tasks"):
+    task_shape = min2(shape.clone(), srcvol.bounds.maxpt - startpt)
     task = ContrastNormalizationTask( 
       src_path=src_path, 
       dest_path=dest_path,
-      shape=shape.clone(), 
+      shape=task_shape, 
       offset=startpt.clone(), 
       clip_fraction=clip_fraction,
       mip=mip,

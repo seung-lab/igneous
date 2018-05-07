@@ -204,15 +204,27 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
     task_queue.insert(task)
   task_queue.wait('Uploading MeshTasks')
 
-def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec(2048, 2048, 64), fill_missing=False, translate=(0,0,0)):
+def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, chunk_size=None, shape=Vec(2048, 2048, 64), fill_missing=False, translate=(0,0,0)):
   shape = Vec(*shape)
   translate = Vec(*translate)
   vol = CloudVolume(src_layer_path)
+ 
+  if not chunk_size:
+    chunk_size = vol.info['scales'][0]['chunk_sizes'][0]
+  chunk_size = Vec(*chunk_size)
+
+  try:
+    dvol = CloudVolume(dest_layer_path)
+  except Exception: # no info file
+    info = copy.deepcopy(vol.info)
+    dvol = CloudVolume(dest_layer_path, info=info)
+    dvol.info['scales'] = dvol.info['scales'][:1]
+    dvol.info['scales'][0]['chunk_sizes'] = [ chunk_size.tolist() ]
+    dvol.commit_info()
 
   create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape, preserve_chunk_size=True)
-
+  
   bounds = vol.bounds.clone()
-
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks"):
     task = TransferTask(
       src_path=src_layer_path,

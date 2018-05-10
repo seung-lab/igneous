@@ -24,7 +24,7 @@ import numpy as np
 from tqdm import tqdm
 
 from cloudvolume import CloudVolume, Storage
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir 
+from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
@@ -33,7 +33,7 @@ from igneous import Mesher # broken out for ease of commenting out
 def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_first=False):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
 
-    # sometimes we downsample a base layer of 512x512 
+    # sometimes we downsample a base layer of 512x512
     # into underlying chunks of 64x64 which permits more scales
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
     underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
@@ -41,11 +41,11 @@ def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_fi
     preserved_idx = toidx[axis]
     underlying_shape[preserved_idx] = float('inf')
 
-    # Need to use ds_shape here. Using image bounds means truncated 
+    # Need to use ds_shape here. Using image bounds means truncated
     # edges won't generate as many mip levels
     fullscales = downsample_scales.compute_plane_downsampling_scales(
-      size=ds_shape, 
-      preserve_axis=axis, 
+      size=ds_shape,
+      preserve_axis=axis,
       max_downsampled_size=int(min(*underlying_shape)),
     )
     factors = downsample.scale_series_to_downsample_factors(fullscales)
@@ -173,10 +173,10 @@ class QuantizeAffinitiesTask(RegisteredTask):
 
   def execute(self):
     srcvol = CloudVolume(self.source_layer_path, mip=0, fill_missing=self.fill_missing)
-  
+
     bounds = Bbox( self.offset, self.shape + self.offset )
     bounds = Bbox.clamp(bounds, srcvol.bounds)
-    
+
     image = srcvol[ bounds.to_slices() ][ :, :, :, :1 ] # only use x affinity
     image = (image * 255.0).astype(np.uint8)
 
@@ -201,8 +201,8 @@ class MeshTask(RegisteredTask):
     self._bounds = Bbox( self.offset, self.shape + self.offset )
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 
-    # Marching cubes loves its 1vx overlaps. 
-    # This avoids lines appearing between 
+    # Marching cubes loves its 1vx overlaps.
+    # This avoids lines appearing between
     # adjacent chunks.
     data_bounds = self._bounds.clone()
     data_bounds.minpt -= 1
@@ -213,7 +213,7 @@ class MeshTask(RegisteredTask):
       self._mesh_dir = self._volume.info['meshing']
     elif 'mesh' in self._volume.info:
       self._mesh_dir = self._volume.info['mesh']
-    
+
     if not self._mesh_dir:
       raise ValueError("The mesh destination is not present in the info file.")
 
@@ -232,11 +232,11 @@ class MeshTask(RegisteredTask):
         )
 
   def _create_mesh(self, obj_id):
-    mesh = self._mesher.get_mesh(obj_id, 
-      simplification_factor=self.simplification_factor, 
+    mesh = self._mesher.get_mesh(obj_id,
+      simplification_factor=self.simplification_factor,
       max_simplification_error=self.max_simplification_error
     )
-    vertices = self._update_vertices(np.array(mesh['points'], dtype=np.float32)) 
+    vertices = self._update_vertices(np.array(mesh['points'], dtype=np.float32))
     vertex_index_format = [
       np.uint32(len(vertices) / 3), # Number of vertices ( each vertex is three numbers (x,y,z) )
       vertices,
@@ -250,9 +250,9 @@ class MeshTask(RegisteredTask):
     points /= 2.0
     resolution = self._volume.resolution
     xmin, ymin, zmin = self._bounds.minpt
-    points[0::3] = (points[0::3] + xmin) * resolution.x 
-    points[1::3] = (points[1::3] + ymin) * resolution.y 
-    points[2::3] = (points[2::3] + zmin) * resolution.z 
+    points[0::3] = (points[0::3] + xmin) * resolution.x
+    points[1::3] = (points[1::3] + ymin) * resolution.y
+    points[2::3] = (points[2::3] + zmin) * resolution.z
     return points
 
 class MeshManifestTask(RegisteredTask):
@@ -284,7 +284,7 @@ class MeshManifestTask(RegisteredTask):
         self.mesh_dir = self._info['mesh']
 
       self._generate_manifests(storage)
-  
+
   def _get_mesh_filenames_subset(self, storage):
     prefix = '{}/{}'.format(self.mesh_dir, self.prefix)
     segids = defaultdict(list)
@@ -293,19 +293,19 @@ class MeshManifestTask(RegisteredTask):
       filename = os.path.basename(filename)
       # `match` implies the beginning (^). `search` matches whole string
       matches = re.search('(\d+):(\d+):', filename)
-      
+
       if not matches:
         continue
 
-      segid, lod = matches.groups() 
+      segid, lod = matches.groups()
       segid, lod = int(segid), int(lod)
 
       if lod != self.lod:
         continue
 
-      segids[segid].append(filename)  
+      segids[segid].append(filename)
 
-    return segids  
+    return segids
 
   def _generate_manifests(self, storage):
     segids = self._get_mesh_filenames_subset(storage)
@@ -323,7 +323,7 @@ class MeshManifestTask(RegisteredTask):
 #     self.chunk_path = chunk_path
 #     self.chunk_encoding = chunk_encoding
 #     self.version = version
-  
+
 #   def execute(self):
 #     self._parse_chunk_path()
 #     self._storage = Storage(self.layer_path)
@@ -343,7 +343,7 @@ class MeshManifestTask(RegisteredTask):
 #     (self._xmin, self._xmax,
 #      self._ymin, self._ymax,
 #      self._zmin, self._zmax) = match.groups()
-     
+
 #     self._xmin = int(self._xmin)
 #     self._xmax = int(self._xmax)
 #     self._ymin = int(self._ymin)
@@ -420,7 +420,7 @@ class MeshManifestTask(RegisteredTask):
 #       raise NotImplementedError(encoding)
 
 class HyperSquareTask(RegisteredTask):
-  def __init__(self, bucket_name, dataset_name, layer_name, 
+  def __init__(self, bucket_name, dataset_name, layer_name,
       volume_dir, layer_type, overlap, resolution):
 
     self.bucket_name = bucket_name
@@ -484,9 +484,9 @@ class HyperSquareTask(RegisteredTask):
     for blob in blobs:
       z = int(re.findall(r'(\d+)\.jpg', blob.name)[0])
       imgdata = blob.download_as_string()
-      # Hypersquare images are each situated in the xy plane 
+      # Hypersquare images are each situated in the xy plane
       # so the shape should be (width,height,1)
-      shape = self._bounds.size3() 
+      shape = self._bounds.size3()
       shape.z = 1
       datacube[:,:,z,:] = chunks.decode_jpeg(imgdata, shape=tuple(shape))
 
@@ -503,7 +503,7 @@ class HyperSquareTask(RegisteredTask):
     img = datacube[ hov.x:-hov.x, hov.y:-hov.y, hov.z:-hov.z, : ] # e.g. 256 -> 224
     bounds = self._bounds.clone()
 
-    # the boxes are offset left of zero by half overlap, so no need to 
+    # the boxes are offset left of zero by half overlap, so no need to
     # compensate for weird shifts. only upload the non-overlap region.
 
     downsample_and_upload(image, bounds, vol, ds_shape=img.shape)
@@ -516,11 +516,11 @@ class HyperSquareConsensusTask(RegisteredTask):
   Hypersquare.
 
   The result of the remapping is that all human traced cells should
-  be present and identifiable by their Eyewire cells.id number. 
+  be present and identifiable by their Eyewire cells.id number.
   The remaining segments should be the same segid but reencoded
-  from 16 to 32 bits such that their high bits encode the 
+  from 16 to 32 bits such that their high bits encode the
   tasks.segmentation_id according to some mapping that fits
-  into 16 bits. It's usually: 
+  into 16 bits. It's usually:
 
     tasks.segmentation_id - min(tasks.segmentation_id for that dataset)
 
@@ -531,11 +531,11 @@ class HyperSquareConsensusTask(RegisteredTask):
   { VOLUMEID: { CELLID: [segids] } }
   """
 
-  def __init__(self, src_path, dest_path, ew_volume_id, 
+  def __init__(self, src_path, dest_path, ew_volume_id,
     consensus_map_path, shape, offset):
 
     super(HyperSquareConsensusTask, self).__init__(
-      src_path, dest_path, ew_volume_id, 
+      src_path, dest_path, ew_volume_id,
       consensus_map_path, shape, offset
     )
     self.src_path = src_path
@@ -558,7 +558,7 @@ class HyperSquareConsensusTask(RegisteredTask):
       print("Black Region", bounds, self.ew_volume_id)
       consensus = {}
 
-    segidmap = self.build_segid_map(consensus)
+    segidmap = self.build_segid_map(consensus, destvol.dtype)
 
     try:
       image = srcvol[ bounds.to_slices() ]
@@ -568,26 +568,25 @@ class HyperSquareConsensusTask(RegisteredTask):
       image = np.zeros(shape=zeroshape, dtype=destvol.dtype)
 
     image = image.astype(destvol.dtype)
-
     # Merge equivalent segments, non-consensus segments are black
-    consensus_image = segidmap[ image ] 
+    consensus_image = segidmap[ image ]
 
     # Write volume ID to high bits of extended bit width image
-    volume_segid_image = image | (self.ew_volume_id << 16) 
-    
+    volume_segid_image = image | (self.ew_volume_id << 16)
+
     # Zero out segid 0 in the high bits so neuroglancer interprets them as empty
     volume_segid_image *= np.logical_not(np.logical_not(image))
 
-    # Final image is consensus keyed by cell ID (C), i.e. 0xCCCCCCCC. 
+    # Final image is consensus keyed by cell ID (C), i.e. 0xCCCCCCCC.
     # Non-empty non-consensus segments are written as:
-    # | 16 bit volume_id (V) | 16 bit seg_id (S) |, i.e. 0xVVVVSSSS 
+    # | 16 bit volume_id (V) | 16 bit seg_id (S) |, i.e. 0xVVVVSSSS
     # empties are 0x00000000
     final_image = consensus_image + (consensus_image == 0) * volume_segid_image
 
     destvol[ bounds.to_slices() ] = final_image
 
-  def build_segid_map(self, consensus):
-    segidmap = np.zeros(shape=(2 ** 16), dtype=np.uint64)
+  def build_segid_map(self, consensus, dtype):
+    segidmap = np.zeros(shape=(2 ** 16), dtype=dtype)
 
     for cellid in consensus:
       for segid in consensus[cellid]:
@@ -643,10 +642,10 @@ class ContrastNormalizationTask(RegisteredTask):
 
   def find_section_clamping_values(self, zlevel, lowerfract, upperfract):
     filtered = np.copy(zlevel)
-    
-    # remove pure black from frequency counts as 
+
+    # remove pure black from frequency counts as
     # it has no information in our images
-    filtered[0] = 0 
+    filtered[0] = 0
 
     cdf = np.zeros(shape=(len(filtered),), dtype=np.uint64)
     cdf[0] = filtered[0]
@@ -658,17 +657,17 @@ class ContrastNormalizationTask(RegisteredTask):
     if total == 0:
       return (0,0)
 
-    lower = 0 
+    lower = 0
     for i, val in enumerate(cdf):
       if float(val) / float(total) > lowerfract:
         break
-      lower = i 
+      lower = i
 
     upper = 0
     for i, val in enumerate(cdf):
       if float(val) / float(total) > upperfract:
         break
-      upper = i 
+      upper = i
 
     return (lower, upper)
 
@@ -682,8 +681,8 @@ class ContrastNormalizationTask(RegisteredTask):
     if len(errors):
       raise Exception(", ".join(errors) + " were not defined. Did you run a LuminanceLevelsTask for these slices?")
 
-    levels = [ ( 
-        int(os.path.basename(item['filename'])), 
+    levels = [ (
+        int(os.path.basename(item['filename'])),
         json.loads(item['content'].decode('utf-8'))
     ) for item in levels ]
     levels.sort(key=lambda x: x[0])
@@ -709,7 +708,7 @@ class LuminanceLevelsTask(RegisteredTask):
     # Accumulate a histogram of the luminance levels
     nbits = np.dtype(srccv.dtype).itemsize * 8
     levels = np.zeros(shape=(2 ** nbits,), dtype=np.uint64)
-    
+
     bounds = Bbox( self.offset, self.shape[:3] + self.offset )
     bounds = Bbox.clamp(bounds, srccv.bounds)
 
@@ -735,8 +734,8 @@ class LuminanceLevelsTask(RegisteredTask):
     levels_path = os.path.join(self.src_path, 'levels')
     with Storage(levels_path, n_threads=0) as stor:
       stor.put_json(
-        file_path="{}/{}".format(self.mip, self.offset.z), 
-        content=output, 
+        file_path="{}/{}".format(self.mip, self.offset.z),
+        content=output,
         cache_control='no-cache'
       )
 
@@ -746,11 +745,11 @@ class LuminanceLevelsTask(RegisteredTask):
     # random.
     sample_shape = Bbox( (0,0,0), (2048, 2048, 1) )
     area = self.shape.rectVolume()
-    
+
     total_patches = int(math.ceil(area / sample_shape.volume()))
     N = int(math.ceil(float(total_patches) * self.coverage_factor))
 
-    # Simplification: We are making patch selection against a discrete 
+    # Simplification: We are making patch selection against a discrete
     # grid instead of a continuous space. This removes the influence of
     # overlap in a less complex fashion.
     patch_indicies = set()
@@ -794,9 +793,9 @@ class TransferTask(RegisteredTask):
 class WatershedRemapTask(RegisteredTask):
     """
     Take raw watershed output and using a remapping file,
-    generate an aggregated segmentation. 
+    generate an aggregated segmentation.
 
-    The remap array is a key:value mapping where the 
+    The remap array is a key:value mapping where the
     array index is the key and the value is the contents.
 
     You can find a script to convert h5 remap files into npy
@@ -815,7 +814,7 @@ class WatershedRemapTask(RegisteredTask):
         self.src_path = src_path
         self.dest_path = dest_path
         self.shape = Vec(*shape)
-        self.offset = Vec(*offset) 
+        self.offset = Vec(*offset)
 
     def execute(self):
         srccv = CloudVolume(self.src_path)
@@ -829,12 +828,12 @@ class WatershedRemapTask(RegisteredTask):
 
         # Here's how the remapping works. Numpy has a special
         # indexing that can be used to perform the remap.
-        # The remap array is a key:value mapping where the 
+        # The remap array is a key:value mapping where the
         # array index is the key and the value is the contents.
         # The watershed_data array contains only data values that
         # are within the length of the remap array.
         #
-        # e.g. 
+        # e.g.
         #
         # remap = np.array([1,2,3]) # i.e. 0=>1, 1=>2, 1=>3
         # vals = np.array([0,1,1,1,2,0,2,1,2])
@@ -849,4 +848,4 @@ class WatershedRemapTask(RegisteredTask):
         remap = np.load(file)
         file.close()
         return remap
-        
+

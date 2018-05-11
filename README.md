@@ -2,25 +2,28 @@
 
 # Igneous
 
-Igneous is a library for working with Neuroglancer's precomputed volumes. It uses CloudVolume for access to the data (on AWS S3, Google GS, or on the filesystem). It is meant to integrate with a task queueing system (but has a single-worker mode as well). Originally by Nacho and Will.
+Igneous is a Kubernetes, SQS, and CloudVolume based pipeline for working with Neuroglancer's [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for access to the data (on AWS S3, Google Storage, or on the local filesystem). It's meant to integrate with a task queueing system (but has a single-worker mode too). Originally by Nacho and Will.
+
+## Pre-Built Docker Container
+
+You can use this container for scaling big jobs horizontally or to experiment with Igneous within the container.  
+
+https://hub.docker.com/r/seunglab/igneous/
 
 ## Installation
 
-What you'll need: Python 2/3, a c++ compiler (g++ or clang), virtualenv
+You'll need Python 2 or 3, pip, a C++ compiler (g++ or clang), and virtualenv. Igneous appears to have higher performance using Python 3. It's tested under Ubuntu 14.04 and Mac OS High Sierra.
 
 ```
-git clone $REPO
+git clone git@github.com:seung-lab/igneous.git
 cd igneous
 virtualenv venv
 source venv/bin/activate
 pip install - e .
 ```
 
-The installation will not only download the appropriate requirements (listed in requirements.txt) but will also
-compile a meshing extension written by Aleksander Zlateski. The mesher is used to visualize segments in neuroglancer's 
-3D viewer.  
-
-Igneous is compatible with both Python 2 and Python 3 on Unbuntu and MacOS. It appears to have higher performance with Python 3.  
+The installation will download the dependencies listed in requirements.txt and
+compile a meshing extension written by Aleksander Zlateski. The mesher is used to visualize segments in neuroglancer's 3D viewer.  
 
 ## Sample Local Use
 
@@ -44,18 +47,11 @@ print("Done!")
 
 Igneous is intended to be used with Kubernetes (k8s). A pre-built docker container is located on DockerHub as `seunglab/igneous:master`. A sample `deployment.yml` (used with `kubectl create -f deployment.yml`) is located in the root of the repository.  
 
-As Igneous is based on [CloudVolume](https://github.com/seung-lab/cloud-volume), you'll need to create a `google-secret.json` or `aws-secret.json` to access buckets located on these services. Secrets should be mounted like:  
-
-```
-kubectl create secret generic secrets \
---from-file=$HOME/.cloudvolume/secrets/google-secret.json \
---from-file=$HOME/.cloudvolume/secrets/aws-secret.json \
---from-file=$HOME/.cloudvolume/secrets/boss-secret.json 
-```
-
-You only need to include the services that you're actually using. This step must be completed before creating your deployment.  
+As Igneous is based on [CloudVolume](https://github.com/seung-lab/cloud-volume), you'll need to create a `google-secret.json` or `aws-secret.json` to access buckets located on these services. 
 
 You'll need to create an Amazon SQS queue to store the tasks you generate. Google's TaskQueue was previously supported but the API changed. It may be supported in the future.
+
+### Populating the SQS Queue
 
 ```
 import sys
@@ -70,6 +66,45 @@ with TaskQueue(server='sqs', qurl="$URL") as tq:
 print("Done!")
 ```
 
+### Executing Tasks in the Cloud
+
+The following instructions are for Google Container Engine, but AWS has similar tools.
+
+```
+# Create a Kubernetes cluster
+# e.g. 
+
+export PROJECT_NAME=example
+export CLUSTER_NAME=example
+export NUM_NODES=5 # arbitrary
+
+# Create a Google Container Cluster
+gcloud container --project $PROJECT_NAME clusters create $CLUSTER_NAME --zone "us-east1-b" --machine-type "n1-standard-16" --image-type "GCI" --disk-size "50" --scopes "https://www.googleapis.com/auth/compute","https://www.googleapis.com/auth/devstorage.full_control","https://www.googleapis.com/auth/taskqueue","https://www.googleapis.com/auth/logging.write","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/servicecontrol","https://www.googleapis.com/auth/service.management.readonly","https://www.googleapis.com/auth/trace.append" --num-nodes $NUM_NODES --network "default" --enable-cloud-logging --no-enable-cloud-monitoring
+
+# Bind the kubectl command to this cluster
+gcloud config set container/cluster $CLUSTER_NAME
+
+# Give the cluster permission to read and write to your bucket
+# You only need to include services you'll actually use.
+kubectl create secret generic secrets \
+--from-file=$HOME/.cloudvolume/secrets/google-secret.json \
+--from-file=$HOME/.cloudvolume/secrets/aws-secret.json \
+--from-file=$HOME/.cloudvolume/secrets/boss-secret.json 
+
+# Create a Kubernetes deployment
+kubectl create -f deployment.yml # edit deployment.yml in root of repo
+
+# Resizing the cluster
+gcloud container clusters resize $CLUSTER_NAME --size=20 # arbitrary node count
+kubectl scale deployment igneous --replicas=320 # 16 * nodes b/c n1-standard-16 has 16 cores
+
+# Spinning down
+
+# Important: This will leave the kubernetes master running which you
+# will be charged for. You can also fully delete the cluster.
+gcloud container clusters resize $CLUSTER_NAME --size=0
+kubectl delete deployment igneous
+```
 
 ## Tasks
 

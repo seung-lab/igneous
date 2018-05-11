@@ -2,7 +2,7 @@
 
 # Igneous
 
-Igneous is a Kubernetes, SQS, and CloudVolume based pipeline for working with Neuroglancer's [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for access to the data (on AWS S3, Google Storage, or on the local filesystem). It's meant to integrate with a task queueing system (but has a single-worker mode too). Originally by Nacho and Will.
+Igneous is a [Kubernetes](https://kubernetes.io/), [SQS](https://aws.amazon.com/sqs/), and CloudVolume based pipeline for working with Neuroglancer's [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for accessing data on AWS S3, Google Storage, or the local filesystem. It can operate in the cloud using a task queuing system or run locally. Originally by Nacho and Will.
 
 ## Pre-Built Docker Container
 

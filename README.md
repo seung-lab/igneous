@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous)
 
-# igneous
+# Igneous
 
 Igneous is a library for working with Neuroglancer's precomputed volumes. It uses CloudVolume for access to the data (on AWS S3, Google GS, or on the filesystem). It is meant to integrate with a task queueing system (but has a single-worker mode as well). Originally by Nacho and Will.
 
@@ -28,13 +28,14 @@ This generates meshes for an already-existing precomputed segmentation volume. I
 MockTaskQueue driver (which is the single local worker mode).
 
 ```
-from taskqueue import MockTaskQueue
+from taskqueue import LocalTaskQueue
 import igneous.task_creation as tc
 
-print("Making meshes...")
-tc.create_meshing_tasks(       MockTaskQueue(), cfg.path, cfg.compression, shape=Vec(cfg.size, cfg.size, cfg.size))
-print("Updating metadata...")
-tc.create_mesh_manifest_tasks( MockTaskQueue(), cfg.path)
+# Mesh on 8 cores, use True to use all cores
+cloudpath = 'gs://bucket/dataset/labels'
+with LocalTaskQueue(parallel=8) as tq:
+	tc.create_meshing_tasks(tq, cloudpath, mip=3, shape=(256, 256, 256))
+	tc.create_mesh_manifest_tasks(tq, cloudpath)
 print("Done!")
 
 ```

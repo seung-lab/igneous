@@ -9,7 +9,7 @@ numpy==1.14.2
 pyasn1
 pyopenssl==17.2.0
 pytest==3.3.1
-task-queue==0.4.1
+task-queue>=0.4.1
 tenacity==4.4.0
 tqdm==4.23.1
 oauth2client==3.0.0

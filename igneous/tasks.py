@@ -7,14 +7,11 @@ try:
 except ImportError:
     from io import BytesIO
 
-import io
-import itertools
 import json
 import math
 import os
 import random
 import re
-from tempfile import NamedTemporaryFile
 
 from backports import lzma
 # import blosc # for BigArray tasks
@@ -24,20 +21,22 @@ import numpy as np
 from tqdm import tqdm
 
 from cloudvolume import CloudVolume, Storage
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
+from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
-from igneous import Mesher # broken out for ease of commenting out
+from igneous import Mesher   # broken out for ease of commenting out
 
-def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_first=False):
+
+def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z',
+                          skip_first=False):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
 
     # sometimes we downsample a base layer of 512x512
     # into underlying chunks of 64x64 which permits more scales
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
     underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
-    toidx = { 'x': 0, 'y': 1, 'z': 2 }
+    toidx = {'x': 0, 'y': 1, 'z': 2}
     preserved_idx = toidx[axis]
     underlying_shape[preserved_idx] = float('inf')
 
@@ -51,7 +50,8 @@ def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_fi
     factors = downsample.scale_series_to_downsample_factors(fullscales)
 
     if len(factors) == 0:
-      print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
+      print("No factors generated. Image Shape: {}, Downsample Shape: {}, \
+              Volume Shape: {}, Bounds: {}".format(
         image.shape, ds_shape, vol.volume_size, bounds)
       )
 
@@ -849,3 +849,64 @@ class WatershedRemapTask(RegisteredTask):
         file.close()
         return remap
 
+
+class InferenceTask(RegisteredTask):
+    """
+    run inference like ChunkFlow.jl
+    1. cutout image using cloudvolume
+    2. run inference
+    3. crop the margin to make the output aligned with cloud storage backend
+    4. upload to cloud storage using cloudvolume
+
+    Note that I always use z,y,x in python, but cloudvolume use x,y,z for indexing. 
+    So I always do a reverse of slices before indexing.
+    """
+    def __init__(self, image_layer_path, convnet_path, output_layer_path, 
+            output_bbox_str, patch_size, patch_overlap, 
+            cropping_margin_size, output_key='output', num_output_channels = 3):
+        self.image_layer_path = image_layer_path
+        self.convnet_path = convnet_path
+        self.output_layer_path = output_layer_path
+        self.output_bbox = Bbox.from_filename(output_bbox_str)
+        self.patch_size = patch_size 
+        self.patch_overlap = patch_overlap
+        self.cropping_margin_size = cropping_margin_size
+        self.num_output_channels = num_output_channels
+
+    def excecute(self):
+        self._read_image()
+        self._inference()
+        self._crop()
+        self._upload_output()
+
+    def _read_image(self):
+        vol = CloudVolume(self.image_layer_path, parallel=True,
+                          output_to_shared_memory=True)
+        output_slices = self.output_bbox.to_slices()
+        input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
+                             zip(output_slices, self.cropping_margin_size))
+        # always reverse the indexes since cloudvolume use x,y,z indexing
+        self.image = vol[input_slices[::-1]]
+
+    def _inference(self):
+        from chunkflow.block_inference_engine import BlockInferenceEngine
+        from chunkflow.frameworks.pznet import PZNetPatchInferenceEngine
+        patch_engine = PZNetPatchInferenceEngine(self.convnet_path)
+        block_inference_engine = BlockInferenceEngine(
+            patch_inference_engine=patch_engine,
+            patch_size=self.patch_size,
+            overlap=self.patch_overlap,
+            output_key=self.output_key,
+            output_channels=self.num_output_channels)
+        self.output = block_inference_engine(self.image)
+
+    def _crop(self):
+        self.output = self.output[self.cropping_margin_size[0] : -self.cropping_margin_size[0],
+                                  self.cropping_margin_size[1] : -self.cropping_margin_size[1],
+                                  self.cropping_margin_size[2] : -self.cropping_margin_size[2], :]
+
+    def _upload_output(self):
+        vol = CloudVolume(self.output_layer_path, parallel=True,
+                          output_to_shared_memory=True)
+        output_slices = self.output_bbox.to_slices()
+        vol[output_slices[::-1]] = self.output  

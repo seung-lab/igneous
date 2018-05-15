@@ -23,7 +23,7 @@ from igneous.tasks import (
   IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
-  LuminanceLevelsTask, ContrastNormalizationTask
+  LuminanceLevelsTask, ContrastNormalizationTask, InferenceTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -572,6 +572,36 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
     )
     task_queue.insert(task)
   task_queue.wait()
+
+def create_inference_tasks(task_queue, image_layer_path, convnet_path, 
+        output_layer_path, output_block_start, output_block_size, 
+        grid_size, patch_size, patch_overlap, cropping_margin_size,
+        output_key='output', num_output_channels=3):
+    """
+    convnet inference block by block. The block coordinates should be aligned with 
+    cloud storage. 
+    """
+    grid_ranges = tuple(range(x) for x in grid_size)
+    for z in tqdm(grid_ranges[0], desc='z loop'):
+        for y in tqdm(grid_ranges[1], desc='y loop'):
+            for x in tqdm(grid_ranges[2], desc='x loop'):
+                output_bbox = Bbox.from_slices(tuple(slice(s, s+x*b) 
+                    for (s,x,b) in zip(output_block_start, (z,y,x), 
+                        output_block_size)))
+                task = InferenceTask(
+                    image_layer_path=image_layer_path,
+                    convnet_path=convnet_path,
+                    output_layer_path=output_layer_path,
+                    output_bbox_str=output_bbox.to_filename(),
+                    patch_size=patch_size, 
+                    patch_overlap=patch_overlap,
+                    cropping_margin_size=cropping_margin_size,
+                    output_key=output_key,
+                    num_output_channels=num_output_channels
+                )
+                task_queue.insert(task)
+    task_queue.wait()
+
 
 def upload_build_chunks(storage, volume, offset=[0, 0, 0], build_chunk_size=[1024,1024,128]):
   offset = Vec(*offset)

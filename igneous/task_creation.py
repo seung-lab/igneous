@@ -204,6 +204,18 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
     task_queue.insert(task)
   task_queue.wait('Uploading MeshTasks')
 
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'MeshTask',
+      'layer_path': layer_path,
+      'mip': vol.mip,
+      'shape': shape.tolist(),      
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  vol.commit_provenance()
+
 def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, chunk_size=None, shape=Vec(2048, 2048, 64), fill_missing=False, translate=(0,0,0)):
   shape = Vec(*shape)
   translate = Vec(*translate)

@@ -863,7 +863,10 @@ class InferenceTask(RegisteredTask):
     """
     def __init__(self, image_layer_path, convnet_path, output_layer_path, 
             output_bbox_str, patch_size, patch_overlap, 
-            cropping_margin_size, output_key='output', num_output_channels = 3):
+            cropping_margin_size, output_key='output', num_output_channels = 3, mip=1):
+        super().__init__(image_layer_path, convnet_path, output_layer_path,
+                output_bbox_str, patch_size, patch_overlap, cropping_margin_size,
+                output_key, num_output_channels, mip)
         self.image_layer_path = image_layer_path
         self.convnet_path = convnet_path
         self.output_layer_path = output_layer_path
@@ -871,9 +874,11 @@ class InferenceTask(RegisteredTask):
         self.patch_size = patch_size 
         self.patch_overlap = patch_overlap
         self.cropping_margin_size = cropping_margin_size
+        self.output_key = output_key
         self.num_output_channels = num_output_channels
+        self.mip = mip
 
-    def excecute(self):
+    def execute(self):
         self._read_image()
         self._inference()
         self._crop()
@@ -881,12 +886,12 @@ class InferenceTask(RegisteredTask):
 
     def _read_image(self):
         vol = CloudVolume(self.image_layer_path, parallel=True,
-                          output_to_shared_memory=True)
+                          output_to_shared_memory=True, mip=self.mip)
         output_slices = self.output_bbox.to_slices()
-        input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
+        self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
                              zip(output_slices, self.cropping_margin_size))
         # always reverse the indexes since cloudvolume use x,y,z indexing
-        self.image = vol[input_slices[::-1]]
+        self.image = vol[self.input_slices[::-1]]
 
     def _inference(self):
         from chunkflow.block_inference_engine import BlockInferenceEngine
@@ -898,7 +903,14 @@ class InferenceTask(RegisteredTask):
             overlap=self.patch_overlap,
             output_key=self.output_key,
             output_channels=self.num_output_channels)
-        self.output = block_inference_engine(self.image)
+        # inference engine input is a OffsetArray rather than normal numpy array
+        # it is actually a numpy array with global offset 
+        from chunkflow.offset_array import OffsetArray
+        input_offset = tuple(s.start for s in self.input_slices)
+        import pdb
+        pdb.set_trace()
+        input_chunk = OffsetArray(self.image, global_offset=input_offset)
+        self.output = block_inference_engine(input_chunk)
 
     def _crop(self):
         self.output = self.output[self.cropping_margin_size[0] : -self.cropping_margin_size[0],
@@ -907,6 +919,6 @@ class InferenceTask(RegisteredTask):
 
     def _upload_output(self):
         vol = CloudVolume(self.output_layer_path, parallel=True,
-                          output_to_shared_memory=True)
+                          output_to_shared_memory=True, mip=self.mip)
         output_slices = self.output_bbox.to_slices()
         vol[output_slices[::-1]] = self.output  

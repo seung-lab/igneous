@@ -576,18 +576,16 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
 def create_inference_tasks(task_queue, image_layer_path, convnet_path, 
         output_layer_path, output_block_start, output_block_size, 
         grid_size, patch_size, patch_overlap, cropping_margin_size,
-        output_key='output', num_output_channels=3):
+        output_key='output', num_output_channels=3, mip=1):
     """
     convnet inference block by block. The block coordinates should be aligned with 
     cloud storage. 
     """
-    grid_ranges = tuple(range(x) for x in grid_size)
-    for z in tqdm(grid_ranges[0], desc='z loop'):
-        for y in tqdm(grid_ranges[1], desc='y loop'):
-            for x in tqdm(grid_ranges[2], desc='x loop'):
-                output_bbox = Bbox.from_slices(tuple(slice(s, s+x*b) 
-                    for (s,x,b) in zip(output_block_start, (z,y,x), 
-                        output_block_size)))
+    for z in tqdm(range(grid_size[0]), desc='z loop'):
+        for y in tqdm(range(grid_size[1]), desc='y loop'):
+            for x in tqdm(range(grid_size[2]), desc='x loop'):
+                output_bbox = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
+                        for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
                 task = InferenceTask(
                     image_layer_path=image_layer_path,
                     convnet_path=convnet_path,
@@ -597,7 +595,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
                     patch_overlap=patch_overlap,
                     cropping_margin_size=cropping_margin_size,
                     output_key=output_key,
-                    num_output_channels=num_output_channels
+                    num_output_channels=num_output_channels,
+                    mip=mip
                 )
                 task_queue.insert(task)
     task_queue.wait()

@@ -292,7 +292,7 @@ class MeshManifestTask(RegisteredTask):
     for filename in storage.list_files(prefix=prefix):
       filename = os.path.basename(filename)
       # `match` implies the beginning (^). `search` matches whole string
-      matches = re.search('(\d+):(\d+):', filename)
+      matches = re.search(r'(\d+):(\d+):', filename)
 
       if not matches:
         continue
@@ -598,7 +598,7 @@ class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""
   # translate = change of origin
   def __init__(self, src_path, dest_path, shape, offset, mip, clip_fraction, fill_missing, translate):
-    super(self.__class__, self).__init__(src_path, dest_path, shape, offset, mip, clip_fraction, fill_missing, translate)
+    super(ContrastNormalizationTask, self).__init__(src_path, dest_path, shape, offset, mip, clip_fraction, fill_missing, translate)
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
@@ -693,7 +693,7 @@ class ContrastNormalizationTask(RegisteredTask):
 class LuminanceLevelsTask(RegisteredTask):
   """Generate a frequency count of luminance values by random sampling. Output to $PATH/levels/$MIP/$Z"""
   def __init__(self, src_path, shape, offset, coverage_factor, mip):
-    super(self.__class__, self).__init__(src_path, shape, offset, coverage_factor, mip)
+    super(LuminanceLevelsTask, self).__init__(src_path, shape, offset, coverage_factor, mip)
     self.src_path = src_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
@@ -772,7 +772,7 @@ class LuminanceLevelsTask(RegisteredTask):
 class TransferTask(RegisteredTask):
   # translate = change of origin
   def __init__(self, src_path, dest_path, shape, offset, fill_missing, translate):
-    super(self.__class__, self).__init__(src_path, dest_path, shape, offset, fill_missing, translate)
+    super(TransferTask, self).__init__(src_path, dest_path, shape, offset, fill_missing, translate)
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
@@ -809,7 +809,7 @@ class WatershedRemapTask(RegisteredTask):
         offset: voxel offset into dataset
     """
     def __init__(self, map_path, src_path, dest_path, shape, offset):
-        super(self.__class__, self).__init__(map_path, src_path, dest_path, shape, offset)
+        super(WatershedRemapTask, self).__init__(map_path, src_path, dest_path, shape, offset)
         self.map_path = map_path
         self.src_path = src_path
         self.dest_path = dest_path

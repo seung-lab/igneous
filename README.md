@@ -61,8 +61,8 @@ import igneous.task_creation as tc
 cloudpath = sys.argv[1]
 
 # Get qurl from the SQS queue metadata, visible on the web dashboard when you click on it.
-with TaskQueue(server='sqs', qurl="$URL") as tq:
-	tc.create_downsample_tasks(tq, cloudpath, mip=0, fill_missing=True, preserve_chunk_size=True)
+with TaskQueue(queue_server='sqs', qurl="$URL") as tq:
+	tc.create_downsampling_tasks(tq, cloudpath, mip=0, fill_missing=True, preserve_chunk_size=True)
 print("Done!")
 ```
 

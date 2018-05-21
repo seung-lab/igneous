@@ -14,33 +14,30 @@ import numpy as np
 
 # c++ interface to cython
 cdef extern from "cMesher.h":
-  cdef struct meshobj:
-    vector[float] points
-    vector[float] normals
-    vector[unsigned int] faces
+    cdef struct MeshObject:
+        vector[float] points
+        vector[float] normals
+        vector[unsigned int] faces
 
-  cdef cppclass cMesher:
-    cMesher() except +
-    void mesh(vector[uint64_t], unsigned int, unsigned int, unsigned int)
-    vector[uint64_t] ids()
-    meshobj get_mesh(uint64_t, bool normals, int simplification_factor, int max_simplification_error)
-    bool write_obj(uint64_t id, string filename)
+    cdef cppclass CMesher:
+        CMesher() except +
+        void mesh(vector[uint64_t], unsigned int, unsigned int, unsigned int)
+        vector[uint64_t] ids()
+        MeshObject get_mesh(uint64_t, bool normals, int simplification_factor, int max_simplification_error)
 
 # creating a cython wrapper class
 cdef class Mesher:
-  cdef cMesher *thisptr      # hold a C++ instance which we're wrapping
-  def __cinit__(self):
-    self.thisptr = new cMesher()
-  def __dealloc__(self):
-    del self.thisptr
-  def mesh(self, data):    
-    self.thisptr.mesh(
-      data.astype(np.uint64).flatten(), 
-      data.shape[0], data.shape[1], data.shape[2]
-    )
-  def ids(self):
-    return self.thisptr.ids()
-  def get_mesh(self, mesh_id, normals=False, simplification_factor=0, max_simplification_error=8):
-    return self.thisptr.get_mesh(mesh_id, normals, simplification_factor, max_simplification_error)
-  def write_obj(self, mesh_id, filename):
-    return self.thisptr.write_obj(mesh_id, filename)
+    cdef CMesher *thisptr      # hold a C++ instance which we're wrapping
+    def __cinit__(self):
+        self.thisptr = new CMesher()
+    def __dealloc__(self):
+        del self.thisptr
+    def mesh(self, data):    
+        self.thisptr.mesh(
+            data.astype(np.uint64).flatten(), 
+            data.shape[0], data.shape[1], data.shape[2]
+        )
+    def ids(self):
+        return self.thisptr.ids()
+    def get_mesh(self, mesh_id, normals=False, simplification_factor=0, max_simplification_error=8):
+        return self.thisptr.get_mesh(mesh_id, normals, simplification_factor, max_simplification_error)

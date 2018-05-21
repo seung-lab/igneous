@@ -19,7 +19,7 @@ git clone git@github.com:seung-lab/igneous.git
 cd igneous
 virtualenv venv
 source venv/bin/activate
-pip install - e .
+pip install -e .
 ```
 
 The installation will download the dependencies listed in requirements.txt and

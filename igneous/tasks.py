@@ -7,24 +7,22 @@ try:
 except ImportError:
   from io import BytesIO
 
-import io
-import itertools
 import json
 import math
 import os
 import random
 import re
-from tempfile import NamedTemporaryFile
+# from tempfile import NamedTemporaryFile  # used by BigArrayTask
 
-from backports import lzma
-# import blosc # for BigArray tasks
-# import h5py
+# from backports import lzma               # used by HyperSquareTask
+# import blosc                             # used by BigArrayTask
+# import h5py                              # used by BigArrayTask
 
 import numpy as np
 from tqdm import tqdm
 
 from cloudvolume import CloudVolume, Storage
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
+from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales

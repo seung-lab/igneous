@@ -445,98 +445,98 @@ class MeshManifestTask(RegisteredTask):
 #       raise NotImplementedError(encoding)
 
 
-class HyperSquareTask(RegisteredTask):
-  def __init__(self, bucket_name, dataset_name, layer_name,
-               volume_dir, layer_type, overlap, resolution):
+# class HyperSquareTask(RegisteredTask):
+#   def __init__(self, bucket_name, dataset_name, layer_name,
+#                volume_dir, layer_type, overlap, resolution):
 
-    self.bucket_name = bucket_name
-    self.dataset_name = dataset_name
-    self.layer_name = layer_name
-    self.volume_dir = volume_dir
-    self.layer_type = layer_type
-    self.overlap = Vec(*overlap)
+#     self.bucket_name = bucket_name
+#     self.dataset_name = dataset_name
+#     self.layer_name = layer_name
+#     self.volume_dir = volume_dir
+#     self.layer_type = layer_type
+#     self.overlap = Vec(*overlap)
 
-    self.resolution = Vec(*resolution)
+#     self.resolution = Vec(*resolution)
 
-    self._volume_cloudpath = 'gs://{}/{}'.format(
-        self.bucket_name, self.volume_dir)
-    self._bucket = None
-    self._metadata = None
-    self._bounds = None
+#     self._volume_cloudpath = 'gs://{}/{}'.format(
+#         self.bucket_name, self.volume_dir)
+#     self._bucket = None
+#     self._metadata = None
+#     self._bounds = None
 
-  def execute(self):
-    client = storage.Client.from_service_account_json(
-        lib.credentials_path(), project=lib.GCLOUD_PROJECT_NAME
-    )
-    self._bucket = client.get_bucket(self.bucket_name)
-    self._metadata = meta = self._download_metadata()
+#   def execute(self):
+#     client = storage.Client.from_service_account_json(
+#         lib.credentials_path(), project=lib.GCLOUD_PROJECT_NAME
+#     )
+#     self._bucket = client.get_bucket(self.bucket_name)
+#     self._metadata = meta = self._download_metadata()
 
-    self._bounds = Bbox(
-        meta['physical_offset_min'],  # in voxels
-        meta['physical_offset_max']
-    )
+#     self._bounds = Bbox(
+#         meta['physical_offset_min'],  # in voxels
+#         meta['physical_offset_max']
+#     )
 
-    shape = Vec(*meta['chunk_voxel_dimensions'])
-    shape = Vec(shape.x, shape.y, shape.z, 1)
+#     shape = Vec(*meta['chunk_voxel_dimensions'])
+#     shape = Vec(shape.x, shape.y, shape.z, 1)
 
-    if self.layer_type == 'image':
-      dtype = meta['image_type'].lower()
-      cube = self._materialize_images(shape, dtype)
-    elif self.layer_type == 'segmentation':
-      dtype = meta['segment_id_type'].lower()
-      cube = self._materialize_segmentation(shape, dtype)
-    else:
-      dtype = meta['affinity_type'].lower()
-      return NotImplementedError("Don't know how to get the images for this layer.")
+#     if self.layer_type == 'image':
+#       dtype = meta['image_type'].lower()
+#       cube = self._materialize_images(shape, dtype)
+#     elif self.layer_type == 'segmentation':
+#       dtype = meta['segment_id_type'].lower()
+#       cube = self._materialize_segmentation(shape, dtype)
+#     else:
+#       dtype = meta['affinity_type'].lower()
+#       return NotImplementedError("Don't know how to get the images for this layer.")
 
-    self._upload_chunk(cube, dtype)
+#     self._upload_chunk(cube, dtype)
 
-  def _download_metadata(self):
-    cloudpath = '{}/metadata.json'.format(self.volume_dir)
-    metadata = self._bucket.get_blob(cloudpath).download_as_string()
-    return json.loads(metadata)
+#   def _download_metadata(self):
+#     cloudpath = '{}/metadata.json'.format(self.volume_dir)
+#     metadata = self._bucket.get_blob(cloudpath).download_as_string()
+#     return json.loads(metadata)
 
-  def _materialize_segmentation(self, shape, dtype):
-    segmentation_path = '{}/segmentation.lzma'.format(self.volume_dir)
-    seg_blob = self._bucket.get_blob(segmentation_path)
-    return self._decode_lzma(seg_blob.download_as_string(), shape, dtype)
+#   def _materialize_segmentation(self, shape, dtype):
+#     segmentation_path = '{}/segmentation.lzma'.format(self.volume_dir)
+#     seg_blob = self._bucket.get_blob(segmentation_path)
+#     return self._decode_lzma(seg_blob.download_as_string(), shape, dtype)
 
-  def _materialize_images(self, shape, dtype):
-    cloudpaths = ['{}/jpg/{}.jpg'.format(self.volume_dir, i)
-                  for i in xrange(shape.z)]
-    datacube = np.zeros(shape=shape, dtype=np.uint8)  # x,y,z,channels
+#   def _materialize_images(self, shape, dtype):
+#     cloudpaths = ['{}/jpg/{}.jpg'.format(self.volume_dir, i)
+#                   for i in xrange(shape.z)]
+#     datacube = np.zeros(shape=shape, dtype=np.uint8)  # x,y,z,channels
 
-    prefix = '{}/jpg/'.format(self.volume_dir)
+#     prefix = '{}/jpg/'.format(self.volume_dir)
 
-    blobs = self._bucket.list_blobs(prefix=prefix)
-    for blob in blobs:
-      z = int(re.findall(r'(\d+)\.jpg', blob.name)[0])
-      imgdata = blob.download_as_string()
-      # Hypersquare images are each situated in the xy plane
-      # so the shape should be (width,height,1)
-      shape = self._bounds.size3()
-      shape.z = 1
-      datacube[:, :, z, :] = chunks.decode_jpeg(imgdata, shape=tuple(shape))
+#     blobs = self._bucket.list_blobs(prefix=prefix)
+#     for blob in blobs:
+#       z = int(re.findall(r'(\d+)\.jpg', blob.name)[0])
+#       imgdata = blob.download_as_string()
+#       # Hypersquare images are each situated in the xy plane
+#       # so the shape should be (width,height,1)
+#       shape = self._bounds.size3()
+#       shape.z = 1
+#       datacube[:, :, z, :] = chunks.decode_jpeg(imgdata, shape=tuple(shape))
 
-    return datacube
+#     return datacube
 
-  def _decode_lzma(self, string_data, shape, dtype):
-    arr = lzma.decompress(string_data)
-    arr = np.fromstring(arr, dtype=dtype)
-    return arr.reshape(shape[::-1]).T
+#   def _decode_lzma(self, string_data, shape, dtype):
+#     arr = lzma.decompress(string_data)
+#     arr = np.fromstring(arr, dtype=dtype)
+#     return arr.reshape(shape[::-1]).T
 
-  def _upload_chunk(self, datacube, dtype):
-    vol = CloudVolume(self.dataset_name, self.layer_name, mip=0)
-    hov = self.overlap / 2  # half overlap, e.g. 32 -> 16 in e2198
-    img = datacube[hov.x:-hov.x, hov.y:-hov.y,
-                   hov.z:-hov.z, :]  # e.g. 256 -> 224
-    bounds = self._bounds.clone()
+#   def _upload_chunk(self, datacube, dtype):
+#     vol = CloudVolume(self.dataset_name, self.layer_name, mip=0)
+#     hov = self.overlap / 2  # half overlap, e.g. 32 -> 16 in e2198
+#     img = datacube[hov.x:-hov.x, hov.y:-hov.y,
+#                    hov.z:-hov.z, :]  # e.g. 256 -> 224
+#     bounds = self._bounds.clone()
 
-    # the boxes are offset left of zero by half overlap, so no need to
-    # compensate for weird shifts. only upload the non-overlap region.
+#     # the boxes are offset left of zero by half overlap, so no need to
+#     # compensate for weird shifts. only upload the non-overlap region.
 
-    downsample_and_upload(image, bounds, vol, ds_shape=img.shape)
-    vol[bounds.to_slices()] = img
+#     downsample_and_upload(image, bounds, vol, ds_shape=img.shape)
+#     vol[bounds.to_slices()] = img
 
 
 class HyperSquareConsensusTask(RegisteredTask):

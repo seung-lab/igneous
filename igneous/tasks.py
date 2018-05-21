@@ -198,21 +198,27 @@ class QuantizeAffinitiesTask(RegisteredTask):
 
 
 class MeshTask(RegisteredTask):
-  def __init__(self, shape, offset, layer_path, mip=0, simplification_factor=100, max_simplification_error=40):
-    super(MeshTask, self).__init__(shape, offset, layer_path,
-                                   mip, simplification_factor, max_simplification_error)
+  def __init__(self, shape, offset, layer_path, **kwargs):
+    super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
-    self.mip = mip
     self.layer_path = layer_path
-    self.lod = 0  # level of detail -- to be implemented
-    self.simplification_factor = simplification_factor
-    self.max_simplification_error = max_simplification_error
+    self.options = {
+        'lod': kwargs.get('lod', 0),
+        'mip': kwargs.get('mip', 0),
+        'simplification_factor': kwargs.get('simplification_factor', 100),
+        'max_simplification_error': kwargs.get('max_simplification_error', 40),
+        'remap_table': kwargs.get('remap_table', None),
+        'generate_manifests': kwargs.get('generate_manifests', False),
+        'low_padding': kwargs.get('low_padding', 1),
+        'high_padding': kwargs.get('high_padding', 1)
+    }
 
   def execute(self):
     self._mesher = Mesher()
 
-    self._volume = CloudVolume(self.layer_path, self.mip, bounded=False)
+    self._volume = CloudVolume(
+        self.layer_path, self.options['mip'], bounded=False)
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 
@@ -220,8 +226,8 @@ class MeshTask(RegisteredTask):
     # This avoids lines appearing between
     # adjacent chunks.
     data_bounds = self._bounds.clone()
-    data_bounds.minpt -= 1
-    data_bounds.maxpt += 1
+    data_bounds.minpt -= self.options['low_padding']
+    data_bounds.maxpt += self.options['high_padding']
 
     self._mesh_dir = None
     if 'meshing' in self._volume.info:
@@ -232,39 +238,71 @@ class MeshTask(RegisteredTask):
     if not self._mesh_dir:
       raise ValueError("The mesh destination is not present in the info file.")
 
-    # chunk_position includes a 1 pixel overlap
+    # chunk_position includes the overlap specified by low_padding/high_padding
     self._data = self._volume[data_bounds.to_slices()]
+    self._remap()
     self._compute_meshes()
+
+  def _remap(self):
+    if self.options['remap_table'] is not None:
+      actual_remap = {
+          int(k): int(v) for k, v in self.options['remap_table'].items()
+      }
+
+      self._remap_list = [0] + list(actual_remap.values())
+      enumerated_remap = {int(v): i for i, v in enumerate(self._remap_list)}
+
+      do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
+      self._data = np.vectorize(do_remap)(self._data)
 
   def _compute_meshes(self):
     with Storage(self.layer_path) as storage:
       data = self._data[:, :, :, 0].T
       self._mesher.mesh(data)
       for obj_id in self._mesher.ids():
+        if self.options['remap_table'] is None:
+          remapped_id = obj_id
+        else:
+          remapped_id = self._remap_list[obj_id]
+
         storage.put_file(
-            file_path='{}/{}:{}:{}'.format(self._mesh_dir,
-                                           obj_id, self.lod, self._bounds.to_filename()),
+            file_path='{}/{}:{}:{}'.format(
+                self._mesh_dir, remapped_id, self.options['lod'],
+                self._bounds.to_filename()
+            ),
             content=self._create_mesh(obj_id),
             compress=True,
         )
 
+        if self.options['generate_manifests']:
+          fragments = []
+          fragments.append('{}:{}:{}'.format(remapped_id, self.options['lod'],
+                                             self._bounds.to_filename()))
+
+          storage.put_file(
+              file_path='{}/{}:{}'.format(
+                  self._mesh_dir, remapped_id, self.options['lod']),
+              content=json.dumps({"fragments": fragments}),
+              content_type='application/json'
+          )
+
   def _create_mesh(self, obj_id):
-    mesh = self._mesher.get_mesh(obj_id,
-                                 simplification_factor=self.simplification_factor,
-                                 max_simplification_error=self.max_simplification_error
-                                 )
+    mesh = self._mesher.get_mesh(
+        obj_id,
+        simplification_factor=self.options['simplification_factor'],
+        max_simplification_error=self.options['max_simplification_error']
+    )
     vertices = self._update_vertices(
         np.array(mesh['points'], dtype=np.float32))
     vertex_index_format = [
-        # Number of vertices ( each vertex is three numbers (x,y,z) )
-        np.uint32(len(vertices) / 3),
+        np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
         vertices,
         np.array(mesh['faces'], dtype=np.uint32)
     ]
     return b''.join([array.tobytes() for array in vertex_index_format])
 
   def _update_vertices(self, points):
-    # zlib meshing multiplies verticies by two to avoid working with floats like 1.5
+    # zi_lib meshing multiplies vertices by 2.0 to avoid working with floats,
     # but we need to recover the exact position for display
     points /= 2.0
     resolution = self._volume.resolution

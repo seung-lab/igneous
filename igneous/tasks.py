@@ -215,12 +215,12 @@ class MeshTask(RegisteredTask):
     }
 
   def execute(self):
-    self._mesher = Mesher()
-
     self._volume = CloudVolume(
         self.layer_path, self.options['mip'], bounded=False)
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
+
+    self._mesher = Mesher(self._volume.resolution)
 
     # Marching cubes loves its 1vx overlaps.
     # This avoids lines appearing between
@@ -304,12 +304,13 @@ class MeshTask(RegisteredTask):
   def _update_vertices(self, points):
     # zi_lib meshing multiplies vertices by 2.0 to avoid working with floats,
     # but we need to recover the exact position for display
+    # Note: points are already multiplied by resolution, but missing the offset
     points /= 2.0
     resolution = self._volume.resolution
     xmin, ymin, zmin = self._bounds.minpt
-    points[0::3] = (points[0::3] + xmin) * resolution.x
-    points[1::3] = (points[1::3] + ymin) * resolution.y
-    points[2::3] = (points[2::3] + zmin) * resolution.z
+    points[0::3] = points[0::3] + xmin * resolution.x
+    points[1::3] = points[1::3] + ymin * resolution.y
+    points[2::3] = points[2::3] + zmin * resolution.z
     return points
 
 

@@ -15,7 +15,9 @@ Adapted to include passing of multidimensional arrays
 #include "cMesher.h"
 
 //////////////////////////////////
-CMesher::CMesher() {}
+CMesher::CMesher(const std::vector<uint32_t> &voxelresolution) {
+  voxelresolution_ = voxelresolution;
+}
 
 CMesher::~CMesher() {}
 
@@ -50,13 +52,18 @@ MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
 
   zi::mesh::int_mesh im;
   im.add(marchingcubes_.get_triangles(id));
-  im.fill_simplifier<double>(simplifier_);
+  im.fill_simplifier<double>(simplifier_, 0, 0, 0, voxelresolution_[2],
+      voxelresolution_[1], voxelresolution_[0]);
   simplifier_.prepare(generate_normals);
 
   if (simplification_factor > 0) {
+    // This is the most cpu intensive line
+    // max_error expects an error quadric, also MC scales the mesh by a factor
+    // of 2. Therefore we have to square the max_distance, and account for the
+    // factor of 2 from MC.
     simplifier_.optimize(
         simplifier_.face_count() / simplification_factor,
-        max_simplification_error);  // this is the most cpu intensive line
+        (2.0 * max_simplification_error) * (2.0 * max_simplification_error));
   }
 
   std::vector<zi::vl::vec3d> points;

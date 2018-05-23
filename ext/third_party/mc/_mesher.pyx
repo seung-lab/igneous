@@ -5,7 +5,7 @@
 #
 #
 
-from libc.stdint cimport uint64_t
+from libc.stdint cimport uint64_t, uint32_t
 from libcpp.vector cimport vector
 from libcpp cimport bool
 from libcpp.string cimport string
@@ -20,7 +20,7 @@ cdef extern from "cMesher.h":
         vector[unsigned int] faces
 
     cdef cppclass CMesher:
-        CMesher() except +
+        CMesher(vector[uint32_t] voxel_res) except +
         void mesh(vector[uint64_t], unsigned int, unsigned int, unsigned int)
         vector[uint64_t] ids()
         MeshObject get_mesh(uint64_t, bool normals, int simplification_factor, int max_simplification_error)
@@ -28,8 +28,8 @@ cdef extern from "cMesher.h":
 # creating a cython wrapper class
 cdef class Mesher:
     cdef CMesher *thisptr      # hold a C++ instance which we're wrapping
-    def __cinit__(self):
-        self.thisptr = new CMesher()
+    def __cinit__(self, voxel_res):
+        self.thisptr = new CMesher(voxel_res.astype(np.uint32))
     def __dealloc__(self):
         del self.thisptr
     def mesh(self, data):    

@@ -20,9 +20,10 @@ class CMesher {
  private:
   zi::mesh::marching_cubes<uint64_t> marchingcubes_;
   zi::mesh::simplifier<double> simplifier_;
+  std::vector<uint32_t> voxelresolution_;
 
  public:
-  CMesher();
+  CMesher(const std::vector<uint32_t> &voxelresolution);
   ~CMesher();
   void mesh(const std::vector<uint64_t> &data, unsigned int sx, unsigned int sy,
             unsigned int sz);

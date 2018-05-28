@@ -850,6 +850,15 @@ class WatershedRemapTask(RegisteredTask):
         return remap
 
 
+class MaskAffinitymapTask(RegisteredTask):
+    """
+
+    """
+    def __init__(self, affintymap_layer_path, mask_layer_path, mip_level_diff):
+        super().__init__(affinitymap_layer_path, mask_layer_path, mip_level_diff)
+        pass 
+    
+
 class InferenceTask(RegisteredTask):
     """
     run inference like ChunkFlow.jl
@@ -878,6 +887,17 @@ class InferenceTask(RegisteredTask):
         self.num_output_channels = num_output_channels
         self.mip = mip
 
+        # prepare for inference 
+        from chunkflow.block_inference_engine import BlockInferenceEngine
+        from chunkflow.frameworks.pznet_patch_inference_engine import PZNetPatchInferenceEngine
+        patch_engine = PZNetPatchInferenceEngine(self.convnet_path)
+        self.block_inference_engine = BlockInferenceEngine(
+            patch_inference_engine=patch_engine,
+            patch_size=self.patch_size,
+            overlap=self.patch_overlap,
+            output_key=self.output_key,
+            output_channels=self.num_output_channels)
+
     def execute(self):
         self._read_image()
         self._inference()
@@ -885,40 +905,37 @@ class InferenceTask(RegisteredTask):
         self._upload_output()
 
     def _read_image(self):
-        vol = CloudVolume(self.image_layer_path, parallel=True,
-                          output_to_shared_memory=True, mip=self.mip)
+        self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=True,
+                               progress=True, mip=self.mip, parallel=True)
         output_slices = self.output_bbox.to_slices()
         self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
-                             zip(output_slices, self.cropping_margin_size))
+                                  zip(output_slices, self.cropping_margin_size))
         # always reverse the indexes since cloudvolume use x,y,z indexing
-        self.image = vol[self.input_slices[::-1]]
+        self.image = self.vol[self.input_slices[::-1]]
+        # the cutout is fortran ordered, so need to transpose and make it C order 
+        self.image = np.transpose(self.image)
+        self.image = np.ascontiguousarray(self.image)
+        assert self.image.shape[0] == 1
+        self.image = np.squeeze(self.image, axis=0)
 
     def _inference(self):
-        from chunkflow.block_inference_engine import BlockInferenceEngine
-        from chunkflow.frameworks.pznet import PZNetPatchInferenceEngine
-        patch_engine = PZNetPatchInferenceEngine(self.convnet_path)
-        block_inference_engine = BlockInferenceEngine(
-            patch_inference_engine=patch_engine,
-            patch_size=self.patch_size,
-            overlap=self.patch_overlap,
-            output_key=self.output_key,
-            output_channels=self.num_output_channels)
         # inference engine input is a OffsetArray rather than normal numpy array
         # it is actually a numpy array with global offset 
         from chunkflow.offset_array import OffsetArray
+
         input_offset = tuple(s.start for s in self.input_slices)
-        import pdb
-        pdb.set_trace()
         input_chunk = OffsetArray(self.image, global_offset=input_offset)
-        self.output = block_inference_engine(input_chunk)
+        self.output = self.block_inference_engine(input_chunk)
 
     def _crop(self):
-        self.output = self.output[self.cropping_margin_size[0] : -self.cropping_margin_size[0],
+        self.output = self.output[:,
+                                  self.cropping_margin_size[0] : -self.cropping_margin_size[0],
                                   self.cropping_margin_size[1] : -self.cropping_margin_size[1],
-                                  self.cropping_margin_size[2] : -self.cropping_margin_size[2], :]
-
+                                  self.cropping_margin_size[2] : -self.cropping_margin_size[2]]
+    
     def _upload_output(self):
-        vol = CloudVolume(self.output_layer_path, parallel=True,
-                          output_to_shared_memory=True, mip=self.mip)
+        vol = CloudVolume(self.output_layer_path, parallel=True, compress='gzip', fill_missing=True, 
+                          bounded=False, autocrop=True, mip=self.mip, progress=True)
         output_slices = self.output_bbox.to_slices()
-        vol[output_slices[::-1]] = self.output  
+        self.output = np.transpose(self.output) 
+        vol[output_slices[::-1]+(slice(0,self.output.shape[-1]),)] = self.output 

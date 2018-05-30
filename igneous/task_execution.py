@@ -72,6 +72,7 @@ def execute(tag, queue, server, qurl, loop):
         tries += 1
         print(task)
         task.execute()
+        print("delete task in queue...")
         tq.delete(task)
         logger.log('INFO', task , "succesfully executed")
         tries = 0

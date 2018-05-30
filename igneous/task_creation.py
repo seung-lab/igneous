@@ -23,7 +23,8 @@ from igneous.tasks import (
   IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
-  LuminanceLevelsTask, ContrastNormalizationTask, InferenceTask
+  LuminanceLevelsTask, ContrastNormalizationTask, MaskAffinitymapTask, 
+  InferenceTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -572,6 +573,29 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
     )
     task_queue.insert(task)
   task_queue.wait()
+
+def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_layer_path, 
+        aff_mip, mask_layer_path, mask_mip, output_block_start, output_block_size, grid_size ):
+    """
+    affinity map masking block by block. The block coordinates should be aligned with 
+    cloud storage. 
+    """
+    for z in tqdm(range(grid_size[0]), desc='z loop'):
+        for y in tqdm(range(grid_size[1]), desc='y loop'):
+            for x in tqdm(range(grid_size[2]), desc='x loop'):
+                output_bbox = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
+                        for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
+                task = MaskAffinitymapTask(
+                    aff_input_layer_path=aff_input_layer_path,
+                    aff_output_layer_path=aff_output_layer_path,
+                    aff_mip=aff_mip, 
+                    mask_layer_path=mask_layer_path,
+                    mask_mip=mask_mip,
+                    output_bbox_str=output_bbox.to_filename(),
+                )
+                task_queue.insert(task)
+    task_queue.wait()
+
 
 def create_inference_tasks(task_queue, image_layer_path, convnet_path, 
         output_layer_path, output_block_start, output_block_size, 

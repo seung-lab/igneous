@@ -14,7 +14,7 @@ https://hub.docker.com/r/seunglab/igneous/
 
 You'll need Python 2 or 3, pip, a C++ compiler (g++ or clang), and virtualenv. Igneous appears to have higher performance using Python 3. It's tested under Ubuntu 14.04 and Mac OS High Sierra.
 
-```
+```bash
 git clone git@github.com:seung-lab/igneous.git
 cd igneous
 virtualenv venv
@@ -30,7 +30,7 @@ compile a meshing extension written by Aleksander Zlateski. The mesher is used t
 This generates meshes for an already-existing precomputed segmentation volume. It uses the
 MockTaskQueue driver (which is the single local worker mode).
 
-```
+```python3
 from taskqueue import LocalTaskQueue
 import igneous.task_creation as tc
 
@@ -53,7 +53,7 @@ You'll need to create an Amazon SQS queue to store the tasks you generate. Googl
 
 ### Populating the SQS Queue
 
-```
+```python3
 import sys
 from taskqueue import TaskQueue
 import igneous.task_creation as tc
@@ -70,7 +70,7 @@ print("Done!")
 
 The following instructions are for Google Container Engine, but AWS has similar tools.
 
-```
+```bash
 # Create a Kubernetes cluster
 # e.g. 
 
@@ -135,7 +135,7 @@ that mip 1 segmentation labels are exact mode computations, but subsequent ones 
 
 Whether image or segmentation type downsampling will be used is determined from the neuroglancer info file's "type" attribute.
 
-```
+```python3
 # Signature
 create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True)
 ```
@@ -164,7 +164,7 @@ visualize progress and reducing the amount of work a subsequent `DownsampleTask`
 Another use case is to transfer a neuroglancer dataset from one cloud bucket to another, but often the cloud
 provider's transfer service will suffice, even across providers. 
 
-```
+```python3
 create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, 
 	shape=Vec(2048, 2048, 64), fill_missing=False, translate=(0,0,0))
 ```
@@ -175,7 +175,7 @@ If you want to parallelize deletion of a data layer in a bucket beyond using e.g
 horizontally scale out deleting using these tasks. Note that the tasks assume that the information to be deleted
 is chunk aligned and named appropriately.
 
-```
+```python3
 create_deletion_tasks(task_queue, layer_path)
 ```
 
@@ -192,7 +192,7 @@ The `$BOUNDING_BOX` part of the name is arbitrary and is the convention used by 
 The second stage is running the `MeshManifestTask` which generates files named `$SEGID:0`. It contains a short JSON snippet that
 looks like `{ "fragments": [ "1052:0:0-512_0-512_0-512" ] }`. This file tells neuroglancer which mesh files to download.  
 
-```
+```python3
 # Signature
 create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)) # First Pass
 create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3) # Second Pass
@@ -214,7 +214,7 @@ Teravoxel or Petavoxel dataset.
 The object of these tasks are to first create a representative sample of the luminance levels of a dataset per a Z slice (i.e. a frequency count of gray values). This levels information is then used to perform per Z section contrast normalization. In the future, perhaps we will attempt global normalization. The algorithm currently in use reads the levels files for a given Z slice,
 determines how much of the ends of the distribution to lop off, perhaps 1% on each side (you should plot the levels files for your own data as this is configurable, perhaps you might choose 0.5% or 0.25%). The low value is recentered at 0, and the high value is stretched to 255 (in the case of uint8s) or 65,535 (in the case of uint16).
 
-```
+```python3
 # First Pass: Generate $layer_path/levels/$mip/
 create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0) 
 # Second Pass: Read Levels to stretch value distribution to full coverage

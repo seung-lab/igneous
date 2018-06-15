@@ -16,7 +16,7 @@ import numpy as np
 from tqdm import tqdm
 from cloudvolume import CloudVolume, Storage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor
-from taskqueue import TaskQueue, LocalTaskQueue
+from taskqueue import TaskQueue, MockTaskQueue, LocalTaskQueue
 
 from igneous import downsample_scales, chunks
 from igneous.tasks import (

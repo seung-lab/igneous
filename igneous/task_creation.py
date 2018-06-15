@@ -16,7 +16,7 @@ import numpy as np
 from tqdm import tqdm
 from cloudvolume import CloudVolume, Storage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor
-from taskqueue import TaskQueue, MockTaskQueue
+from taskqueue import TaskQueue, LocalTaskQueue
 
 from igneous import downsample_scales, chunks
 from igneous.tasks import (
@@ -230,6 +230,9 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, chunk_siz
   except Exception: # no info file
     info = copy.deepcopy(vol.info)
     dvol = CloudVolume(dest_layer_path, info=info)
+    dvol.commit_info()
+
+  if chunk_size is not None:
     dvol.info['scales'] = dvol.info['scales'][:1]
     dvol.info['scales'][0]['chunk_sizes'] = [ chunk_size.tolist() ]
     dvol.commit_info()
@@ -248,6 +251,7 @@ def create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, chunk_siz
     )
     task_queue.insert(task)
   task_queue.wait('Uploading Transfer Tasks')
+
   dvol = CloudVolume(dest_layer_path)
   dvol.provenance.processing.append({
     'method': {
@@ -566,7 +570,7 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
 
   with open(volume_map_file, 'r') as f:
     volume_map = json.loads(f.read())
-    
+
   vol = CloudVolume(dest_path)
 
   for boundstr, volume_id in tqdm(volume_map.items(), desc="Inserting HyperSquare Consensus Remap Tasks"):

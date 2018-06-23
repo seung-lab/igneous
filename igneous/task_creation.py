@@ -23,7 +23,8 @@ from igneous.tasks import (
   IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
-  LuminanceLevelsTask, ContrastNormalizationTask
+  LuminanceLevelsTask, ContrastNormalizationTask,
+  SkeletonTask, SkeletonMergeTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -182,6 +183,39 @@ def create_deletion_tasks(task_queue, layer_path):
     )
     task_queue.insert(task)
   task_queue.wait('Uploading DeleteTasks')
+
+def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 512), tesar_params=[10, 10]):
+  shape = Vec(*shape)
+  vol = CloudVolume(cloudpath)
+
+  if not 'skeletons' in vol.info:
+    vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
+    vol.commit_info()
+
+  # 50% overlap
+  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape // 2 ), desc="Inserting Skeleton Tasks"):
+    task = SkeletonTask(
+      cloudpath=cloudpath,
+      mip=mip,
+      shape=shape.clone(),
+      offset=startpt.clone(),
+      tesar_params=tesar_params,
+    )
+    task_queue.insert(task)
+  task_queue.wait('Uploading SkeletonTasks')
+
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'SkeletonTask',
+      'cloudpath': cloudpath,
+      'mip': vol.mip,
+      'shape': shape.tolist(),
+      'tesar_params': tesar_params,
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  vol.commit_provenance()
 
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
   shape = Vec(*shape)

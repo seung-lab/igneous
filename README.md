@@ -110,19 +110,19 @@ kubectl delete deployment igneous
 
 You can find the following tasks in `igneous/tasks.py` and can use them via editing or importing functions from `igneous/task_creation.py`. 
 
-| Capability               | Tasks                                          | Description                                                         |  | 
-|--------------------------|------------------------------------------------|---------------------------------------------------------------------|--| 
-| Downsampling             | DownsampleTask                                 | Generate image hierarchies.                                         |  | 
-| Meshing                  | MeshTask, MeshManifestTask                     | Create object meshes viewable in Neuroglancer.                      |  | 
-| Skeletonize              | SkeletonTask, SkeletonMergeTask    | Create Neuroglancer viewable skeletons using TESAR algorithm.       |  | 
-| Transfer                 | TransferTask                                   | Copy data, supports rechunking and coordinate translation.          |  | 
-| Deletion                 | DeleteTask                                     | Delete a data layer.                                                |  | 
-| Contrast Normalization   | LuminanceLevelsTask, ContrastNormalizationTask | Spread out slice histograms to fill value range.                    |  | 
-| Quantization             | QuantizeAffinitiesTask                         | Rescale values into 8-bit to make them easier to visualize.         |  | 
-| Remapping                | WatershedRemapTask                             | Remap segmentations to create agglomerated labels.                  |  | 
-| Eyewire Consensus Import | HyperSquareConsensusTask                       | Map Eyewire consensus into Neuroglancer.                            |  | 
-| Ingest                   | IngestTask                                     | (deprecated) Convert HDF5 into Precomputed format.                  |  | 
-| HyperSquare Ingest       | HyperSquareTask                                | (deprecated) Convert Eyewire's HyperSquare format into Precomputed. |  | 
+Capability               |Tasks                                          |Description                                                          
+:-----:|:-----:|:-----:
+Downsampling             |DownsampleTask                                 |Generate image hierarchies.                                          
+Meshing                  |MeshTask, MeshManifestTask                     |Create object meshes viewable in Neuroglancer.                       
+Skeletonize              |SkeletonTask, SkeletonMergeTask                |Create Neuroglancer viewable skeletons using TESAR algorithm.        
+Transfer                 |TransferTask                                   |Copy data, supports rechunking and coordinate translation.           
+Deletion                 |DeleteTask                                     |Delete a data layer.                                                 
+Contrast Normalization   |LuminanceLevelsTask, ContrastNormalizationTask |Spread out slice histograms to fill value range.                     
+Quantization             |QuantizeAffinitiesTask                         |Rescale values into 8-bit to make them easier to visualize.          
+Remapping                |WatershedRemapTask                             |Remap segmentations to create agglomerated labels.                   
+Eyewire Consensus Import |HyperSquareConsensusTask                       |Map Eyewire consensus into Neuroglancer.                             
+Ingest                   |IngestTask                                     |(deprecated) Convert HDF5 into Precomputed format.                   
+HyperSquare Ingest       |HyperSquareTask                                |(deprecated) Convert Eyewire's HyperSquare format into Precomputed.  
 
 
 ### Downsampling (DownsampleTask)

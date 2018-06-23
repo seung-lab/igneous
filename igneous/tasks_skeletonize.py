@@ -3,23 +3,19 @@ try:
 except ImportError:
     from io import BytesIO
 
-import io
-import itertools
 import json
-import math
+import pickle
 import os
-import random
 import re
 
 import numpy as np
-from tqdm import tqdm
 
 from cloudvolume import CloudVolume, Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
-from igneous import Mesher # broken out for ease of commenting out
+from igneous import skeletonization as skel
 
 def skeldir(cloudpath):
   with SimpleStorage(self.layer_path) as storage:
@@ -30,19 +26,19 @@ def skeldir(cloudpath):
     skel_dir = info['skeletons']
   return skel_dir
 
-class PointCloudTask(RegisteredTask):
+class SkeletonTask(RegisteredTask):
   """
   Stage 1 of skeletonization.
 
-  Convert chunks of segmentation into point clouds.
-  They will be agglomerated in the stage 2 task
-  PointCloudAggregationTask.
+  Convert chunks of segmentation into chunked skeletons and point clouds.
+  They will be merged in the stage 2 task SkeletonMergeTask.
   """
-  def __init__(self, cloudpath, shape, offset, mip):
+  def __init__(self, cloudpath, shape, offset, mip, teasar_params=[10, 10]):
     super(PointCloudTask, self).__init__(cloudpath, shape, offset, mip)
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.mip = mip
+    self.teasar_params = teasar_params
 
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip)
@@ -50,25 +46,48 @@ class PointCloudTask(RegisteredTask):
 
     image = vol[ bbox.to_slices() ]
     image = image[:,:,:,0]
-    uniques = np.unique(image)
 
-    point_path = os.path.join(skel_dir(self.cloudpath), 'points')
+    path = skeldir(self.cloudpath)
+    with Storage(path) as stor:
+      for segid, ptcloud in self.point_clouds(image, bbox):
+        crop_bbox, skeleton = self.skeletonize(ptcloud, bbox)
 
-    with Storage(point_path) as storage:
-      for segid in uniques:
-        # type = int32 b/c coords can be less than zero after bbox adjustment
-        # and int32 saves 2x over int64 default
-        coords = np.argwhere( image == segid ).astype(np.int32)
-        coords[:,0,0] += bbox.minpt.x
-        coords[0,:,0] += bbox.minpt.y
-        coords[0,0,:] += bbox.minpt.z
-        storage.put_file(
-          file_path="{}:{}".format(segid, bbox.to_filename()),
+        stor.put_file(
+          file_path="{}:ptcloud:{}".format(segid, bbox.to_filename()),
           content=coords.tostring('C'),
           compress='gzip',
         )
 
-class PointCloudAggregationTask(RegisteredTask):
+        stor.put_file(
+          file_path="{}:skel:{}".format(segid, crop_bbox.to_filename()),
+          content=pickle.dumps(skeleton),
+          compress='gzip',
+        )
+
+  def skeletonize(self, point_cloud, bbox):
+    skeleton = skel.skeletonize(point_cloud, self.teasar_params)
+    
+    # Crop by 50px to avoid edge effects.
+    crop_bbox = bbox.clone()
+    crop_bbox.minpt += 50
+    crop_bbox.maxpt -= 50
+    
+    skeleton = skel.crop_skeleton(skeleton, crop_bbox)
+    return crop_bbox, skeleton
+
+  def point_clouds(self, image, bbox):
+    uniques = np.unique(image)
+    
+    for segid in uniques:
+      # type = int32 b/c coords can be less than zero after bbox adjustment
+      # and int32 saves 2x over int64 default
+      coords = np.argwhere( image == segid ).astype(np.int32)
+      coords[:,0,0] += bbox.minpt.x
+      coords[0,:,0] += bbox.minpt.y
+      coords[0,0,:] += bbox.minpt.z
+      yield segid, coords
+
+class SkeletonMergeTask(RegisteredTask):
   """
   Stage 2 of skeletonization.
 
@@ -80,7 +99,7 @@ class PointCloudAggregationTask(RegisteredTask):
   a single mesh ['0:','1:',..'9:']
   """
   def __init__(self, cloudpath, prefix):
-    super(PointCloudAggregationTask, self).__init__(cloudpath, prefix)
+    super(SkeletonMergeTask, self).__init__(cloudpath, prefix)
     self.cloudpath = cloudpath
     self.prefix = prefix
 
@@ -151,3 +170,41 @@ class PointCloudAggregationTask(RegisteredTask):
 
 
 
+
+class PointCloudTask(RegisteredTask):
+  """
+  Stage 1 of skeletonization.
+
+  Convert chunks of segmentation into point clouds.
+  They will be agglomerated in the stage 2 task
+  PointCloudMergeTask.
+  """
+  def __init__(self, cloudpath, shape, offset, mip):
+    super(PointCloudTask, self).__init__(cloudpath, shape, offset, mip)
+    self.cloudpath = cloudpath
+    self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
+    self.mip = mip
+
+  def execute(self):
+    vol = CloudVolume(self.cloudpath, mip=self.mip)
+    bbox = Bbox.clamp(self.bounds, vol.bounds)
+
+    image = vol[ bbox.to_slices() ]
+    image = image[:,:,:,0]
+    uniques = np.unique(image)
+
+    point_path = os.path.join(skel_dir(self.cloudpath), 'points')
+
+    with Storage(point_path) as storage:
+      for segid in uniques:
+        # type = int32 b/c coords can be less than zero after bbox adjustment
+        # and int32 saves 2x over int64 default
+        coords = np.argwhere( image == segid ).astype(np.int32)
+        coords[:,0,0] += bbox.minpt.x
+        coords[0,:,0] += bbox.minpt.y
+        coords[0,0,:] += bbox.minpt.z
+        storage.put_file(
+          file_path="{}:{}".format(segid, bbox.to_filename()),
+          content=coords.tostring('C'),
+          compress='gzip',
+        )

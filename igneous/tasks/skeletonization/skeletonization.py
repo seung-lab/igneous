@@ -12,7 +12,7 @@ from scipy import ndimage
 from scipy.sparse.csgraph import dijkstra
 from scipy.sparse import csr_matrix
 
-from .defintions import Skeleton, Nodes
+from .definitions import Skeleton, Nodes
 from .postprocess import consolidate_skeleton
 
 VERBOSE = False

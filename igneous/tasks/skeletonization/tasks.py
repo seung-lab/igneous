@@ -10,12 +10,13 @@ import re
 
 import numpy as np
 
-from cloudvolume import CloudVolume, Storage, SimpleStorage
+from cloudvolume import CloudVolume
+from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
-from igneous import skeletonization as skel
+from . import skeletonization as skel
 
 def skeldir(cloudpath):
   with SimpleStorage(self.layer_path) as storage:

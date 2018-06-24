@@ -108,7 +108,7 @@ kubectl delete deployment igneous
 
 ## Capabilities
 
-You can find the following tasks in `igneous/tasks.py` and can use them via editing or importing functions from `igneous/task_creation.py`. 
+You can find the following tasks in `igneous/tasks/tasks.py` and can use them via editing or importing functions from `igneous/task_creation.py`. 
 
 Capability               |Tasks                                          |Description                                                          
 :-----:|:-----:|:-----:
@@ -268,7 +268,7 @@ create_contrast_normalization_tasks(task_queue, src_path, dest_path, shape=None,
 
 ## Conclusion
 
-It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks.py` for the most current information.  
+It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks/tasks.py` for the most current information.  
 
 Please post an issue or PR if you think something needs to be addressed. 
 

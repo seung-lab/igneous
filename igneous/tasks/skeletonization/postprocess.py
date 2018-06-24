@@ -24,10 +24,10 @@ def crop_skeleton(skeleton, bound):
   skeleton.edges = edges[edges_valid_idx,:]
   return consolidate_skeleton(skeleton)
 
-def trim_skeleton(skeleton, p):
+def trim_skeleton(skeleton, ptcloud):
   skeleton = remove_dust(skeleton, 100) # 100 edges
   skeleton = remove_loops(skeleton)
-  skeleton = connect_pieces(skeleton, p)
+  skeleton = connect_pieces(skeleton, ptcloud)
   skeleton = remove_ticks(skeleton)
   return skeleton
 
@@ -196,7 +196,7 @@ def interpolate_line(point1, point2):
   int_points = np.round(int_points)
   return np.unique(int_points, axis=0)
 
-def connect_pieces(skeleton, p):
+def connect_pieces(skeleton, ptcloud):
   nodes = skeleton.nodes
   edges = skeleton.edges
 
@@ -233,7 +233,7 @@ def connect_pieces(skeleton, p):
         int_points = interpolate_line(nodes[start_idx,:],nodes[end_idx,:])
   
         for k in range(int_points.shape[0]):
-          in_seg = np.sum(~np.any(p - int_points[k,:], axis=1))
+          in_seg = np.sum(~np.any(ptcloud - int_points[k,:], axis=1))
           if in_seg == 0:
             break
 

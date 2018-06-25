@@ -16,10 +16,14 @@ def crop_skeleton(skeleton, bound):
   if type(bound) == Bbox:
     bound = np.array(bound.to_list()).reshape( (2,3) )
 
+  if skeleton.empty():
+    return skeleton
+
   nodes_valid_mask = get_valid(skeleton.nodes, bound)
   nodes_valid_idx = np.where(nodes_valid_mask)[0]
 
-  edges_valid_mask = np.isin(skeleton.edges, nodes_valid_idx)
+  edges = skeleton.edges
+  edges_valid_mask = np.isin(edges, nodes_valid_idx)
   edges_valid_idx = edges_valid_mask[:,0] * edges_valid_mask[:,1] 
   skeleton.edges = edges[edges_valid_idx,:]
   return consolidate_skeleton(skeleton)

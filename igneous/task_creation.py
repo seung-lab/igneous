@@ -196,10 +196,10 @@ def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 5
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape // 2 ), desc="Inserting Skeleton Tasks"):
     task = SkeletonTask(
       cloudpath=cloudpath,
-      mip=mip,
       shape=shape.clone(),
       offset=startpt.clone(),
-      tesar_params=tesar_params,
+      mip=mip,
+      teasar_params=tesar_params,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading SkeletonTasks')
@@ -649,8 +649,8 @@ def cascade(tq, fnlist):
 
 
 if __name__ == '__main__':  
-  with MockTaskQueue() as task_queue:
-    pass
+  # with TaskQueue(queue_server='sqs', qurl='https://sqs.us-east-1.amazonaws.com/098703261575/wms-pull-queue') as tq:
+  with MockTaskQueue() as tq:
+    create_skeletonizing_tasks(tq, 'gs://neuroglancer/test_v0/segmentation', mip=0, shape=(256, 256, 50))
    
-
 

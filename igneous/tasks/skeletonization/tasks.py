@@ -9,6 +9,7 @@ import os
 import re
 
 import numpy as np
+from tqdm import tqdm
 
 from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
@@ -22,7 +23,7 @@ from .skeletonization import skeletonize
 from .postprocess import crop_skeleton, merge_skeletons, trim_skeleton
 
 def skeldir(cloudpath):
-  with SimpleStorage(self.layer_path) as storage:
+  with SimpleStorage(cloudpath) as storage:
     info = storage.get_json('info')
 
   skel_dir = 'skeletons/points'
@@ -38,7 +39,7 @@ class SkeletonTask(RegisteredTask):
   They will be merged in the stage 2 task SkeletonMergeTask.
   """
   def __init__(self, cloudpath, shape, offset, mip, teasar_params=[10, 10]):
-    super(PointCloudTask, self).__init__(cloudpath, shape, offset, mip)
+    super(SkeletonTask, self).__init__(cloudpath, shape, offset, mip, teasar_params)
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.mip = mip
@@ -52,30 +53,31 @@ class SkeletonTask(RegisteredTask):
     image = image[:,:,:,0]
 
     path = skeldir(self.cloudpath)
+    path = os.path.join(self.cloudpath, path)
     with Storage(path) as stor:
       for segid, ptcloud in self.point_clouds(image, bbox):
         crop_bbox, skeleton = self.skeletonize(ptcloud, bbox)
 
-        stor.put_file(
-          file_path="{}:ptcloud:{}".format(segid, bbox.to_filename()),
-          content=coords.tobytes('C'),
-          compress='gzip',
-        )
+        print(ptcloud.size // 3, skeleton.empty())
+
+        if skeleton.empty():
+          continue
 
         stor.put_file(
-          file_path="{}:skel:{}.pkl".format(segid, crop_bbox.to_filename()),
+          file_path="{}:skel:{}".format(segid, crop_bbox.to_filename()),
           content=pickle.dumps(skeleton),
           compress='gzip',
+          content_type="application/python-pickle",
         )
 
   def skeletonize(self, point_cloud, bbox):
     skeleton = skeletonize(point_cloud, self.teasar_params)
-    
+
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()
     crop_bbox.minpt += 50
     crop_bbox.maxpt -= 50
-    
+
     skeleton = crop_skeleton(skeleton, crop_bbox)
     return crop_bbox, skeleton
 
@@ -83,12 +85,19 @@ class SkeletonTask(RegisteredTask):
     uniques = np.unique(image)
     
     for segid in uniques:
+      if segid == 0:
+        continue 
+
       # type = int32 b/c coords can be less than zero after bbox adjustment
       # and int32 saves 2x over int64 default
       coords = np.argwhere( image == segid ).astype(np.int32)
-      coords[:,0,0] += bbox.minpt.x
-      coords[0,:,0] += bbox.minpt.y
-      coords[0,0,:] += bbox.minpt.z
+      
+      if coords.size == 0:
+        continue
+
+      coords[ :, 0 ] += bbox.minpt.x
+      coords[ :, 1 ] += bbox.minpt.y
+      coords[ :, 2 ] += bbox.minpt.z
       yield segid, coords
 
 class SkeletonMergeTask(RegisteredTask):
@@ -152,6 +161,7 @@ class SkeletonMergeTask(RegisteredTask):
         file_path="{}.pkl".format(segid),
         content=pickle.dumps(skeleton),
         compress='gzip',
+        content_type="application/python-pickle",
       )
 
       vol.skeleton.save(segid, skeleton.vertices, skeleton.edges)
@@ -238,22 +248,6 @@ class SkeletonMergeTask(RegisteredTask):
     # bbx = Bbox.expand(*bboxes)
 
     return points
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

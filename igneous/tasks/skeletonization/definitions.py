@@ -11,6 +11,9 @@ class Skeleton:
     self.radii = radii
     self.root = root
 
+  def empty(self):
+    return self.nodes.size == 0 or self.edges.size == 0
+
 class Nodes:
   def __init__(self, coord, max_bound):
     n = coord.shape[0]

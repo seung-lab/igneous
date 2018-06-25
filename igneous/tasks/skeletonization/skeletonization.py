@@ -15,7 +15,7 @@ from scipy.sparse import csr_matrix
 from .definitions import Skeleton, Nodes
 from .postprocess import consolidate_skeleton
 
-VERBOSE = False
+VERBOSE = True
 def debug(txt):
   if VERBOSE:
     print(txt)
@@ -216,6 +216,30 @@ def reorder_nodes(nodes, edges):
     edges_reorder[i,1] = np.where(nodes == edges[i,1])[0]
 
   return edges_reorder
+
+def array2point(array, object_id=None):
+  """
+  array: array with labels
+  object_id: object label to extract point cloud
+
+  Return: n x 3 point coordinates 
+  """
+
+  if object_id is None:
+    object_coord = np.where(array > 0)
+  else:
+    object_coord = np.where(array == object_id)
+
+  object_x = object_coord[0]
+  object_y = object_coord[1]
+  object_z = object_coord[2]
+
+  points = np.zeros([ len(object_x), 3 ], dtype='uint32')
+  points[:,0] = object_x
+  points[:,1] = object_y
+  points[:,2] = object_z
+
+  return points
 
 def TEASAR(
     object_points, parameters, init_root=np.array([]), 

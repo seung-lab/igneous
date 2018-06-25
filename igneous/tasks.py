@@ -223,7 +223,7 @@ class MeshTask(RegisteredTask):
   def _compute_meshes(self):
     with Storage(self.layer_path) as storage:
       data = self._data[:,:,:,0].T
-      self._mesher.mesh(data.flatten(), *data.shape[:3])
+      self._mesher.mesh(data)
       for obj_id in self._mesher.ids():
         storage.put_file(
           file_path='{}/{}:{}:{}'.format(self._mesh_dir, obj_id, self.lod, self._bounds.to_filename()),

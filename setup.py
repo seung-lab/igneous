@@ -6,8 +6,8 @@ import os
 import shutil
 import setuptools
 
-# NOTE: You must run cython --cplus ./ext/src/third_party/mc/_mesher.pyx before setup
-# if _mesher.cpp does not exist.
+# NOTE: If _mesher.cpp does not exist, you must run
+# cython --cplus -I./ext/third_party/zi_lib/ ./ext/third_party/mc/_mesher.pyx
 
 third_party_dir = './ext/third_party'
 
@@ -22,7 +22,8 @@ setuptools.setup(
             language='c++',
             include_dirs=[ os.path.join(third_party_dir, name) for name in ('zi_lib/', 'mc/') ],
             extra_compile_args=[
-              '-std=c++11','-O3']) #don't use  '-fvisibility=hidden', python can't see init module
+              '-std=c++11','-O3'
+            ]) #don't use  '-fvisibility=hidden', python can't see init module
     ],
 )
 

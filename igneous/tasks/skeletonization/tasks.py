@@ -78,6 +78,9 @@ class SkeletonTask(RegisteredTask):
     crop_bbox.minpt += 50
     crop_bbox.maxpt -= 50
 
+    if crop_bbox.volume() <= 0:
+      return bbox, skeleton
+
     skeleton = crop_skeleton(skeleton, crop_bbox)
     return crop_bbox, skeleton
 

@@ -15,7 +15,7 @@ from scipy.sparse import csr_matrix
 from .definitions import Skeleton, Nodes
 from .postprocess import consolidate_skeleton
 
-VERBOSE = True
+VERBOSE = False
 def debug(txt):
   if VERBOSE:
     print(txt)

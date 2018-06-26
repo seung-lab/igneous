@@ -241,9 +241,7 @@ def array2point(array, object_id=None):
 
   return points
 
-def create_TEASAR_graph(object_points, DBF, max_bound, soma):
-  """object_points = point cloud, DBF = distance based transform"""
-
+def create_TEASAR_edges(object_points, DBF, max_bound, soma):
   n = object_points.shape[0]  
   NDIM = object_points.shape[1]
 
@@ -252,12 +250,13 @@ def create_TEASAR_graph(object_points, DBF, max_bound, soma):
   # Penalty weight for the edges
   M = np.max(DBF) ** 1.01
   p_v = 100000 * ((1 - DBF / M) ** 16)
+  p_v = p_v.astype(np.float32)
 
   # 26-connectivity
   nhood_26 = np.zeros([3,3,3], dtype='bool')
   nhood_26 = np.where(nhood_26 == 0)
 
-  nhood = np.zeros([ nhood_26[0].size, 3 ])
+  nhood = np.zeros([ nhood_26[0].size, 3 ], dtype=np.float32)
   for i in range(NDIM):
     nhood[:,i] = nhood_26[i]
   nhood = nhood - 1
@@ -266,11 +265,11 @@ def create_TEASAR_graph(object_points, DBF, max_bound, soma):
   n_nhood = nhood.shape[0]  
   nhood_weight = np.sum(nhood ** 2, axis=1) ** 16
 
-  nhood_points = np.zeros([n, 3])
-  nhood_nodes = np.ones([n, n_nhood]) * -1 
-  obj_node = np.zeros([n, n_nhood])
-  edge_dist = np.zeros([n, n_nhood])
-  edge_weight = np.zeros([n, n_nhood])
+  nhood_points = np.zeros([n, 3], dtype=np.float32)
+  nhood_nodes = np.ones([n, n_nhood], dtype=np.float32) * -1 
+  obj_node = np.zeros([n, n_nhood], dtype=np.float32)
+  edge_dist = np.zeros([n, n_nhood], dtype=np.float32)
+  edge_weight = np.zeros([n, n_nhood], dtype=np.float32)
   
   debug("Setting edge weight...")
   for i in range(n_nhood):
@@ -289,14 +288,31 @@ def create_TEASAR_graph(object_points, DBF, max_bound, soma):
     else:
       edge_weight[valid,i] = p_v[object_points[valid_idx,0],object_points[valid_idx,1],object_points[valid_idx,2]]
   
-  debug("Creating graph...")
+  return (nhood_nodes, obj_node, edge_dist, edge_weight)
+
+# @profile
+def create_TEASAR_graph(object_points, DBF, max_bound, soma):
+  """object_points = point cloud, DBF = distance based transform"""
+
+  nhood_nodes, obj_node, edge_dist, edge_weight = create_TEASAR_edges(object_points, DBF, max_bound, soma)
+
   valid_edge = np.where(nhood_nodes != -1)
-  G_dist = csr_matrix((edge_dist[valid_edge[0],valid_edge[1]],(obj_node[valid_edge[0],valid_edge[1]],nhood_nodes[valid_edge[0],valid_edge[1]])), shape=(n,n))
-  G = csr_matrix((edge_weight[valid_edge[0],valid_edge[1]],(obj_node[valid_edge[0],valid_edge[1]],nhood_nodes[valid_edge[0],valid_edge[1]])), shape=(n,n))
+
+  n = object_points.shape[0]
+
+  debug("Creating graph...")
+  G_dist = csr_matrix(
+    (edge_dist[valid_edge[0], valid_edge[1]], 
+      (obj_node[valid_edge[0], valid_edge[1]], nhood_nodes[valid_edge[0], valid_edge[1]])), 
+      shape=(n,n)
+    )
+  G = csr_matrix(
+    (edge_weight[valid_edge[0], valid_edge[1]], 
+      (obj_node[valid_edge[0], valid_edge[1]], nhood_nodes[valid_edge[0], valid_edge[1]])), 
+      shape=(n,n))
 
   return G_dist, G
 
-# @profile
 def TEASAR(
     object_points, parameters, init_root=np.array([]), 
     init_dest=np.array([]), soma=False
@@ -331,7 +347,7 @@ def TEASAR(
 
   # Distance to the boundary map
   debug("Creating DBF...")
-  DBF = ndimage.distance_transform_edt(bin_im)
+  DBF = ndimage.distance_transform_edt(bin_im).astype(np.float32)
 
   G_dist, G = create_TEASAR_graph(object_points, DBF, max_bound, soma=soma)
 

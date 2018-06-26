@@ -17,6 +17,7 @@ from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
+from igneous import Mesher
 
 from .definitions import Skeleton, Nodes
 from .skeletonization import skeletonize
@@ -46,7 +47,7 @@ class SkeletonTask(RegisteredTask):
     self.teasar_params = teasar_params
 
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip)
+    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     image = vol[ bbox.to_slices() ]
@@ -54,11 +55,12 @@ class SkeletonTask(RegisteredTask):
 
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
+
     with Storage(path) as stor:
       for segid, ptcloud in self.point_clouds(image, bbox):
         crop_bbox, skeleton = self.skeletonize(ptcloud, bbox)
 
-        print(ptcloud.size // 3, skeleton.empty())
+        print(segid, ptcloud.shape, skeleton.empty())
 
         if skeleton.empty():
           continue
@@ -83,6 +85,27 @@ class SkeletonTask(RegisteredTask):
 
     skeleton = crop_skeleton(skeleton, crop_bbox)
     return crop_bbox, skeleton
+
+  # def point_clouds(self, image, bbox):
+  #   """Mesh based point cloud finder. Not compatible with TEASAR unfortunately."""
+  #   mesher = Mesher()
+  #   mesher.mesh(image)
+      
+  #   for segid in mesher.ids():
+  #     mesh = mesher.get_mesh(segid) # no simplificiation
+  #     ptcloud = np.array(mesh['points'], dtype=np.float32)
+
+  #     if ptcloud.size == 0:
+  #       continue
+
+  #     ptcloud = ptcloud.astype(np.int32) \
+  #       .reshape( (ptcloud.shape[0] // 3, 3) )
+
+  #     ptcloud[ :, 0 ] += bbox.minpt.x
+  #     ptcloud[ :, 1 ] += bbox.minpt.y
+  #     ptcloud[ :, 2 ] += bbox.minpt.z
+
+  #     yield segid, ptcloud
 
   def point_clouds(self, image, bbox):
     uniques = np.unique(image)

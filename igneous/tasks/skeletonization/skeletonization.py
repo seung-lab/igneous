@@ -241,41 +241,13 @@ def array2point(array, object_id=None):
 
   return points
 
-def TEASAR(
-    object_points, parameters, init_root=np.array([]), 
-    init_dest=np.array([]), soma=False
-  ):
-  """
-  Given a point cloud, convert it into a skeleton.
-  
-  Based on the algorithm by:
+def create_TEASAR_graph(object_points, DBF, max_bound, soma):
+  """object_points = point cloud, DBF = distance based transform"""
 
-  Sato, et al. "TEASAR: tree-structure extraction algorithm for accurate and robust skeletons"  
-    Proc. the Eighth Pacific Conference on Computer Graphics and Applications. Oct. 2000.
-    doi:10.1109/PCCGA.2000.883951 (https://ieeexplore.ieee.org/document/883951/)
-
-  object_points: n x 3 point cloud format of the object
-  parameters: list of "scale" and "constant" parameters (first: "scale", second: "constant")
-               larger values mean less senstive to detecting small branches
-
-  Returns: Skeleton object
-  """
+  n = object_points.shape[0]  
   NDIM = object_points.shape[1]
-  object_points = object_points.astype('uint32')
-
-  max_bound = np.max(object_points, axis=0) + 2
 
   object_nodes = Nodes(object_points, max_bound)
-
-  bin_im = np.zeros(max_bound, dtype='bool')
-  bin_im[object_points[:,0], object_points[:,1], object_points[:,2]] = True
-
-  n = object_points.shape[0]
-  debug('Number of points ::::: ' + str(n))
-
-  # Distance to the boundary map
-  debug("Creating DBF...")
-  DBF = ndimage.distance_transform_edt(bin_im)
 
   # Penalty weight for the edges
   M = np.max(DBF) ** 1.01
@@ -321,6 +293,47 @@ def TEASAR(
   valid_edge = np.where(nhood_nodes != -1)
   G_dist = csr_matrix((edge_dist[valid_edge[0],valid_edge[1]],(obj_node[valid_edge[0],valid_edge[1]],nhood_nodes[valid_edge[0],valid_edge[1]])), shape=(n,n))
   G = csr_matrix((edge_weight[valid_edge[0],valid_edge[1]],(obj_node[valid_edge[0],valid_edge[1]],nhood_nodes[valid_edge[0],valid_edge[1]])), shape=(n,n))
+
+  return G_dist, G
+
+# @profile
+def TEASAR(
+    object_points, parameters, init_root=np.array([]), 
+    init_dest=np.array([]), soma=False
+  ):
+  """
+  Given a point cloud, convert it into a skeleton.
+  
+  Based on the algorithm by:
+
+  Sato, et al. "TEASAR: tree-structure extraction algorithm for accurate and robust skeletons"  
+    Proc. the Eighth Pacific Conference on Computer Graphics and Applications. Oct. 2000.
+    doi:10.1109/PCCGA.2000.883951 (https://ieeexplore.ieee.org/document/883951/)
+
+  object_points: n x 3 point cloud format of the object
+  parameters: list of "scale" and "constant" parameters (first: "scale", second: "constant")
+               larger values mean less senstive to detecting small branches
+
+  Returns: Skeleton object
+  """
+  NDIM = object_points.shape[1]
+  object_points = object_points.astype('uint32')
+
+  max_bound = np.max(object_points, axis=0) + 2
+
+  object_nodes = Nodes(object_points, max_bound)
+
+  bin_im = np.zeros(max_bound, dtype='bool')
+  bin_im[object_points[:,0], object_points[:,1], object_points[:,2]] = True
+
+  n = object_points.shape[0]
+  debug('Number of points ::::: ' + str(n))
+
+  # Distance to the boundary map
+  debug("Creating DBF...")
+  DBF = ndimage.distance_transform_edt(bin_im)
+
+  G_dist, G = create_TEASAR_graph(object_points, DBF, max_bound, soma=soma)
 
   root_nodes = object_nodes.sub2node(init_root)
   n_root = root_nodes.shape[0]

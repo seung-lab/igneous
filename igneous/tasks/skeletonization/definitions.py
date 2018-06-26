@@ -43,4 +43,4 @@ class Nodes:
     max_bound = self.max_bound
     idx_array = sub_array[:,0] + max_bound[0]*sub_array[:,1] + max_bound[0]*max_bound[1]*sub_array[:,2]
 
-    return self.node[idx_array].astype('int64')
+    return self.node[idx_array].astype('int32')

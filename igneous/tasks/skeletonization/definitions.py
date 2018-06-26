@@ -18,7 +18,6 @@ class Nodes:
   def __init__(self, coord, max_bound):
     n = coord.shape[0]
     coord = coord.astype('uint32')
-    self.coord = dict(zip(map(tuple, coord), np.arange(coord.shape[0])))
     self.max_bound = max_bound.astype('uint32')
 
     idx = np.zeros(n, dtype='uint64')

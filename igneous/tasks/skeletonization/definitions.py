@@ -17,13 +17,14 @@ class Skeleton:
 class Nodes:
   def __init__(self, coord, max_bound):
     n = coord.shape[0]
-    coord = coord.astype('uint64')
-    self.max_bound = max_bound.astype('uint64')
+
+    coord = coord.astype(np.int32)
+    self.max_bound = max_bound.astype(np.int32)
 
     idx = coord[:,0] + max_bound[0] * coord[:,1] + max_bound[0] * max_bound[1] * coord[:,2]
 
-    idx2node = np.ones(np.prod(max_bound))*-1
-    idx2node[idx] = np.arange(coord.shape[0], dtype='int64')
+    idx2node = np.ones(np.prod(max_bound), dtype=np.int32) * -1
+    idx2node[idx] = np.arange(coord.shape[0], dtype=np.int32)
     self.node = idx2node
 
   def sub2idx(self, sub_array):

@@ -339,8 +339,6 @@ def TEASAR(
 
   max_bound = np.max(object_points, axis=0) + 2
 
-  object_nodes = Nodes(object_points, max_bound)
-
   bin_im = np.zeros(max_bound, dtype='bool')
   bin_im[object_points[:,0], object_points[:,1], object_points[:,2]] = True
 
@@ -353,6 +351,7 @@ def TEASAR(
 
   G_dist, G = create_TEASAR_graph(object_points, DBF, max_bound, soma=soma)
 
+  object_nodes = Nodes(object_points, max_bound)
   root_nodes = object_nodes.sub2node(init_root)
   n_root = root_nodes.shape[0]
   

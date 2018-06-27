@@ -12,7 +12,7 @@ from scipy import ndimage
 from scipy.sparse.csgraph import dijkstra
 from scipy.sparse import csr_matrix
 
-from .definitions import Skeleton, Nodes
+from .definitions import Skeleton, Nodes, find_row, path2edge
 from .postprocess import consolidate_skeleton
 
 VERBOSE = False
@@ -121,36 +121,6 @@ def upsample_points(points, dsmp_resolution):
   dsmp_resolution = np.array(dsmp_resolution)
   point_upsample = points * dsmp_resolution
   return point_upsample.astype('uint16')
-
-def find_row(array, row):
-  """
-  array: array to search for
-  row: row to find
-
-  Returns: row indices
-  """
-  row = np.array(row)
-
-  if array.shape[1] != row.size:
-    raise ValueError("Dimensions do not match!")
-  
-  NDIM = array.shape[1]
-  valid = np.zeros(array.shape, dtype='bool')
-
-  for i in range(NDIM):
-    valid[:,i] = array[:,i] == row[i]
-
-  row_loc = np.zeros([ array.shape[0], 1 ])
-
-  if NDIM == 2:
-    row_loc = valid[:,0] * valid[:,1]
-  elif NDIM == 3:
-    row_loc = valid[:,0] * valid[:,1] * valid[:,2]
-
-  idx = np.where(row_loc==1)[0]
-  if len(idx) == 0:
-    idx = -1
-  return idx
  
 def find_path(predecessor, end, start=[]):
   """
@@ -190,18 +160,6 @@ def thr_linear(x, linear_parameters, threshold):
   """
   slope, const = linear_parameters
   return min(x * slope + const, threshold)
-
-def path2edge(path):
-  """
-  path: sequence of nodes
-
-  Returns: sequence separated into edges
-  """
-  edges = np.zeros([len(path)-1,2], dtype='uint32')
-  for i in range(len(path)-1):
-    edges[i,0] = path[i]
-    edges[i,1] = path[i+1]
-  return edges
 
 def reorder_nodes(nodes, edges):
   """

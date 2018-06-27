@@ -3,11 +3,12 @@ import numpy as np
 
 from scipy import spatial
 from scipy.sparse import lil_matrix
+from scipy.sparse.csgraph import dijkstra
 import scipy.sparse.csgraph as csgraph
 
 from cloudvolume.lib import Bbox
 
-from .definitions import Skeleton, Nodes
+from .definitions import Skeleton, Nodes, find_row, path2edge
 
 ## Public API of Module
 
@@ -44,7 +45,7 @@ def merge_skeletons(skeleton1, skeleton2):
 
   tree1 = spatial.cKDTree(nodes1)
 
-  nodes2 = nodes2.astype('float32')
+  nodes2 = nodes2.astype(np.float32)
   (dist, nodes1_idx) = tree1.query(nodes2)
 
   graph2 = edges2sparse(nodes2, edges2)
@@ -58,7 +59,7 @@ def merge_skeletons(skeleton1, skeleton2):
 
   conn_mat1 = edges2sparse(nodes1, edges1)
   conn_mat2 = edges2sparse(nodes2, edges2)
-  dist_mat1, pred1 = shortest_path(conn_mat1, directed=False, return_predecessors=True)
+  dist_mat1, pred1 = dijkstra(conn_mat1, directed=False, return_predecessors=True)
 
   for i in range(len(connected)):
     path = connected[i]
@@ -72,7 +73,7 @@ def merge_skeletons(skeleton1, skeleton2):
 
     end_points = nodes2[end_idx,:]
     
-    end_nodes1 = np.zeros(end_points.shape[0], dtype='int')
+    end_nodes1 = np.zeros(end_points.shape[0], dtype=np.int32)
     for j in range(end_points.shape[0]):
       p_end = end_points[j,:]
 
@@ -88,7 +89,7 @@ def merge_skeletons(skeleton1, skeleton2):
     for j in range(pairs.shape[0]):
       c = c * np.isfinite(dist_mat1[end_nodes1[pairs[j,0]],end_nodes1[pairs[j,1]]])
 
-    if c==1:
+    if c == 1:
       edges2 = remove_overlap_edges(path_idx, edges2)
 
   skeleton2.edges = edges2
@@ -96,6 +97,16 @@ def merge_skeletons(skeleton1, skeleton2):
   return skeleton1, skeleton2
 
 ## Implementation Details Below
+
+def combination_pairs(n):
+  pairs = np.array([])
+
+  for i in range(n):
+    for j in range(n-i-1):
+      pairs = np.concatenate((pairs, np.array([i, i+j+1 ])))
+
+  pairs = np.reshape(pairs,[ pairs.shape[0] // 2, 2 ])
+  return pairs.astype('uint8')
 
 def get_valid(points, bound):
   return (points[:,0] > bound[0,0]) \

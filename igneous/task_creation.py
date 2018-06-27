@@ -217,6 +217,28 @@ def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 5
   }) 
   vol.commit_provenance()
 
+# split the work up into ~1000 tasks (magnitude 3)
+def create_skeleton_merge_tasks(task_queue, layer_path, magnitude=3):
+  assert int(magnitude) == magnitude
+
+  start = 10 ** (magnitude - 1)
+  end = 10 ** magnitude
+
+  # For a prefix like 100, tasks 1-99 will be missed. Account for them by
+  # enumerating them individually with a suffixed ':' to limit matches to
+  # only those small numbers
+  for prefix in range(1, start):
+    task = SkeletonMergeTask(layer_path, prefix=str(prefix) + ':')
+    task_queue.insert(task)
+
+  # enumerate from e.g. 100 to 999
+  for prefix in range(start, end):
+    task = SkeletonMergeTask(layer_path, prefix=prefix)
+    task_queue.insert(task)
+
+  task_queue.wait('Uploading Skeleton Merge Tasks')
+
+
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
   shape = Vec(*shape)
   max_simplification_error = 40

@@ -7,6 +7,7 @@ import json
 import pickle
 import os
 import re
+from collections import defaultdict
 
 import numpy as np
 from tqdm import tqdm
@@ -17,11 +18,14 @@ from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
-from igneous import Mesher
 
 from .definitions import Skeleton, Nodes
 from .skeletonization import skeletonize
-from .postprocess import crop_skeleton, merge_skeletons, trim_skeleton
+from .postprocess import (
+  crop_skeleton, merge_skeletons, trim_skeleton,
+  consolidate_skeleton
+)
+
 
 def skeldir(cloudpath):
   with SimpleStorage(cloudpath) as storage:
@@ -60,8 +64,6 @@ class SkeletonTask(RegisteredTask):
       for segid, ptcloud in self.point_clouds(image, bbox):
         crop_bbox, skeleton = self.skeletonize(ptcloud, bbox)
 
-        print(segid, ptcloud.shape, skeleton.empty())
-
         if skeleton.empty():
           continue
 
@@ -85,27 +87,6 @@ class SkeletonTask(RegisteredTask):
 
     skeleton = crop_skeleton(skeleton, crop_bbox)
     return crop_bbox, skeleton
-
-  # def point_clouds(self, image, bbox):
-  #   """Mesh based point cloud finder. Not compatible with TEASAR unfortunately."""
-  #   mesher = Mesher()
-  #   mesher.mesh(image)
-      
-  #   for segid in mesher.ids():
-  #     mesh = mesher.get_mesh(segid) # no simplificiation
-  #     ptcloud = np.array(mesh['points'], dtype=np.float32)
-
-  #     if ptcloud.size == 0:
-  #       continue
-
-  #     ptcloud = ptcloud.astype(np.int32) \
-  #       .reshape( (ptcloud.shape[0] // 3, 3) )
-
-  #     ptcloud[ :, 0 ] += bbox.minpt.x
-  #     ptcloud[ :, 1 ] += bbox.minpt.y
-  #     ptcloud[ :, 2 ] += bbox.minpt.z
-
-  #     yield segid, ptcloud
 
   def point_clouds(self, image, bbox):
     uniques = np.unique(image)
@@ -148,38 +129,31 @@ class SkeletonMergeTask(RegisteredTask):
     with Storage(self.cloudpath) as storage:
       self.agglomerate(storage)
 
-  def _get_filenames_subset(self, storage):
+  def get_filenames_subset(self, storage):
     prefix = '{}/{}'.format(self.skeldir, self.prefix)
-    pointclouds = defaultdict(list)
     skeletons = defaultdict(list)
 
     for filename in storage.list_files(prefix=prefix):
-      filename = os.path.basename(filename)
       # `match` implies the beginning (^). `search` matches whole string
-      matches = re.search(r'(\d+):(ptcloud|skel):', filename)
+      matches = re.search(r'(\d+):skel:', filename)
 
       if not matches:
         continue
 
-      segid, filetype = matches.groups()
+      segid, = matches.groups()
       segid = int(segid)
+      skeletons[segid].append(filename)
 
-      if filetype == 'ptcloud':
-        pointclouds[segid].append(filename)
-      elif filetype == 'skel':
-        skeletons[segid].append(filename)
-      else:
-        raise ValueError("{} is not a known file type. Accepted: ptcloud, skel".format(filetype))
-
-    return (pointclouds, skeletons)
+    return skeletons
 
   def agglomerate(self, stor):
-    ptclouds, skels = self._get_filenames_subset(stor)
+    skels = self.get_filenames_subset(stor)
 
     vol = CloudVolume(self.cloudpath)
 
-    for segid, frags in skels.items():
-      ptcloud = self.fuse_point_cloud(ptclouds[segid])
+    for segid, frags in tqdm(skels.items()):
+      print(segid)
+      ptcloud = self.get_point_cloud(vol, segid, frags)    
       skeleton = self.fuse_skeletons(frags, stor)
       skeleton = trim_skeleton(skeleton, ptcloud)
 
@@ -190,25 +164,37 @@ class SkeletonMergeTask(RegisteredTask):
         content_type="application/python-pickle",
       )
 
-      vol.skeleton.save(segid, skeleton.vertices, skeleton.edges)
+      vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges)
 
     stor.wait()
 
     for segid, frags in skels.items():
       stor.delete_files(frags)
 
-  def fuse_skeletons(filenames, storage):
+  def get_point_cloud(self, vol, segid, frags):
+    ptcloud = np.array([], dtype=np.int32).reshape(0, 3)
+    for frag in frags:
+      bbox = Bbox.from_filename(frag)
+      img = vol[ bbox.to_slices() ][:,:,:,0]
+      ptc = np.argwhere( img == segid )
+      ptcloud = np.concatenate((ptcloud, ptc), axis=0)
+
+    ptcloud.sort(axis=0) # sorts x column, but not y unfortunately
+    ptcloud = np.unique(ptcloud)
+    return ptcloud
+
+  def fuse_skeletons(self, filenames, storage):
     if len(filenames) == 0:
       return Skeleton()
     
-    skldl = storage.get_files(frags)
+    skldl = storage.get_files(filenames)
     skeletons = { item['filename'] : pickle.loads(item['content']) for item in skldl }
 
     if len(skeletons) == 1:
       return skeletons[filenames[0]]
 
-    file_pairs = self.find_paired_skeletons(frags)
-
+    file_pairs = self.find_paired_skeletons(filenames)
+    
     for fname1, fname2 in file_pairs:
       skel1, skel2 = skeletons[fname1], skeletons[fname2]
       skel1, skel2 = merge_skeletons(skel1, skel2)
@@ -250,30 +236,6 @@ class SkeletonMergeTask(RegisteredTask):
 
     return pairs
 
-  def fuse_point_cloud(self, ptcloudchunks):
-    points = [ f['content'] for f in storage.get_files(ptcloudchunks) ]
-
-    for i in range(len(points)):
-      buf = points[i]
-      shape = (len(buf) // 3, 3) # 2d list of xyz
-      points[i] = np.frombuffer(buf, dtype=np.int32).reshape(shape, order='C')
-
-    points = np.concatenate(*points, axis=0)
-    points.sort(axis=0) # sorts x column, but not y unfortunately
-    points = np.unique(points)
-
-    storage.put_file(
-      file_path='{}/{}.ptc'.format(self.skeldir, segid),
-      content=points.tobytes('C'),
-      compress='gzip',
-    ).wait()
-
-    storage.delete_files(frags)
-
-    # bboxes = [ Bbox.from_filename(fname) for fname in ptcloudchunks ]
-    # bbx = Bbox.expand(*bboxes)
-
-    return points
 
 
 

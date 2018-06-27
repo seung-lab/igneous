@@ -37,6 +37,11 @@ def trim_skeleton(skeleton, ptcloud):
   return skeleton
 
 def merge_skeletons(skeleton1, skeleton2):
+  if skeleton1.empty():
+    return skeleton1, consolidate_skeleton(skeleton2)
+  elif skeleton2.empty():
+    return consolidate_skeleton(skeleton1), skeleton2
+
   nodes1 = skeleton1.nodes
   nodes2 = skeleton2.nodes
 
@@ -66,19 +71,15 @@ def merge_skeletons(skeleton1, skeleton2):
     path_idx = np.where(path)[0]
 
     conn_mat_path = conn_mat2[path,:][:,path]
-    
-    end_nodes2 = np.where(np.sum(conn_mat_path, 0)==1)[1]
+    end_nodes2 = np.where(np.sum(conn_mat_path, 0) == 1)[1]
     
     end_idx = path_idx[end_nodes2]
-
     end_points = nodes2[end_idx,:]
     
     end_nodes1 = np.zeros(end_points.shape[0], dtype=np.int32)
     for j in range(end_points.shape[0]):
       p_end = end_points[j,:]
-
       node_end = find_row(nodes1, p_end)
-
       end_nodes1[j] = node_end
 
     if np.sum(end_nodes1<0) > 0:
@@ -253,9 +254,9 @@ def connect_pieces(skeleton, ptcloud):
             break
 
         if in_seg:
-          new_edge = np.array([start_idx,end_idx])
-          new_edge = np.reshape(new_edge,[1,2])
-          edges = np.concatenate((edges,new_edge),0)
+          new_edge = np.array([ start_idx, end_idx ])
+          new_edge = np.reshape(new_edge, [1, 2])
+          edges = np.concatenate((edges, new_edge), axis=0)
           all_connected += 1
           break
 

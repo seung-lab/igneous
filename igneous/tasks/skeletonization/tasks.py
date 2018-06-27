@@ -62,13 +62,13 @@ class SkeletonTask(RegisteredTask):
 
     with Storage(path) as stor:
       for segid, ptcloud in self.point_clouds(image, bbox):
-        crop_bbox, skeleton = self.skeletonize(ptcloud, bbox)
+        skeleton = self.skeletonize(ptcloud, bbox)
 
         if skeleton.empty():
           continue
 
         stor.put_file(
-          file_path="{}:skel:{}".format(segid, crop_bbox.to_filename()),
+          file_path="{}:skel:{}".format(segid, bbox.to_filename()),
           content=pickle.dumps(skeleton),
           compress='gzip',
           content_type="application/python-pickle",
@@ -85,8 +85,7 @@ class SkeletonTask(RegisteredTask):
     if crop_bbox.volume() <= 0:
       return bbox, skeleton
 
-    skeleton = crop_skeleton(skeleton, crop_bbox)
-    return crop_bbox, skeleton
+    return crop_skeleton(skeleton, crop_bbox)
 
   def point_clouds(self, image, bbox):
     uniques = np.unique(image)
@@ -166,6 +165,12 @@ class SkeletonMergeTask(RegisteredTask):
 
       vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges)
 
+      # Used for recomputing point clouds
+      stor.put_json(
+        file_path="{}.json".format(segid),
+        content={ "fragments": [ os.path.basename(fname) for fname in frags ] },
+      )
+
     stor.wait()
 
     for segid, frags in skels.items():
@@ -180,8 +185,7 @@ class SkeletonMergeTask(RegisteredTask):
       ptcloud = np.concatenate((ptcloud, ptc), axis=0)
 
     ptcloud.sort(axis=0) # sorts x column, but not y unfortunately
-    ptcloud = np.unique(ptcloud)
-    return ptcloud
+    return np.unique(ptcloud, axis=0)
 
   def fuse_skeletons(self, filenames, storage):
     if len(filenames) == 0:
@@ -194,7 +198,7 @@ class SkeletonMergeTask(RegisteredTask):
       return skeletons[filenames[0]]
 
     file_pairs = self.find_paired_skeletons(filenames)
-    
+
     for fname1, fname2 in file_pairs:
       skel1, skel2 = skeletons[fname1], skeletons[fname2]
       skel1, skel2 = merge_skeletons(skel1, skel2)

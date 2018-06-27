@@ -6,6 +6,12 @@ class Skeleton:
     radii=np.array([]), root=np.array([])
   ):
 
+    if nodes.size == 0:
+      nodes = nodes.reshape( (0, 3) )
+
+    if edges.size == 0:
+      edges = edges.reshape( (0, 2) )
+
     self.nodes = nodes
     self.edges = edges
     self.radii = radii

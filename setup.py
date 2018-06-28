@@ -23,6 +23,15 @@ setuptools.setup(
             include_dirs=[ os.path.join(third_party_dir, name) for name in ('zi_lib/', 'mc/') ],
             extra_compile_args=[
               '-std=c++11','-O3'
+            ]), #don't use  '-fvisibility=hidden', python can't see init module
+        setuptools.Extension(
+            'fastremap',
+            sources=[ './ext/remap/fastremap.cpp' ],
+            depends=[],
+            language='c++',
+            include_dirs=[ ],
+            extra_compile_args=[
+              '-std=c++11', '-O3'
             ]) #don't use  '-fvisibility=hidden', python can't see init module
     ],
 )

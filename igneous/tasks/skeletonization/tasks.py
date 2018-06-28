@@ -51,7 +51,7 @@ class SkeletonTask(RegisteredTask):
     self.teasar_params = teasar_params
 
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True)
+    vol = CloudVolume(self.cloudpath, mip=self.mip)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     image = vol[ bbox.to_slices() ]
@@ -83,7 +83,7 @@ class SkeletonTask(RegisteredTask):
     crop_bbox.maxpt -= 50
 
     if crop_bbox.volume() <= 0:
-      return bbox, skeleton
+      return skeleton
 
     return crop_skeleton(skeleton, crop_bbox)
 
@@ -177,7 +177,7 @@ class SkeletonMergeTask(RegisteredTask):
       stor.delete_files(frags)
 
   def get_point_cloud(self, vol, segid, frags):
-    ptcloud = np.array([], dtype=np.int32).reshape(0, 3)
+    ptcloud = np.array([], dtype=np.uint16).reshape(0, 3)
     for frag in frags:
       bbox = Bbox.from_filename(frag)
       img = vol[ bbox.to_slices() ][:,:,:,0]

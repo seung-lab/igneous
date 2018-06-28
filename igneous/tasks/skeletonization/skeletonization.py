@@ -248,7 +248,6 @@ def create_TEASAR_edges(object_points, DBF, max_bound, soma):
 
 def create_TEASAR_graph(object_points, DBF, max_bound, soma):
   """object_points = point cloud, DBF = distance based transform"""
-
   nhood_nodes, edge_dist, edge_weight = create_TEASAR_edges(object_points, DBF, max_bound, soma)
 
   if np.max(edge_weight) < np.finfo(np.float16).max:
@@ -258,21 +257,22 @@ def create_TEASAR_graph(object_points, DBF, max_bound, soma):
   valid_edge = ( valid_edge[0].astype(np.int32), valid_edge[1].astype(np.int32) )
 
   n = object_points.shape[0]
+  rowcol = (valid_edge[0], nhood_nodes[valid_edge[0], valid_edge[1]])
 
   debug("Creating graph...")
   G_dist = csr_matrix(
-    (edge_dist[valid_edge[0], valid_edge[1]], 
-      (valid_edge[0], nhood_nodes[valid_edge[0], valid_edge[1]])), 
+    (edge_dist[valid_edge[0], valid_edge[1]], rowcol), 
       shape=(n,n),
       dtype='float16',
     )
+
   G = csr_matrix(
-    (edge_weight[valid_edge[0], valid_edge[1]], 
-      (valid_edge[0], nhood_nodes[valid_edge[0], valid_edge[1]])), 
+    (edge_weight[valid_edge[0], valid_edge[1]], rowcol), 
       shape=(n,n))
 
   return G_dist, G
 
+# @profile
 def TEASAR(
     object_points, parameters, init_root=np.array([]), 
     init_dest=np.array([]), soma=False
@@ -339,7 +339,7 @@ def TEASAR(
 
       # Set separate root node for broken pieces
       else:
-        root = np.where(is_disconnected==1)[0][0]
+        root = np.where(is_disconnected == 1)[0][0]
 
         D_Gdist = dijkstra(G_dist, directed=True, indices=root)
 
@@ -363,7 +363,7 @@ def TEASAR(
       path_list = [];
       while np.any(cnt_comp):
         debug("Finding path...")
-        dest_node = cnt_comp[np.where(D_Gdist[cnt_comp]==np.max(D_Gdist[cnt_comp]))[0][0]]
+        dest_node = cnt_comp[np.where(D_Gdist[cnt_comp] == np.max(D_Gdist[cnt_comp]))[0][0]]
 
         path = find_path(pred_G, dest_node)
         path_list.append(path)
@@ -372,19 +372,19 @@ def TEASAR(
           path_node = path[i]
           path_point = object_points[path_node,:]
 
-          d = thr_linear(DBF[path_point[0],path_point[1],path_point[2]], parameters, 500)
+          d = thr_linear(DBF[path_point[0], path_point[1], path_point[2]], parameters, 500)
           
-          cube_min = np.zeros(3, dtype='uint32')
+          cube_min = np.zeros(3, dtype=np.uint32)
           cube_min = path_point - d
-          cube_min[cube_min<0] = 0
-          cube_min = cube_min.astype('uint32')
+          cube_min[cube_min < 0] = 0
+          cube_min = cube_min.astype(np.uint32)
           
-          cube_max = np.zeros(3, dtype='uint32')
+          cube_max = np.zeros(3, dtype=np.uint32)
           cube_max = path_point + d
-          cube_max[cube_max>max_bound] = max_bound[cube_max>max_bound]
-          cube_max = cube_max.astype('uint32')
+          cube_max[cube_max > max_bound] = max_bound[cube_max > max_bound]
+          cube_max = cube_max.astype(np.uint32)
 
-          cnt_comp_im[cube_min[0]:cube_max[0],cube_min[1]:cube_max[1],cube_min[2]:cube_max[2]] = 0
+          cnt_comp_im[cube_min[0]:cube_max[0], cube_min[1]:cube_max[1], cube_min[2]:cube_max[2]] = 0
 
         cnt_comp_sub = array2point(cnt_comp_im)
         cnt_comp = object_nodes.sub2node(cnt_comp_sub)
@@ -397,9 +397,9 @@ def TEASAR(
           edges = path2edge(path)
 
         else:
-          nodes = np.concatenate((nodes,path))
+          nodes = np.concatenate((nodes, path))
           edges_path = path2edge(path)
-          edges = np.concatenate((edges,edges_path))
+          edges = np.concatenate((edges, edges_path))
 
       r = r + 1 
       c = c + 1

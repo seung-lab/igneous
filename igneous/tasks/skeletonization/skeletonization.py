@@ -228,10 +228,14 @@ def create_TEASAR_edges(object_points, DBF, max_bound, soma):
   edge_dist = np.zeros([n, n_nhood], dtype=np.float16)
   edge_weight = np.zeros([n, n_nhood], dtype=np.float32)
 
+  objpts16 = object_points.astype(np.float16)
+
   debug("Setting edge weight...")
   for i in range(n_nhood):
-    nhood_points = object_points.astype(np.float16) + nhood[i,:]
+    nhood_points = objpts16 + nhood[i,:]
     valid = np.all(nhood_points >= 0, axis=1) * np.all(nhood_points < max_bound, axis=1)
+
+    # turn valid points into node ids
     nhood_nodes[valid,i] = object_nodes.sub2node(nhood_points[valid,:])
 
     valid = nhood_nodes[:,i] != -1
@@ -272,7 +276,6 @@ def create_TEASAR_graph(object_points, DBF, max_bound, soma):
 
   return G_dist, G
 
-# @profile
 def TEASAR(
     object_points, parameters, init_root=np.array([]), 
     init_dest=np.array([]), soma=False
@@ -335,7 +338,7 @@ def TEASAR(
 
         cnt_comp = np.where(cnt_comp)[0]
         cnt_comp_im = np.zeros(max_bound, dtype='bool')
-        cnt_comp_im[object_points[cnt_comp,0],object_points[cnt_comp,1],object_points[cnt_comp,2]] = 1
+        cnt_comp_im[object_points[cnt_comp,0], object_points[cnt_comp,1], object_points[cnt_comp,2]] = 1
 
       # Set separate root node for broken pieces
       else:
@@ -348,7 +351,7 @@ def TEASAR(
 
         cnt_comp = np.where(cnt_comp)[0]
         cnt_comp_im = np.zeros(max_bound, dtype='bool')
-        cnt_comp_im[object_points[cnt_comp,0],object_points[cnt_comp,1],object_points[cnt_comp,2]] = 1
+        cnt_comp_im[object_points[cnt_comp,0], object_points[cnt_comp,1], object_points[cnt_comp,2]] = 1
 
       # Graph shortest path in the weighted graph
       D_G, pred_G = dijkstra(G, directed=True, indices=root, return_predecessors=True)

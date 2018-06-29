@@ -61,8 +61,11 @@ class SkeletonTask(RegisteredTask):
     path = os.path.join(self.cloudpath, path)
 
     with Storage(path) as stor:
-      for segid, ptcloud in self.point_clouds(image, bbox):
+      for segid, ptcloud in tqdm(self.point_clouds(image, bbox)):
         skeleton = self.skeletonize(ptcloud, bbox)
+        
+        physical_res = vol.mip_resolution(0).astype(np.uint32)
+        skeleton.nodes = skeleton.nodes.astype(np.uint32) * physical_res
 
         if skeleton.empty():
           continue
@@ -173,8 +176,8 @@ class SkeletonMergeTask(RegisteredTask):
 
     stor.wait()
 
-    for segid, frags in skels.items():
-      stor.delete_files(frags)
+    # for segid, frags in skels.items():
+    #   stor.delete_files(frags)
 
   def get_point_cloud(self, vol, segid, frags):
     ptcloud = np.array([], dtype=np.uint16).reshape(0, 3)

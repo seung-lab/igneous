@@ -27,7 +27,7 @@ class Nodes:
     coord = coord.astype(np.int32)
     self.max_bound = max_bound.astype(np.int32)
 
-    idx = coord[:,0] + max_bound[0] * coord[:,1] + max_bound[0] * max_bound[1] * coord[:,2]
+    idx = coord[:,0] + max_bound[0] * (coord[:,1] + max_bound[1] * coord[:,2])
 
     idx2node = np.ones(np.prod(max_bound), dtype=np.int32) * -1
     idx2node[idx] = np.arange(coord.shape[0], dtype=np.int32)
@@ -38,18 +38,11 @@ class Nodes:
       sub_array = np.reshape(sub_array,(1,3))
 
     sub_array = sub_array.astype('uint32')
-
     max_bound = self.max_bound
-    return sub_array[:,0] + max_bound[0]*sub_array[:,1] + max_bound[0]*max_bound[1]*sub_array[:,2]
+    return sub_array[:,0] + max_bound[0] * (sub_array[:,1] + max_bound[1] * sub_array[:,2])
 
   def sub2node(self, sub_array):
-    if len(sub_array.shape) == 1:
-      sub_array = np.reshape(sub_array,(1,3))
-
-    sub_array = sub_array.astype('uint32')
-    max_bound = self.max_bound
-    idx_array = sub_array[:,0] + max_bound[0]*sub_array[:,1] + max_bound[0]*max_bound[1]*sub_array[:,2]
-
+    idx_array = self.sub2idx(sub_array)
     return self.node[idx_array].astype('int32')
 
 def path2edge(path):

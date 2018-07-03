@@ -965,18 +965,7 @@ class InferenceTask(RegisteredTask):
         self.output_key = output_key
         self.num_output_channels = num_output_channels
         self.mip = mip
-
-        # prepare for inference
-        from chunkflow.block_inference_engine import BlockInferenceEngine
-        from chunkflow.frameworks.pznet_patch_inference_engine import PZNetPatchInferenceEngine
-        patch_engine = PZNetPatchInferenceEngine(self.convnet_path)
-        self.block_inference_engine = BlockInferenceEngine(
-            patch_inference_engine=patch_engine,
-            patch_size=self.patch_size,
-            overlap=self.patch_overlap,
-            output_key=self.output_key,
-            output_channels=self.num_output_channels)
-
+    
     def execute(self):
         self._read_image()
         self._inference()
@@ -984,7 +973,7 @@ class InferenceTask(RegisteredTask):
         self._upload_output()
 
     def _read_image(self):
-        self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=True,
+        self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=False,
                                progress=True, mip=self.mip, parallel=True)
         output_slices = self.output_bbox.to_slices()
         self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
@@ -998,6 +987,18 @@ class InferenceTask(RegisteredTask):
         self.image = np.squeeze(self.image, axis=0)
 
     def _inference(self):
+        # prepare for inference
+        from chunkflow.block_inference_engine import BlockInferenceEngine
+        from chunkflow.frameworks.pznet_patch_inference_engine import PZNetPatchInferenceEngine
+        patch_engine = PZNetPatchInferenceEngine(self.convnet_path)
+        self.block_inference_engine = BlockInferenceEngine(
+            patch_inference_engine=patch_engine,
+            patch_size=self.patch_size,
+            overlap=self.patch_overlap,
+            output_key=self.output_key,
+            output_channels=self.num_output_channels)
+
+
         # inference engine input is a OffsetArray rather than normal numpy array
         # it is actually a numpy array with global offset
         from chunkflow.offset_array import OffsetArray

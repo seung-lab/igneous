@@ -129,45 +129,52 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
 
   return vol.commit_info()
 
-def create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True):
+def create_downsampling_tasks(
+    task_queue, layer_path, 
+    mip=-1, fill_missing=False, axis='z', 
+    num_mips=5, preserve_chunk_size=True,
+    sparse=False
+  ):
   
-  def ds_shape(mip):
-    shape = vol.mip_underlying(mip)[:3]
-    shape.x *= 2 ** num_mips
-    shape.y *= 2 ** num_mips
-    return shape
+    def ds_shape(mip):
+      shape = vol.mip_underlying(mip)[:3]
+      shape.x *= 2 ** num_mips
+      shape.y *= 2 ** num_mips
+      return shape
 
-  vol = CloudVolume(layer_path, mip=mip)
-  shape = ds_shape(vol.mip)
-  vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=preserve_chunk_size)
+    vol = CloudVolume(layer_path, mip=mip)
+    shape = ds_shape(vol.mip)
+    vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=preserve_chunk_size)
 
-  if not preserve_chunk_size:
-    shape = ds_shape(vol.mip + 1)
+    if not preserve_chunk_size:
+      shape = ds_shape(vol.mip + 1)
 
-  bounds = vol.bounds.clone()
-  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
-    task = DownsampleTask(
-      layer_path=layer_path,
-      mip=vol.mip,
-      shape=shape.clone(),
-      offset=startpt.clone(),
-      axis=axis,
-      fill_missing=fill_missing,
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading')
-  vol.provenance.processing.append({
-    'method': {
-      'task': 'DownsampleTask',
-      'mip': mip,
-      'shape': shape.tolist(),
-      'axis': axis,
-      'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
-    },
-    'by': USER_EMAIL,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  })
-  vol.commit_provenance()
+    bounds = vol.bounds.clone()
+    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
+      task = DownsampleTask(
+        layer_path=layer_path,
+        mip=vol.mip,
+        shape=shape.clone(),
+        offset=startpt.clone(),
+        axis=axis,
+        fill_missing=fill_missing,
+        sparse=sparse,
+      )
+      task_queue.insert(task)
+    task_queue.wait('Uploading')
+    vol.provenance.processing.append({
+      'method': {
+        'task': 'DownsampleTask',
+        'mip': mip,
+        'shape': shape.tolist(),
+        'axis': axis,
+        'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
+        'sparse': sparse,
+      },
+      'by': USER_EMAIL,
+      'date': strftime('%Y-%m-%d %H:%M %Z'),
+    })
+    vol.commit_provenance()
 
 def create_deletion_tasks(task_queue, layer_path):
   vol = CloudVolume(layer_path)
@@ -615,8 +622,7 @@ def cascade(tq, fnlist):
 
 
 if __name__ == '__main__':  
-  with TaskQueue(queue_server='sqs', qurl='https://sqs.us-east-1.amazonaws.com/098703261575/wms-pull-queue') as tq:
-    create_downsampling_tasks(tq, 'gs://neuroglancer/s1_v0.1/image', mip=5)
-   
+  with MockTaskQueue() as tq:
+    pass   
 
 

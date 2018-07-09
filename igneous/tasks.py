@@ -30,7 +30,11 @@ from taskqueue import RegisteredTask
 from igneous import chunks, downsample, downsample_scales
 from igneous import Mesher # broken out for ease of commenting out
 
-def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_first=False):
+def downsample_and_upload(
+    image, bounds, vol, ds_shape, 
+    mip=0, axis='z', skip_first=False,
+    sparse=False
+  ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
 
     # sometimes we downsample a base layer of 512x512
@@ -55,7 +59,7 @@ def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_fi
         image.shape, ds_shape, vol.volume_size, bounds)
       )
 
-    downsamplefn = downsample.method(vol.layer_type)
+    downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
 
     vol.mip = mip
     if not skip_first:
@@ -146,21 +150,32 @@ class DeleteTask(RegisteredTask):
 
 
 class DownsampleTask(RegisteredTask):
-  def __init__(self, layer_path, mip, shape, offset, fill_missing=False, axis='z'):
-    super(DownsampleTask, self).__init__(layer_path, mip, shape, offset, fill_missing, axis)
+  def __init__(self, 
+    layer_path, mip, shape, offset, 
+    fill_missing=False, axis='z', sparse=False):
+
+    super(DownsampleTask, self).__init__(
+      layer_path, mip, shape, offset, 
+      fill_missing, axis, sparse
+    )
     self.layer_path = layer_path
     self.mip = mip
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = fill_missing
     self.axis = axis
+    self.sparse = sparse
 
   def execute(self):
     vol = CloudVolume(self.layer_path, self.mip, fill_missing=self.fill_missing)
     bounds = Bbox( self.offset, self.shape + self.offset )
     bounds = Bbox.clamp(bounds, vol.bounds)
     image = vol[ bounds.to_slices() ]
-    downsample_and_upload(image, bounds, vol, self.shape, self.mip, self.axis, skip_first=True)
+    downsample_and_upload(
+      image, bounds, vol, 
+      self.shape, self.mip, self.axis, 
+      skip_first=True, sparse=self.sparse
+    )
 
 class QuantizeAffinitiesTask(RegisteredTask):
   def __init__(self, source_layer_path, dest_layer_path, shape, offset, fill_missing=False):

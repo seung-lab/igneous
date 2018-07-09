@@ -27,7 +27,7 @@ spec:
             - name: QUEUE_TYPE
               value: aws
             - name: SQS_URL
-              value: 'https://sqs.us-east-1.amazonaws.com/$DIGITS/$QUEUE_NAME'
+              value: 'https://sqs.us-east-1.amazonaws.com/098703261575/wms-pull-queue'
             - name: LEASE_SECONDS
               value: "800"
       volumes:

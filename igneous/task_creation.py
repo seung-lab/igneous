@@ -615,8 +615,8 @@ def cascade(tq, fnlist):
 
 
 if __name__ == '__main__':  
-  with MockTaskQueue() as task_queue:
-    pass
+  with TaskQueue(queue_server='sqs', qurl='https://sqs.us-east-1.amazonaws.com/098703261575/wms-pull-queue') as tq:
+    create_downsampling_tasks(tq, 'gs://neuroglancer/s1_v0.1/image', mip=5)
    
 
 

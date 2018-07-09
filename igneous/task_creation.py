@@ -20,7 +20,7 @@ from taskqueue import TaskQueue, MockTaskQueue, LocalTaskQueue
 
 from igneous import downsample_scales, chunks
 from igneous.tasks import (
-  IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
+  IngestTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask

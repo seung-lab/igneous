@@ -50,28 +50,28 @@ def downsample_and_upload(
       size=ds_shape,
       preserve_axis=axis,
       max_downsampled_size=int(min(*underlying_shape)),
-  )
-  factors = downsample.scale_series_to_downsample_factors(fullscales)
-
-  if len(factors) == 0:
-    print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
-        image.shape, ds_shape, vol.volume_size, bounds)
     )
+    factors = downsample.scale_series_to_downsample_factors(fullscales)
 
-  downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
+    if len(factors) == 0:
+      print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
+          image.shape, ds_shape, vol.volume_size, bounds)
+      )
 
-  vol.mip = mip
-  if not skip_first:
-    vol[bounds.to_slices()] = image
+    downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
 
-  new_bounds = bounds.clone()
+    vol.mip = mip
+    if not skip_first:
+      vol[bounds.to_slices()] = image
 
-  for factor3 in factors:
-    vol.mip += 1
-    image = downsamplefn(image, factor3)
-    new_bounds //= factor3
-    new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
-    vol[new_bounds.to_slices()] = image
+    new_bounds = bounds.clone()
+
+    for factor3 in factors:
+      vol.mip += 1
+      image = downsamplefn(image, factor3)
+      new_bounds //= factor3
+      new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
+      vol[new_bounds.to_slices()] = image
 
 
 def cache(task, cloudpath):

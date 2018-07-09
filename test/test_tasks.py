@@ -235,10 +235,13 @@ def test_mesh():
         offset=(0,0,0),
         layer_path=storage.layer_path,
         mip=0,
+        remap_table={"1": "10"},
+        low_padding=0,
+        high_padding=1
     )
     t.execute()
-    assert storage.get_file('mesh/1:0:0-64_0-64_0-64') is not None 
-    assert list(storage.list_files('mesh/')) == ['mesh/1:0:0-64_0-64_0-64']
+    assert storage.get_file('mesh/10:0:0-64_0-64_0-64') is not None 
+    assert list(storage.list_files('mesh/')) == ['mesh/10:0:0-64_0-64_0-64']
 
 
 def test_quantize_affinities():

@@ -29,45 +29,49 @@ from igneous import chunks, downsample, downsample_scales
 from igneous import Mesher  # broken out for ease of commenting out
 
 
-def downsample_and_upload(image, bounds, vol, ds_shape, mip=0, axis='z', skip_first=False):
-  ds_shape = min2(vol.volume_size, ds_shape[:3])
+def downsample_and_upload(
+    image, bounds, vol, ds_shape, 
+    mip=0, axis='z', skip_first=False,
+    sparse=False
+  ):
+    ds_shape = min2(vol.volume_size, ds_shape[:3])
 
-  # sometimes we downsample a base layer of 512x512
-  # into underlying chunks of 64x64 which permits more scales
-  underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
-  underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
-  toidx = {'x': 0, 'y': 1, 'z': 2}
-  preserved_idx = toidx[axis]
-  underlying_shape[preserved_idx] = float('inf')
+    # sometimes we downsample a base layer of 512x512
+    # into underlying chunks of 64x64 which permits more scales
+    underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
+    underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
+    toidx = { 'x': 0, 'y': 1, 'z': 2 }
+    preserved_idx = toidx[axis]
+    underlying_shape[preserved_idx] = float('inf')
 
-  # Need to use ds_shape here. Using image bounds means truncated
-  # edges won't generate as many mip levels
-  fullscales = downsample_scales.compute_plane_downsampling_scales(
+    # Need to use ds_shape here. Using image bounds means truncated
+    # edges won't generate as many mip levels
+    fullscales = downsample_scales.compute_plane_downsampling_scales(
       size=ds_shape,
       preserve_axis=axis,
       max_downsampled_size=int(min(*underlying_shape)),
-  )
-  factors = downsample.scale_series_to_downsample_factors(fullscales)
-
-  if len(factors) == 0:
-    print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
-        image.shape, ds_shape, vol.volume_size, bounds)
     )
+    factors = downsample.scale_series_to_downsample_factors(fullscales)
 
-  downsamplefn = downsample.method(vol.layer_type)
+    if len(factors) == 0:
+      print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
+          image.shape, ds_shape, vol.volume_size, bounds)
+      )
 
-  vol.mip = mip
-  if not skip_first:
-    vol[bounds.to_slices()] = image
+    downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
 
-  new_bounds = bounds.clone()
+    vol.mip = mip
+    if not skip_first:
+      vol[bounds.to_slices()] = image
 
-  for factor3 in factors:
-    vol.mip += 1
-    image = downsamplefn(image, factor3)
-    new_bounds //= factor3
-    new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
-    vol[new_bounds.to_slices()] = image
+    new_bounds = bounds.clone()
+
+    for factor3 in factors:
+      vol.mip += 1
+      image = downsamplefn(image, factor3)
+      new_bounds //= factor3
+      new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
+      vol[new_bounds.to_slices()] = image
 
 
 def cache(task, cloudpath):
@@ -153,25 +157,33 @@ class DeleteTask(RegisteredTask):
 
 
 class DownsampleTask(RegisteredTask):
-  def __init__(self, layer_path, mip, shape, offset, fill_missing=False, axis='z'):
+  def __init__(self, 
+    layer_path, mip, shape, offset, 
+    fill_missing=False, axis='z', sparse=False):
+
     super(DownsampleTask, self).__init__(
-        layer_path, mip, shape, offset, fill_missing, axis)
+      layer_path, mip, shape, offset, 
+      fill_missing, axis, sparse
+    )
     self.layer_path = layer_path
     self.mip = mip
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = fill_missing
     self.axis = axis
+    self.sparse = sparse
 
   def execute(self):
     vol = CloudVolume(self.layer_path, self.mip,
                       fill_missing=self.fill_missing)
     bounds = Bbox(self.offset, self.shape + self.offset)
     bounds = Bbox.clamp(bounds, vol.bounds)
-    image = vol[bounds.to_slices()]
-    downsample_and_upload(image, bounds, vol, self.shape,
-                          self.mip, self.axis, skip_first=True)
-
+    image = vol[ bounds.to_slices() ]
+    downsample_and_upload(
+      image, bounds, vol, 
+      self.shape, self.mip, self.axis, 
+      skip_first=True, sparse=self.sparse
+    )
 
 class QuantizeAffinitiesTask(RegisteredTask):
   def __init__(self, source_layer_path, dest_layer_path, shape, offset, fill_missing=False):

@@ -613,10 +613,6 @@ def cascade(tq, fnlist):
         print('\r {} remaining'.format(N), end='')
         time.sleep(2)
 
-
-if __name__ == '__main__':  
-  with MockTaskQueue() as task_queue:
-    pass
-   
+  
 
 

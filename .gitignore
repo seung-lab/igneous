@@ -7,3 +7,4 @@ igneous.egg-info
 __pycache__
 .cache
 test.py
+pipeline.py

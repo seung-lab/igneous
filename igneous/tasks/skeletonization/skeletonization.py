@@ -206,6 +206,12 @@ def create_TEASAR_edges(object_points, DBF, max_bound, soma):
   object_nodes = Nodes(object_points, max_bound)
 
   # Penalty weight for the edges
+
+  # Paper calls for:
+  # M > np.max(DBF)
+  # p_v = 5000 * ((1 - DBF / M) ** 16)
+  # values are calibrated to precision of float32
+
   M = np.max(DBF) ** 1.01
   p_v = 100000 * ((1 - DBF / M) ** 16)
   p_v = p_v.astype(np.float32)
@@ -308,6 +314,9 @@ def TEASAR(
 
   # Distance to the boundary map
   debug("Creating DBF...")
+
+  # Might be possible to implement faster version of DBF function
+  # than in numpy. Can include anisotropy.
   DBF = ndimage.distance_transform_edt(bin_im).astype(np.float32)
 
   G_dist, G = create_TEASAR_graph(object_points, DBF, max_bound, soma=soma)

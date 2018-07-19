@@ -670,9 +670,3 @@ def cascade(tq, fnlist):
         time.sleep(2)
 
 
-if __name__ == '__main__':  
-  # with TaskQueue(queue_server='sqs', qurl='https://sqs.us-east-1.amazonaws.com/098703261575/wms-pull-queue') as tq:
-  with MockTaskQueue() as tq:
-    create_skeletonizing_tasks(tq, 'gs://neuroglancer/test_v0/segmentation', mip=0, shape=(256, 256, 50))
-   
-

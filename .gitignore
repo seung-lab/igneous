@@ -6,4 +6,5 @@ igneous.egg-info
 *.pyc
 __pycache__
 .cache
+create.py
 test.py

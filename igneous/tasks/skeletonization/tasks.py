@@ -31,7 +31,7 @@ def skeldir(cloudpath):
   with SimpleStorage(cloudpath) as storage:
     info = storage.get_json('info')
 
-  skel_dir = 'skeletons/points'
+  skel_dir = 'skeletons/'
   if 'skeletons' in info:
     skel_dir = info['skeletons']
   return skel_dir
@@ -126,13 +126,13 @@ class SkeletonMergeTask(RegisteredTask):
     self.prefix = prefix
 
   def execute(self):
-    self.skeldir = skeldir(self.cloudpath)
+    self.vol = CloudVolume(self.cloudpath)
 
     with Storage(self.cloudpath) as storage:
       self.agglomerate(storage)
 
   def get_filenames_subset(self, storage):
-    prefix = '{}/{}'.format(self.skeldir, self.prefix)
+    prefix = '{}/{}'.format(self.vol.skeleton.path, self.prefix)
     skeletons = defaultdict(list)
 
     for filename in storage.list_files(prefix=prefix):
@@ -151,33 +151,26 @@ class SkeletonMergeTask(RegisteredTask):
   def agglomerate(self, stor):
     skels = self.get_filenames_subset(stor)
 
-    vol = CloudVolume(self.cloudpath)
+    vol = self.vol
 
     for segid, frags in tqdm(skels.items()):
-      print(segid)
       ptcloud = self.get_point_cloud(vol, segid, frags)    
       skeleton = self.fuse_skeletons(frags, stor)
       skeleton = trim_skeleton(skeleton, ptcloud)
 
-      stor.put_file(
-        file_path="{}.pkl".format(segid),
-        content=pickle.dumps(skeleton),
-        compress='gzip',
-        content_type="application/python-pickle",
-      )
-
-      vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges)
+      vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges, skeleton.radii)
 
       # Used for recomputing point clouds
       stor.put_json(
-        file_path="{}.json".format(segid),
+        file_path="{}/{}.json".format(vol.skeleton.path, segid),
         content={ "fragments": [ os.path.basename(fname) for fname in frags ] },
+        cache_control="no-cache",
       )
 
     stor.wait()
 
-    # for segid, frags in skels.items():
-    #   stor.delete_files(frags)
+    for segid, frags in skels.items():
+      stor.delete_files(frags)
 
   def get_point_cloud(self, vol, segid, frags):
     ptcloud = np.array([], dtype=np.uint16).reshape(0, 3)
@@ -186,6 +179,9 @@ class SkeletonMergeTask(RegisteredTask):
       img = vol[ bbox.to_slices() ][:,:,:,0]
       ptc = np.argwhere( img == segid )
       ptcloud = np.concatenate((ptcloud, ptc), axis=0)
+
+    if ptcloud.size == 0:
+      return ptcloud
 
     ptcloud.sort(axis=0) # sorts x column, but not y unfortunately
     return np.unique(ptcloud, axis=0)

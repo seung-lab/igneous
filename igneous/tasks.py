@@ -224,6 +224,7 @@ class MeshTask(RegisteredTask):
         'generate_manifests': kwargs.get('generate_manifests', False),
         'low_padding': kwargs.get('low_padding', 1),
         'high_padding': kwargs.get('high_padding', 1)
+        'mesh_dir': kwargs.get('mesh_dir', None)
     }
 
   def execute(self):
@@ -241,7 +242,7 @@ class MeshTask(RegisteredTask):
     data_bounds.minpt -= self.options['low_padding']
     data_bounds.maxpt += self.options['high_padding']
 
-    self._mesh_dir = None
+    self._mesh_dir = self.options["mesh_dir"]
     if 'meshing' in self._volume.info:
       self._mesh_dir = self._volume.info['meshing']
     elif 'mesh' in self._volume.info:

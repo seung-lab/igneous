@@ -15,6 +15,7 @@ from tqdm import tqdm
 from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
+import edt # euclidean distance transform
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
@@ -60,9 +61,13 @@ class SkeletonTask(RegisteredTask):
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
+    all_dbf = edt.edt(image, anisotropy=vol.resolution.tolist())
+
     with Storage(path) as stor:
       for segid, ptcloud in tqdm(self.point_clouds(image, bbox)):
-        skeleton = self.skeletonize(ptcloud, bbox)
+        print(segid)
+        dbf = (image == segid) * all_dbf # distance to boundary field
+        skeleton = self.skeletonize(ptcloud, bbox, dbf)
         
         physical_res = vol.mip_resolution(0).astype(np.uint32)
         skeleton.nodes = skeleton.nodes.astype(np.uint32) * physical_res
@@ -77,8 +82,8 @@ class SkeletonTask(RegisteredTask):
           content_type="application/python-pickle",
         )
 
-  def skeletonize(self, point_cloud, bbox):
-    skeleton = skeletonize(point_cloud, self.teasar_params)
+  def skeletonize(self, point_cloud, bbox, dbf):
+    skeleton = skeletonize(point_cloud, self.teasar_params, dbf=dbf)
 
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()

@@ -22,7 +22,7 @@ def debug(txt):
 
 def skeletonize(
     point_cloud, parameters=[ 10, 10 ], dsmp_resolution=[1,1,1], 
-    init_root=[], init_dest=[], soma=False 
+    init_root=[], init_dest=[], soma=False, dbf=None
   ):
   """
   Required:
@@ -87,7 +87,7 @@ def skeletonize(
 
   # Skeletonize chunk surrounding object
   debug(">>>>> Building skeleton...")
-  skeleton = TEASAR(point_cloud, parameters, init_root, init_dest, soma)
+  skeleton = TEASAR(point_cloud, parameters, init_root, init_dest, soma, dbf)
   
   # Convert coordinates back into original coordinates
   if skeleton.nodes.shape[0] != 0:
@@ -284,7 +284,7 @@ def create_TEASAR_graph(object_points, DBF, max_bound, soma):
 
 def TEASAR(
     object_points, parameters, init_root=np.array([]), 
-    init_dest=np.array([]), soma=False
+    init_dest=np.array([]), soma=False, DBF=None
   ):
   """
   Given a point cloud, convert it into a skeleton.
@@ -306,18 +306,19 @@ def TEASAR(
 
   max_bound = np.max(object_points, axis=0) + 2
 
-  bin_im = np.zeros(max_bound, dtype='bool')
-  bin_im[object_points[:,0], object_points[:,1], object_points[:,2]] = True
+  if DBF is None:
+    bin_im = np.zeros(max_bound, dtype='bool')
+    bin_im[object_points[:,0], object_points[:,1], object_points[:,2]] = True
 
-  n = object_points.shape[0]
-  debug('Number of points ::::: ' + str(n))
+    n = object_points.shape[0]
+    debug('Number of points ::::: ' + str(n))
 
-  # Distance to the boundary map
-  debug("Creating DBF...")
+    # Distance to the boundary map
+    debug("Creating DBF...")
 
-  # Might be possible to implement faster version of DBF function
-  # than in numpy. Can include anisotropy.
-  DBF = ndimage.distance_transform_edt(bin_im).astype(np.float32)
+    # Might be possible to implement faster version of DBF function
+    # than in numpy. Can include anisotropy.
+    DBF = ndimage.distance_transform_edt(bin_im).astype(np.float32)
 
   G_dist, G = create_TEASAR_graph(object_points, DBF, max_bound, soma=soma)
 

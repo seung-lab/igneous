@@ -181,10 +181,10 @@ def create_deletion_tasks(task_queue, layer_path):
   shape = vol.underlying * 10
 
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks"):
-    shape = min2(shape, vol.bounds.maxpt - startpt)
+    bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
     task = DeleteTask(
       layer_path=layer_path,
-      shape=shape.clone(),
+      shape=bounded_shape.clone(),
       offset=startpt.clone(),
     )
     task_queue.insert(task)

@@ -37,6 +37,15 @@ setuptools.setup(
       extra_compile_args=[
         '-std=c++11', '-O3', '-ffast-math'
       ]
+    ),
+     setuptools.Extension(
+      'igneous.skeletontricks',
+      sources=[ './ext/skeletontricks/skeletontricks.cpp' ],
+      language='c++',
+      include_dirs=[ np.get_include() ],
+      extra_compile_args=[
+        '-std=c++11', '-O3', '-ffast-math'
+      ]
     )
   ],
 )

@@ -8,7 +8,7 @@ import scipy.sparse.csgraph as csgraph
 
 from cloudvolume.lib import Bbox
 
-from .definitions import Skeleton, Nodes, find_row, path2edge
+from .definitions import Skeleton, find_row, path2edge
 
 ## Public API of Module
 

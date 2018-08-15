@@ -20,8 +20,8 @@ from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
 
-from .definitions import Skeleton, Nodes
-from .skeletonization import skeletonize
+from .definitions import Skeleton
+from .skeletonization import TEASAR
 from .postprocess import (
   crop_skeleton, merge_skeletons, trim_skeleton,
   consolidate_skeleton
@@ -52,7 +52,7 @@ class SkeletonTask(RegisteredTask):
     self.teasar_params = teasar_params
 
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip)
+    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     image = vol[ bbox.to_slices() ]
@@ -61,17 +61,19 @@ class SkeletonTask(RegisteredTask):
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
+    print("MLAEDT3D")
     all_dbf = edt.edt(image, anisotropy=vol.resolution.tolist())
+    print("EDT Done.")
 
     with Storage(path) as stor:
-      for segid, ptcloud in tqdm(self.point_clouds(image, bbox)):
+      for segid in np.unique(image):
+        if segid == 0:
+          continue 
+
         print(segid)
         dbf = (image == segid) * all_dbf # distance to boundary field
-        skeleton = self.skeletonize(ptcloud, bbox, dbf)
+        skeleton = self.skeletonize(dbf, bbox)
         
-        physical_res = vol.mip_resolution(0).astype(np.uint32)
-        skeleton.nodes = skeleton.nodes.astype(np.uint32) * physical_res
-
         if skeleton.empty():
           continue
 
@@ -82,8 +84,12 @@ class SkeletonTask(RegisteredTask):
           content_type="application/python-pickle",
         )
 
-  def skeletonize(self, point_cloud, bbox, dbf):
-    skeleton = skeletonize(point_cloud, self.teasar_params, dbf=dbf)
+  def skeletonize(self, dbf, bbox):
+    skeleton = TEASAR(dbf, self.teasar_params)
+
+    skeleton.vertices[0::3] += bbox.minpt.x
+    skeleton.vertices[1::3] += bbox.minpt.y
+    skeleton.vertices[2::3] += bbox.minpt.z
 
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()
@@ -94,25 +100,6 @@ class SkeletonTask(RegisteredTask):
       return skeleton
 
     return crop_skeleton(skeleton, crop_bbox)
-
-  def point_clouds(self, image, bbox):
-    uniques = np.unique(image)
-    
-    for segid in uniques:
-      if segid == 0:
-        continue 
-
-      # type = int32 b/c coords can be less than zero after bbox adjustment
-      # and int32 saves 2x over int64 default
-      coords = np.argwhere( image == segid ).astype(np.int32)
-      
-      if coords.size == 0:
-        continue
-
-      coords[ :, 0 ] += bbox.minpt.x
-      coords[ :, 1 ] += bbox.minpt.y
-      coords[ :, 2 ] += bbox.minpt.z
-      yield segid, coords
 
 class SkeletonMergeTask(RegisteredTask):
   """

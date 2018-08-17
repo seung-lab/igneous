@@ -36,51 +36,37 @@ ctypedef fused UINT:
   uint64_t
 
 @cython.boundscheck(False)
-def renumber(arr, immutable=None, uint32_t start=1):
+def renumber(arr, uint64_t start=1):
   """
   Given an array of integers, renumber all the unique values starting
   from 1. This can allow us to reduce the size of the data width required
   to represent it.
 
   arr: A 1d numpy array
-  immutable: None or int, an optional value that shouldn't change
   start: Start renumbering from this value
 
   Return: a renumbered array
   """
   shape = arr.shape
 
-  cdef uint32_t[:] arrview = arr.flatten()
+  cdef uint64_t[:] arrview = arr.astype(np.uint64).flatten()
+
   remap_dict = {}
   
-  cdef uint32_t remap_id = start
+  cdef uint64_t remap_id = start
   cdef int i = 0
 
-  cdef uint32_t elem
-
-  cdef uint32_t immut = 0
+  cdef uint64_t elem
   cdef int size = arr.size
 
-  if immutable is None:
-    for i in range(size):
-      elem = arrview[i]
-      if elem in remap_dict:
-        arrview[i] = remap_dict[elem]
-      else:
-        arrview[i] = remap_id
-        remap_dict[elem] = remap_id
-        remap_id += 1
-  else:
-    for i in range(size):
-      elem = arrview[i]
-      if elem == immut:
-        continue
-      if elem in remap_dict:
-        arrview[i] = remap_dict[elem]
-      else:
-        arrview[i] = remap_id
-        remap_dict[elem] = remap_id
-        remap_id += 1
+  for i in range(size):
+    elem = arrview[i]
+    if elem in remap_dict:
+      arrview[i] = remap_dict[elem]
+    else:
+      arrview[i] = remap_id
+      remap_dict[elem] = remap_id
+      remap_id += 1
         
   if start < 0:
     types = [ np.int8, np.int16, np.int32, np.int64 ]
@@ -90,13 +76,17 @@ def renumber(arr, immutable=None, uint32_t start=1):
   factor = max(abs(start), abs(remap_id))
 
   if factor < 2 ** 8:
-    return arr.astype(types[0]).reshape( shape ), remap_dict
+    final_type = types[0]
   elif factor < 2 ** 16:
-    return arr.astype(types[1]).reshape( shape ), remap_dict
+    final_type = types[1]
   elif factor < 2 ** 32:
-    return arr.astype(types[2]).reshape( shape ), remap_dict
+    final_type = types[2]
   else:
-    return arr.astype(types[3]).reshape( shape ), remap_dict
+    final_type = types[3]
+
+  output = bytearray(arrview)
+  output = np.frombuffer(output, dtype=np.uint64).astype(final_type).reshape( arr.shape )
+  return output, remap_dict
 
 @cython.boundscheck(False)
 def remap_from_array(cnp.ndarray[UINT] arr, cnp.ndarray[UINT] vals):

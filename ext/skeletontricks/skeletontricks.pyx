@@ -7,7 +7,7 @@ Author: William Silversmith
 Affiliation: Seung Lab, Princeton Neuroscience Institute
 Date: August 2018
 """
-
+cimport cython
 from libc.stdlib cimport calloc, free
 from libc.stdint cimport (
   uint32_t, uint8_t, int8_t, int16_t, int32_t, int64_t
@@ -24,6 +24,7 @@ import numpy as np
 cdef extern from "math.h":
   float INFINITY
 
+@cython.boundscheck(False)
 def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
   cdef int sx, sy, sz 
   cdef int  x,  y,  z
@@ -40,6 +41,7 @@ def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
 
   return None
 
+@cython.boundscheck(False)
 def find_target(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[float, ndim=3] PDRF
@@ -69,7 +71,7 @@ def find_target(
 
   return (mx, my, mz)
 
-
+@cython.boundscheck(False)
 def roll_invalidation_ball(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[uint32_t, ndim=2] path, 
@@ -101,9 +103,9 @@ def roll_invalidation_ball(
 
     radius *= radius 
 
-    for x in (minx, maxx):
-      for y in (miny, maxy):
-        for z in (minz, maxz):
+    for x in range(minx, maxx):
+      for y in range(miny, maxy):
+        for z in range(minz, maxz):
           dist = (x - coord[0]) ** 2 + (y - coord[1]) ** 2 + (z - coord[2]) ** 2
           if dist <= radius and labels[x,y,z]:
             invalidated += 1

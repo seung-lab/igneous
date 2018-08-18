@@ -25,6 +25,7 @@ cdef extern from "math.h":
   float INFINITY
 
 @cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
 def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
   cdef int sx, sy, sz 
   cdef int  x,  y,  z
@@ -42,6 +43,7 @@ def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
   return None
 
 @cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
 def find_target(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[float, ndim=3] PDRF
@@ -72,6 +74,7 @@ def find_target(
   return (mx, my, mz)
 
 @cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
 def roll_invalidation_ball(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[uint32_t, ndim=2] path, 

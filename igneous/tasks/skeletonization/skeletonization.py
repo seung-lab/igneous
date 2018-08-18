@@ -37,7 +37,7 @@ def TEASAR(DBF, parameters):
   labels = (DBF != 0).astype(np.bool)
   
   any_voxel = igneous.skeletontricks.first_label(labels)   
-  M = np.max(DBF) ** 1.01
+  M = 1 / (np.max(DBF) ** 1.01)
 
   print("M=", M)
 
@@ -59,7 +59,7 @@ def TEASAR(DBF, parameters):
   # 5000 is chosen to allow skeleton segments to be up to 3000 voxels
   # long without exceeding floating point precision.
   
-  PDRF = DAF + 20 * 5000 * ((1 - DBF / M) ** 16) # 20x is a variation on TEASAR
+  PDRF = DAF + (20 * 5000) * ((1 - (DBF * M)) ** 16) # 20x is a variation on TEASAR
   PDRF = PDRF.astype(np.float32)
   del DAF
 

@@ -55,7 +55,7 @@ setuptools.setup(
       sources=[ './ext/remap/fastremap.cpp' ],
       depends=[],
       language='c++',
-      include_dirs=[ ],
+      include_dirs=[ np.get_include() ],
       extra_compile_args=[
         '-std=c++11', '-O3'
      ]

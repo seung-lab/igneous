@@ -2041,27 +2041,27 @@ static PyObject *__pyx_pf_14skeletontricks_first_label(CYTHON_UNUSED PyObject *_
  *   sy = labels.shape[1]
  *   sz = labels.shape[2]             # <<<<<<<<<<<<<<
  * 
- *   for x in range(0, sx):
+ *   for z in range(0, sz):
  */
   __pyx_v_sz = (__pyx_v_labels->dimensions[2]);
 
   /* "skeletontricks.pyx":35
  *   sz = labels.shape[2]
  * 
- *   for x in range(0, sx):             # <<<<<<<<<<<<<<
+ *   for z in range(0, sz):             # <<<<<<<<<<<<<<
  *     for y in range(0, sy):
- *       for z in range(0, sz):
+ *       for x in range(0, sx):
  */
-  __pyx_t_1 = __pyx_v_sx;
+  __pyx_t_1 = __pyx_v_sz;
   __pyx_t_2 = __pyx_t_1;
   for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
-    __pyx_v_x = __pyx_t_3;
+    __pyx_v_z = __pyx_t_3;
 
     /* "skeletontricks.pyx":36
  * 
- *   for x in range(0, sx):
+ *   for z in range(0, sz):
  *     for y in range(0, sy):             # <<<<<<<<<<<<<<
- *       for z in range(0, sz):
+ *       for x in range(0, sx):
  *         if labels[x,y,z]:
  */
     __pyx_t_4 = __pyx_v_sy;
@@ -2070,20 +2070,20 @@ static PyObject *__pyx_pf_14skeletontricks_first_label(CYTHON_UNUSED PyObject *_
       __pyx_v_y = __pyx_t_6;
 
       /* "skeletontricks.pyx":37
- *   for x in range(0, sx):
+ *   for z in range(0, sz):
  *     for y in range(0, sy):
- *       for z in range(0, sz):             # <<<<<<<<<<<<<<
+ *       for x in range(0, sx):             # <<<<<<<<<<<<<<
  *         if labels[x,y,z]:
  *           return (x,y,z)
  */
-      __pyx_t_7 = __pyx_v_sz;
+      __pyx_t_7 = __pyx_v_sx;
       __pyx_t_8 = __pyx_t_7;
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
-        __pyx_v_z = __pyx_t_9;
+        __pyx_v_x = __pyx_t_9;
 
         /* "skeletontricks.pyx":38
  *     for y in range(0, sy):
- *       for z in range(0, sz):
+ *       for x in range(0, sx):
  *         if labels[x,y,z]:             # <<<<<<<<<<<<<<
  *           return (x,y,z)
  * 
@@ -2112,7 +2112,7 @@ static PyObject *__pyx_pf_14skeletontricks_first_label(CYTHON_UNUSED PyObject *_
         if (__pyx_t_14) {
 
           /* "skeletontricks.pyx":39
- *       for z in range(0, sz):
+ *       for x in range(0, sx):
  *         if labels[x,y,z]:
  *           return (x,y,z)             # <<<<<<<<<<<<<<
  * 
@@ -2142,7 +2142,7 @@ static PyObject *__pyx_pf_14skeletontricks_first_label(CYTHON_UNUSED PyObject *_
 
           /* "skeletontricks.pyx":38
  *     for y in range(0, sy):
- *       for z in range(0, sz):
+ *       for x in range(0, sx):
  *         if labels[x,y,z]:             # <<<<<<<<<<<<<<
  *           return (x,y,z)
  * 

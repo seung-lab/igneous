@@ -32,9 +32,9 @@ def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
   sy = labels.shape[1]
   sz = labels.shape[2]
 
-  for x in range(0, sx):
+  for z in range(0, sz):
     for y in range(0, sy):
-      for z in range(0, sz):
+      for x in range(0, sx):
         if labels[x,y,z]:
           return (x,y,z)
 

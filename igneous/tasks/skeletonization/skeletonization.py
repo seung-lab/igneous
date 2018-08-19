@@ -1,10 +1,9 @@
 """
 Skeletonization algorithm based on TEASAR (Sato et al. 2000).
 
-Primary Author: Alex Bae
-Integrating Author: Will Silversmith
+Authors: Alex Bae and Will Silversmith
 Affiliation: Seung Lab, Princeton Neuroscience Institue
-Date: June 2018
+Date: June-August 2018
 """
 from collections import defaultdict
 
@@ -15,6 +14,8 @@ import igneous.dijkstra
 import igneous.skeletontricks
 
 from .definitions import Skeleton, path2edge
+
+from cloudvolume.lib import save_images
 
 def TEASAR(DBF, parameters):
   """
@@ -34,12 +35,15 @@ def TEASAR(DBF, parameters):
   """
   # Wasteful, can reduce to finding the first non-zero pixel
   
-  labels = (DBF != 0).astype(np.bool)
-  
+  labels = (DBF != 0).astype(np.bool)  
   any_voxel = igneous.skeletontricks.first_label(labels)   
+
+  if any_voxel is None:
+    return Skeleton()
+
   M = 1 / (np.max(DBF) ** 1.01)
 
-  print("M=", M)
+  print("M=", M, "any_voxel=", any_voxel)
 
   # "4.4 DAF:  Compute distance from any voxel field"
   # Compute DAF, but we immediately convert to the PDRF
@@ -47,8 +51,8 @@ def TEASAR(DBF, parameters):
   # even if the DAF is computed from an arbitrary pixel.
   DBF[ DBF == 0 ] = np.inf
   DAF = igneous.dijkstra.distance_field(DBF, any_voxel)
-  root = np.argmax(DAF)
-  root = np.unravel_index(root, DAF.shape)
+  root = igneous.skeletontricks.find_target(labels, DAF)
+  DAF = igneous.dijkstra.distance_field(DBF, root)
 
   print("root=", root)
 
@@ -58,15 +62,21 @@ def TEASAR(DBF, parameters):
   # p(v) = 5000 * (1 - DBF(v) / M)^16
   # 5000 is chosen to allow skeleton segments to be up to 3000 voxels
   # long without exceeding floating point precision.
-  
-  PDRF = DAF + (20 * 5000) * ((1 - (DBF * M)) ** 16) # 20x is a variation on TEASAR
+  del DAF  
+  PDRF = (20 * 5000) * ((1 - (DBF * M)) ** 16) # 20x is a variation on TEASAR
   PDRF = PDRF.astype(np.float32)
-  del DAF
+
+  def xyskelprojection(path):
+    black = np.zeros((512,512,1), dtype=np.uint8)
+    outline = labels.any(axis=-1).astype(np.uint8) * 77
+    outline = outline.reshape( (512,512,1) )
+    black += outline
+    for coord in path:
+      black[coord[0], coord[1]] = 255
+    save_images(black, directory="./saved_images/projections/")
 
   paths = []
   valid_labels = np.count_nonzero(labels)
-
-  print(PDRF[10:,10:,0])
 
   while valid_labels > 0:
     print("Valid Remaining: ", valid_labels)

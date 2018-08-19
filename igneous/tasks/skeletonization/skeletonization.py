@@ -62,14 +62,14 @@ def TEASAR(DBF, parameters):
   # p(v) = 5000 * (1 - DBF(v) / M)^16
   # 5000 is chosen to allow skeleton segments to be up to 3000 voxels
   # long without exceeding floating point precision.
-  del DAF  
-  PDRF = (20 * 5000) * ((1 - (DBF * M)) ** 16) # 20x is a variation on TEASAR
+  PDRF = DAF + (5000) * ((1 - (DBF * M)) ** 16) # 20x is a variation on TEASAR
   PDRF = PDRF.astype(np.float32)
+  del DAF  
 
   def xyskelprojection(path):
-    black = np.zeros((512,512,1), dtype=np.uint8)
+    black = np.zeros( (labels.shape[0], labels.shape[1], 1), dtype=np.uint8)
     outline = labels.any(axis=-1).astype(np.uint8) * 77
-    outline = outline.reshape( (512,512,1) )
+    outline = outline.reshape( (labels.shape[0], labels.shape[1], 1) )
     black += outline
     for coord in path:
       black[coord[0], coord[1]] = 255
@@ -86,11 +86,15 @@ def TEASAR(DBF, parameters):
     )
     valid_labels -= invalidated
     paths.append(path)
+    # xyskelprojection(path)
+    print("invalidated", invalidated)
+    print("valid_labels", valid_labels)
 
+  print("paths ", len(paths))
   skel_verts, skel_edges = path_union(paths)
-  skel_radii = DBF[skel_nodes[::3], skel_nodes[1::3], skel_nodes[2::3]]
+  skel_radii = DBF[skel_verts[::3], skel_verts[1::3], skel_verts[2::3]]
 
-  return Skeleton(skel_nodes, skel_edges, skel_radii)
+  return Skeleton(skel_verts, skel_edges, skel_radii)
 
 def path_union(paths):
   tree = defaultdict(set)

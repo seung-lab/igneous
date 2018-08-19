@@ -10,6 +10,7 @@ import re
 from collections import defaultdict
 
 import numpy as np
+import scipy.ndimage
 from tqdm import tqdm
 
 from cloudvolume import CloudVolume
@@ -55,24 +56,34 @@ class SkeletonTask(RegisteredTask):
     vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
-    image = vol[ bbox.to_slices() ]
-    image = image[:,:,:,0]
+    all_labels = vol[ bbox.to_slices() ]
+    all_labels = all_labels[:,:,:,0]
 
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
     print("MLAEDT3D")
-    all_dbf = edt.edt(image, anisotropy=vol.resolution.tolist())
+    all_dbf = edt.edt(all_labels, anisotropy=vol.resolution.tolist())
     print("EDT Done.")
 
     with Storage(path) as stor:
-      for segid in np.unique(image):
+      for segid in np.unique(all_labels):
         if segid == 0:
           continue 
 
         print(segid)
-        dbf = (image == segid) * all_dbf # distance to boundary field
-        skeleton = self.skeletonize(dbf, bbox)
+        labels = (all_labels == segid)
+        slices = scipy.ndimage.find_objects(labels)[0]
+
+        print(slices)
+        dbf = labels[slices] * all_dbf[slices]
+        del labels
+        # dbf =  * all_dbf # distance to boundary field
+
+        roi = Bbox.from_slices(slices)
+        roi += bbox.minpt 
+
+        skeleton = self.skeletonize(dbf, roi)
         
         if skeleton.empty():
           continue

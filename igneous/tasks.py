@@ -185,18 +185,19 @@ class DownsampleTask(RegisteredTask):
       skip_first=True, sparse=self.sparse
     )
 
-class QuantizeAffinitiesTask(RegisteredTask):
-  def __init__(self, source_layer_path, dest_layer_path, shape, offset, fill_missing=False):
-    super(QuantizeAffinitiesTask, self).__init__(
-        source_layer_path, dest_layer_path, shape, offset, fill_missing)
+class QuantizeTask(RegisteredTask):
+  def __init__(self, source_layer_path, dest_layer_path, shape, offset, mip, fill_missing=False):
+    super(QuantizeTask, self).__init__(
+        source_layer_path, dest_layer_path, shape, offset, mip, fill_missing)
     self.source_layer_path = source_layer_path
     self.dest_layer_path = dest_layer_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = fill_missing
+    self.mip = mip
 
   def execute(self):
-    srcvol = CloudVolume(self.source_layer_path, mip=0,
+    srcvol = CloudVolume(self.source_layer_path, mip=self.mip,
                          fill_missing=self.fill_missing)
 
     bounds = Bbox(self.offset, self.shape + self.offset)
@@ -205,8 +206,8 @@ class QuantizeAffinitiesTask(RegisteredTask):
     image = srcvol[bounds.to_slices()][:, :, :, :1]  # only use x affinity
     image = (image * 255.0).astype(np.uint8)
 
-    destvol = CloudVolume(self.dest_layer_path, mip=0)
-    downsample_and_upload(image, bounds, destvol, self.shape, mip=0, axis='z')
+    destvol = CloudVolume(self.dest_layer_path, mip=self.mip)
+    downsample_and_upload(image, bounds, destvol, self.shape, mip=self.mip, axis='z')
 
 
 class MeshTask(RegisteredTask):

@@ -21,7 +21,7 @@ from taskqueue import TaskQueue, MockTaskQueue, LocalTaskQueue
 from igneous import downsample_scales, chunks
 from igneous.tasks import (
   IngestTask, HyperSquareConsensusTask, 
-  MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
+  MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask
 )
@@ -438,53 +438,58 @@ def create_fixup_downsample_tasks(task_queue, layer_path, points, shape=Vec(2048
     )
     task_queue.insert(task)
   task_queue.wait('Uploading')
-
-def create_quantized_affinity_info(src_layer, dest_layer, shape):
+def create_quantized_affinity_info(src_layer, dest_layer, shape, mip, chunk_size):
   srcvol = CloudVolume(src_layer)
   
   info = copy.deepcopy(srcvol.info)
   info['num_channels'] = 1
   info['data_type'] = 'uint8'
-  info['type'] = 'segmentation'
-  info['scales'] = info['scales'][:1]
-  info['scales'][0]['chunk_sizes'] = [[ 64, 64, 64 ]]
+  info['type'] = 'image'
+  info['scales'] = info['scales'][:mip+1]
+  for i in range(mip+1):
+    info['scales'][i]['chunk_sizes'] = [ chunk_size ]
   return info
 
-def create_quantized_affinity_tasks(taskqueue, src_layer, dest_layer, shape, fill_missing=False):
+def create_quantize_tasks(
+    task_queue, src_layer, dest_layer, 
+    shape, mip=0, fill_missing=False, chunk_size=[64,64,64]
+  ):
+
   shape = Vec(*shape)
 
-  info = create_quantized_affinity_info(src_layer, dest_layer, shape)
-  destvol = CloudVolume(dest_layer, info=info)
+  info = create_quantized_affinity_info(
+    src_layer, dest_layer, shape, mip, chunk_size
+  )
+  destvol = CloudVolume(dest_layer, info=info, mip=mip)
   destvol.commit_info()
 
-  create_downsample_scales(dest_layer, mip=0, ds_shape=shape)
+  create_downsample_scales(dest_layer, mip=mip, ds_shape=shape)
 
-  for startpt in tqdm(xyzrange( destvol.bounds.minpt, destvol.bounds.maxpt, shape ), desc="Inserting QuantizeAffinities Tasks"):
-    task = QuantizeAffinitiesTask(
+  for startpt in tqdm(xyzrange( destvol.bounds.minpt, destvol.bounds.maxpt, shape ), desc="Inserting Quantize Tasks"):
+    task = QuantizeTask(
       source_layer_path=src_layer,
       dest_layer_path=dest_layer,
-      shape=list(shape.clone()),
-      offset=list(startpt.clone()),
+      shape=shape.tolist(),
+      offset=startpt.tolist(),
       fill_missing=fill_missing,
+      mip=mip,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading')
-
-def create_fixup_quantize_tasks(task_queue, src_layer, dest_layer, shape, points):
-  shape = Vec(*shape)
-  vol = CloudVolume(src_layer, 0)
-  offsets = compute_fixup_offsets(vol, points, shape)
-
-  for offset in tqdm(offsets, desc="Inserting Corrective Quantization Tasks"):
-    task = QuantizeAffinitiesTask(
-      source_layer_path=src_layer,
-      dest_layer_path=dest_layer,
-      shape=list(shape.clone()),
-      offset=list(offset.clone()),
-    )
-    # task.execute()
-    task_queue.insert(task)
-  task_queue.wait('Uploading')
+  destvol.provenance.sources = [ src_layer ]
+  destvol.provenance.processing.append({
+    'method': {
+      'task': 'QuantizeTask',
+      'source_layer_path': src_layer,
+      'dest_layer_path': dest_layer,
+      'shape': shape.tolist(),
+      'fill_missing': fill_missing,
+      'mip': mip,
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  destvol.commit_provenance()
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3):

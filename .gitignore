@@ -8,3 +8,4 @@ __pycache__
 .cache
 create.py
 test.py
+.pytest_cache

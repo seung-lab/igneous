@@ -88,33 +88,37 @@ def roll_invalidation_ball(
   sz = labels.shape[2]
   
   cdef float radius, dist
+  cdef int ceil_r
   cdef int minx, maxx, miny, maxy, minz, maxz
 
   cdef int x,y,z
+  cdef int x0, y0, z0
 
   cdef int invalidated = 0
 
   for coord in path:
-    radius = labels[coord[0], coord[1], coord[2]] * scale + const
+    x0, y0, z0 = coord[0], coord[1], coord[2]
+    radius = labels[x0,y0,z0] * scale + const
+    ceil_r = <int>(radius + 0.5)
 
-    minx = max(0, coord[0] - radius)
-    maxx = min(sx - 1, coord[0] + radius)
-    miny = max(0, coord[1] - radius)
-    maxy = min(sy - 1, coord[1] + radius)
-    minz = max(0, coord[2] - radius)
-    maxz = min(sz - 1, coord[2] + radius)
+    minx = max(0, x0 - ceil_r)
+    maxx = min(sx - 1, x0 + ceil_r)
+    miny = max(0, y0 - ceil_r)
+    maxy = min(sy - 1, y0 + ceil_r)
+    minz = max(0, z0 - ceil_r)
+    maxz = min(sz - 1, z0 + ceil_r)
 
     radius *= radius 
 
     for x in range(minx, maxx):
       for y in range(miny, maxy):
         for z in range(minz, maxz):
-          dist = (x - coord[0]) ** 2 + (y - coord[1]) ** 2 + (z - coord[2]) ** 2
+          dist = (x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2
           if dist <= radius and labels[x,y,z]:
             invalidated += 1
             labels[x,y,z] = 0
 
-  return invalidated
+  return invalidated, labels
 
 
 

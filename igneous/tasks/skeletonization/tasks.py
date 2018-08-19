@@ -62,7 +62,7 @@ class SkeletonTask(RegisteredTask):
     path = os.path.join(self.cloudpath, path)
 
     print("MLAEDT3D")
-    all_dbf = edt.edt(image, anisotropy=vol.resolution.tolist()).T
+    all_dbf = edt.edt(image, anisotropy=vol.resolution.tolist())
     print("EDT Done.")
 
     with Storage(path) as stor:

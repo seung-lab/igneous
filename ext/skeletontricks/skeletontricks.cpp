@@ -2866,7 +2866,7 @@ static PyObject *__pyx_pf_14skeletontricks_4roll_invalidation_ball(CYTHON_UNUSED
  *     ceil_r = <int>(radius + 0.5)
  * 
  *     minx = max(0, x0 - ceil_r)             # <<<<<<<<<<<<<<
- *     maxx = min(sx - 1, x0 + ceil_r)
+ *     maxx = min(sx, x0 + ceil_r)
  *     miny = max(0, y0 - ceil_r)
  */
     __pyx_t_7 = (__pyx_v_x0 - __pyx_v_ceil_r);
@@ -2881,85 +2881,85 @@ static PyObject *__pyx_pf_14skeletontricks_4roll_invalidation_ball(CYTHON_UNUSED
     /* "skeletontricks.pyx":105
  * 
  *     minx = max(0, x0 - ceil_r)
- *     maxx = min(sx - 1, x0 + ceil_r)             # <<<<<<<<<<<<<<
+ *     maxx = min(sx, x0 + ceil_r)             # <<<<<<<<<<<<<<
  *     miny = max(0, y0 - ceil_r)
- *     maxy = min(sy - 1, y0 + ceil_r)
+ *     maxy = min(sy, y0 + ceil_r)
  */
     __pyx_t_7 = (__pyx_v_x0 + __pyx_v_ceil_r);
-    __pyx_t_12 = (__pyx_v_sx - 1);
-    if (((__pyx_t_7 < __pyx_t_12) != 0)) {
-      __pyx_t_11 = __pyx_t_7;
+    __pyx_t_6 = __pyx_v_sx;
+    if (((__pyx_t_7 < __pyx_t_6) != 0)) {
+      __pyx_t_5 = __pyx_t_7;
     } else {
-      __pyx_t_11 = __pyx_t_12;
+      __pyx_t_5 = __pyx_t_6;
     }
-    __pyx_v_maxx = __pyx_t_11;
+    __pyx_v_maxx = __pyx_t_5;
 
     /* "skeletontricks.pyx":106
  *     minx = max(0, x0 - ceil_r)
- *     maxx = min(sx - 1, x0 + ceil_r)
+ *     maxx = min(sx, x0 + ceil_r)
  *     miny = max(0, y0 - ceil_r)             # <<<<<<<<<<<<<<
- *     maxy = min(sy - 1, y0 + ceil_r)
+ *     maxy = min(sy, y0 + ceil_r)
  *     minz = max(0, z0 - ceil_r)
  */
-    __pyx_t_7 = (__pyx_v_y0 - __pyx_v_ceil_r);
-    __pyx_t_11 = 0;
-    if (((__pyx_t_7 > __pyx_t_11) != 0)) {
-      __pyx_t_12 = __pyx_t_7;
-    } else {
-      __pyx_t_12 = __pyx_t_11;
-    }
-    __pyx_v_miny = __pyx_t_12;
-
-    /* "skeletontricks.pyx":107
- *     maxx = min(sx - 1, x0 + ceil_r)
- *     miny = max(0, y0 - ceil_r)
- *     maxy = min(sy - 1, y0 + ceil_r)             # <<<<<<<<<<<<<<
- *     minz = max(0, z0 - ceil_r)
- *     maxz = min(sz - 1, z0 + ceil_r)
- */
-    __pyx_t_7 = (__pyx_v_y0 + __pyx_v_ceil_r);
-    __pyx_t_12 = (__pyx_v_sy - 1);
-    if (((__pyx_t_7 < __pyx_t_12) != 0)) {
-      __pyx_t_11 = __pyx_t_7;
+    __pyx_t_5 = (__pyx_v_y0 - __pyx_v_ceil_r);
+    __pyx_t_12 = 0;
+    if (((__pyx_t_5 > __pyx_t_12) != 0)) {
+      __pyx_t_11 = __pyx_t_5;
     } else {
       __pyx_t_11 = __pyx_t_12;
     }
-    __pyx_v_maxy = __pyx_t_11;
+    __pyx_v_miny = __pyx_t_11;
+
+    /* "skeletontricks.pyx":107
+ *     maxx = min(sx, x0 + ceil_r)
+ *     miny = max(0, y0 - ceil_r)
+ *     maxy = min(sy, y0 + ceil_r)             # <<<<<<<<<<<<<<
+ *     minz = max(0, z0 - ceil_r)
+ *     maxz = min(sz, z0 + ceil_r)
+ */
+    __pyx_t_5 = (__pyx_v_y0 + __pyx_v_ceil_r);
+    __pyx_t_7 = __pyx_v_sy;
+    if (((__pyx_t_5 < __pyx_t_7) != 0)) {
+      __pyx_t_6 = __pyx_t_5;
+    } else {
+      __pyx_t_6 = __pyx_t_7;
+    }
+    __pyx_v_maxy = __pyx_t_6;
 
     /* "skeletontricks.pyx":108
  *     miny = max(0, y0 - ceil_r)
- *     maxy = min(sy - 1, y0 + ceil_r)
+ *     maxy = min(sy, y0 + ceil_r)
  *     minz = max(0, z0 - ceil_r)             # <<<<<<<<<<<<<<
- *     maxz = min(sz - 1, z0 + ceil_r)
+ *     maxz = min(sz, z0 + ceil_r)
  * 
  */
-    __pyx_t_7 = (__pyx_v_z0 - __pyx_v_ceil_r);
+    __pyx_t_6 = (__pyx_v_z0 - __pyx_v_ceil_r);
     __pyx_t_11 = 0;
-    if (((__pyx_t_7 > __pyx_t_11) != 0)) {
-      __pyx_t_12 = __pyx_t_7;
+    if (((__pyx_t_6 > __pyx_t_11) != 0)) {
+      __pyx_t_12 = __pyx_t_6;
     } else {
       __pyx_t_12 = __pyx_t_11;
     }
     __pyx_v_minz = __pyx_t_12;
 
     /* "skeletontricks.pyx":109
- *     maxy = min(sy - 1, y0 + ceil_r)
+ *     maxy = min(sy, y0 + ceil_r)
  *     minz = max(0, z0 - ceil_r)
- *     maxz = min(sz - 1, z0 + ceil_r)             # <<<<<<<<<<<<<<
+ *     maxz = min(sz, z0 + ceil_r)             # <<<<<<<<<<<<<<
  * 
  *     radius *= radius
  */
-    __pyx_t_7 = (__pyx_v_z0 + __pyx_v_ceil_r);
-    __pyx_t_12 = (__pyx_v_sz - 1);
-    if (((__pyx_t_7 < __pyx_t_12) != 0)) {
-      __pyx_t_11 = __pyx_t_7;
+    __pyx_t_6 = (__pyx_v_z0 + __pyx_v_ceil_r);
+    __pyx_t_5 = __pyx_v_sz;
+    if (((__pyx_t_6 < __pyx_t_5) != 0)) {
+      __pyx_t_7 = __pyx_t_6;
     } else {
-      __pyx_t_11 = __pyx_t_12;
+      __pyx_t_7 = __pyx_t_5;
     }
-    __pyx_v_maxz = __pyx_t_11;
+    __pyx_v_maxz = __pyx_t_7;
 
     /* "skeletontricks.pyx":111
- *     maxz = min(sz - 1, z0 + ceil_r)
+ *     maxz = min(sz, z0 + ceil_r)
  * 
  *     radius *= radius             # <<<<<<<<<<<<<<
  * 

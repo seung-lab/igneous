@@ -102,11 +102,11 @@ def roll_invalidation_ball(
     ceil_r = <int>(radius + 0.5)
 
     minx = max(0, x0 - ceil_r)
-    maxx = min(sx - 1, x0 + ceil_r)
+    maxx = min(sx, x0 + ceil_r)
     miny = max(0, y0 - ceil_r)
-    maxy = min(sy - 1, y0 + ceil_r)
+    maxy = min(sy, y0 + ceil_r)
     minz = max(0, z0 - ceil_r)
-    maxz = min(sz - 1, z0 + ceil_r)
+    maxz = min(sz, z0 + ceil_r)
 
     radius *= radius 
 

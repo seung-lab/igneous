@@ -79,12 +79,9 @@ def TEASAR(DBF, parameters):
   valid_labels = np.count_nonzero(labels)
 
   while valid_labels > 0:
-    print("Valid Remaining: ", valid_labels)
     target = igneous.skeletontricks.find_target(labels, PDRF)
-    print("target=", target)
     path = igneous.dijkstra.dijkstra(PDRF, root, target)
-    print("path=", path)
-    invalidated = igneous.skeletontricks.roll_invalidation_ball(
+    invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
       labels, path, parameters[0], parameters[1]
     )
     valid_labels -= invalidated
@@ -100,10 +97,10 @@ def path_union(paths):
   tree_id = {}
 
   ct = 0
-  for path in range(paths):
-    for i in range(len(path[i]) - 1):
-      parent = tuple(path[i, :].aslist())
-      child = tuple(path[i + 1, :].aslist())
+  for path in paths:
+    for i in range(path.shape[0] - 1):
+      parent = tuple(path[i, :].tolist())
+      child = tuple(path[i + 1, :].tolist())
       tree[parent].update(child)
       if not parent in tree_id:
         tree_id[parent] = ct

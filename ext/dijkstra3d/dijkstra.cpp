@@ -5882,8 +5882,8 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
   __Pyx_memviewslice __pyx_v_arr_memview64 = { 0, 0, { 0 }, { 0 }, { 0 } };
   __Pyx_memviewslice __pyx_v_arr_memviewfloat = { 0, 0, { 0 }, { 0 }, { 0 } };
   __Pyx_memviewslice __pyx_v_arr_memviewdouble = { 0, 0, { 0 }, { 0 }, { 0 } };
-  int __pyx_v_rows;
   int __pyx_v_cols;
+  int __pyx_v_rows;
   int __pyx_v_depth;
   int __pyx_v_src;
   float *__pyx_v_dist;
@@ -5933,8 +5933,8 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
   /* "dijkstra.pyx":213
  *   cdef double[:,:,:] arr_memviewdouble
  * 
- *   cdef int rows = data.shape[0]             # <<<<<<<<<<<<<<
- *   cdef int cols = data.shape[1]
+ *   cdef int cols = data.shape[0]             # <<<<<<<<<<<<<<
+ *   cdef int rows = data.shape[1]
  *   cdef int depth = data.shape[2]
  */
   __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_data, __pyx_n_s_shape); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 213, __pyx_L1_error)
@@ -5944,12 +5944,12 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_t_3 = __Pyx_PyInt_As_int(__pyx_t_2); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 213, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_v_rows = __pyx_t_3;
+  __pyx_v_cols = __pyx_t_3;
 
   /* "dijkstra.pyx":214
  * 
- *   cdef int rows = data.shape[0]
- *   cdef int cols = data.shape[1]             # <<<<<<<<<<<<<<
+ *   cdef int cols = data.shape[0]
+ *   cdef int rows = data.shape[1]             # <<<<<<<<<<<<<<
  *   cdef int depth = data.shape[2]
  * 
  */
@@ -5960,14 +5960,14 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_3 = __Pyx_PyInt_As_int(__pyx_t_1); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 214, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_v_cols = __pyx_t_3;
+  __pyx_v_rows = __pyx_t_3;
 
   /* "dijkstra.pyx":215
- *   cdef int rows = data.shape[0]
- *   cdef int cols = data.shape[1]
+ *   cdef int cols = data.shape[0]
+ *   cdef int rows = data.shape[1]
  *   cdef int depth = data.shape[2]             # <<<<<<<<<<<<<<
  * 
- *   cdef int src = source[0] + rows * (source[1] + cols * source[2])
+ *   cdef int src = source[0] + cols * (source[1] + rows * source[2])
  */
   __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_data, __pyx_n_s_shape); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 215, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -5981,17 +5981,17 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
   /* "dijkstra.pyx":217
  *   cdef int depth = data.shape[2]
  * 
- *   cdef int src = source[0] + rows * (source[1] + cols * source[2])             # <<<<<<<<<<<<<<
+ *   cdef int src = source[0] + cols * (source[1] + rows * source[2])             # <<<<<<<<<<<<<<
  * 
  *   cdef float* dist
  */
   __pyx_t_2 = __Pyx_GetItemInt(__pyx_v_source, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 217, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_rows); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 217, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_cols); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 217, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_t_4 = __Pyx_GetItemInt(__pyx_v_source, 1, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 217, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyInt_From_int(__pyx_v_cols); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 217, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_From_int(__pyx_v_rows); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 217, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __pyx_t_6 = __Pyx_GetItemInt(__pyx_v_source, 2, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 217, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
@@ -6061,7 +6061,7 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memviewfloat = data
  *     dist = distance_field3d[float](
  *       &arr_memviewfloat[0,0,0],             # <<<<<<<<<<<<<<
- *       rows, cols, depth,
+ *       cols, rows, depth,
  *       src
  */
     __pyx_t_10 = 0;
@@ -6090,9 +6090,9 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memviewfloat = data
  *     dist = distance_field3d[float](             # <<<<<<<<<<<<<<
  *       &arr_memviewfloat[0,0,0],
- *       rows, cols, depth,
+ *       cols, rows, depth,
  */
-    __pyx_v_dist = dijkstra::distance_field3d<float>((&(*((float *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memviewfloat.data + __pyx_t_10 * __pyx_v_arr_memviewfloat.strides[0]) ) + __pyx_t_11 * __pyx_v_arr_memviewfloat.strides[1]) ) + __pyx_t_12 * __pyx_v_arr_memviewfloat.strides[2]) )))), __pyx_v_rows, __pyx_v_cols, __pyx_v_depth, __pyx_v_src);
+    __pyx_v_dist = dijkstra::distance_field3d<float>((&(*((float *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memviewfloat.data + __pyx_t_10 * __pyx_v_arr_memviewfloat.strides[0]) ) + __pyx_t_11 * __pyx_v_arr_memviewfloat.strides[1]) ) + __pyx_t_12 * __pyx_v_arr_memviewfloat.strides[2]) )))), __pyx_v_cols, __pyx_v_rows, __pyx_v_depth, __pyx_v_src);
 
     /* "dijkstra.pyx":223
  *   dtype = data.dtype
@@ -6138,7 +6138,7 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memviewdouble = data
  *     dist = distance_field3d[double](
  *       &arr_memviewdouble[0,0,0],             # <<<<<<<<<<<<<<
- *       rows, cols, depth,
+ *       cols, rows, depth,
  *       src
  */
     __pyx_t_14 = 0;
@@ -6167,9 +6167,9 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memviewdouble = data
  *     dist = distance_field3d[double](             # <<<<<<<<<<<<<<
  *       &arr_memviewdouble[0,0,0],
- *       rows, cols, depth,
+ *       cols, rows, depth,
  */
-    __pyx_v_dist = dijkstra::distance_field3d<double>((&(*((double *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memviewdouble.data + __pyx_t_14 * __pyx_v_arr_memviewdouble.strides[0]) ) + __pyx_t_15 * __pyx_v_arr_memviewdouble.strides[1]) ) + __pyx_t_16 * __pyx_v_arr_memviewdouble.strides[2]) )))), __pyx_v_rows, __pyx_v_cols, __pyx_v_depth, __pyx_v_src);
+    __pyx_v_dist = dijkstra::distance_field3d<double>((&(*((double *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memviewdouble.data + __pyx_t_14 * __pyx_v_arr_memviewdouble.strides[0]) ) + __pyx_t_15 * __pyx_v_arr_memviewdouble.strides[1]) ) + __pyx_t_16 * __pyx_v_arr_memviewdouble.strides[2]) )))), __pyx_v_cols, __pyx_v_rows, __pyx_v_depth, __pyx_v_src);
 
     /* "dijkstra.pyx":230
  *       src
@@ -6215,7 +6215,7 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview64 = data
  *     dist = distance_field3d[int64_t](
  *       &arr_memview64[0,0,0],             # <<<<<<<<<<<<<<
- *       rows, cols, depth,
+ *       cols, rows, depth,
  *       src
  */
     __pyx_t_18 = 0;
@@ -6244,9 +6244,9 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview64 = data
  *     dist = distance_field3d[int64_t](             # <<<<<<<<<<<<<<
  *       &arr_memview64[0,0,0],
- *       rows, cols, depth,
+ *       cols, rows, depth,
  */
-    __pyx_v_dist = dijkstra::distance_field3d<int64_t>((&(*((int64_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview64.data + __pyx_t_18 * __pyx_v_arr_memview64.strides[0]) ) + __pyx_t_19 * __pyx_v_arr_memview64.strides[1]) ) + __pyx_t_20 * __pyx_v_arr_memview64.strides[2]) )))), __pyx_v_rows, __pyx_v_cols, __pyx_v_depth, __pyx_v_src);
+    __pyx_v_dist = dijkstra::distance_field3d<int64_t>((&(*((int64_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview64.data + __pyx_t_18 * __pyx_v_arr_memview64.strides[0]) ) + __pyx_t_19 * __pyx_v_arr_memview64.strides[1]) ) + __pyx_t_20 * __pyx_v_arr_memview64.strides[2]) )))), __pyx_v_cols, __pyx_v_rows, __pyx_v_depth, __pyx_v_src);
 
     /* "dijkstra.pyx":237
  *       src
@@ -6292,7 +6292,7 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview32 = data
  *     dist = distance_field3d[int32_t](
  *       &arr_memview32[0,0,0],             # <<<<<<<<<<<<<<
- *       rows, cols, depth,
+ *       cols, rows, depth,
  *       src
  */
     __pyx_t_22 = 0;
@@ -6321,9 +6321,9 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview32 = data
  *     dist = distance_field3d[int32_t](             # <<<<<<<<<<<<<<
  *       &arr_memview32[0,0,0],
- *       rows, cols, depth,
+ *       cols, rows, depth,
  */
-    __pyx_v_dist = dijkstra::distance_field3d<int32_t>((&(*((int32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview32.data + __pyx_t_22 * __pyx_v_arr_memview32.strides[0]) ) + __pyx_t_23 * __pyx_v_arr_memview32.strides[1]) ) + __pyx_t_24 * __pyx_v_arr_memview32.strides[2]) )))), __pyx_v_rows, __pyx_v_cols, __pyx_v_depth, __pyx_v_src);
+    __pyx_v_dist = dijkstra::distance_field3d<int32_t>((&(*((int32_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview32.data + __pyx_t_22 * __pyx_v_arr_memview32.strides[0]) ) + __pyx_t_23 * __pyx_v_arr_memview32.strides[1]) ) + __pyx_t_24 * __pyx_v_arr_memview32.strides[2]) )))), __pyx_v_cols, __pyx_v_rows, __pyx_v_depth, __pyx_v_src);
 
     /* "dijkstra.pyx":244
  *       src
@@ -6369,7 +6369,7 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview16 = data
  *     dist = distance_field3d[int16_t](
  *       &arr_memview16[0,0,0],             # <<<<<<<<<<<<<<
- *       rows, cols, depth,
+ *       cols, rows, depth,
  *       src
  */
     __pyx_t_26 = 0;
@@ -6398,9 +6398,9 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview16 = data
  *     dist = distance_field3d[int16_t](             # <<<<<<<<<<<<<<
  *       &arr_memview16[0,0,0],
- *       rows, cols, depth,
+ *       cols, rows, depth,
  */
-    __pyx_v_dist = dijkstra::distance_field3d<int16_t>((&(*((int16_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview16.data + __pyx_t_26 * __pyx_v_arr_memview16.strides[0]) ) + __pyx_t_27 * __pyx_v_arr_memview16.strides[1]) ) + __pyx_t_28 * __pyx_v_arr_memview16.strides[2]) )))), __pyx_v_rows, __pyx_v_cols, __pyx_v_depth, __pyx_v_src);
+    __pyx_v_dist = dijkstra::distance_field3d<int16_t>((&(*((int16_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview16.data + __pyx_t_26 * __pyx_v_arr_memview16.strides[0]) ) + __pyx_t_27 * __pyx_v_arr_memview16.strides[1]) ) + __pyx_t_28 * __pyx_v_arr_memview16.strides[2]) )))), __pyx_v_cols, __pyx_v_rows, __pyx_v_depth, __pyx_v_src);
 
     /* "dijkstra.pyx":251
  *       src
@@ -6446,7 +6446,7 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview8 = data
  *     dist = distance_field3d[int8_t](
  *       &arr_memview8[0,0,0],             # <<<<<<<<<<<<<<
- *       rows, cols, depth,
+ *       cols, rows, depth,
  *       src
  */
     __pyx_t_30 = 0;
@@ -6475,9 +6475,9 @@ static PyObject *__pyx_pf_8dijkstra_10_execute_distance_field(CYTHON_UNUSED PyOb
  *     arr_memview8 = data
  *     dist = distance_field3d[int8_t](             # <<<<<<<<<<<<<<
  *       &arr_memview8[0,0,0],
- *       rows, cols, depth,
+ *       cols, rows, depth,
  */
-    __pyx_v_dist = dijkstra::distance_field3d<int8_t>((&(*((int8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview8.data + __pyx_t_30 * __pyx_v_arr_memview8.strides[0]) ) + __pyx_t_31 * __pyx_v_arr_memview8.strides[1]) ) + __pyx_t_32 * __pyx_v_arr_memview8.strides[2]) )))), __pyx_v_rows, __pyx_v_cols, __pyx_v_depth, __pyx_v_src);
+    __pyx_v_dist = dijkstra::distance_field3d<int8_t>((&(*((int8_t *) ( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview8.data + __pyx_t_30 * __pyx_v_arr_memview8.strides[0]) ) + __pyx_t_31 * __pyx_v_arr_memview8.strides[1]) ) + __pyx_t_32 * __pyx_v_arr_memview8.strides[2]) )))), __pyx_v_cols, __pyx_v_rows, __pyx_v_depth, __pyx_v_src);
 
     /* "dijkstra.pyx":258
  *       src
@@ -24461,7 +24461,7 @@ static int __Pyx_InitCachedConstants(void) {
  *   cdef int8_t[:,:,:] arr_memview8
  *   cdef int16_t[:,:,:] arr_memview16
  */
-  __pyx_tuple__54 = PyTuple_Pack(18, __pyx_n_s_data, __pyx_n_s_source, __pyx_n_s_arr_memview8, __pyx_n_s_arr_memview16, __pyx_n_s_arr_memview32, __pyx_n_s_arr_memview64, __pyx_n_s_arr_memviewfloat, __pyx_n_s_arr_memviewdouble, __pyx_n_s_rows, __pyx_n_s_cols, __pyx_n_s_depth, __pyx_n_s_src, __pyx_n_s_dist, __pyx_n_s_dtype, __pyx_n_s_voxels, __pyx_n_s_dist_view, __pyx_n_s_buf, __pyx_n_s_order); if (unlikely(!__pyx_tuple__54)) __PYX_ERR(0, 205, __pyx_L1_error)
+  __pyx_tuple__54 = PyTuple_Pack(18, __pyx_n_s_data, __pyx_n_s_source, __pyx_n_s_arr_memview8, __pyx_n_s_arr_memview16, __pyx_n_s_arr_memview32, __pyx_n_s_arr_memview64, __pyx_n_s_arr_memviewfloat, __pyx_n_s_arr_memviewdouble, __pyx_n_s_cols, __pyx_n_s_rows, __pyx_n_s_depth, __pyx_n_s_src, __pyx_n_s_dist, __pyx_n_s_dtype, __pyx_n_s_voxels, __pyx_n_s_dist_view, __pyx_n_s_buf, __pyx_n_s_order); if (unlikely(!__pyx_tuple__54)) __PYX_ERR(0, 205, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__54);
   __Pyx_GIVEREF(__pyx_tuple__54);
   __pyx_codeobj__55 = (PyObject*)__Pyx_PyCode_New(2, 0, 18, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__54, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_dijkstra_pyx, __pyx_n_s_execute_distance_field, 205, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__55)) __PYX_ERR(0, 205, __pyx_L1_error)

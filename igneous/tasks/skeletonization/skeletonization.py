@@ -43,8 +43,6 @@ def TEASAR(DBF, parameters):
 
   M = 1 / (np.max(DBF) ** 1.01)
 
-  print("M=", M, "any_voxel=", any_voxel)
-
   # "4.4 DAF:  Compute distance from any voxel field"
   # Compute DAF, but we immediately convert to the PDRF
   # The extremal point of the PDRF is a valid root node
@@ -53,8 +51,6 @@ def TEASAR(DBF, parameters):
   DAF = igneous.dijkstra.distance_field(DBF, any_voxel)
   root = igneous.skeletontricks.find_target(labels, DAF)
   DAF = igneous.dijkstra.distance_field(DBF, root)
-
-  print("root=", root)
 
   # Add p(v) to the DAF (pp. 4, section 4.5)
   # "4.5 PDRF: Compute penalized distance from root voxel field"
@@ -65,15 +61,6 @@ def TEASAR(DBF, parameters):
   PDRF = DAF + (5000) * ((1 - (DBF * M)) ** 16) # 20x is a variation on TEASAR
   PDRF = PDRF.astype(np.float32)
   del DAF  
-
-  def xyskelprojection(path):
-    black = np.zeros( (labels.shape[0], labels.shape[1], 1), dtype=np.uint8)
-    outline = labels.any(axis=-1).astype(np.uint8) * 77
-    outline = outline.reshape( (labels.shape[0], labels.shape[1], 1) )
-    black += outline
-    for coord in path:
-      black[coord[0], coord[1]] = 255
-    save_images(black, directory="./saved_images/projections/")
 
   paths = []
   valid_labels = np.count_nonzero(labels)
@@ -86,17 +73,16 @@ def TEASAR(DBF, parameters):
     )
     valid_labels -= invalidated
     paths.append(path)
-    # xyskelprojection(path)
-    print("invalidated", invalidated)
-    print("valid_labels", valid_labels)
 
-  print("paths ", len(paths))
   skel_verts, skel_edges = path_union(paths)
   skel_radii = DBF[skel_verts[::3], skel_verts[1::3], skel_verts[2::3]]
-
-  return Skeleton(skel_verts, skel_edges, skel_radii)
+  return Skeleton(skel_verts.astype(np.float32), skel_edges, skel_radii)
 
 def path_union(paths):
+  """
+  Given a set of paths with a common root, attempt to join them
+  into a tree at the first common linkage.
+  """
   tree = defaultdict(set)
   tree_id = {}
 
@@ -105,24 +91,29 @@ def path_union(paths):
     for i in range(path.shape[0] - 1):
       parent = tuple(path[i, :].tolist())
       child = tuple(path[i + 1, :].tolist())
-      tree[parent].update(child)
+      tree[parent].add(child)
       if not parent in tree_id:
         tree_id[parent] = ct
         ct += 1
+      if not child in tree:
+        tree[child] = set()
+      if not child in tree_id:
+        tree_id[child] = ct
+        ct += 1 
 
   root = tuple(paths[0][0,:].tolist())
   vertices = []
   edges = []
 
-  def dfs(node):
-    vertices.append(node)
-    for child in tree[node]:
+  def dfs(parent):
+    vertices.append(parent)
+    for child in tree[parent]:
       edges.append([ tree_id[parent], tree_id[child] ])
       dfs(child)
 
   dfs(root)
 
-  npv = np.zeros((len(vertices) * 3,), dtype=np.float32)
+  npv = np.zeros((len(vertices) * 3,), dtype=np.uint32)
   for i, vert in enumerate(vertices):
     npv[ 3 * i + 0 ] = vertices[i][0]
     npv[ 3 * i + 1 ] = vertices[i][1]
@@ -135,3 +126,15 @@ def path_union(paths):
 
   return npv, npe
 
+def xy_path_projection(paths, labels):
+  if type(paths) != list:
+    paths = [ paths ]
+
+  projection = np.zeros( (labels.shape[0], labels.shape[1], 1), dtype=np.uint8)
+  outline = labels.any(axis=-1).astype(np.uint8) * 77
+  outline = outline.reshape( (labels.shape[0], labels.shape[1], 1) )
+  projection += outline
+  for path in paths:
+    for coord in path:
+      projection[coord[0], coord[1]] = 255
+  save_images(projection, directory="./saved_images/projections/")

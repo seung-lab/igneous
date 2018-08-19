@@ -76,7 +76,11 @@ def TEASAR(DBF, parameters):
 
   skel_verts, skel_edges = path_union(paths)
   skel_radii = DBF[skel_verts[::3], skel_verts[1::3], skel_verts[2::3]]
-  return Skeleton(skel_verts.astype(np.float32), skel_edges, skel_radii)
+
+  skel_verts = skel_verts.astype(np.float32).reshape( (skel_verts.size // 3, 3) )
+  skel_edges = skel_edges.reshape( (skel_edges.size // 2, 2)  )
+
+  return Skeleton(skel_verts, skel_edges, skel_radii)
 
 def path_union(paths):
   """

@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir
+from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
 import edt # euclidean distance transform
 from taskqueue import RegisteredTask
 
@@ -72,13 +72,11 @@ class SkeletonTask(RegisteredTask):
           continue 
 
         print(segid)
+        # Crop DBF to ROI
         labels = (all_labels == segid)
         slices = scipy.ndimage.find_objects(labels)[0]
-
-        print(slices)
         dbf = labels[slices] * all_dbf[slices]
         del labels
-        # dbf =  * all_dbf # distance to boundary field
 
         roi = Bbox.from_slices(slices)
         roi += bbox.minpt 
@@ -98,9 +96,9 @@ class SkeletonTask(RegisteredTask):
   def skeletonize(self, dbf, bbox):
     skeleton = TEASAR(dbf, self.teasar_params)
 
-    skeleton.vertices[0::3] += bbox.minpt.x
-    skeleton.vertices[1::3] += bbox.minpt.y
-    skeleton.vertices[2::3] += bbox.minpt.z
+    skeleton.nodes[0::3] += bbox.minpt.x
+    skeleton.nodes[1::3] += bbox.minpt.y
+    skeleton.nodes[2::3] += bbox.minpt.z
 
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()

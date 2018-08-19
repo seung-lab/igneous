@@ -3,7 +3,7 @@ import numpy as np
 class Skeleton:
   def __init__(self, 
     nodes=np.array([]), edges=np.array([]), 
-    radii=np.array([]), root=np.array([])
+    radii=np.array([])
   ):
 
     if nodes.size == 0:
@@ -15,10 +15,14 @@ class Skeleton:
     self.nodes = nodes
     self.edges = edges
     self.radii = radii
-    self.root = root
 
   def empty(self):
     return self.nodes.size == 0 or self.edges.size == 0
+
+  def __str__(self):
+    return "Skeleton(vertices={}, edges={}, radii={})".format(
+      self.nodes.shape, self.edges.shape, self.radii.shape
+    )
 
 def path2edge(path):
   """

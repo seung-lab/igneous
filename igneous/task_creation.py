@@ -186,20 +186,31 @@ def create_deletion_tasks(task_queue, layer_path):
 
 def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 512), tesar_params=[10, 10]):
   shape = Vec(*shape)
-  vol = CloudVolume(cloudpath)
+  vol = CloudVolume(cloudpath, mip=mip)
 
   if not 'skeletons' in vol.info:
     vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
     vol.commit_info()
 
+  incr = shape // 2
+  crop_zone = 25
+  will_postprocess = True
+
+  if np.all(vol.bounds.size3() == shape):
+    incr = shape
+    crop_zone = 0
+    will_postprocess = False
+
   # 50% overlap
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape // 2 ), desc="Inserting Skeleton Tasks"):
+  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ), desc="Inserting Skeleton Tasks"):
     task = SkeletonTask(
       cloudpath=cloudpath,
       shape=shape.clone(),
       offset=startpt.clone(),
       mip=mip,
       teasar_params=tesar_params,
+      crop_zone=0,
+      will_postprocess=will_postprocess,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading SkeletonTasks')

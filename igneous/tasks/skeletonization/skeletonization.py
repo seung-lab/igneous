@@ -33,8 +33,6 @@ def TEASAR(DBF, parameters):
 
   Returns: Skeleton object
   """
-  # Wasteful, can reduce to finding the first non-zero pixel
-  
   labels = (DBF != 0).astype(np.bool)  
   any_voxel = igneous.skeletontricks.first_label(labels)   
 

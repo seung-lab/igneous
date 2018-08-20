@@ -45,12 +45,14 @@ class SkeletonTask(RegisteredTask):
   Convert chunks of segmentation into chunked skeletons and point clouds.
   They will be merged in the stage 2 task SkeletonMergeTask.
   """
-  def __init__(self, cloudpath, shape, offset, mip, teasar_params=[10, 10]):
-    super(SkeletonTask, self).__init__(cloudpath, shape, offset, mip, teasar_params)
+  def __init__(self, cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess):
+    super(SkeletonTask, self).__init__(cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess)
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.mip = mip
     self.teasar_params = teasar_params
+    self.crop_zone = crop_zone
+    self.will_postprocess = will_postprocess
 
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True)
@@ -88,12 +90,16 @@ class SkeletonTask(RegisteredTask):
         if skeleton.empty():
           continue
 
-        # stor.put_file(
-        #   file_path="{}:skel:{}".format(segid, bbox.to_filename()),
-        #   content=pickle.dumps(skeleton),
-        #   compress='gzip',
-        #   content_type="application/python-pickle",
-        # )
+        if self.will_postprocess:
+          stor.put_file(
+            file_path="{}:skel:{}".format(segid, bbox.to_filename()),
+            content=pickle.dumps(skeleton),
+            compress='gzip',
+            content_type="application/python-pickle",
+          )
+        else:
+          skeleton.nodes[:] *= vol.resolution
+          vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges, skeleton.radii)
 
   def skeletonize(self, dbf, bbox):
     skeleton = TEASAR(dbf, self.teasar_params)
@@ -104,9 +110,9 @@ class SkeletonTask(RegisteredTask):
 
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()
-    crop_bbox.minpt += 50
-    crop_bbox.maxpt -= 50
-    
+    crop_bbox.minpt += self.crop_zone
+    crop_bbox.maxpt -= self.crop_zone
+
     if crop_bbox.volume() <= 0:
       return skeleton
 

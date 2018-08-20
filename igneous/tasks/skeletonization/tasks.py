@@ -82,29 +82,31 @@ class SkeletonTask(RegisteredTask):
         roi += bbox.minpt 
 
         skeleton = self.skeletonize(dbf, roi)
+
+        print(skeleton)
         
         if skeleton.empty():
           continue
 
-        stor.put_file(
-          file_path="{}:skel:{}".format(segid, bbox.to_filename()),
-          content=pickle.dumps(skeleton),
-          compress='gzip',
-          content_type="application/python-pickle",
-        )
+        # stor.put_file(
+        #   file_path="{}:skel:{}".format(segid, bbox.to_filename()),
+        #   content=pickle.dumps(skeleton),
+        #   compress='gzip',
+        #   content_type="application/python-pickle",
+        # )
 
   def skeletonize(self, dbf, bbox):
     skeleton = TEASAR(dbf, self.teasar_params)
 
-    skeleton.nodes[0::3] += bbox.minpt.x
-    skeleton.nodes[1::3] += bbox.minpt.y
-    skeleton.nodes[2::3] += bbox.minpt.z
+    skeleton.nodes[:,0] += bbox.minpt.x
+    skeleton.nodes[:,1] += bbox.minpt.y
+    skeleton.nodes[:,2] += bbox.minpt.z
 
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()
     crop_bbox.minpt += 50
     crop_bbox.maxpt -= 50
-
+    
     if crop_bbox.volume() <= 0:
       return skeleton
 

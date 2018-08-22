@@ -320,7 +320,7 @@ class MeshTask(RegisteredTask):
     # Note: points are already multiplied by resolution, but missing the offset
     points /= 2.0
     resolution = self._volume.resolution
-    xmin, ymin, zmin = self._bounds.minpt
+    xmin, ymin, zmin = self._bounds.minpt - self.options['low_padding']
     points[0::3] = points[0::3] + xmin * resolution.x
     points[1::3] = points[1::3] + ymin * resolution.y
     points[2::3] = points[2::3] + zmin * resolution.z

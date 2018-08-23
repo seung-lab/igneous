@@ -5,6 +5,7 @@ from subprocess import call
 import os
 import shutil
 import setuptools
+import numpy as np
 
 # NOTE: If _mesher.cpp does not exist, you must run
 # cython --cplus -I./ext/third_party/zi_lib/ ./ext/third_party/mc/_mesher.pyx
@@ -32,7 +33,7 @@ setuptools.setup(
             sources=[ './ext/remap/fastremap.cpp' ],
             depends=[],
             language='c++',
-            include_dirs=[ ],
+            include_dirs=[np.get_include()],
             extra_compile_args=[
               '-std=c++11', '-O3'
             ]) #don't use  '-fvisibility=hidden', python can't see init module

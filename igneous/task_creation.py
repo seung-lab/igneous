@@ -131,11 +131,24 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
 
 def create_downsampling_tasks(
     task_queue, layer_path, 
-    mip=-1, fill_missing=False, axis='z', 
+    mip=0, fill_missing=False, axis='z', 
     num_mips=5, preserve_chunk_size=True,
-    sparse=False
+    sparse=False, bounds=None
   ):
-  
+    """
+    mip: Download this mip level, writes to mip levels greater than this one.
+    fill_missing: interpret missing chunks as black instead of issuing an EmptyVolumeException
+    axis: technically 'x' and 'y' are supported, but no one uses them.
+    num_mips: download a block chunk * 2**num_mips size and generate num_mips mips. If you have
+      memory problems, try reducing this number.
+    preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
+      evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
+      useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
+    sparse: When downsampling segmentation, if true, don't count black pixels when computing
+      the mode. Useful for e.g. synapses and point labels.
+    bounds: By default, downsample everything, but you can specify restricted bounding boxes
+      instead. The bounding box will be expanded to the nearest chunk.
+    """
     def ds_shape(mip):
       shape = vol.mip_underlying(mip)[:3]
       shape.x *= 2 ** num_mips
@@ -149,7 +162,15 @@ def create_downsampling_tasks(
     if not preserve_chunk_size:
       shape = ds_shape(vol.mip + 1)
 
-    bounds = vol.bounds.clone()
+    if bounds is None:
+      bounds = vol.bounds.clone()
+    else:
+      bounds = Bbox.create(bounds).expand_to_chunk_size(vol.underlying, vol.voxel_offset)
+      bounds = Bbox.clamp(bounds, vol.bounds)
+
+    print("Volume Bounds: ", vol.bounds)
+    print("Selected ROI:  ", bounds)
+
     for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
       task = DownsampleTask(
         layer_path=layer_path,
@@ -170,6 +191,7 @@ def create_downsampling_tasks(
         'axis': axis,
         'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
         'sparse': sparse,
+        'bounds': str(bounds),
       },
       'by': USER_EMAIL,
       'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -104,16 +104,16 @@ def path_union(paths):
         ct += 1 
 
   root = tuple(paths[0][0,:].tolist())
-  vertices = []
+  vertices = [root]
   edges = []
 
-  def dfs(parent):
-    vertices.append(parent)
+  def traverse(parent):
     for child in tree[parent]:
+      vertices.append(child)
       edges.append([ tree_id[parent], tree_id[child] ])
-      dfs(child)
+      traverse(child)
 
-  dfs(root)
+  traverse(root)
 
   npv = np.zeros((len(vertices) * 3,), dtype=np.uint32)
   for i, vert in enumerate(vertices):

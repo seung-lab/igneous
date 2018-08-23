@@ -409,13 +409,13 @@ def consolidate_skeleton(skeleton):
   unique_nodes, unique_idx, unique_counts = np.unique(nodes, axis=0, return_index=True, return_counts=True)
   unique_edges = np.copy(edges)
 
-  dup_idx = np.where(unique_counts>1)[0]
+  dup_idx = np.where(unique_counts > 1)[0]
   for i in range(dup_idx.shape[0]):
     dup_node = unique_nodes[dup_idx[i],:]
     dup_node_idx = find_row(nodes, dup_node)
 
     for j in range(dup_node_idx.shape[0]-1):
-      start_idx, end_idx = np.where(edges==dup_node_idx[j+1])
+      start_idx, end_idx = np.where(edges == dup_node_idx[j+1])
       unique_edges[start_idx, end_idx] = unique_idx[dup_idx[i]]
 
   # Remove unnecessary nodes
@@ -427,7 +427,7 @@ def consolidate_skeleton(skeleton):
 
   eff_edges = np.copy(unique_edges)
   for i, node in enumerate(eff_node_list, 0):
-    row_idx, col_idx = np.where(unique_edges==node)
+    row_idx, col_idx = np.where(unique_edges == node)
     eff_edges[row_idx,col_idx] = i
 
   eff_edges = np.unique(eff_edges, axis=0)

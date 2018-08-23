@@ -9,6 +9,7 @@ from collections import defaultdict
 
 import numpy as np
 from scipy import ndimage
+from PIL import Image
 
 import igneous.dijkstra 
 import igneous.skeletontricks
@@ -128,15 +129,19 @@ def path_union(paths):
 
   return npv, npe
 
-def xy_path_projection(paths, labels):
+def xy_path_projection(paths, labels, N=0):
   if type(paths) != list:
     paths = [ paths ]
 
-  projection = np.zeros( (labels.shape[0], labels.shape[1], 1), dtype=np.uint8)
+  projection = np.zeros( (labels.shape[0], labels.shape[1] ), dtype=np.uint8)
   outline = labels.any(axis=-1).astype(np.uint8) * 77
-  outline = outline.reshape( (labels.shape[0], labels.shape[1], 1) )
+  outline = outline.reshape( (labels.shape[0], labels.shape[1] ) )
   projection += outline
   for path in paths:
     for coord in path:
       projection[coord[0], coord[1]] = 255
-  save_images(projection, directory="./saved_images/projections/")
+
+  projection = Image.fromarray(projection.T, 'L')
+  N = str(N).zfill(3)
+  projection.save('./saved_images/projections/{}.png'.format(N), 'PNG')
+

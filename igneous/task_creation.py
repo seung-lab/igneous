@@ -165,7 +165,7 @@ def create_downsampling_tasks(
     if bounds is None:
       bounds = vol.bounds.clone()
     else:
-      bounds = Bbox.create(bounds).expand_to_chunk_size(vol.underlying, vol.voxel_offset)
+      bounds = Bbox.create(bounds).expand_to_chunk_size(shape, vol.voxel_offset)
       bounds = Bbox.clamp(bounds, vol.bounds)
 
     print("Volume Bounds: ", vol.bounds)

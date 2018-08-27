@@ -147,7 +147,8 @@ def create_downsampling_tasks(
     sparse: When downsampling segmentation, if true, don't count black pixels when computing
       the mode. Useful for e.g. synapses and point labels.
     bounds: By default, downsample everything, but you can specify restricted bounding boxes
-      instead. The bounding box will be expanded to the nearest chunk.
+      instead. The bounding box will be expanded to the nearest chunk. Bbox is specifed in mip 0
+      coordinates.
     """
     def ds_shape(mip):
       shape = vol.mip_underlying(mip)[:3]
@@ -165,7 +166,9 @@ def create_downsampling_tasks(
     if bounds is None:
       bounds = vol.bounds.clone()
     else:
-      bounds = Bbox.create(bounds).expand_to_chunk_size(shape, vol.voxel_offset)
+      bounds = Bbox.create(bounds)
+      bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+      bounds = bounds.expand_to_chunk_size(shape, vol.voxel_offset)
       bounds = Bbox.clamp(bounds, vol.bounds)
 
     print("Volume Bounds: ", vol.bounds)

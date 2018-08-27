@@ -7,10 +7,12 @@ Example:
   python queue_pickle.py save pull-queue --file my-job.json
 
 """
+from six.moves import range
 
 from datetime import datetime
 import json
 import math
+import os
 
 import click
 from tqdm import tqdm
@@ -23,19 +25,20 @@ def deserialize(file):
   return queue
 
 @click.command()
-@click.argument('queue_name')
+@click.argument('qurl')
 @click.option('--file', default=None, help='Savefile to restart from.')
-def save(queue_name, file):
+def save(qurl, file):
   click.echo("Remember to ensure the queue is not running and no leases are active!")
 
   queue = []
 
   if file is None:
     timestamp = datetime.today().strftime("%Y-%m-%d-%H:%M")
+    queue_name = os.path.basename(qurl)
     file = './{}-{}.json'.format(queue_name, timestamp)
   else:
     queue = deserialize(file)
-    print "Restarting with {} as seed. Tasks: {}".format(file, len(queue))
+    print("Restarting with {} as seed. Tasks: {}".format(file, len(queue)))
 
   def save_progress(tq, last_few):
     with open(file, 'w') as f:
@@ -49,10 +52,10 @@ def save(queue_name, file):
   num_lease = 100
   last_few = []
 
-  with TaskQueue(queue_name=queue_name, queue_server='pull-queue') as tq:
+  with TaskQueue(queue_server='sqs', qurl=qurl) as tq:
     iters = int(math.ceil(float(tq.enqueued) / float(num_lease)))
 
-    for i in tqdm(xrange(iters), desc='Leasing Tasks'):
+    for i in tqdm(range(iters), desc='Leasing Tasks'):
       tasks = tq.raw_lease(numTasks=num_lease, leaseSecs=10)
       queue.extend(tasks['items'])
       last_few.extend(tasks['items'])
@@ -62,15 +65,15 @@ def save(queue_name, file):
         last_few = []
     save_progress(tq, last_few)
     last_few = []
-    print "done."
-    print "Saved to:", file
+    print("done.")
+    print("Saved to:", file)
 
 @click.command()
-@click.argument('queue_name')
+@click.argument('qurl')
 @click.argument('file')
 def load(queue_name, file):
     queue = deserialize(file)
-    with TaskQueue(queue_name=queue_name, queue_server='pull-queue') as tq:
+    with TaskQueue(queue_server='sqs', qurl=qurl) as tq:
       for task in tqdm(queue):
         tq.insert(task)
 

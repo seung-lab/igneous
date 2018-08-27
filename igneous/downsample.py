@@ -16,17 +16,20 @@ from __future__ import division
 
 from six.moves import range
 from itertools import combinations
-from functools import reduce
+from functools import reduce, partial
 
 import math
 import operator
 import numpy as np
 
-def method(layer_type):
+def method(layer_type, sparse=False):
   if layer_type == 'image':
     return downsample_with_averaging
   elif layer_type == 'segmentation':
-    return downsample_segmentation
+    if sparse:
+      return partial(downsample_segmentation, sparse=sparse)
+    else:
+      return downsample_segmentation
   elif layer_type == 'activation':
     return downsample_with_max_pooling
   else:
@@ -138,7 +141,7 @@ def downsample_with_max_pooling(array, factor):
 
   return output
 
-def downsample_segmentation(data, factor):
+def downsample_segmentation(data, factor, sparse=False):
   """
   Downsampling machine labels requires choosing an actual
   pixel, not a linear combination (or otherwise) of the
@@ -192,9 +195,9 @@ def downsample_segmentation(data, factor):
   if not is_twod_pot_downsample:
     return downsample_with_striding(data, tuple(factor))
 
-  return downsample_segmentation_2d(data, factor)
+  return downsample_segmentation_2d(data, factor, sparse)
 
-def downsample_segmentation_2d(data, factor):
+def downsample_segmentation_2d(data, factor, sparse):
   """
   Call countless2d but manage the image to make it work
   for both even and odd sided images. Swap axes to enable
@@ -221,9 +224,14 @@ def downsample_segmentation_2d(data, factor):
     shape=( int(data.shape[0] / 2), int(data.shape[1] / 2), data.shape[2], data.shape[3]), 
     dtype=data.dtype
   )
-  for z in range(data.shape[2]):
-    output[:,:,z,:] = countless2d(data[:,:,z,:])
-  
+
+  if sparse:
+    for z in range(data.shape[2]):
+      output[:,:,z,:] = stippled_countless2d(data[:,:,z,:])
+  else:
+    for z in range(data.shape[2]):
+      output[:,:,z,:] = countless2d(data[:,:,z,:])
+
   factor = factor / 2
   factor[preserved_axis] = 1
 
@@ -259,20 +267,43 @@ def countless2d(data):
   a, b, c, d = sections
 
   ab_ac = a * ((a == b) | (a == c)) # ab := a if a == b else 0 and so on for ac, bc
-  bc = b * (b == c)
-
-  a = ab_ac | bc # ab or ac or bc
-
-  result = a + (a == 0) * d - 1 # a or d - 1
+  ab_ac |= b * (b == c)
+  ab_ac += (ab_ac == 0) * d - 1 # a or d - 1
 
   if upgraded:
-    return downgrade_type(result)
+    return downgrade_type(ab_ac)
 
   # only need to reset data if we weren't upgraded 
   # b/c no copy was made
   data -= 1 
 
-  return result
+  return ab_ac
+
+def stippled_countless2d(data):
+  """
+  Vectorized implementation of downsampling a 2D 
+  image by 2 on each side using the COUNTLESS algorithm
+  that treats zero as "background" and inflates lone
+  pixels.
+  
+  data is a 2D numpy array with even dimensions.
+  """
+  sections = []
+  
+  # This loop splits the 2D array apart into four arrays that are
+  # all the result of striding by 2 and offset by (0,0), (0,1), (1,0), 
+  # and (1,1) representing the A, B, C, and D positions from Figure 1.
+  factor = (2,2)
+  for offset in np.ndindex(factor):
+    part = data[tuple(np.s_[o::f] for o, f in zip(offset, factor))]
+    sections.append(part)
+
+  a, b, c, d = sections
+
+  ab_ac = a * ((a == b) | (a == c)) # PICK(A,B) || PICK(A,C) w/ optimization
+  ab_ac |= b * (b == c) # PICK(B,C)
+  nonzero = a + (a == 0) * (b + (b == 0) * c)
+  return ab_ac + (ab_ac == 0) * (d + (d == 0) * nonzero) # AB || AC || BC || D
 
 def countless3d(data):
   """return downsampled 2x2x2 data for even sided images."""

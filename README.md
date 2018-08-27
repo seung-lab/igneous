@@ -1,40 +1,44 @@
 [![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous)
 
-# igneous
+# Igneous
 
-Igneous is a library for working with Neuroglancer's precomputed volumes. It uses CloudVolume for access to the data (on AWS S3, Google GS, or on the filesystem). It is meant to integrate with a task queueing system (but has a single-worker mode as well). Originally by Nacho and Will.
+Igneous is a [Kubernetes](https://kubernetes.io/), [SQS](https://aws.amazon.com/sqs/), and CloudVolume based pipeline for working with Neuroglancer's [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for accessing data on AWS S3, Google Storage, or the local filesystem. It can operate in the cloud using a task queuing system or run locally. Originally by Nacho and Will.
+
+## Pre-Built Docker Container
+
+You can use this container for scaling big jobs horizontally or to experiment with Igneous within the container.  
+
+https://hub.docker.com/r/seunglab/igneous/
 
 ## Installation
 
-What you'll need: Python 2/3, a c++ compiler (g++ or clang), virtualenv
+You'll need Python 2 or 3, pip, a C++ compiler (g++ or clang), and virtualenv. Igneous appears to have higher performance using Python 3. It's tested under Ubuntu 14.04 and Mac OS High Sierra.
 
-```
-git clone $REPO
+```bash
+git clone git@github.com:seung-lab/igneous.git
 cd igneous
 virtualenv venv
 source venv/bin/activate
-pip install - e .
+pip install -e .
 ```
 
-The installation will not only download the appropriate requirements (listed in requirements.txt) but will also
-compile a meshing extension written by Aleksander Zlateski. The mesher is used to visualize segments in neuroglancer's 
-3D viewer.  
-
-Igneous is compatible with both Python 2 and Python 3 on Unbuntu and MacOS. It appears to have higher performance with Python 3.  
+The installation will download the dependencies listed in requirements.txt and
+compile a meshing extension written by Aleksander Zlateski. The mesher is used to visualize segments in neuroglancer's 3D viewer.  
 
 ## Sample Local Use
 
 This generates meshes for an already-existing precomputed segmentation volume. It uses the
 MockTaskQueue driver (which is the single local worker mode).
 
-```
-from taskqueue import MockTaskQueue
+```python3
+from taskqueue import LocalTaskQueue
 import igneous.task_creation as tc
 
-print("Making meshes...")
-tc.create_meshing_tasks(       MockTaskQueue(), cfg.path, cfg.compression, shape=Vec(cfg.size, cfg.size, cfg.size))
-print("Updating metadata...")
-tc.create_mesh_manifest_tasks( MockTaskQueue(), cfg.path)
+# Mesh on 8 cores, use True to use all cores
+cloudpath = 'gs://bucket/dataset/labels'
+with LocalTaskQueue(parallel=8) as tq:
+	tc.create_meshing_tasks(tq, cloudpath, mip=3, shape=(256, 256, 256))
+	tc.create_mesh_manifest_tasks(tq, cloudpath)
 print("Done!")
 
 ```
@@ -43,20 +47,13 @@ print("Done!")
 
 Igneous is intended to be used with Kubernetes (k8s). A pre-built docker container is located on DockerHub as `seunglab/igneous:master`. A sample `deployment.yml` (used with `kubectl create -f deployment.yml`) is located in the root of the repository.  
 
-As Igneous is based on [CloudVolume](https://github.com/seung-lab/cloud-volume), you'll need to create a `google-secret.json` or `aws-secret.json` to access buckets located on these services. Secrets should be mounted like:  
-
-```
-kubectl create secret generic secrets \
---from-file=$HOME/.cloudvolume/secrets/google-secret.json \
---from-file=$HOME/.cloudvolume/secrets/aws-secret.json \
---from-file=$HOME/.cloudvolume/secrets/boss-secret.json 
-```
-
-You only need to include the services that you're actually using. This step must be completed before creating your deployment.  
+As Igneous is based on [CloudVolume](https://github.com/seung-lab/cloud-volume), you'll need to create a `google-secret.json` or `aws-secret.json` to access buckets located on these services. 
 
 You'll need to create an Amazon SQS queue to store the tasks you generate. Google's TaskQueue was previously supported but the API changed. It may be supported in the future.
 
-```
+### Populating the SQS Queue
+
+```python3
 import sys
 from taskqueue import TaskQueue
 import igneous.task_creation as tc
@@ -64,11 +61,50 @@ import igneous.task_creation as tc
 cloudpath = sys.argv[1]
 
 # Get qurl from the SQS queue metadata, visible on the web dashboard when you click on it.
-with TaskQueue(server='sqs', qurl="$URL") as tq:
-	tc.create_downsample_tasks(tq, cloudpath, mip=0, fill_missing=True, preserve_chunk_size=True)
+with TaskQueue(queue_server='sqs', qurl="$URL") as tq:
+	tc.create_downsampling_tasks(tq, cloudpath, mip=0, fill_missing=True, preserve_chunk_size=True)
 print("Done!")
 ```
 
+### Executing Tasks in the Cloud
+
+The following instructions are for Google Container Engine, but AWS has similar tools.
+
+```bash
+# Create a Kubernetes cluster
+# e.g. 
+
+export PROJECT_NAME=example
+export CLUSTER_NAME=example
+export NUM_NODES=5 # arbitrary
+
+# Create a Google Container Cluster
+gcloud container --project $PROJECT_NAME clusters create $CLUSTER_NAME --zone "us-east1-b" --machine-type "n1-standard-16" --image-type "GCI" --disk-size "50" --scopes "https://www.googleapis.com/auth/compute","https://www.googleapis.com/auth/devstorage.full_control","https://www.googleapis.com/auth/taskqueue","https://www.googleapis.com/auth/logging.write","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/servicecontrol","https://www.googleapis.com/auth/service.management.readonly","https://www.googleapis.com/auth/trace.append" --num-nodes $NUM_NODES --network "default" --enable-cloud-logging --no-enable-cloud-monitoring
+
+# Bind the kubectl command to this cluster
+gcloud config set container/cluster $CLUSTER_NAME
+
+# Give the cluster permission to read and write to your bucket
+# You only need to include services you'll actually use.
+kubectl create secret generic secrets \
+--from-file=$HOME/.cloudvolume/secrets/google-secret.json \
+--from-file=$HOME/.cloudvolume/secrets/aws-secret.json \
+--from-file=$HOME/.cloudvolume/secrets/boss-secret.json 
+
+# Create a Kubernetes deployment
+kubectl create -f deployment.yml # edit deployment.yml in root of repo
+
+# Resizing the cluster
+gcloud container clusters resize $CLUSTER_NAME --size=20 # arbitrary node count
+kubectl scale deployment igneous --replicas=320 # 16 * nodes b/c n1-standard-16 has 16 cores
+
+# Spinning down
+
+# Important: This will leave the kubernetes master running which you
+# will be charged for. You can also fully delete the cluster.
+gcloud container clusters resize $CLUSTER_NAME --size=0
+kubectl delete deployment igneous
+```
 
 ## Tasks
 
@@ -99,9 +135,9 @@ that mip 1 segmentation labels are exact mode computations, but subsequent ones 
 
 Whether image or segmentation type downsampling will be used is determined from the neuroglancer info file's "type" attribute.
 
-```
+```python3
 # Signature
-create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True)
+create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True, sparse=False)
 ```
 
 1. layer_path 
@@ -115,6 +151,10 @@ create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, ax
 5. preserve_chunk_size: 
 	False: Use a fixed block size and generate downsamples with decreasing chunk size. 
 	True: Use a fixed underlying chunk size and increase the size of the base block to accomodate it and num_mips.
+6. sparse: 
+	Only has an effect on segmentation type images.
+	False: The dataset contains large continuous labeled areas (most connectomics datasets). Uses the [COUNTLESS 2D](https://towardsdatascience.com/countless-high-performance-2x-downsampling-of-labeled-images-using-python-and-numpy-e70ad3275589) algorithm.
+	True: The dataset contains sparse labels that are disconnected. Use the [Stippled COUNTLESS 2D](https://medium.com/@willsilversmith/countless-2d-inflated-2x-downsampling-of-labeled-images-holding-zero-values-as-background-4d13a7675f2d) algorithm.
 
 ### Data Transfer / Rechunking (TransferTask)
 
@@ -128,7 +168,7 @@ visualize progress and reducing the amount of work a subsequent `DownsampleTask`
 Another use case is to transfer a neuroglancer dataset from one cloud bucket to another, but often the cloud
 provider's transfer service will suffice, even across providers. 
 
-```
+```python3
 create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, 
 	shape=Vec(2048, 2048, 64), fill_missing=False, translate=(0,0,0))
 ```
@@ -139,7 +179,7 @@ If you want to parallelize deletion of a data layer in a bucket beyond using e.g
 horizontally scale out deleting using these tasks. Note that the tasks assume that the information to be deleted
 is chunk aligned and named appropriately.
 
-```
+```python3
 create_deletion_tasks(task_queue, layer_path)
 ```
 
@@ -156,7 +196,7 @@ The `$BOUNDING_BOX` part of the name is arbitrary and is the convention used by 
 The second stage is running the `MeshManifestTask` which generates files named `$SEGID:0`. It contains a short JSON snippet that
 looks like `{ "fragments": [ "1052:0:0-512_0-512_0-512" ] }`. This file tells neuroglancer which mesh files to download.  
 
-```
+```python3
 # Signature
 create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)) # First Pass
 create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3) # Second Pass
@@ -178,7 +218,7 @@ Teravoxel or Petavoxel dataset.
 The object of these tasks are to first create a representative sample of the luminance levels of a dataset per a Z slice (i.e. a frequency count of gray values). This levels information is then used to perform per Z section contrast normalization. In the future, perhaps we will attempt global normalization. The algorithm currently in use reads the levels files for a given Z slice,
 determines how much of the ends of the distribution to lop off, perhaps 1% on each side (you should plot the levels files for your own data as this is configurable, perhaps you might choose 0.5% or 0.25%). The low value is recentered at 0, and the high value is stretched to 255 (in the case of uint8s) or 65,535 (in the case of uint16).
 
-```
+```python3
 # First Pass: Generate $layer_path/levels/$mip/
 create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0) 
 # Second Pass: Read Levels to stretch value distribution to full coverage

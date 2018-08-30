@@ -16,7 +16,7 @@ import numpy as np
 from tqdm import tqdm
 from cloudvolume import CloudVolume, Storage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor
-from taskqueue import TaskQueue, MockTaskQueue, LocalTaskQueue
+from taskqueue import TaskQueue, MockTaskQueue 
 
 from igneous import downsample_scales, chunks
 from igneous.tasks import (
@@ -648,9 +648,10 @@ def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_
 
 
 def create_inference_tasks(task_queue, image_layer_path, convnet_path, 
-        output_layer_path, output_block_start, output_block_size, 
+        mask_layer_path, output_layer_path, output_block_start, output_block_size, 
         grid_size, patch_size, patch_overlap, cropping_margin_size,
-        output_key='output', num_output_channels=3, mip=1):
+        output_key='output', num_output_channels=3, 
+        image_mip=1, aff_mip=1, mask_mip=3):
     """
     convnet inference block by block. The block coordinates should be aligned with 
     cloud storage. 
@@ -663,6 +664,7 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
                 task = InferenceTask(
                     image_layer_path=image_layer_path,
                     convnet_path=convnet_path,
+                    mask_layer_path=mask_layer_path,
                     output_layer_path=output_layer_path,
                     output_bbox_str=output_bbox.to_filename(),
                     patch_size=patch_size, 
@@ -670,7 +672,9 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
                     cropping_margin_size=cropping_margin_size,
                     output_key=output_key,
                     num_output_channels=num_output_channels,
-                    mip=mip
+                    image_mip=image_mip,
+                    aff_mip=aff_mip,
+                    mask_mip=mask_mip
                 )
                 task_queue.insert(task)
     task_queue.wait()

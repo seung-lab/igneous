@@ -1044,12 +1044,13 @@ class InferenceTask(RegisteredTask):
     Note that I always use z,y,x in python, but cloudvolume use x,y,z for indexing.
     So I always do a reverse of slices before indexing.
     """
-    def __init__(self, image_layer_path, convnet_path, output_layer_path,
+    def __init__(self, image_layer_path, convnet_path, mask_layer_path, output_layer_path,
             output_bbox_str, patch_size, patch_overlap,
-            cropping_margin_size, output_key='output', num_output_channels = 3, mip=1):
-        super().__init__(image_layer_path, convnet_path, output_layer_path,
+            cropping_margin_size, output_key='output', num_output_channels=3, 
+            image_mip=1, aff_mip=1, mask_mip=3):
+        super().__init__(image_layer_path, convnet_path, mask_layer_path, output_layer_path,
                 output_bbox_str, patch_size, patch_overlap, cropping_margin_size,
-                output_key, num_output_channels, mip)
+                output_key, num_output_channels, image_mip, aff_mip, mask_mip)
         self.image_layer_path = image_layer_path
         self.convnet_path = convnet_path
         self.output_layer_path = output_layer_path
@@ -1059,17 +1060,71 @@ class InferenceTask(RegisteredTask):
         self.cropping_margin_size = cropping_margin_size
         self.output_key = output_key
         self.num_output_channels = num_output_channels
-        self.mip = mip
+        self.image_mip = image_mip
+        self.aff_mip = aff_mip
+        self.mask_mip = mask_mip 
+
+        aff_bbox = Bbox.from_filename(output_bbox_str)
+        self.aff_slices = aff_bbox.to_slices()
     
     def execute(self):
+        self._read_mask()
+        # if the mask is black, no need to run inference 
+        if np.all(self.mask == 0):
+            return 
         self._read_image()
         self._inference()
         self._crop()
+        self._mask_affinity_map()
         self._upload_output()
+
+    def _read_mask(self):
+        print("download mask chunk...")
+        vol = CloudVolume(self.mask_layer_path, bounded=False, fill_missing=True,
+                          progress=True, mip=self.mask_mip)
+        self.xyfactor = 2**(self.mask_mip - self.aff_mip)
+        # only scale the indices in XY plane 
+        self.mask_slices = tuple(slice(a.start//self.xyfactor, a.stop//self.xyfactor) 
+                                 for a in self.aff_slices[1:3])
+        self.mask_slices = (self.aff_slices[0],) + self.mask_slices 
+
+        # the slices did not contain the channel dimension
+        print("mask slices: {}".format(self.mask_slices))
+        self.mask = vol[self.mask_slices[::-1]]
+        self.mask = np.transpose(self.mask)
+        print("shape of mask: {}".format(self.mask.shape))
+        self.mask = np.squeeze(self.mask, axis=0)
+
+    def _mask_affinity_map(self):
+        if np.all(self.mask):
+            print("mask elements are all positive, return directly")
+            #return
+        if not np.any(self.aff):
+            print("affinitymap all black, return directly")
+            return 
+
+        print("perform masking ...")
+        # use c++ backend 
+        # from datatools import mask_affiniy_map 
+        # mask_affinity_map(self.aff, self.mask)
+        
+        assert np.any(self.mask)
+        print("upsampling mask ...")
+        # upsampling factor in XY plane 
+        mask = np.zeros(self.aff.shape[1:], dtype=self.mask.dtype)
+        for offset in np.ndindex((self.xyfactor, self.xyfactor)):
+            mask[:, np.s_[offset[0]::self.xyfactor], np.s_[offset[1]::self.xyfactor]] = self.mask 
+
+        assert mask.shape == self.aff.shape[1:]
+        assert np.any(self.mask)
+        np.multiply(self.aff[0,:,:,:], mask, out=self.aff[0,:,:,:])
+        np.multiply(self.aff[1,:,:,:], mask, out=self.aff[1,:,:,:])
+        np.multiply(self.aff[2,:,:,:], mask, out=self.aff[2,:,:,:])
+        assert np.any(self.aff)
 
     def _read_image(self):
         self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=False,
-                               progress=True, mip=self.mip, parallel=True)
+                               progress=True, mip=self.image_mip, parallel=True)
         output_slices = self.output_bbox.to_slices()
         self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
                                   zip(output_slices, self.cropping_margin_size))
@@ -1110,7 +1165,7 @@ class InferenceTask(RegisteredTask):
 
     def _upload_output(self):
         vol = CloudVolume(self.output_layer_path, compress='gzip', fill_missing=True,
-                          bounded=False, autocrop=True, mip=self.mip, progress=True)
+                          bounded=False, autocrop=True, mip=self.image_mip, progress=True)
         output_slices = self.output_bbox.to_slices()
         self.output = np.transpose(self.output)
         vol[output_slices[::-1]+(slice(0,self.output.shape[-1]),)] = self.output

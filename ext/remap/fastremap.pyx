@@ -36,6 +36,8 @@ ctypedef fused UINT:
   uint64_t
 
 @cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
 def renumber(arr, uint64_t start=1):
   """
   Given an array of integers, renumber all the unique values starting
@@ -49,7 +51,15 @@ def renumber(arr, uint64_t start=1):
   """
   shape = arr.shape
 
-  cdef uint64_t[:] arrview = arr.astype(np.uint64).flatten()
+  cdef uint64_t[:] arrview64 
+  cdef uint32_t[:] arrview32
+
+  sixyfourbit = np.dtype(arr.dtype).itemsize > 4
+
+  if sixyfourbit:
+    arrview64 = arr.astype(np.uint64).flatten()
+  else:
+    arrview32 = arr.astype(np.uint32).flatten()
 
   remap_dict = {}
   
@@ -58,16 +68,25 @@ def renumber(arr, uint64_t start=1):
 
   cdef uint64_t elem
   cdef int size = arr.size
+  if sixyfourbit:
+    for i in range(size):
+      elem = arrview64[i]
+      if elem in remap_dict:
+        arrview64[i] = remap_dict[elem]
+      else:
+        arrview64[i] = remap_id
+        remap_dict[elem] = remap_id
+        remap_id += 1
+  else:
+    for i in range(size):
+      elem = arrview32[i]
+      if elem in remap_dict:
+        arrview32[i] = remap_dict[elem]
+      else:
+        arrview32[i] = remap_id
+        remap_dict[elem] = remap_id
+        remap_id += 1
 
-  for i in range(size):
-    elem = arrview[i]
-    if elem in remap_dict:
-      arrview[i] = remap_dict[elem]
-    else:
-      arrview[i] = remap_id
-      remap_dict[elem] = remap_id
-      remap_id += 1
-        
   if start < 0:
     types = [ np.int8, np.int16, np.int32, np.int64 ]
   else:
@@ -84,8 +103,15 @@ def renumber(arr, uint64_t start=1):
   else:
     final_type = types[3]
 
-  output = bytearray(arrview)
-  output = np.frombuffer(output, dtype=np.uint64).astype(final_type).reshape( arr.shape )
+  if sixyfourbit:
+    output = bytearray(arrview64)
+    intermediate_dtype = np.uint64
+  else:
+    output = bytearray(arrview32)
+    intermediate_dtype = np.uint32
+
+  output = np.frombuffer(output, dtype=intermediate_dtype).astype(final_type)
+  output = output.reshape( arr.shape )
   return output, remap_dict
 
 @cython.boundscheck(False)

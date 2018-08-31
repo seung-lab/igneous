@@ -16,10 +16,14 @@ from tqdm import tqdm
 from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
+
 import edt # euclidean distance transform
+import fastremap
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
+import igneous.cc3d as cc3d
+import igneous.skeletontricks
 
 from .definitions import Skeleton
 from .skeletonization import TEASAR
@@ -61,21 +65,27 @@ class SkeletonTask(RegisteredTask):
     all_labels = vol[ bbox.to_slices() ]
     all_labels = all_labels[:,:,:,0]
 
+    tmp_labels, remapping = fastremap.renumber(all_labels)
+    cc_labels = cc3d.connected_components(tmp_labels, max_labels=20e6)
+    del tmp_labels
+    remapping = igneous.skeletontricks.get_mapping(all_labels, cc_labels)
+    del all_labels
+
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
-    print("MLAEDT3D")
-    all_dbf = edt.edt(all_labels, anisotropy=vol.resolution.tolist())
-    print("EDT Done.")
+    all_dbf = edt.edt(cc_labels, anisotropy=vol.resolution.tolist())
+
+    cc_segids, pxct = np.unique(cc_labels, return_counts=True)
 
     with Storage(path) as stor:
-      for segid in np.unique(all_labels):
+      for segid in cc_segids:
         if segid == 0:
           continue 
 
-        print(segid)
+        print(segid, remapping[segid])
         # Crop DBF to ROI
-        labels = (all_labels == segid)
+        labels = (cc_labels == segid)
         slices = scipy.ndimage.find_objects(labels)[0]
         dbf = labels[slices] * all_dbf[slices]
         del labels
@@ -92,14 +102,14 @@ class SkeletonTask(RegisteredTask):
 
         if self.will_postprocess:
           stor.put_file(
-            file_path="{}:skel:{}".format(segid, bbox.to_filename()),
+            file_path="{}:skel:{}".format(remapping[segid], bbox.to_filename()),
             content=pickle.dumps(skeleton),
             compress='gzip',
             content_type="application/python-pickle",
           )
         else:
           skeleton.nodes[:] *= vol.resolution
-          vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges, skeleton.radii)
+          vol.skeleton.upload(remapping[segid], skeleton.nodes, skeleton.edges, skeleton.radii)
 
   def skeletonize(self, dbf, bbox):
     skeleton = TEASAR(dbf, self.teasar_params)

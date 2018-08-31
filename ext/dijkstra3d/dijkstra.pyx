@@ -238,11 +238,11 @@ def _execute_distance_field(data, source):
   cdef float[:,:,:] arr_memviewfloat
   cdef double[:,:,:] arr_memviewdouble
 
-  cdef int rows = data.shape[0]
-  cdef int cols = data.shape[1]
+  cdef int cols = data.shape[0]
+  cdef int rows = data.shape[1]
   cdef int depth = data.shape[2]
 
-  cdef int src = source[0] + rows * (source[1] + cols * source[2])
+  cdef int src = source[0] + cols * (source[1] + rows * source[2])
 
   cdef float* dist
 
@@ -252,42 +252,42 @@ def _execute_distance_field(data, source):
     arr_memviewfloat = data
     dist = distance_field3d[float](
       &arr_memviewfloat[0,0,0],
-      rows, cols, depth,
+      cols, rows, depth,
       src
     )
   elif dtype == np.float64:
     arr_memviewdouble = data
     dist = distance_field3d[double](
       &arr_memviewdouble[0,0,0],
-      rows, cols, depth,
+      cols, rows, depth,
       src
     )
-  elif dtype in (np.int64, np.uint64):
-    arr_memview64 = data.astype(np.int64)
+  elif dtype == np.int64:
+    arr_memview64 = data
     dist = distance_field3d[int64_t](
       &arr_memview64[0,0,0],
-      rows, cols, depth,
+      cols, rows, depth,
       src
     )
-  elif dtype in (np.int32, np.uint32):
-    arr_memview32 = data.astype(np.int32)
+  elif dtype == np.int32:
+    arr_memview32 = data
     dist = distance_field3d[int32_t](
       &arr_memview32[0,0,0],
-      rows, cols, depth,
+      cols, rows, depth,
       src
     )
-  elif dtype in (np.int16, np.uint16):
-    arr_memview16 = data.astype(np.int16)
+  elif dtype == np.int16:
+    arr_memview16 = data
     dist = distance_field3d[int16_t](
       &arr_memview16[0,0,0],
-      rows, cols, depth,
+      cols, rows, depth,
       src
     )
-  elif dtype in (np.int8, np.uint8, np.bool):
-    arr_memview8 = data.astype(np.int8)
+  elif dtype == np.int8:
+    arr_memview8 = data
     dist = distance_field3d[int8_t](
       &arr_memview8[0,0,0],
-      rows, cols, depth,
+      cols, rows, depth,
       src
     )
   else:

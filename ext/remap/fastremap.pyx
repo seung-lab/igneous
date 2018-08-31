@@ -44,10 +44,10 @@ def renumber(arr, uint64_t start=1):
   from 1. This can allow us to reduce the size of the data width required
   to represent it.
 
-  arr: A 1d numpy array
-  start: Start renumbering from this value
+  arr: A numpy array
+  start (default: 1): Start renumbering from this value
 
-  Return: a renumbered array
+  Return: a renumbered array, dict with remapping of oldval => newval
   """
   shape = arr.shape
 

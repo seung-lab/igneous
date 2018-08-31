@@ -3060,7 +3060,7 @@ static PyObject *__pyx_pf_9fastremap_renumber(CYTHON_UNUSED PyObject *__pyx_self
  *   else:
  *     arrview32 = arr.astype(np.uint32).flatten()             # <<<<<<<<<<<<<<
  * 
- *   remap_dict = {}
+ *   remap_dict = { 0: 0 }
  */
   /*else*/ {
     __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_arr, __pyx_n_s_astype); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 62, __pyx_L1_error)
@@ -3148,17 +3148,18 @@ static PyObject *__pyx_pf_9fastremap_renumber(CYTHON_UNUSED PyObject *__pyx_self
   /* "fastremap.pyx":64
  *     arrview32 = arr.astype(np.uint32).flatten()
  * 
- *   remap_dict = {}             # <<<<<<<<<<<<<<
+ *   remap_dict = { 0: 0 }             # <<<<<<<<<<<<<<
  * 
  *   cdef uint64_t remap_id = start
  */
-  __pyx_t_1 = __Pyx_PyDict_NewPresized(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 64, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 64, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
+  if (PyDict_SetItem(__pyx_t_1, __pyx_int_0, __pyx_int_0) < 0) __PYX_ERR(0, 64, __pyx_L1_error)
   __pyx_v_remap_dict = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
   /* "fastremap.pyx":66
- *   remap_dict = {}
+ *   remap_dict = { 0: 0 }
  * 
  *   cdef uint64_t remap_id = start             # <<<<<<<<<<<<<<
  *   cdef int i = 0

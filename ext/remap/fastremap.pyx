@@ -61,7 +61,7 @@ def renumber(arr, uint64_t start=1):
   else:
     arrview32 = arr.astype(np.uint32).flatten()
 
-  remap_dict = {}
+  remap_dict = { 0: 0 }
   
   cdef uint64_t remap_id = start
   cdef int i = 0

@@ -10,7 +10,8 @@ Date: August 2018
 cimport cython
 from libc.stdlib cimport calloc, free
 from libc.stdint cimport (
-  uint32_t, uint8_t, int8_t, int16_t, int32_t, int64_t
+  int8_t, int16_t, int32_t, int64_t,
+  uint8_t, uint16_t, uint32_t, uint64_t
 )
 from libcpp cimport bool
 from cpython cimport array 
@@ -20,6 +21,8 @@ import sys
 from libcpp.vector cimport vector
 cimport numpy as cnp
 import numpy as np
+
+from collections import defaultdict
 
 cdef extern from "math.h":
   float INFINITY
@@ -33,6 +36,7 @@ cdef extern from "skeletontricks.hpp" namespace "skeletontricks":
 
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
 def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
   cdef int sx, sy, sz 
   cdef int  x,  y,  z
@@ -78,6 +82,7 @@ def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
 
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
 def find_target(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[float, ndim=3] PDRF
@@ -110,6 +115,7 @@ def find_target(
 
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
 def roll_invalidation_ball(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[uint32_t, ndim=2] path, 
@@ -154,6 +160,40 @@ def roll_invalidation_ball(
             labels[x,y,z] = 0
 
   return invalidated, labels
+
+ctypedef fused ALLINT:
+  uint8_t
+  uint16_t
+  uint32_t
+  uint64_t
+  int8_t
+  int16_t
+  int32_t
+  int64_t
+
+@cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
+def get_mapping(
+    cnp.ndarray[ALLINT, ndim=3] orig_labels, 
+    cnp.ndarray[uint32_t, ndim=3] cc_labels
+  ):
+
+  cdef int sx,sy,sz 
+  sx = orig_labels.shape[0]
+  sy = orig_labels.shape[1]
+  sz = orig_labels.shape[2]
+
+  cdef int x,y,z 
+
+  remap = {}
+
+  for z in range(sz):
+    for y in range(sy):
+      for x in range(sx):
+        remap[cc_labels[x,y,z]] = orig_labels[x,y,z]
+
+  return remap
 
 
 

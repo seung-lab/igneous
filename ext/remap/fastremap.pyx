@@ -111,7 +111,8 @@ def renumber(arr, uint64_t start=1):
     intermediate_dtype = np.uint32
 
   output = np.frombuffer(output, dtype=intermediate_dtype).astype(final_type)
-  output = output.reshape( arr.shape )
+  order = 'F' if arr.flags['F_CONTIGUOUS'] else 'C'
+  output = output.reshape( arr.shape, order=order)
   return output, remap_dict
 
 @cython.boundscheck(False)

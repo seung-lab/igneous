@@ -948,8 +948,10 @@ class MaskAffinitymapTask(RegisteredTask):
     """
 
     """
-    def __init__(self, aff_input_layer_path, aff_output_layer_path, aff_mip, mask_layer_path, mask_mip, output_bbox_str):
-        super().__init__(aff_input_layer_path, aff_output_layer_path, aff_mip, mask_layer_path, mask_mip, output_bbox_str)
+    def __init__(self, aff_input_layer_path, aff_output_layer_path, aff_mip, 
+                 mask_layer_path, mask_mip, output_bbox_str):
+        super().__init__(aff_input_layer_path, aff_output_layer_path, aff_mip, 
+                         mask_layer_path, mask_mip, output_bbox_str)
         self.aff_input_layer_path = aff_input_layer_path 
         self.aff_output_layer_path = aff_output_layer_path 
         self.aff_mip = aff_mip 
@@ -1047,12 +1049,13 @@ class InferenceTask(RegisteredTask):
     def __init__(self, image_layer_path, convnet_path, mask_layer_path, output_layer_path,
             output_bbox_str, patch_size, patch_overlap,
             cropping_margin_size, output_key='output', num_output_channels=3, 
-            image_mip=1, aff_mip=1, mask_mip=3):
+                 image_mip=1, aff_mip=1, mask_mip=3):
         super().__init__(image_layer_path, convnet_path, mask_layer_path, output_layer_path,
                 output_bbox_str, patch_size, patch_overlap, cropping_margin_size,
                 output_key, num_output_channels, image_mip, aff_mip, mask_mip)
         self.image_layer_path = image_layer_path
         self.convnet_path = convnet_path
+        self.mask_layer_path = mask_layer_path 
         self.output_layer_path = output_layer_path
         self.output_bbox = Bbox.from_filename(output_bbox_str)
         self.patch_size = patch_size

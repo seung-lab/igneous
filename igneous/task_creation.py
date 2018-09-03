@@ -651,7 +651,7 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
         mask_layer_path, output_layer_path, output_block_start, output_block_size, 
         grid_size, patch_size, patch_overlap, cropping_margin_size,
         output_key='output', num_output_channels=3, 
-        image_mip=1, aff_mip=1, mask_mip=3):
+        image_mip=1, output_mip=1, mask_mip=3):
     """
     convnet inference block by block. The block coordinates should be aligned with 
     cloud storage. 
@@ -673,7 +673,7 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
                     output_key=output_key,
                     num_output_channels=num_output_channels,
                     image_mip=image_mip,
-                    aff_mip=aff_mip,
+                    output_mip=output_mip,
                     mask_mip=mask_mip
                 )
                 task_queue.insert(task)

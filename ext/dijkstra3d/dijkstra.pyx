@@ -17,7 +17,8 @@ Date: August 2018
 
 from libc.stdlib cimport calloc, free
 from libc.stdint cimport (
-  uint32_t, int8_t, int16_t, int32_t, int64_t
+   int8_t,  int16_t,  int32_t,  int64_t,
+  uint8_t, uint16_t, uint32_t, uint64_t
 )
 from cpython cimport array 
 import array
@@ -158,19 +159,19 @@ def _path_to_point_cloud(path, dims, rows, cols):
   return ptlist
 
 def _execute_dijkstra(data, source, target):
-  cdef int8_t[:,:,:] arr_memview8
-  cdef int16_t[:,:,:] arr_memview16
-  cdef int32_t[:,:,:] arr_memview32
-  cdef int64_t[:,:,:] arr_memview64
+  cdef uint8_t[:,:,:] arr_memview8
+  cdef uint16_t[:,:,:] arr_memview16
+  cdef uint32_t[:,:,:] arr_memview32
+  cdef uint64_t[:,:,:] arr_memview64
   cdef float[:,:,:] arr_memviewfloat
   cdef double[:,:,:] arr_memviewdouble
 
-  cdef int cols = data.shape[0]
-  cdef int rows = data.shape[1]
-  cdef int depth = data.shape[2]
+  cdef int sx = data.shape[0]
+  cdef int sy = data.shape[1]
+  cdef int sz = data.shape[2]
 
-  cdef int src = source[0] + cols * (source[1] + rows * source[2])
-  cdef int sink = target[0] + cols * (target[1] + rows * target[2])
+  cdef int src = source[0] + sx * (source[1] + sy * source[2])
+  cdef int sink = target[0] + sx * (target[1] + sy * target[2])
 
   cdef vector[uint32_t] output
 
@@ -180,42 +181,42 @@ def _execute_dijkstra(data, source, target):
     arr_memviewfloat = data
     output = dijkstra3d[float](
       &arr_memviewfloat[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src, sink
     )
   elif dtype == np.float64:
     arr_memviewdouble = data
     output = dijkstra3d[double](
       &arr_memviewdouble[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src, sink
     )
   elif dtype in (np.int64, np.uint64):
-    arr_memview64 = data.astype(np.int64)
-    output = dijkstra3d[int64_t](
+    arr_memview64 = data.astype(np.uint64)
+    output = dijkstra3d[uint64_t](
       &arr_memview64[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src, sink
     )
   elif dtype in (np.int32, np.uint32):
-    arr_memview32 = data.astype(np.int32)
-    output = dijkstra3d[int32_t](
+    arr_memview32 = data.astype(np.uint32)
+    output = dijkstra3d[uint32_t](
       &arr_memview32[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src, sink
     )
   elif dtype in (np.int16, np.uint16):
-    arr_memview16 = data.astype(np.int16)
-    output = dijkstra3d[int16_t](
+    arr_memview16 = data.astype(np.uint16)
+    output = dijkstra3d[uint16_t](
       &arr_memview16[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src, sink
     )
   elif dtype in (np.int8, np.uint8, np.bool):
-    arr_memview8 = data.astype(np.int8)
-    output = dijkstra3d[int8_t](
+    arr_memview8 = data.astype(np.uint8)
+    output = dijkstra3d[uint8_t](
       &arr_memview8[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src, sink
     )
   else:
@@ -231,18 +232,18 @@ def _execute_dijkstra(data, source, target):
 
 
 def _execute_distance_field(data, source):
-  cdef int8_t[:,:,:] arr_memview8
-  cdef int16_t[:,:,:] arr_memview16
-  cdef int32_t[:,:,:] arr_memview32
-  cdef int64_t[:,:,:] arr_memview64
+  cdef uint8_t[:,:,:] arr_memview8
+  cdef uint16_t[:,:,:] arr_memview16
+  cdef uint32_t[:,:,:] arr_memview32
+  cdef uint64_t[:,:,:] arr_memview64
   cdef float[:,:,:] arr_memviewfloat
   cdef double[:,:,:] arr_memviewdouble
 
-  cdef int cols = data.shape[0]
-  cdef int rows = data.shape[1]
-  cdef int depth = data.shape[2]
+  cdef int sx = data.shape[0]
+  cdef int sy = data.shape[1]
+  cdef int sz = data.shape[2]
 
-  cdef int src = source[0] + cols * (source[1] + rows * source[2])
+  cdef int src = source[0] + sx * (source[1] + sy * source[2])
 
   cdef float* dist
 
@@ -252,53 +253,53 @@ def _execute_distance_field(data, source):
     arr_memviewfloat = data
     dist = distance_field3d[float](
       &arr_memviewfloat[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src
     )
   elif dtype == np.float64:
     arr_memviewdouble = data
     dist = distance_field3d[double](
       &arr_memviewdouble[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src
     )
-  elif dtype == np.int64:
-    arr_memview64 = data
-    dist = distance_field3d[int64_t](
+  elif dtype in (np.int64, np.uint64):
+    arr_memview64 = data.astype(np.uint64)
+    dist = distance_field3d[uint64_t](
       &arr_memview64[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src
     )
-  elif dtype == np.int32:
-    arr_memview32 = data
-    dist = distance_field3d[int32_t](
+  elif dtype in (np.uint32, np.int32):
+    arr_memview32 = data.astype(np.uint32)
+    dist = distance_field3d[uint32_t](
       &arr_memview32[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src
     )
-  elif dtype == np.int16:
-    arr_memview16 = data
-    dist = distance_field3d[int16_t](
+  elif dtype in (np.int16, np.uint16):
+    arr_memview16 = data.astype(np.uint16)
+    dist = distance_field3d[uint16_t](
       &arr_memview16[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src
     )
-  elif dtype == np.int8:
-    arr_memview8 = data
-    dist = distance_field3d[int8_t](
+  elif dtype in (np.int8, np.uint8, np.bool):
+    arr_memview8 = data.astype(np.uint8)
+    dist = distance_field3d[uint8_t](
       &arr_memview8[0,0,0],
-      cols, rows, depth,
+      sx, sy, sz,
       src
     )
   else:
     raise TypeError("Type {} not currently supported.".format(dtype))
 
-  cdef int voxels = cols * rows * depth
+  cdef int voxels = sx * sy * sz
   cdef float[:] dist_view = <float[:voxels]>dist
 
   # This construct is required by python 2.
   # Python 3 can just do np.frombuffer(vec_view, ...)
   buf = bytearray(dist_view[:])
   free(dist)
-  order = 'F' if data.flags['F_CONTIGUOUS'] else 'C'
-  return np.frombuffer(buf, dtype=np.float32).reshape( (cols, rows, depth), order=order)
+  # I don't actually understand why order F works, but it does.
+  return np.frombuffer(buf, dtype=np.float32).reshape(data.shape, order='F')

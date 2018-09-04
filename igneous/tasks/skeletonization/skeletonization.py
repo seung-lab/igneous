@@ -36,11 +36,13 @@ def TEASAR(DBF, parameters):
   """
   labels = (DBF != 0).astype(np.bool)  
   any_voxel = igneous.skeletontricks.first_label(labels)   
+  dbf_max = np.max(DBF)
 
-  if any_voxel is None:
+  # > 5000 nm, gonna be a soma or blood vessel
+  if any_voxel is None or dbf_max > 5000: 
     return Skeleton()
 
-  M = 1 / (np.max(DBF) ** 1.01)
+  M = 1 / (dbf_max ** 1.01)
 
   # "4.4 DAF:  Compute distance from any voxel field"
   # Compute DAF, but we immediately convert to the PDRF
@@ -69,7 +71,6 @@ def TEASAR(DBF, parameters):
   # xy_path_projection([], labels, 0)
   i = 1
   while valid_labels > 0:
-    print(i)
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.dijkstra(np.asfortranarray(PDRF), root, target)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(

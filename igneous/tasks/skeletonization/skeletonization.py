@@ -16,7 +16,7 @@ import igneous.skeletontricks
 
 from .definitions import Skeleton, path2edge
 
-from cloudvolume.lib import save_images
+from cloudvolume.lib import save_images, mkdir
 
 def TEASAR(DBF, parameters):
   """
@@ -47,9 +47,11 @@ def TEASAR(DBF, parameters):
   # The extremal point of the PDRF is a valid root node
   # even if the DAF is computed from an arbitrary pixel.
   DBF[ DBF == 0 ] = np.inf
-  DAF = igneous.dijkstra.distance_field(DBF, any_voxel)
+  DAF = igneous.dijkstra.distance_field(np.asfortranarray(labels), any_voxel)
   root = igneous.skeletontricks.find_target(labels, DAF)
-  DAF = igneous.dijkstra.distance_field(DBF, root)
+  DAF = igneous.dijkstra.distance_field(np.asfortranarray(DBF), root)
+
+  # save_images(DAF, directory="./saved_images/DAF")
 
   # Add p(v) to the DAF (pp. 4, section 4.5)
   # "4.5 PDRF: Compute penalized distance from root voxel field"
@@ -64,14 +66,21 @@ def TEASAR(DBF, parameters):
   paths = []
   valid_labels = np.count_nonzero(labels)
 
+  # xy_path_projection([], labels, 0)
+  i = 1
   while valid_labels > 0:
+    print(i)
     target = igneous.skeletontricks.find_target(labels, PDRF)
-    path = igneous.dijkstra.dijkstra(PDRF, root, target)
+    path = igneous.dijkstra.dijkstra(np.asfortranarray(PDRF), root, target)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
       labels, path, parameters[0], parameters[1]
     )
     valid_labels -= invalidated
     paths.append(path)
+    # xy_path_projection(path, labels, i)
+    i += 1
+
+  # xy_path_projection(paths, labels, i)
 
   skel_verts, skel_edges = path_union(paths)
   skel_radii = DBF[skel_verts[::3], skel_verts[1::3], skel_verts[2::3]]
@@ -143,5 +152,6 @@ def xy_path_projection(paths, labels, N=0):
 
   projection = Image.fromarray(projection.T, 'L')
   N = str(N).zfill(3)
+  mkdir('./saved_images/projections')
   projection.save('./saved_images/projections/{}.png'.format(N), 'PNG')
 

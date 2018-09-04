@@ -55,11 +55,12 @@ def renumber(arr, uint64_t start=1):
   cdef uint32_t[:] arrview32
 
   sixyfourbit = np.dtype(arr.dtype).itemsize > 4
+  order = 'F' if arr.flags['F_CONTIGUOUS'] else 'C'
 
   if sixyfourbit:
-    arrview64 = arr.astype(np.uint64).flatten()
+    arrview64 = arr.astype(np.uint64).flatten(order)
   else:
-    arrview32 = arr.astype(np.uint32).flatten()
+    arrview32 = arr.astype(np.uint32).flatten(order)
 
   remap_dict = { 0: 0 }
   
@@ -111,7 +112,6 @@ def renumber(arr, uint64_t start=1):
     intermediate_dtype = np.uint32
 
   output = np.frombuffer(output, dtype=intermediate_dtype).astype(final_type)
-  order = 'F' if arr.flags['F_CONTIGUOUS'] else 'C'
   output = output.reshape( arr.shape, order=order)
   return output, remap_dict
 

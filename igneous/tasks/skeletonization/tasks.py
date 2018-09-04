@@ -75,19 +75,24 @@ class SkeletonTask(RegisteredTask):
     path = os.path.join(self.cloudpath, path)
 
     all_dbf = edt.edt(cc_labels, anisotropy=vol.resolution.tolist())
-
     cc_segids, pxct = np.unique(cc_labels, return_counts=True)
+    cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]
+
+    all_slices = scipy.ndimage.find_objects(cc_labels)
 
     with Storage(path) as stor:
-      for segid in cc_segids:
+      for segid in tqdm(cc_segids):
         if segid == 0:
           continue 
 
-        print(segid, remapping[segid])
         # Crop DBF to ROI
-        labels = (cc_labels == segid)
-        slices = scipy.ndimage.find_objects(labels)[0]
-        dbf = labels[slices] * all_dbf[slices]
+        slices = all_slices[segid - 1]
+        if slices is None:
+          continue
+
+        labels = cc_labels[slices]
+        labels = (labels == segid)
+        dbf = labels * all_dbf[slices]
         del labels
 
         roi = Bbox.from_slices(slices)
@@ -95,8 +100,6 @@ class SkeletonTask(RegisteredTask):
 
         skeleton = self.skeletonize(dbf, roi)
 
-        print(skeleton)
-        
         if skeleton.empty():
           continue
 

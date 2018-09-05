@@ -98,6 +98,7 @@ def path_union(paths):
   """
   tree = defaultdict(set)
   tree_id = {}
+  vertices = []
 
   ct = 0
   for path in paths:
@@ -107,30 +108,30 @@ def path_union(paths):
       tree[parent].add(child)
       if not parent in tree_id:
         tree_id[parent] = ct
+        vertices.append(parent)
         ct += 1
       if not child in tree:
         tree[child] = set()
       if not child in tree_id:
         tree_id[child] = ct
+        vertices.append(child)
         ct += 1 
 
   root = tuple(paths[0][0,:].tolist())
-  vertices = [root]
   edges = []
 
   def traverse(parent):
     for child in tree[parent]:
-      vertices.append(child)
       edges.append([ tree_id[parent], tree_id[child] ])
       traverse(child)
 
   traverse(root)
 
   npv = np.zeros((len(vertices) * 3,), dtype=np.uint32)
-  for i, vert in enumerate(vertices):
-    npv[ 3 * i + 0 ] = vertices[i][0]
-    npv[ 3 * i + 1 ] = vertices[i][1]
-    npv[ 3 * i + 2 ] = vertices[i][2]
+  for i, vertex in enumerate(vertices):
+    npv[ 3 * i + 0 ] = vertex[0]
+    npv[ 3 * i + 1 ] = vertex[1]
+    npv[ 3 * i + 2 ] = vertex[2]
 
   npe = np.zeros((len(edges) * 2,), dtype=np.uint32)
   for i, edge in enumerate(edges):

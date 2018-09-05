@@ -1,11 +1,10 @@
 backports.lzma==0.0.8
 click==6.7
 cryptography==2.3
-cloud-volume==0.28.2
+cloud-volume==0.30.1
 -e git+https://github.com/seung-lab/intern.git#egg=intern
 google-cloud-logging
 google-api-python-client==1.6.2
-edt>=1.0.4
 networkx==2.1
 numpy>=1.14.2
 pyasn1
@@ -13,7 +12,7 @@ pyopenssl==17.2.0
 pytest>=3.3.1
 scipy>=1.1.0
 task-queue>=0.4.1
-tenacity==4.10.0
+tenacity>=4.10.0
 -e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
 oauth2client==3.0.0
 protobuf>=3.5.1

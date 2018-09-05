@@ -118,6 +118,7 @@ def find_target(
 @cython.nonecheck(False)
 def roll_invalidation_ball(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
+    cnp.ndarray[float, ndim=3] DBF, 
     cnp.ndarray[uint32_t, ndim=2] path, 
     float scale, float const
   ):
@@ -139,7 +140,7 @@ def roll_invalidation_ball(
 
   for coord in path:
     x0, y0, z0 = coord[0], coord[1], coord[2]
-    radius = labels[x0,y0,z0] * scale + const
+    radius = DBF[x0,y0,z0] * scale + const
     ceil_r = <int>(radius + 0.5)
 
     minx = max(0, x0 - ceil_r)

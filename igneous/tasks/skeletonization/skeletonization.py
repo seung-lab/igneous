@@ -18,19 +18,24 @@ from .definitions import Skeleton, path2edge
 
 from cloudvolume.lib import save_images, mkdir
 
-def TEASAR(DBF, parameters):
+def TEASAR(DBF, scale, const, max_boundary_distance=5000):
   """
-  Given a point cloud, convert it into a skeleton.
-  
+  Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
+  convert it into a skeleton with scale and const TEASAR parameters. 
+
+  DBF: Result of the euclidean distance transform. Must represent a single label.
+  scale: during the "rolling ball" invalidation phase, multiply the DBF value by this.
+  const: during the "rolling ball" invalidation phase, this is the minimum radius in voxels.
+  max_boundary_distance: skip labels that have a DBF maximum value greater than this
+    (e.g. for skipping somas). This value should be in nanometers, but if you are using
+    this outside its original context it could be voxels.
+
   Based on the algorithm by:
 
-  Sato, et al. "TEASAR: tree-structure extraction algorithm for accurate and robust skeletons"  
+  M. Sato, I. Bitter, M. Bender, A. Kaufman, and M. Nakajima. 
+  "TEASAR: tree-structure extraction algorithm for accurate and robust skeletons"  
     Proc. the Eighth Pacific Conference on Computer Graphics and Applications. Oct. 2000.
     doi:10.1109/PCCGA.2000.883951 (https://ieeexplore.ieee.org/document/883951/)
-
-  object_points: n x 3 point cloud format of the object
-  parameters: list of "scale" and "constant" parameters (first: "scale", second: "constant")
-               larger values mean less senstive to detecting small branches
 
   Returns: Skeleton object
   """
@@ -39,7 +44,7 @@ def TEASAR(DBF, parameters):
   dbf_max = np.max(DBF)
 
   # > 5000 nm, gonna be a soma or blood vessel
-  if any_voxel is None or dbf_max > 5000: 
+  if any_voxel is None or dbf_max > max_boundary_distance: 
     return Skeleton()
 
   M = 1 / (dbf_max ** 1.01)
@@ -72,7 +77,7 @@ def TEASAR(DBF, parameters):
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.dijkstra(np.asfortranarray(PDRF), root, target)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, path, parameters[0], parameters[1]
+      labels, DBF, path, scale, const 
     )
     valid_labels -= invalidated
     paths.append(path)

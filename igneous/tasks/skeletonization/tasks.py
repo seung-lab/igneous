@@ -66,7 +66,8 @@ class SkeletonTask(RegisteredTask):
     all_labels = all_labels[:,:,:,0]
 
     tmp_labels, remapping = fastremap.renumber(all_labels)
-    cc_labels = cc3d.connected_components(tmp_labels, max_labels=20e6)
+    cc_labels = cc3d.connected_components(tmp_labels, max_labels=30e6)
+
     del tmp_labels
     remapping = igneous.skeletontricks.get_mapping(all_labels, cc_labels)
     del all_labels
@@ -115,7 +116,7 @@ class SkeletonTask(RegisteredTask):
           vol.skeleton.upload(remapping[segid], skeleton.nodes, skeleton.edges, skeleton.radii)
 
   def skeletonize(self, dbf, bbox):
-    skeleton = TEASAR(dbf, self.teasar_params)
+    skeleton = TEASAR(dbf, self.teasar_params[0], self.teasar_params[1])
 
     skeleton.nodes[:,0] += bbox.minpt.x
     skeleton.nodes[:,1] += bbox.minpt.y

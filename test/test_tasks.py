@@ -10,7 +10,7 @@ from taskqueue import MockTaskQueue
 
 from igneous import (
     DownsampleTask, MeshTask, MeshManifestTask, 
-    QuantizeAffinitiesTask, HyperSquareConsensusTask,
+    QuantizeTask, HyperSquareConsensusTask,
     DeleteTask
 )
 from igneous import downsample
@@ -244,7 +244,7 @@ def test_mesh():
     assert list(storage.list_files('mesh/')) == ['mesh/10:0:0-64_0-64_0-64']
 
 
-def test_quantize_affinities():
+def test_quantize():
     qpath = 'file:///tmp/removeme/quantized/'
 
     delete_layer()
@@ -260,14 +260,18 @@ def test_quantize_affinities():
     data *= 255.0
     data = data.astype(np.uint8)
 
-    task = QuantizeAffinitiesTask(
+    task = QuantizeTask(
         source_layer_path=storage.layer_path,
         dest_layer_path=qpath,
         shape=shape,
         offset=(0,0,0),
+        mip=0,
     )
 
-    info = create_quantized_affinity_info(storage.layer_path, qpath, shape)
+    info = create_quantized_affinity_info(
+        storage.layer_path, qpath, shape, 
+        mip=0, chunk_size=[64,64,64]
+    )
     qcv = CloudVolume(qpath, info=info)
     qcv.commit_info()
 

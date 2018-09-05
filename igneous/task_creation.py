@@ -21,7 +21,7 @@ from taskqueue import TaskQueue, MockTaskQueue, LocalTaskQueue
 from igneous import downsample_scales, chunks
 from igneous.tasks import (
   IngestTask, HyperSquareConsensusTask, 
-  MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
+  MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask
 )
@@ -131,11 +131,25 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
 
 def create_downsampling_tasks(
     task_queue, layer_path, 
-    mip=-1, fill_missing=False, axis='z', 
+    mip=0, fill_missing=False, axis='z', 
     num_mips=5, preserve_chunk_size=True,
-    sparse=False
+    sparse=False, bounds=None
   ):
-  
+    """
+    mip: Download this mip level, writes to mip levels greater than this one.
+    fill_missing: interpret missing chunks as black instead of issuing an EmptyVolumeException
+    axis: technically 'x' and 'y' are supported, but no one uses them.
+    num_mips: download a block chunk * 2**num_mips size and generate num_mips mips. If you have
+      memory problems, try reducing this number.
+    preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
+      evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
+      useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
+    sparse: When downsampling segmentation, if true, don't count black pixels when computing
+      the mode. Useful for e.g. synapses and point labels.
+    bounds: By default, downsample everything, but you can specify restricted bounding boxes
+      instead. The bounding box will be expanded to the nearest chunk. Bbox is specifed in mip 0
+      coordinates.
+    """
     def ds_shape(mip):
       shape = vol.mip_underlying(mip)[:3]
       shape.x *= 2 ** num_mips
@@ -149,7 +163,17 @@ def create_downsampling_tasks(
     if not preserve_chunk_size:
       shape = ds_shape(vol.mip + 1)
 
-    bounds = vol.bounds.clone()
+    if bounds is None:
+      bounds = vol.bounds.clone()
+    else:
+      bounds = Bbox.create(bounds)
+      bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+      bounds = bounds.expand_to_chunk_size(shape, vol.voxel_offset)
+      bounds = Bbox.clamp(bounds, vol.bounds)
+
+    print("Volume Bounds: ", vol.bounds)
+    print("Selected ROI:  ", bounds)
+
     for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
       task = DownsampleTask(
         layer_path=layer_path,
@@ -170,6 +194,7 @@ def create_downsampling_tasks(
         'axis': axis,
         'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
         'sparse': sparse,
+        'bounds': str(bounds),
       },
       'by': USER_EMAIL,
       'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -181,10 +206,10 @@ def create_deletion_tasks(task_queue, layer_path):
   shape = vol.underlying * 10
 
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks"):
-    shape = min2(shape, vol.bounds.maxpt - startpt)
+    bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
     task = DeleteTask(
       layer_path=layer_path,
-      shape=shape.clone(),
+      shape=bounded_shape.clone(),
       offset=startpt.clone(),
     )
     task_queue.insert(task)
@@ -438,53 +463,58 @@ def create_fixup_downsample_tasks(task_queue, layer_path, points, shape=Vec(2048
     )
     task_queue.insert(task)
   task_queue.wait('Uploading')
-
-def create_quantized_affinity_info(src_layer, dest_layer, shape):
+def create_quantized_affinity_info(src_layer, dest_layer, shape, mip, chunk_size):
   srcvol = CloudVolume(src_layer)
   
   info = copy.deepcopy(srcvol.info)
   info['num_channels'] = 1
   info['data_type'] = 'uint8'
-  info['type'] = 'segmentation'
-  info['scales'] = info['scales'][:1]
-  info['scales'][0]['chunk_sizes'] = [[ 64, 64, 64 ]]
+  info['type'] = 'image'
+  info['scales'] = info['scales'][:mip+1]
+  for i in range(mip+1):
+    info['scales'][i]['chunk_sizes'] = [ chunk_size ]
   return info
 
-def create_quantized_affinity_tasks(taskqueue, src_layer, dest_layer, shape, fill_missing=False):
+def create_quantize_tasks(
+    task_queue, src_layer, dest_layer, 
+    shape, mip=0, fill_missing=False, chunk_size=[64,64,64]
+  ):
+
   shape = Vec(*shape)
 
-  info = create_quantized_affinity_info(src_layer, dest_layer, shape)
-  destvol = CloudVolume(dest_layer, info=info)
+  info = create_quantized_affinity_info(
+    src_layer, dest_layer, shape, mip, chunk_size
+  )
+  destvol = CloudVolume(dest_layer, info=info, mip=mip)
   destvol.commit_info()
 
-  create_downsample_scales(dest_layer, mip=0, ds_shape=shape)
+  create_downsample_scales(dest_layer, mip=mip, ds_shape=shape)
 
-  for startpt in tqdm(xyzrange( destvol.bounds.minpt, destvol.bounds.maxpt, shape ), desc="Inserting QuantizeAffinities Tasks"):
-    task = QuantizeAffinitiesTask(
+  for startpt in tqdm(xyzrange( destvol.bounds.minpt, destvol.bounds.maxpt, shape ), desc="Inserting Quantize Tasks"):
+    task = QuantizeTask(
       source_layer_path=src_layer,
       dest_layer_path=dest_layer,
-      shape=list(shape.clone()),
-      offset=list(startpt.clone()),
+      shape=shape.tolist(),
+      offset=startpt.tolist(),
       fill_missing=fill_missing,
+      mip=mip,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading')
-
-def create_fixup_quantize_tasks(task_queue, src_layer, dest_layer, shape, points):
-  shape = Vec(*shape)
-  vol = CloudVolume(src_layer, 0)
-  offsets = compute_fixup_offsets(vol, points, shape)
-
-  for offset in tqdm(offsets, desc="Inserting Corrective Quantization Tasks"):
-    task = QuantizeAffinitiesTask(
-      source_layer_path=src_layer,
-      dest_layer_path=dest_layer,
-      shape=list(shape.clone()),
-      offset=list(offset.clone()),
-    )
-    # task.execute()
-    task_queue.insert(task)
-  task_queue.wait('Uploading')
+  destvol.provenance.sources = [ src_layer ]
+  destvol.provenance.processing.append({
+    'method': {
+      'task': 'QuantizeTask',
+      'source_layer_path': src_layer,
+      'dest_layer_path': dest_layer,
+      'shape': shape.tolist(),
+      'fill_missing': fill_missing,
+      'mip': mip,
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  destvol.commit_provenance()
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3):

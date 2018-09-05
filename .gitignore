@@ -8,3 +8,4 @@ __pycache__
 .cache
 test.py
 pipeline.py
+.pytest_cache

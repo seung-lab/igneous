@@ -147,12 +147,12 @@ class DeleteTask(RegisteredTask):
   def execute(self):
     vol = CloudVolume(self.layer_path)
 
-    highres_bbox = Bbox(self.offset, self.offset + self.shape)
+    highres_bbox = Bbox( self.offset, self.offset + self.shape )
     for mip in vol.available_mips:
       vol.mip = mip
-      slices = vol.slices_from_global_coords(highres_bbox.to_slices())
-      bbox = Bbox.from_slices(slices).round_to_chunk_size(
-          vol.underlying, offset=vol.bounds.minpt)
+      bbox = vol.bbox_to_mip(highres_bbox, 0, mip)
+      bbox = bbox.round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)
+      bbox = Bbox.clamp(bbox, vol.bounds)
       vol.delete(bbox)
 
 
@@ -185,18 +185,19 @@ class DownsampleTask(RegisteredTask):
       skip_first=True, sparse=self.sparse
     )
 
-class QuantizeAffinitiesTask(RegisteredTask):
-  def __init__(self, source_layer_path, dest_layer_path, shape, offset, fill_missing=False):
-    super(QuantizeAffinitiesTask, self).__init__(
-        source_layer_path, dest_layer_path, shape, offset, fill_missing)
+class QuantizeTask(RegisteredTask):
+  def __init__(self, source_layer_path, dest_layer_path, shape, offset, mip, fill_missing=False):
+    super(QuantizeTask, self).__init__(
+        source_layer_path, dest_layer_path, shape, offset, mip, fill_missing)
     self.source_layer_path = source_layer_path
     self.dest_layer_path = dest_layer_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = fill_missing
+    self.mip = mip
 
   def execute(self):
-    srcvol = CloudVolume(self.source_layer_path, mip=0,
+    srcvol = CloudVolume(self.source_layer_path, mip=self.mip,
                          fill_missing=self.fill_missing)
 
     bounds = Bbox(self.offset, self.shape + self.offset)
@@ -205,8 +206,8 @@ class QuantizeAffinitiesTask(RegisteredTask):
     image = srcvol[bounds.to_slices()][:, :, :, :1]  # only use x affinity
     image = (image * 255.0).astype(np.uint8)
 
-    destvol = CloudVolume(self.dest_layer_path, mip=0)
-    downsample_and_upload(image, bounds, destvol, self.shape, mip=0, axis='z')
+    destvol = CloudVolume(self.dest_layer_path, mip=self.mip)
+    downsample_and_upload(image, bounds, destvol, self.shape, mip=self.mip, axis='z')
 
 
 class MeshTask(RegisteredTask):
@@ -320,7 +321,7 @@ class MeshTask(RegisteredTask):
     # Note: points are already multiplied by resolution, but missing the offset
     points /= 2.0
     resolution = self._volume.resolution
-    xmin, ymin, zmin = self._bounds.minpt
+    xmin, ymin, zmin = self._bounds.minpt - self.options['low_padding']
     points[0::3] = points[0::3] + xmin * resolution.x
     points[1::3] = points[1::3] + ymin * resolution.y
     points[2::3] = points[2::3] + zmin * resolution.z

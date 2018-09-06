@@ -36,7 +36,7 @@ class SkeletonModule(argschema.ArgSchemaParser):
                                               self.args['cloudpath'],
                                               mip=self.args['mip'],
                                               shape=tuple(self.args['chunk_shape']),
-                                              tesar_params=self.args['teasar_params'],
+                                              teasar_params=self.args['teasar_params'],
                                               info=info)
 
 

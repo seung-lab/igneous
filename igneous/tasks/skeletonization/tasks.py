@@ -122,6 +122,9 @@ class SkeletonTask(RegisteredTask):
     skeleton.nodes[:,1] += bbox.minpt.y
     skeleton.nodes[:,2] += bbox.minpt.z
 
+    if not self.will_postprocess:
+      return skeleton
+
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()
     crop_bbox.minpt += self.crop_zone

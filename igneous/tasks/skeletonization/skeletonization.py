@@ -18,7 +18,7 @@ from .definitions import Skeleton, path2edge
 
 from cloudvolume.lib import save_images, mkdir
 
-def TEASAR(DBF, scale, const, max_boundary_distance=5000):
+def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
   """
   Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
   convert it into a skeleton with scale and const TEASAR parameters. 
@@ -53,12 +53,9 @@ def TEASAR(DBF, scale, const, max_boundary_distance=5000):
   # Compute DAF, but we immediately convert to the PDRF
   # The extremal point of the PDRF is a valid root node
   # even if the DAF is computed from an arbitrary pixel.
-  DBF[ DBF == 0 ] = np.inf
   DAF = igneous.dijkstra.distance_field(np.asfortranarray(labels), any_voxel)
   root = igneous.skeletontricks.find_target(labels, DAF)
-  DAF = igneous.dijkstra.distance_field(np.asfortranarray(DBF), root)
-
-  # save_images(DAF, directory="./saved_images/DAF")
+  DAF = igneous.dijkstra.euclidean_distance_field(np.asfortranarray(labels), root)
 
   # Add p(v) to the DAF (pp. 4, section 4.5)
   # "4.5 PDRF: Compute penalized distance from root voxel field"
@@ -73,9 +70,11 @@ def TEASAR(DBF, scale, const, max_boundary_distance=5000):
   paths = []
   valid_labels = np.count_nonzero(labels)
   
+  parents = igneous.dijkstra.parental_field(np.asfortranarray(PDRF), root)
+
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, PDRF)
-    path = igneous.dijkstra.dijkstra(np.asfortranarray(PDRF), root, target)
+    path = igneous.dijkstra.path_from_parents(parents, target)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
       labels, DBF, path, scale, const 
     )

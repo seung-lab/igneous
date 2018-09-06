@@ -185,7 +185,7 @@ def create_deletion_tasks(task_queue, layer_path):
   task_queue.wait('Uploading DeleteTasks')
 
 def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 512),
-                               tesar_params={'scale':10, 'const': 10}, info=None):
+                               teasar_params={'scale':10, 'const': 10}, info=None):
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
 

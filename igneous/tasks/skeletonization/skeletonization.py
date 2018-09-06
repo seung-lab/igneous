@@ -78,7 +78,7 @@ def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.path_from_parents(parents, target)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, path, scale, const 
+      labels, DBF, path, scale, const, anisotropy=anisotropy
     )
     valid_labels -= invalidated
     paths.append(path)
@@ -120,6 +120,9 @@ def path_union(paths):
   root = tuple(paths[0][0,:].tolist())
   edges = []
 
+  # Note: Chose iterative rather than recursive solution
+  # because somas can cause stack overflows for small TEASAR
+  # parameters.
   stack = [ root ]
 
   while len(stack) > 0:

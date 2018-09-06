@@ -120,15 +120,18 @@ def roll_invalidation_ball(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[float, ndim=3] DBF, 
     cnp.ndarray[uint32_t, ndim=2] path, 
-    float scale, float const
+    float scale, float const,
+    anisotropy=(1,1,1)
   ):
   
   cdef int sx, sy, sz 
-
   sx = labels.shape[0]
   sy = labels.shape[1]
   sz = labels.shape[2]
-  
+
+  cdef float wx, wy, wz
+  (wx, wy, wz) = anisotropy
+    
   cdef float radius, dist
   cdef int ceil_r
   cdef int minx, maxx, miny, maxy, minz, maxz
@@ -155,7 +158,7 @@ def roll_invalidation_ball(
     for x in range(minx, maxx):
       for y in range(miny, maxy):
         for z in range(minz, maxz):
-          dist = (x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2
+          dist = (wx * (x - x0)) ** 2 + (wy * (y - y0)) ** 2 + (wz * (z - z0)) ** 2
           if dist <= radius and labels[x,y,z]:
             invalidated += 1
             labels[x,y,z] = 0

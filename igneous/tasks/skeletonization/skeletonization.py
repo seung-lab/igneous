@@ -120,12 +120,13 @@ def path_union(paths):
   root = tuple(paths[0][0,:].tolist())
   edges = []
 
-  def traverse(parent):
+  stack = [ root ]
+
+  while len(stack) > 0:
+    parent = stack.pop()
     for child in tree[parent]:
       edges.append([ tree_id[parent], tree_id[child] ])
-      traverse(child)
-
-  traverse(root)
+      stack.append(child)
 
   npv = np.zeros((len(vertices) * 3,), dtype=np.uint32)
   for i, vertex in enumerate(vertices):

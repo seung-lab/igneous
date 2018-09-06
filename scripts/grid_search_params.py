@@ -41,7 +41,7 @@ def process_skeleton_params(params):
     mod.run()
 
 def test():
-    pool = MyPool(20)
+    pool = MyPool(10)
 
     dbf_exps = [4, 8, 16, 20, 32]
     dbf_scales = [2000,5000,15000]

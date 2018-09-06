@@ -176,19 +176,6 @@ def create_downsampling_tasks(
     print("Volume Bounds: ", vol.bounds)
     print("Selected ROI:  ", bounds)
 
-    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
-      task = DownsampleTask(
-        layer_path=layer_path,
-        mip=vol.mip,
-        shape=shape.clone(),
-        offset=startpt.clone(),
-        axis=axis,
-        fill_missing=fill_missing,
-        sparse=sparse,
-      )
-      task_queue.insert(task)
-    task_queue.wait('Uploading')
-
     vol.provenance.processing.append({
       'method': {
         'task': 'DownsampleTask',
@@ -204,6 +191,19 @@ def create_downsampling_tasks(
     })
     vol.commit_provenance()
     vol.cache.flush()
+
+    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
+      task = DownsampleTask(
+        layer_path=layer_path,
+        mip=vol.mip,
+        shape=shape.clone(),
+        offset=startpt.clone(),
+        axis=axis,
+        fill_missing=fill_missing,
+        sparse=sparse,
+      )
+      task_queue.insert(task)
+    task_queue.wait('Uploading')
 
 def create_deletion_tasks(task_queue, layer_path):
   vol = CloudVolume(layer_path)

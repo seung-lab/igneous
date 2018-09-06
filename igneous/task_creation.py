@@ -20,9 +20,9 @@ from taskqueue import TaskQueue, MockTaskQueue, LocalTaskQueue
 
 from igneous import downsample_scales, chunks
 from igneous.tasks import (
-  IngestTask, HyperSquareConsensusTask, 
-  MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
-  TransferTask, WatershedRemapTask, DeleteTask, 
+  IngestTask, HyperSquareConsensusTask, QuantizeTask,
+  MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask,
+  TransferTask, WatershedRemapTask, DeleteTask,
   LuminanceLevelsTask, ContrastNormalizationTask
 )
 # from igneous.tasks import BigArrayTask
@@ -131,9 +131,9 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
 
 def create_downsampling_tasks(
     task_queue, layer_path, 
-    mip=0, fill_missing=False, axis='z', 
+    mip=0, fill_missing=False, axis='z',
     num_mips=5, preserve_chunk_size=True,
-    sparse=False, bounds=None
+    sparse=False, bounds=None, n_download_workers=1
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -156,7 +156,7 @@ def create_downsampling_tasks(
       shape.y *= 2 ** num_mips
       return shape
 
-    vol = CloudVolume(layer_path, mip=mip)
+    vol = CloudVolume(layer_path, mip=mip, parallel=n_download_workers)
     shape = ds_shape(vol.mip)
     vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=preserve_chunk_size)
 
@@ -476,7 +476,7 @@ def create_quantized_affinity_info(src_layer, dest_layer, shape, mip, chunk_size
   return info
 
 def create_quantize_tasks(
-    task_queue, src_layer, dest_layer, 
+    task_queue, src_layer, dest_layer,
     shape, mip=0, fill_missing=False, chunk_size=[64,64,64]
   ):
 
@@ -513,7 +513,7 @@ def create_quantize_tasks(
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
+  })
   destvol.commit_provenance()
 
 # split the work up into ~1000 tasks (magnitude 3)

@@ -156,8 +156,10 @@ def create_downsampling_tasks(
       shape.y *= 2 ** num_mips
       return shape
 
-    vol = CloudVolume(layer_path, mip=mip, parallel=n_download_workers)
+    vol = CloudVolume(layer_path, mip=mip, parallel=n_download_workers,
+                      cache=True)
     shape = ds_shape(vol.mip)
+
     vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=preserve_chunk_size)
 
     if not preserve_chunk_size:
@@ -186,6 +188,7 @@ def create_downsampling_tasks(
       )
       task_queue.insert(task)
     task_queue.wait('Uploading')
+
     vol.provenance.processing.append({
       'method': {
         'task': 'DownsampleTask',
@@ -200,6 +203,7 @@ def create_downsampling_tasks(
       'date': strftime('%Y-%m-%d %H:%M %Z'),
     })
     vol.commit_provenance()
+    vol.cache.flush()
 
 def create_deletion_tasks(task_queue, layer_path):
   vol = CloudVolume(layer_path)

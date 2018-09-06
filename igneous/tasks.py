@@ -174,8 +174,8 @@ class DownsampleTask(RegisteredTask):
     self.sparse = sparse
 
   def execute(self):
-    vol = CloudVolume(self.layer_path, self.mip,
-                      fill_missing=self.fill_missing)
+    vol = CloudVolume(self.layer_path, self.mip, fill_missing=self.fill_missing,
+                      cache=True)
     bounds = Bbox(self.offset, self.shape + self.offset)
     bounds = Bbox.clamp(bounds, vol.bounds)
     image = vol[ bounds.to_slices() ]

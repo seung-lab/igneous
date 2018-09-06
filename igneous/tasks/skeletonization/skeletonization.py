@@ -53,9 +53,11 @@ def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
   # Compute DAF, but we immediately convert to the PDRF
   # The extremal point of the PDRF is a valid root node
   # even if the DAF is computed from an arbitrary pixel.
-  DAF = igneous.dijkstra.distance_field(np.asfortranarray(labels), any_voxel)
+  DAF = igneous.dijkstra.euclidean_distance_field(
+    np.asfortranarray(labels), any_voxel, anisotropy=anisotropy)
   root = igneous.skeletontricks.find_target(labels, DAF)
-  DAF = igneous.dijkstra.euclidean_distance_field(np.asfortranarray(labels), root)
+  DAF = igneous.dijkstra.euclidean_distance_field(
+    np.asfortranarray(labels), root, anisotropy=anisotropy)
 
   # Add p(v) to the DAF (pp. 4, section 4.5)
   # "4.5 PDRF: Compute penalized distance from root voxel field"

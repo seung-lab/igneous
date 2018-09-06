@@ -31,13 +31,15 @@ class SkeletonModule(argschema.ArgSchemaParser):
             info = copy.copy(cv.info)
             skel_folder_str='skeletons_{}_{}_{}_{}_{}'
             info['skeletons']=skel_folder_str.format(*self.args['teasar_params'].values())
-            with LocalTaskQueue(parallel=self.args['n_threads']) as tq:
-                tc.create_skeletonizing_tasks(tq,
-                                              self.args['cloudpath'],
-                                              mip=self.args['mip'],
-                                              shape=tuple(self.args['chunk_shape']),
-                                              teasar_params=self.args['teasar_params'],
-                                              info=info)
+        else:
+            info = None
+        with LocalTaskQueue(parallel=self.args['n_threads']) as tq:
+            tc.create_skeletonizing_tasks(tq,
+                                            self.args['cloudpath'],
+                                            mip=self.args['mip'],
+                                            shape=tuple(self.args['chunk_shape']),
+                                            teasar_params=self.args['teasar_params'],
+                                            info=info)
 
 
 example_parameters = {

@@ -75,7 +75,7 @@ class SkeletonTask(RegisteredTask):
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
-    all_dbf = edt.edt(cc_labels, anisotropy=vol.resolution.tolist())
+    all_dbf = edt.edt(np.ascontiguousarray(cc_labels), anisotropy=vol.resolution.tolist())
     cc_segids, pxct = np.unique(cc_labels, return_counts=True)
     cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]
 
@@ -99,7 +99,7 @@ class SkeletonTask(RegisteredTask):
         roi = Bbox.from_slices(slices)
         roi += bbox.minpt 
 
-        skeleton = self.skeletonize(dbf, roi)
+        skeleton = self.skeletonize(dbf, roi, anisotropy=vol.resolution.tolist())
 
         if skeleton.empty():
           continue
@@ -115,8 +115,8 @@ class SkeletonTask(RegisteredTask):
           skeleton.nodes[:] *= vol.resolution
           vol.skeleton.upload(remapping[segid], skeleton.nodes, skeleton.edges, skeleton.radii)
 
-  def skeletonize(self, dbf, bbox):
-    skeleton = TEASAR(dbf, self.teasar_params[0], self.teasar_params[1])
+  def skeletonize(self, dbf, bbox, anisotropy):
+    skeleton = TEASAR(dbf, self.teasar_params[0], self.teasar_params[1], anisotropy)
 
     skeleton.nodes[:,0] += bbox.minpt.x
     skeleton.nodes[:,1] += bbox.minpt.y

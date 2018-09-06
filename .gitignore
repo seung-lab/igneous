@@ -9,3 +9,4 @@ __pycache__
 create.py
 test.py
 .pytest_cache
+.vscode

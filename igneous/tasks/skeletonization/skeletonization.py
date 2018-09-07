@@ -78,15 +78,21 @@ def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
   # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(np.asfortranarray(PDRF), root)
 
+  invalid_vertices = {}
+
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.path_from_parents(parents, target)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
       labels, DBF, path, scale, const, 
-      anisotropy=anisotropy
+      anisotropy=anisotropy, invalid_vertices=invalid_vertices,
     )
     valid_labels -= invalidated
     paths.append(path)
+    for vertex in path:
+      invalid_vertices[tuple(vertex)] = True
+
+  del invalid_vertices
 
   skel_verts, skel_edges = path_union(paths)
   skel_radii = DBF[skel_verts[::3], skel_verts[1::3], skel_verts[2::3]]

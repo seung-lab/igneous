@@ -121,7 +121,8 @@ def roll_invalidation_ball(
     cnp.ndarray[float, ndim=3] DBF, 
     cnp.ndarray[uint32_t, ndim=2] path, 
     float scale, float const,
-    anisotropy=(1,1,1)
+    anisotropy=(1,1,1),
+    invalid_vertices={},
   ):
   
   cdef int sx, sy, sz 
@@ -141,6 +142,9 @@ def roll_invalidation_ball(
   cdef int invalidated = 0
 
   for coord in path:
+    if tuple(coord) in invalid_vertices:
+      continue
+
     (x0, y0, z0) = coord
     radius = DBF[x0,y0,z0] * scale + const # physical units (e.g. nm)
 

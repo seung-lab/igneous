@@ -65,9 +65,10 @@ def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
   # p(v) = 5000 * (1 - DBF(v) / M)^16
   # 5000 is chosen to allow skeleton segments to be up to 3000 voxels
   # long without exceeding floating point precision.
-  PDRF = DAF + (5000) * ((1 - (DBF * M)) ** 16) # 20x is a variation on TEASAR
-  PDRF = PDRF.astype(np.float32)
-  del DAF  
+
+  f = lambda x: np.float32(x)
+  DAF += f(5000) * ((f(1) - (DBF * M)) ** f(16)) # += saves memory 
+  PDRF = DAF
 
   paths = []
   valid_labels = np.count_nonzero(labels)

@@ -133,7 +133,6 @@ def roll_invalidation_ball(
   (wx, wy, wz) = anisotropy
     
   cdef float radius, dist
-  cdef int ceil_r
   cdef int minx, maxx, miny, maxy, minz, maxz
 
   cdef int x,y,z
@@ -142,16 +141,15 @@ def roll_invalidation_ball(
   cdef int invalidated = 0
 
   for coord in path:
-    x0, y0, z0 = coord[0], coord[1], coord[2]
-    radius = DBF[x0,y0,z0] * scale + const
-    ceil_r = <int>(radius + 0.5)
+    (x0, y0, z0) = coord
+    radius = DBF[x0,y0,z0] * scale + const # physical units (e.g. nm)
 
-    minx = max(0, x0 - ceil_r)
-    maxx = min(sx, x0 + ceil_r)
-    miny = max(0, y0 - ceil_r)
-    maxy = min(sy, y0 + ceil_r)
-    minz = max(0, z0 - ceil_r)
-    maxz = min(sz, z0 + ceil_r)
+    minx = max(0,  <int>(0.5 + (x0 - (radius / wx))))
+    maxx = min(sx, <int>(0.5 + (x0 + (radius / wx))))
+    miny = max(0,  <int>(0.5 + (y0 - (radius / wy))))
+    maxy = min(sy, <int>(0.5 + (y0 + (radius / wy))))
+    minz = max(0,  <int>(0.5 + (z0 - (radius / wz))))
+    maxz = min(sz, <int>(0.5 + (z0 + (radius / wz))))
 
     radius *= radius 
 

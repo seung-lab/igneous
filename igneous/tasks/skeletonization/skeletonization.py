@@ -72,13 +72,17 @@ def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
   paths = []
   valid_labels = np.count_nonzero(labels)
   
+  # Use dijkstra propogation w/o a target to generate a field of
+  # pointers from each voxel to its parent. Then we can rapidly
+  # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(np.asfortranarray(PDRF), root)
 
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.path_from_parents(parents, target)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, path, scale, const, anisotropy=anisotropy
+      labels, DBF, path, scale, const, 
+      anisotropy=anisotropy
     )
     valid_labels -= invalidated
     paths.append(path)

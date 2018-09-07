@@ -88,7 +88,7 @@ def find_target(
     cnp.ndarray[float, ndim=3] PDRF
   ):
   cdef int x,y,z
-  cdef sx, sy, sz
+  cdef int sx, sy, sz
 
   sx = labels.shape[0]
   sy = labels.shape[1]

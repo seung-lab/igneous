@@ -221,7 +221,7 @@ def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 5
       'cloudpath': cloudpath,
       'mip': vol.mip,
       'shape': shape.tolist(),
-      'tesar_params': tesar_params,
+      'teasar_params': teasar_params,
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -160,8 +160,11 @@ def roll_invalidation_ball(
     for x in range(minx, maxx):
       for y in range(miny, maxy):
         for z in range(minz, maxz):
+          if not labels[x,y,z]:
+            continue 
+
           dist = (wx * (x - x0)) ** 2 + (wy * (y - y0)) ** 2 + (wz * (z - z0)) ** 2
-          if dist <= radius and labels[x,y,z]:
+          if dist <= radius:
             invalidated += 1
             labels[x,y,z] = 0
 

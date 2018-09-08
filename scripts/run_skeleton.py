@@ -1,6 +1,6 @@
 from taskqueue import LocalTaskQueue
 import igneous.task_creation as tc
-import cloudvolume 
+import cloudvolume
 import copy
 import argschema
 import marshmallow as mm
@@ -13,7 +13,6 @@ class TeasarParams(argschema.schemas.DefaultSchema):
     max_boundary_distance = argschema.fields.Int(required=False, default=5000, description = "maximium DBF to consider (throw out nuclei)")
 
 class SkeletonParam(argschema.ArgSchema):
-    
     teasar_params = argschema.fields.Nested(TeasarParams, default={}, description='parameters to pass to teasar')
     cloudpath = argschema.fields.Str(required=True, description="cloudvolume path")
     param_name_skeletons = argschema.fields.Bool(required=False, default=True, description="save skeletons in folder/bucket named from parameters used")
@@ -29,17 +28,17 @@ class SkeletonModule(argschema.ArgSchemaParser):
         cv = cloudvolume.CloudVolume(self.args['cloudpath'])
         if self.args['param_name_skeletons']:
             info = copy.copy(cv.info)
-            skel_folder_str='skeletons_{}_{}_{}_{}_{}'
-            info['skeletons']=skel_folder_str.format(*self.args['teasar_params'].values())
+            skel_folder_str='skeletons'+'_{}'*len(self.args['teasar_params'].keys())
+            info['skeletons']=skel_folder_str.format(*[v for k,v in sorted(self.args['teasar_params'].items(), key=lambda x: x[0])])
         else:
             info = None
         with LocalTaskQueue(parallel=self.args['n_threads']) as tq:
-            tc.create_skeletonizing_tasks(tq,
-                                            self.args['cloudpath'],
-                                            mip=self.args['mip'],
-                                            shape=tuple(self.args['chunk_shape']),
-                                            teasar_params=self.args['teasar_params'],
-                                            info=info)
+             tc.create_skeletonizing_tasks(tq,
+                                             self.args['cloudpath'],
+                                             mip=self.args['mip'],
+                                             shape=tuple(self.args['chunk_shape']),
+                                             teasar_params=self.args['teasar_params'],
+                                             info=info)
 
 
 example_parameters = {

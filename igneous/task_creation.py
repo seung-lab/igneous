@@ -196,8 +196,8 @@ def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 5
   crop_zone = 25
   will_postprocess = True
 
-  if np.all(vol.bounds.size3() == shape):
-    incr = shape
+  if np.all(vol.bounds.size3() <= shape):
+    incr = vol.bounds.size3()
     crop_zone = 0
     will_postprocess = False
 

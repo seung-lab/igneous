@@ -209,7 +209,7 @@ def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 5
       offset=startpt.clone(),
       mip=mip,
       teasar_params=teasar_params,
-      crop_zone=0,
+      crop_zone=crop_zone,
       will_postprocess=will_postprocess,
     )
     task_queue.insert(task)

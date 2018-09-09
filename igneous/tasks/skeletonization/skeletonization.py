@@ -66,17 +66,35 @@ def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
   # 5000 is chosen to allow skeleton segments to be up to 3000 voxels
   # long without exceeding floating point precision.
 
+  # IMPLEMENTATION NOTE: 
+  # Appearently repeated *= is much faster than "** f(16)" 
+  # 12,740.0 microseconds vs 5 x 560 = 2,800 microseconds (4.55x)
+
+  # More clearly written:
+  # PDRF = 5000 * ((1 - DBF * M) ** 16)
+
+  DBF[DBF == 0] = np.inf
   f = lambda x: np.float32(x)
-  DAF += f(5000) * ((f(1) - (DBF * M)) ** f(16)) # += saves memory 
-  PDRF = DAF
+  PDRF = (f(1) - (DBF * M)) # ^0
+  PDRF *= PDRF # ^1
+  PDRF *= PDRF # ^2
+  PDRF *= PDRF # ^4
+  PDRF *= PDRF # ^8
+  PDRF *= PDRF # ^16
+  PDRF *= f(5000)
+  PDRF += DAF
+  del DAF
+
+  # save_images(PDRF, directory='./saved_images/PDRF')
 
   paths = []
   valid_labels = np.count_nonzero(labels)
-  
+    
   # Use dijkstra propogation w/o a target to generate a field of
   # pointers from each voxel to its parent. Then we can rapidly
   # compute multiple paths by simply hopping pointers using path_from_parents
-  parents = igneous.dijkstra.parental_field(np.asfortranarray(PDRF), root)
+  parents = igneous.dijkstra.parental_field(
+    np.asfortranarray(PDRF), root, anisotropy=anisotropy)
 
   invalid_vertices = {}
 

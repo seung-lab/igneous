@@ -51,6 +51,7 @@ cdef extern from "dijkstra3d.hpp" namespace "dijkstra":
   cdef uint32_t* parental_field3d[T](
     T* field, 
     int sx, int sy, int sz, 
+    float wx, float wy, float wz,
     int source
   )
   cdef float* euclidean_distance_field3d(
@@ -168,7 +169,7 @@ def path_from_parents(parents, target):
   numpy_path = np.frombuffer(buf, dtype=np.uint32)[::-1]
   return _path_to_point_cloud(numpy_path, 3, sy, sx)
 
-def parental_field(data, source):
+def parental_field(data, source, anisotropy=(1,1,1)):
   """
   Use dijkstra's shortest path algorithm
   on a 3D image grid to generate field of
@@ -181,6 +182,8 @@ def parental_field(data, source):
   Parameters:
    data: Input weights in a 2D or 3D numpy array. 
    source: (x,y,z) coordinate of starting voxel
+   anisotropy: (wx,wy,wz) weights for each axial \
+   dimension
   
   Returns: 2D or 3D numpy array with each index
     containing the index of its parent. The root
@@ -201,7 +204,7 @@ def parental_field(data, source):
 
   _validate_coord(data, source)
 
-  field = _execute_parental_field(data, source)
+  field = _execute_parental_field(data, source, anisotropy)
   if dims < 3:
     field = np.squeeze(field, axis=2)
   if dims < 2:
@@ -432,7 +435,7 @@ def _execute_distance_field(data, source):
   return np.frombuffer(buf, dtype=np.float32).reshape(data.shape, order='F')
 
 
-def _execute_parental_field(data, source):
+def _execute_parental_field(data, source, anisotropy):
   cdef uint8_t[:,:,:] arr_memview8
   cdef uint16_t[:,:,:] arr_memview16
   cdef uint32_t[:,:,:] arr_memview32
@@ -443,6 +446,9 @@ def _execute_parental_field(data, source):
   cdef int sx = data.shape[0]
   cdef int sy = data.shape[1]
   cdef int sz = data.shape[2]
+
+  cdef float wx, wy, wz 
+  (wx, wy, wz) = anisotropy
 
   cdef int src = source[0] + sx * (source[1] + sy * source[2])
 
@@ -455,6 +461,7 @@ def _execute_parental_field(data, source):
     parents = parental_field3d[float](
       &arr_memviewfloat[0,0,0],
       sx, sy, sz,
+      wx, wy, wz,
       src
     )
   elif dtype == np.float64:
@@ -462,6 +469,7 @@ def _execute_parental_field(data, source):
     parents = parental_field3d[double](
       &arr_memviewdouble[0,0,0],
       sx, sy, sz,
+      wx, wy, wz,
       src
     )
   elif dtype in (np.int64, np.uint64):
@@ -469,6 +477,7 @@ def _execute_parental_field(data, source):
     parents = parental_field3d[uint64_t](
       &arr_memview64[0,0,0],
       sx, sy, sz,
+      wx, wy, wz,
       src
     )
   elif dtype in (np.uint32, np.int32):
@@ -476,6 +485,7 @@ def _execute_parental_field(data, source):
     parents = parental_field3d[uint32_t](
       &arr_memview32[0,0,0],
       sx, sy, sz,
+      wx, wy, wz,
       src
     )
   elif dtype in (np.int16, np.uint16):
@@ -483,6 +493,7 @@ def _execute_parental_field(data, source):
     parents = parental_field3d[uint16_t](
       &arr_memview16[0,0,0],
       sx, sy, sz,
+      wx, wy, wz,
       src
     )
   elif dtype in (np.int8, np.uint8, np.bool):
@@ -490,6 +501,7 @@ def _execute_parental_field(data, source):
     parents = parental_field3d[uint8_t](
       &arr_memview8[0,0,0],
       sx, sy, sz,
+      wx, wy, wz,
       src
     )
   else:

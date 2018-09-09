@@ -18,7 +18,7 @@ from .definitions import Skeleton, path2edge
 
 from cloudvolume.lib import save_images, mkdir
 
-def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
+def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
   """
   Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
   convert it into a skeleton with scale and const TEASAR parameters. 
@@ -39,7 +39,6 @@ def TEASAR(DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
 
   Returns: Skeleton object
   """
-  labels = (DBF != 0).astype(np.bool)  
   any_voxel = igneous.skeletontricks.first_label(labels)   
   dbf_max = np.max(DBF)
 

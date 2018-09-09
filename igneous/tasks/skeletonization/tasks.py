@@ -94,12 +94,11 @@ class SkeletonTask(RegisteredTask):
         labels = cc_labels[slices]
         labels = (labels == segid)
         dbf = labels * all_dbf[slices]
-        del labels
 
         roi = Bbox.from_slices(slices)
         roi += bbox.minpt 
 
-        skeleton = self.skeletonize(dbf, roi, anisotropy=vol.resolution.tolist())
+        skeleton = self.skeletonize(labels, dbf, roi, anisotropy=vol.resolution.tolist())
 
         if skeleton.empty():
           continue
@@ -115,15 +114,16 @@ class SkeletonTask(RegisteredTask):
           skeleton.nodes[:] *= vol.resolution
           vol.skeleton.upload(remapping[segid], skeleton.nodes, skeleton.edges, skeleton.radii)
 
-  def skeletonize(self, dbf, bbox, anisotropy):
-    skeleton = TEASAR(dbf, self.teasar_params[0], self.teasar_params[1], anisotropy)
+  def skeletonize(self, labels, dbf, bbox, anisotropy):
+    skeleton = TEASAR(
+      labels, dbf, 
+      self.teasar_params[0], self.teasar_params[1], 
+      anisotropy
+    )
 
     skeleton.nodes[:,0] += bbox.minpt.x
     skeleton.nodes[:,1] += bbox.minpt.y
     skeleton.nodes[:,2] += bbox.minpt.z
-
-    if not self.will_postprocess:
-      return skeleton
 
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()

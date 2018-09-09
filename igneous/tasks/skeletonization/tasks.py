@@ -13,7 +13,7 @@ import numpy as np
 import scipy.ndimage
 from tqdm import tqdm
 
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, PrecomputedSkeleton
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
 
@@ -59,15 +59,14 @@ class SkeletonTask(RegisteredTask):
     self.will_postprocess = will_postprocess
 
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True)
+    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     all_labels = vol[ bbox.to_slices() ]
     all_labels = all_labels[:,:,:,0]
 
     tmp_labels, remapping = fastremap.renumber(all_labels)
-    cc_labels = cc3d.connected_components(tmp_labels, max_labels=30e6)
-
+    cc_labels = cc3d.connected_components(tmp_labels, max_labels=int(bbox.volume() / 4))
     del tmp_labels
     remapping = igneous.skeletontricks.get_mapping(all_labels, cc_labels)
     del all_labels
@@ -75,44 +74,58 @@ class SkeletonTask(RegisteredTask):
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
-    all_dbf = edt.edt(np.ascontiguousarray(cc_labels), anisotropy=vol.resolution.tolist())
+    all_dbf = edt.edt(
+      np.ascontiguousarray(cc_labels), 
+      anisotropy=vol.resolution.tolist(),
+      black_border=False,
+    )
+    
     cc_segids, pxct = np.unique(cc_labels, return_counts=True)
     cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]
 
     all_slices = scipy.ndimage.find_objects(cc_labels)
 
-    with Storage(path) as stor:
-      for segid in tqdm(cc_segids):
-        if segid == 0:
-          continue 
+    skeletons = []
+    for segid in tqdm(cc_segids):
+      if segid == 0:
+        continue 
 
-        # Crop DBF to ROI
-        slices = all_slices[segid - 1]
-        if slices is None:
-          continue
+      # Crop DBF to ROI
+      slices = all_slices[segid - 1]
+      if slices is None:
+        continue
 
-        labels = cc_labels[slices]
-        labels = (labels == segid)
-        dbf = labels * all_dbf[slices]
+      labels = cc_labels[slices]
+      labels = (labels == segid)
+      dbf = labels * all_dbf[slices]
 
-        roi = Bbox.from_slices(slices)
-        roi += bbox.minpt 
+      roi = Bbox.from_slices(slices)
+      roi += bbox.minpt 
 
-        skeleton = self.skeletonize(labels, dbf, roi, anisotropy=vol.resolution.tolist())
+      skeleton = self.skeletonize(labels, dbf, roi, anisotropy=vol.resolution.tolist())
 
-        if skeleton.empty():
-          continue
+      if skeleton.empty():
+        continue
 
-        if self.will_postprocess:
-          stor.put_file(
-            file_path="{}:skel:{}".format(remapping[segid], bbox.to_filename()),
-            content=pickle.dumps(skeleton),
-            compress='gzip',
-            content_type="application/python-pickle",
-          )
-        else:
-          skeleton.nodes[:] *= vol.resolution
-          vol.skeleton.upload(remapping[segid], skeleton.nodes, skeleton.edges, skeleton.radii)
+      skeleton = PrecomputedSkeleton(
+        skeleton.nodes, skeleton.edges, skeleton.radii, 
+        segid=remapping[segid]
+      )
+      skeleton.vertices *= vol.resolution
+      skeletons.append(skeleton)
+
+    # with Storage(path, progress=True) as stor:
+    #   for segid, skeleton in skeletons:
+    #     if self.will_postprocess:
+    #       stor.put_file(
+    #         file_path="{}:skel:{}".format(remapping[segid], bbox.to_filename()),
+    #         content=pickle.dumps(skeleton),
+    #         compress='gzip',
+    #         content_type="application/python-pickle",
+    #       )
+      
+    vol.skeleton.upload_multiple(skeletons)
+      
 
   def skeletonize(self, labels, dbf, bbox, anisotropy):
     skeleton = TEASAR(

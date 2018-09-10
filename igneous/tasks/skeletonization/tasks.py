@@ -49,7 +49,7 @@ class SkeletonTask(RegisteredTask):
   Convert chunks of segmentation into chunked skeletons and point clouds.
   They will be merged in the stage 2 task SkeletonMergeTask.
   """
-  def __init__(self, cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess):
+  def __init__(self, cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess, info=None):
     super(SkeletonTask, self).__init__(cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess)
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
@@ -57,9 +57,9 @@ class SkeletonTask(RegisteredTask):
     self.teasar_params = teasar_params
     self.crop_zone = crop_zone
     self.will_postprocess = will_postprocess
-
+    self.cloudinfo = info
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, cdn_cache=False)
+    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, info=self.cloudinfo, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     all_labels = vol[ bbox.to_slices() ]
@@ -139,11 +139,7 @@ class SkeletonTask(RegisteredTask):
 
 
   def skeletonize(self, labels, dbf, bbox, anisotropy):
-    skeleton = TEASAR(
-      labels, dbf, 
-      self.teasar_params[0], self.teasar_params[1], 
-      anisotropy
-    )
+    skeleton = TEASAR(labels, dbf, anisotropy=anisotropy, **self.teasar_params)
 
     skeleton.nodes[:,0] += bbox.minpt.x
     skeleton.nodes[:,1] += bbox.minpt.y

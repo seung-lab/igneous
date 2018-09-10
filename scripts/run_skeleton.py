@@ -6,7 +6,7 @@ import argschema
 import marshmallow as mm
 
 class TeasarParams(argschema.schemas.DefaultSchema):
-    dbf_exponent = argschema.fields.Int(required=False, default=16)
+    dbf_exponent = argschema.fields.Int(required=False, validate= mm.validate.OneOf([1,2,4,8,16,32,64,128]), default=16)
     dbf_scale = argschema.fields.Int(required=False, default=5000, description="scaling factor in front of modified dbf to weight against euclidean distance")
     scale = argschema.fields.Int(required=False, default=10, description="factor to multiply DBF when doing rolling ball elimination")
     const = argschema.fields.Int(required=False, default=25, description="offset to add to dbf*scale during rolling ball elimination")

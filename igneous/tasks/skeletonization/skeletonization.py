@@ -39,14 +39,19 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
 
   Returns: Skeleton object
   """
-  any_voxel = igneous.skeletontricks.first_label(labels)   
   dbf_max = np.max(DBF)
 
   # > 5000 nm, gonna be a soma or blood vessel
-  if any_voxel is None or dbf_max > max_boundary_distance: 
+  if dbf_max > max_boundary_distance:
+    somata_coords = np.unravel_index(np.argmax(DBF), DBF.shape)
+    invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
+      labels, DBF, [ somata_coords ], scale=1, const=0, 
+      anisotropy=anisotropy
+    )
+    
+  any_voxel = igneous.skeletontricks.first_label(labels)   
+  if any_voxel is None: 
     return Skeleton()
-
-  M = 1 / (dbf_max ** 1.01)
 
   # "4.4 DAF:  Compute distance from any voxel field"
   # Compute DAF, but we immediately convert to the PDRF
@@ -74,7 +79,8 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
 
   DBF[DBF == 0] = np.inf
   f = lambda x: np.float32(x)
-  PDRF = (f(1) - (DBF * M)) # ^1
+  M = 1 / (dbf_max ** 1.01)
+  PDRF = (f(1) - (DBF * f(M))) # ^1
   PDRF *= PDRF # ^2
   PDRF *= PDRF # ^4
   PDRF *= PDRF # ^8

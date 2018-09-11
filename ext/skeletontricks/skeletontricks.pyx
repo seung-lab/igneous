@@ -27,13 +27,6 @@ from collections import defaultdict
 cdef extern from "math.h":
   float INFINITY
 
-cdef extern from "skeletontricks.hpp" namespace "skeletontricks":
-  cdef int _find_target_in_shape(
-    uint8_t* labels, uint8_t* eroded_labels, float* field,
-    int sx, const int sy, const int sz, 
-    int source
-  )
-
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 @cython.nonecheck(False)
@@ -52,33 +45,6 @@ def first_label(cnp.ndarray[uint8_t, cast=True, ndim=3] labels):
           return (x,y,z)
 
   return None
-
-# THIS IS STILL BUGGY
-# def find_target_in_shape(
-#     cnp.ndarray[cnp.uint8_t, cast=True, ndim=3] labels, 
-#     cnp.ndarray[cnp.uint8_t, cast=True, ndim=3] eroded_labels, 
-#     cnp.ndarray[float, ndim=3] field,
-#     coord
-#   ):
-  
-#   cdef uint8_t[:,:,:] labelview = labels
-#   cdef uint8_t[:,:,:] eroded_labelview = eroded_labels
-#   cdef float[:,:,:] fieldview = field 
-
-#   cdef int sx, sy, sz 
-#   sx = labels.shape[0]
-#   sy = labels.shape[1]
-#   sz = labels.shape[2]
-
-#   cdef int source = coord[0] + sx * (coord[1] + sy * coord[2])
-
-#   cdef int maxlocation = _find_target_in_shape(
-#     &labelview[0,0,0], &eroded_labels[0,0,0], &fieldview[0,0,0],
-#     sx, sy, sz,
-#     source
-#   )
-
-#   return np.unravel_index(maxlocation, (sx, sy, sz))
 
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
@@ -163,7 +129,7 @@ def roll_invalidation_ball(
           if not labels[x,y,z]:
             continue 
 
-          dist = (wx * (x - x0)) ** 2 + (wy * (y - y0)) ** 2 + (wz * (z - z0)) ** 2
+          dist = (wx * (x - x0))  + (wy * (y - y0)) ** 2 + (wz * (z - z0)) ** 2
           if dist <= radius:
             invalidated += 1
             labels[x,y,z] = 0

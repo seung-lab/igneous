@@ -79,14 +79,14 @@ class SkeletonTask(RegisteredTask):
       anisotropy=vol.resolution.tolist(),
       black_border=False,
     )
-    
+
     cc_segids, pxct = np.unique(cc_labels, return_counts=True)
     cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]
 
     all_slices = scipy.ndimage.find_objects(cc_labels)
 
     i = 0
-    skeletons = []
+    skeletons, rois = [], []
     for segid in tqdm(cc_segids):
       if segid == 0:
         continue 
@@ -114,24 +114,29 @@ class SkeletonTask(RegisteredTask):
       )
       skeleton.vertices *= vol.resolution
       skeletons.append(skeleton)
+      rois.append(roi)
 
       i += 1
       if i % 1000 == 0:
-        vol.skeleton.upload_multiple(skeletons)
-        skeletons = []
+        self.upload(vol, skeletons, rois)
+        skeletons, rois = [], []
+      
+    self.upload(vol, skeletons, rois)
+      
+  def upload(self, vol, skeletons, rois):
+    if not self.will_postprocess:
+      vol.skeleton.upload_multiple(skeletons)
+      return
 
-    # with Storage(path, progress=True) as stor:
-    #   for segid, skeleton in skeletons:
-    #     if self.will_postprocess:
-    #       stor.put_file(
-    #         file_path="{}:skel:{}".format(remapping[segid], bbox.to_filename()),
-    #         content=pickle.dumps(skeleton),
-    #         compress='gzip',
-    #         content_type="application/python-pickle",
-    #       )
-      
-    vol.skeleton.upload_multiple(skeletons)
-      
+    with Storage(path, progress=True) as stor:
+      for skeleton, roi in zip(skeletons, rois):
+        stor.put_file(
+          file_path="{}:{}".format(skeleton.id, roi.to_filename()),
+          content=pickle.dumps(skeleton),
+          compress='gzip',
+          content_type="application/python-pickle",
+        )
+
 
   def skeletonize(self, labels, dbf, bbox, anisotropy):
     skeleton = TEASAR(
@@ -158,7 +163,7 @@ class SkeletonMergeTask(RegisteredTask):
   """
   Stage 2 of skeletonization.
 
-  Combine point cloud chunks into a single unified point cloud.
+  Merge chunked TEASAR skeletons into a single skeleton.
 
   If we parallelize using prefixes single digit prefixes ['0','1',..'9'] all meshes will
   be correctly processed. But if we do ['10','11',..'99'] meshes from [0,9] won't get
@@ -173,27 +178,6 @@ class SkeletonMergeTask(RegisteredTask):
   def execute(self):
     self.vol = CloudVolume(self.cloudpath)
 
-    with Storage(self.cloudpath) as storage:
-      self.agglomerate(storage)
-
-  def get_filenames_subset(self, storage):
-    prefix = '{}/{}'.format(self.vol.skeleton.path, self.prefix)
-    skeletons = defaultdict(list)
-
-    for filename in storage.list_files(prefix=prefix):
-      # `match` implies the beginning (^). `search` matches whole string
-      matches = re.search(r'(\d+):skel:', filename)
-
-      if not matches:
-        continue
-
-      segid, = matches.groups()
-      segid = int(segid)
-      skeletons[segid].append(filename)
-
-    return skeletons
-
-  def agglomerate(self, stor):
     skels = self.get_filenames_subset(stor)
 
     vol = self.vol
@@ -205,17 +189,26 @@ class SkeletonMergeTask(RegisteredTask):
 
       vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges, skeleton.radii)
 
-      # Used for recomputing point clouds
-      stor.put_json(
-        file_path="{}/{}.json".format(vol.skeleton.path, segid),
-        content={ "fragments": [ os.path.basename(fname) for fname in frags ] },
-        cache_control="no-cache",
-      )
+    with Storage(self.cloudpath) as stor:
+      for segid, frags in skels.items():
+        stor.delete_files(frags)
 
-    stor.wait()
+  def get_filenames_subset(self, storage):
+    prefix = '{}/{}'.format(self.vol.skeleton.path, self.prefix)
+    skeletons = defaultdict(list)
 
-    for segid, frags in skels.items():
-      stor.delete_files(frags)
+    for filename in storage.list_files(prefix=prefix):
+      # `match` implies the beginning (^). `search` matches whole string
+      matches = re.search(r'(\d+):', filename)
+
+      if not matches:
+        continue
+
+      segid, = matches.groups()
+      segid = int(segid)
+      skeletons[segid].append(filename)
+
+    return skeletons
 
   def get_point_cloud(self, vol, segid, frags):
     ptcloud = np.array([], dtype=np.uint16).reshape(0, 3)

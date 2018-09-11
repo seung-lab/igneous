@@ -85,6 +85,7 @@ class SkeletonTask(RegisteredTask):
 
     all_slices = scipy.ndimage.find_objects(cc_labels)
 
+    i = 0
     skeletons = []
     for segid in tqdm(cc_segids):
       if segid == 0:
@@ -113,6 +114,11 @@ class SkeletonTask(RegisteredTask):
       )
       skeleton.vertices *= vol.resolution
       skeletons.append(skeleton)
+
+      i += 1
+      if i % 1000 == 0:
+        vol.skeleton.upload_multiple(skeletons)
+        skeletons = []
 
     # with Storage(path, progress=True) as stor:
     #   for segid, skeleton in skeletons:

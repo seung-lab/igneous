@@ -67,7 +67,7 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
 
   # IMPLEMENTATION NOTE: 
   # Appearently repeated *= is much faster than "** f(16)" 
-  # 12,740.0 microseconds vs 4 x 560 = 2,240 microseconds (4.55x)
+  # 12,740.0 microseconds vs 4 x 560 = 2,240 microseconds (5.69x)
 
   # More clearly written:
   # PDRF = 5000 * ((1 - DBF * M) ** 16)
@@ -80,10 +80,8 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
   PDRF *= PDRF # ^8
   PDRF *= PDRF # ^16
   PDRF *= f(5000)
-  PDRF += DAF
+  PDRF += DAF  
   del DAF
-
-  # save_images(PDRF, directory='./saved_images/PDRF')
 
   paths = []
   valid_labels = np.count_nonzero(labels)
@@ -91,8 +89,7 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
   # Use dijkstra propogation w/o a target to generate a field of
   # pointers from each voxel to its parent. Then we can rapidly
   # compute multiple paths by simply hopping pointers using path_from_parents
-  parents = igneous.dijkstra.parental_field(
-    np.asfortranarray(PDRF), root, anisotropy=anisotropy)
+  parents = igneous.dijkstra.parental_field(np.asfortranarray(PDRF), root)
 
   invalid_vertices = {}
 

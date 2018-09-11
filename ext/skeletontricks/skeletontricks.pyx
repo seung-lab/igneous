@@ -85,8 +85,7 @@ def find_target(
 def roll_invalidation_ball(
     cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
     cnp.ndarray[float, ndim=3] DBF, 
-    cnp.ndarray[uint32_t, ndim=2] path, 
-    float scale, float const,
+    path, float scale, float const,
     anisotropy=(1,1,1),
     invalid_vertices={},
   ):
@@ -129,7 +128,7 @@ def roll_invalidation_ball(
           if not labels[x,y,z]:
             continue 
 
-          dist = (wx * (x - x0))  + (wy * (y - y0)) ** 2 + (wz * (z - z0)) ** 2
+          dist = (wx * (x - x0)) ** 2 + (wy * (y - y0)) ** 2 + (wz * (z - z0)) ** 2
           if dist <= radius:
             invalidated += 1
             labels[x,y,z] = 0

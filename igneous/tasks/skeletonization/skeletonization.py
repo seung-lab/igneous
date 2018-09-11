@@ -67,15 +67,14 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
 
   # IMPLEMENTATION NOTE: 
   # Appearently repeated *= is much faster than "** f(16)" 
-  # 12,740.0 microseconds vs 5 x 560 = 2,800 microseconds (4.55x)
+  # 12,740.0 microseconds vs 4 x 560 = 2,240 microseconds (4.55x)
 
   # More clearly written:
   # PDRF = 5000 * ((1 - DBF * M) ** 16)
 
   DBF[DBF == 0] = np.inf
   f = lambda x: np.float32(x)
-  PDRF = (f(1) - (DBF * M)) # ^0
-  PDRF *= PDRF # ^1
+  PDRF = (f(1) - (DBF * M)) # ^1
   PDRF *= PDRF # ^2
   PDRF *= PDRF # ^4
   PDRF *= PDRF # ^8

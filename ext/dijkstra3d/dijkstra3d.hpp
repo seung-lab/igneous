@@ -271,7 +271,6 @@ template <typename T>
 uint32_t* parental_field3d(
     T* field, 
     const size_t sx, const size_t sy, const size_t sz, 
-    const float wx, const float wy, const float wz, 
     const size_t source
   ) {
 
@@ -289,19 +288,6 @@ uint32_t* parental_field3d(
 
   int neighborhood[NHOOD_SIZE];
 
-  float neighbor_multiplier[NHOOD_SIZE] = { 
-    wx, wx, wy, wy, wz, wz, // axial directions (6)
-    
-    // square diagonals (12)
-    _s(wx, wy), _s(wx, wy), _s(wx, wy), _s(wx, wy),  
-    _s(wy, wz), _s(wy, wz), _s(wy, wz), _s(wy, wz),
-    _s(wx, wz), _s(wx, wz), _s(wx, wz), _s(wx, wz),
-
-    // cube diagonals (8)
-    _c(wx, wy, wz), _c(wx, wy, wz), _c(wx, wy, wz), _c(wx, wy, wz), 
-    _c(wx, wy, wz), _c(wx, wy, wz), _c(wx, wy, wz), _c(wx, wy, wz)
-  };
-
   std::priority_queue<HeapNode, std::vector<HeapNode>, HeapNodeCompare> queue;
   queue.emplace(0.0, source);
 
@@ -314,6 +300,10 @@ uint32_t* parental_field3d(
   while (!queue.empty()) {
     loc = queue.top().value;
     queue.pop();
+
+    if (std::signbit(dist[loc])) {
+      continue;
+    }
 
     if (power_of_two) {
       z = loc >> (xshift + yshift);
@@ -329,20 +319,17 @@ uint32_t* parental_field3d(
     compute_neighborhood(neighborhood, loc, x, y, z, sx, sy, sz);
 
     for (int i = 0; i < NHOOD_SIZE; i++) {
-      if (neighborhood[i] == 0 || std::signbit(dist[loc])) {
+      if (neighborhood[i] == 0) {
         continue;
       }
 
       neighboridx = loc + neighborhood[i];
-      delta = (float)field[neighboridx] * neighbor_multiplier[i];
+      delta = (float)field[neighboridx];
 
       // Visited nodes are negative and thus the current node
       // will always be less than as field is filled with non-negative
       // integers.
-      if (delta == INFINITY || std::signbit(dist[neighboridx])) {
-        continue;
-      }
-      else if (dist[loc] + delta < dist[neighboridx]) { 
+      if (dist[loc] + delta < dist[neighboridx]) { 
         dist[neighboridx] = dist[loc] + delta;
         parents[neighboridx] = loc + 1; // +1 to avoid 0 ambiguity
         queue.emplace(dist[neighboridx], neighboridx);

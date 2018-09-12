@@ -54,23 +54,24 @@ def TEASAR(
 
   # > 5000 nm, gonna be a soma or blood vessel
   if dbf_max > max_boundary_distance:
-    somata_coords = np.unravel_index(np.argmax(DBF), DBF.shape)
+    root = np.unravel_index(np.argmax(DBF), DBF.shape)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, [ somata_coords ], scale=1, const=0, 
+      labels, DBF, [ root ], scale=1, const=0, 
       anisotropy=anisotropy
     )
-    
-  any_voxel = igneous.skeletontricks.first_label(labels)   
-  if any_voxel is None: 
-    return Skeleton()
+  else:
+    any_voxel = igneous.skeletontricks.first_label(labels)   
+    if any_voxel is None: 
+      return Skeleton()
 
-  # "4.4 DAF:  Compute distance from any voxel field"
-  # Compute DAF, but we immediately convert to the PDRF
-  # The extremal point of the PDRF is a valid root node
-  # even if the DAF is computed from an arbitrary pixel.
-  DAF = igneous.dijkstra.euclidean_distance_field(
-    np.asfortranarray(labels), any_voxel, anisotropy=anisotropy)
-  root = igneous.skeletontricks.find_target(labels, DAF)
+    # "4.4 DAF:  Compute distance from any voxel field"
+    # Compute DAF, but we immediately convert to the PDRF
+    # The extremal point of the PDRF is a valid root node
+    # even if the DAF is computed from an arbitrary pixel.
+    DAF = igneous.dijkstra.euclidean_distance_field(
+      np.asfortranarray(labels), any_voxel, anisotropy=anisotropy)
+    root = igneous.skeletontricks.find_target(labels, DAF)
+  
   DAF = igneous.dijkstra.euclidean_distance_field(
     np.asfortranarray(labels), root, anisotropy=anisotropy)
 

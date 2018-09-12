@@ -135,7 +135,7 @@ def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
   12,740.0 microseconds vs 4 x 560 = 2,240 microseconds (5.69x)
 
   More clearly written:
-  PDRF = 5000 * ((1 - DBF * M) ** 16)
+  PDRF = DAF + 5000 * ((1 - DBF * M) ** 16)
   """
   f = lambda x: np.float32(x)
   M = f( 1 / (dbf_max ** 1.01) )

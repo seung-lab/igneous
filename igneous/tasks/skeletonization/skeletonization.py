@@ -15,8 +15,11 @@ import igneous.dijkstra
 import igneous.skeletontricks
 
 from .definitions import Skeleton, path2edge
-
+from math import log
 from cloudvolume.lib import save_images, mkdir
+
+def check_kth_power(n, k):
+    return log(n, k) % 1 == 0
 
 def TEASAR(labels, DBF, scale=10, const=10, anisotropy=(1,1,1), max_boundary_distance=5000, pdrf_scale = 5000, pdrf_exponent=16 ):
   """
@@ -82,9 +85,17 @@ def TEASAR(labels, DBF, scale=10, const=10, anisotropy=(1,1,1), max_boundary_dis
 
   DBF[DBF == 0] = np.inf
   f = lambda x: np.float32(x)
-  PDRF = (f(1) - (DBF * M)) # ^0
-  for k in range(int(np.log2(pdrf_exponent))):
-    PDRF *= PDRF # ^dbf_exponent
+  M = 1 / (dbf_max ** 1.01)
+ 
+  pdrf_exponent_lg2 = log(pdrf_exponent,2)
+
+  # if pdrf_exponent is small enough and a perfect factor of 2, use iterative multiplication
+  if ((pdrf_exponent_lg2<50000) & ((pdrf_exponent_lg2 % 1) == 0)): 
+    PDRF = (f(1) - (DBF * M)) # ^0
+    for k in range(pdrf_exponent_lg2):
+      PDRF *= PDRF # ^dbf_exponent
+  else: # otherwise fall back to regular exponent
+    PDRF =  (f(1) - (DBF * M))**pdrf_exponent
   PDRF *= f(pdrf_scale)
   PDRF += DAF
   del DAF

@@ -58,6 +58,7 @@ class SkeletonTask(RegisteredTask):
     self.crop_zone = crop_zone
     self.will_postprocess = will_postprocess
     self.cloudinfo = info
+
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, info=self.cloudinfo, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
@@ -118,12 +119,12 @@ class SkeletonTask(RegisteredTask):
 
       i += 1
       if i % 1000 == 0:
-        self.upload(vol, skeletons, rois)
+        self.upload(vol, path, skeletons, rois)
         skeletons, rois = [], []
       
-    self.upload(vol, skeletons, rois)
+    self.upload(vol, path, skeletons, rois)
       
-  def upload(self, vol, skeletons, rois):
+  def upload(self, vol, path, skeletons, rois):
     if not self.will_postprocess:
       vol.skeleton.upload_multiple(skeletons)
       return

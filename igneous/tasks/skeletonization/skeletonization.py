@@ -18,9 +18,6 @@ from .definitions import Skeleton, path2edge
 from math import log
 from cloudvolume.lib import save_images, mkdir
 
-def is_power_of_two(num):
-  return num != 0 and ((num & (num - 1)) == 0)
-
 def TEASAR(
     labels, DBF, 
     scale=10, const=10, anisotropy=(1,1,1), 
@@ -53,55 +50,25 @@ def TEASAR(
   dbf_max = np.max(DBF)
 
   # > 5000 nm, gonna be a soma or blood vessel
+  # For somata: specially handle the root by 
+  # placing it at the approximate center of the soma
   if dbf_max > max_boundary_distance:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, [ root ], scale=1, const=0, 
+      labels, DBF, [ root ], scale=0.5, const=0, 
       anisotropy=anisotropy
     )
   else:
-    any_voxel = igneous.skeletontricks.first_label(labels)   
-    if any_voxel is None: 
-      return Skeleton()
+    root = find_root(labels, anisotropy)
 
-    # "4.4 DAF:  Compute distance from any voxel field"
-    # Compute DAF, but we immediately convert to the PDRF
-    # The extremal point of the PDRF is a valid root node
-    # even if the DAF is computed from an arbitrary pixel.
-    DAF = igneous.dijkstra.euclidean_distance_field(
-      np.asfortranarray(labels), any_voxel, anisotropy=anisotropy)
-    root = igneous.skeletontricks.find_target(labels, DAF)
+  if root is None:
+    return Skeleton()
   
   DAF = igneous.dijkstra.euclidean_distance_field(
     np.asfortranarray(labels), root, anisotropy=anisotropy)
 
-  # Add p(v) to the DAF (pp. 4, section 4.5)
-  # "4.5 PDRF: Compute penalized distance from root voxel field"
-  # Let M > max(DBF)
-  # p(v) = 5000 * (1 - DBF(v) / M)^16
-  # 5000 is chosen to allow skeleton segments to be up to 3000 voxels
-  # long without exceeding floating point precision.
-
-  # IMPLEMENTATION NOTE: 
-  # Appearently repeated *= is much faster than "** f(16)" 
-  # 12,740.0 microseconds vs 4 x 560 = 2,240 microseconds (5.69x)
-
-  # More clearly written:
-  # PDRF = 5000 * ((1 - DBF * M) ** 16)
-
   DBF[DBF == 0] = np.inf
-  f = lambda x: np.float32(x)
-  M = f( 1 / (dbf_max ** 1.01) )
-
-  if is_power_of_two(pdrf_exponent) and (pdrf_exponent < (2 ** 16)):
-    PDRF = (f(1) - (DBF * M)) # ^1
-    for k in range(int(np.log2(pdrf_exponent))):
-      PDRF *= PDRF # ^pdrf_exponent
-  else: 
-    PDRF = (f(1) - (DBF * M)) ** pdrf_exponent
-
-  PDRF *= f(pdrf_scale)
-  PDRF += DAF
+  PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
   del DAF
 
   paths = []
@@ -136,11 +103,65 @@ def TEASAR(
 
   return Skeleton(skel_verts, skel_edges, skel_radii)
 
+def find_root(labels, anisotropy):
+  """
+  "4.4 DAF:  Compute distance from any voxel field"
+  Compute DAF, but we immediately convert to the PDRF
+  The extremal point of the PDRF is a valid root node
+  even if the DAF is computed from an arbitrary pixel.
+  """
+  any_voxel = igneous.skeletontricks.first_label(labels)   
+  if any_voxel is None: 
+    return None
+
+  DAF = igneous.dijkstra.euclidean_distance_field(
+    np.asfortranarray(labels), any_voxel, anisotropy=anisotropy)
+  return igneous.skeletontricks.find_target(labels, DAF)
+
+def is_power_of_two(num):
+  return num != 0 and ((num & (num - 1)) == 0)
+
+def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
+  """
+  Add p(v) to the DAF (pp. 4, section 4.5)
+  "4.5 PDRF: Compute penalized distance from root voxel field"
+  Let M > max(DBF)
+  p(v) = 5000 * (1 - DBF(v) / M)^16
+  5000 is chosen to allow skeleton segments to be up to 3000 voxels
+  long without exceeding floating point precision.
+
+  IMPLEMENTATION NOTE: 
+  Appearently repeated *= is much faster than "** f(16)" 
+  12,740.0 microseconds vs 4 x 560 = 2,240 microseconds (5.69x)
+
+  More clearly written:
+  PDRF = 5000 * ((1 - DBF * M) ** 16)
+  """
+  f = lambda x: np.float32(x)
+  M = f( 1 / (dbf_max ** 1.01) )
+
+  if is_power_of_two(pdrf_exponent) and (pdrf_exponent < (2 ** 16)):
+    PDRF = (f(1) - (DBF * M)) # ^1
+    for _ in range(int(np.log2(pdrf_exponent))):
+      PDRF *= PDRF # ^pdrf_exponent
+  else: 
+    PDRF = (f(1) - (DBF * M)) ** pdrf_exponent
+
+  PDRF *= f(pdrf_scale)
+  PDRF += DAF
+
+  return PDRF
+
 def path_union(paths):
   """
   Given a set of paths with a common root, attempt to join them
   into a tree at the first common linkage.
   """
+  if len(paths) == 0:
+    npv = np.zeros((0,), dtype=np.uint32)
+    npe = np.zeros((0,), dtype=np.uint32)
+    return npv, npe
+
   tree = defaultdict(set)
   tree_id = {}
   vertices = []

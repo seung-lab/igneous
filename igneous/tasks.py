@@ -223,7 +223,7 @@ class MeshTask(RegisteredTask):
         'max_simplification_error': kwargs.get('max_simplification_error', 40),
         'remap_table': kwargs.get('remap_table', None),
         'generate_manifests': kwargs.get('generate_manifests', False),
-        'low_padding': kwargs.get('low_padding', 1),
+        'low_padding': kwargs.get('low_padding', 0),
         'high_padding': kwargs.get('high_padding', 1)
     }
 

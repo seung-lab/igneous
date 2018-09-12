@@ -88,9 +88,11 @@ def TEASAR(
       anisotropy=anisotropy, invalid_vertices=invalid_vertices,
     )
     valid_labels -= invalidated
-    paths.append(path)
     for vertex in path:
       invalid_vertices[tuple(vertex)] = True
+    path = path[0::5,:]
+    paths.append(path)
+
 
   del invalid_vertices
 

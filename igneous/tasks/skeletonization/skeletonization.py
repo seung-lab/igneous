@@ -18,10 +18,15 @@ from .definitions import Skeleton, path2edge
 from math import log
 from cloudvolume.lib import save_images, mkdir
 
-def check_kth_power(n, k):
-    return log(n, k) % 1 == 0
+def is_power_of_two(num):
+  return num != 0 and ((num & (num - 1)) == 0)
 
-def TEASAR(labels, DBF, scale=10, const=10, anisotropy=(1,1,1), max_boundary_distance=5000, pdrf_scale = 5000, pdrf_exponent=16 ):
+def TEASAR(
+    labels, DBF, 
+    scale=10, const=10, anisotropy=(1,1,1), 
+    max_boundary_distance=5000, 
+    pdrf_scale=5000, pdrf_exponent=16
+  ):
   """
   Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
   convert it into a skeleton with scale and const TEASAR parameters. 
@@ -85,17 +90,15 @@ def TEASAR(labels, DBF, scale=10, const=10, anisotropy=(1,1,1), max_boundary_dis
 
   DBF[DBF == 0] = np.inf
   f = lambda x: np.float32(x)
-  M = 1 / (dbf_max ** 1.01)
- 
-  pdrf_exponent_lg2 = log(pdrf_exponent,2)
+  M = f( 1 / (dbf_max ** 1.01) )
 
-  # if pdrf_exponent is small enough and a perfect factor of 2, use iterative multiplication
-  if ((pdrf_exponent_lg2<50000) & ((pdrf_exponent_lg2 % 1) == 0)): 
-    PDRF = (f(1) - (DBF * M)) # ^0
-    for k in range(pdrf_exponent_lg2):
-      PDRF *= PDRF # ^dbf_exponent
-  else: # otherwise fall back to regular exponent
-    PDRF =  (f(1) - (DBF * M))**pdrf_exponent
+  if is_power_of_two(pdrf_exponent) and (pdrf_exponent < (2 ** 16)):
+    PDRF = (f(1) - (DBF * M)) # ^1
+    for k in range(int(np.log2(pdrf_exponent))):
+      PDRF *= PDRF # ^pdrf_exponent
+  else: 
+    PDRF = (f(1) - (DBF * M)) ** pdrf_exponent
+
   PDRF *= f(pdrf_scale)
   PDRF += DAF
   del DAF

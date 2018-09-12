@@ -18,7 +18,7 @@ from .definitions import Skeleton, path2edge
 
 from cloudvolume.lib import save_images, mkdir
 
-def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=5000):
+def TEASAR(labels, DBF, scale=10, const=10, anisotropy=(1,1,1), max_boundary_distance=5000, dbf_scale = 5000, dbf_exponent=16 ):
   """
   Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
   convert it into a skeleton with scale and const TEASAR parameters. 
@@ -26,9 +26,12 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
   DBF: Result of the euclidean distance transform. Must represent a single label.
   scale: during the "rolling ball" invalidation phase, multiply the DBF value by this.
   const: during the "rolling ball" invalidation phase, this is the minimum radius in voxels.
+  anisotropy: (x,y,z) relative scaling factors for distance
   max_boundary_distance: skip labels that have a DBF maximum value greater than this
     (e.g. for skipping somas). This value should be in nanometers, but if you are using
     this outside its original context it could be voxels.
+  dbf_scale: scale factor in front of dbf, used to weight dbf over euclidean distance (higher to pay more attention to dbf) (default 5000)
+  dbf_exponent: exponent in dbf formula on distance from edge (default 16.. one of 1,2,4,8,16,32..)
 
   Based on the algorithm by:
 
@@ -79,14 +82,11 @@ def TEASAR(labels, DBF, scale, const, anisotropy=(1,1,1), max_boundary_distance=
 
   DBF[DBF == 0] = np.inf
   f = lambda x: np.float32(x)
-  M = 1 / (dbf_max ** 1.01)
-  PDRF = (f(1) - (DBF * f(M))) # ^1
-  PDRF *= PDRF # ^2
-  PDRF *= PDRF # ^4
-  PDRF *= PDRF # ^8
-  PDRF *= PDRF # ^16
-  PDRF *= f(5000)
-  PDRF += DAF  
+  PDRF = (f(1) - (DBF * M)) # ^0
+  for k in range(int(np.log2(dbf_exponent))):
+    PDRF *= PDRF # ^dbf_exponent
+  PDRF *= f(dbf_scale)
+  PDRF += DAF
   del DAF
 
   paths = []

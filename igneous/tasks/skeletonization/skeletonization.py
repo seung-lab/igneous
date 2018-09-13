@@ -32,21 +32,21 @@ def TEASAR(
   convert it into a skeleton with scale and const TEASAR parameters. 
 
   DBF: Result of the euclidean distance transform. Must represent a single label,
-       assumed to be expressed in nm
+       assumed to be expressed in chosen physical units (i.e. nm)
   scale: during the "rolling ball" invalidation phase, multiply the DBF value by this.
-  const: during the "rolling ball" invalidation phase, this is the minimum radius in units of nm.
-  anisotropy: (x,y,z) conversion factor for voxels to nm
+  const: during the "rolling ball" invalidation phase, this is the minimum radius in chosen physical units (i.e. nm).
+  anisotropy: (x,y,z) conversion factor for voxels to chosen physical units (i.e. nm)
   soma_threshold: if object has a DBF value larger than this, 
     root will be placed at largest DBF value and special one time invalidation
     will be run over that root location (see soma_invalidation scale)
-    This value should be in the units of values of the DBF (so nm), but if you are using
-    this outside its original context it could be voxels.
+    expressed in chosen physical units (i.e. nm) 
   pdrf_scale: scale factor in front of dbf, used to weight dbf over euclidean distance (higher to pay more attention to dbf) (default 5000)
   pdrf_exponent: exponent in dbf formula on distance from edge, faster if factor of 2 (default 16)
   soma_invalidation_scale: the 'scale' factor used in the one time soma root invalidation (default .5)
   soma_invalidation_const: the 'const' factor used in the one time soma root invalidation (default 0)
-                           (units in nm)
-  path_downsample: stride length for downsampling the saved skeleton paths (default 5) (units of node points)
+                           (units in chosen physical units (i.e. nm))
+  path_downsample: stride length for downsampling the saved skeleton paths (default 5)
+                    (units of node points)
   
   Based on the algorithm by:
 

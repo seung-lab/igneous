@@ -63,8 +63,8 @@ int _roll_invalidation_cube(
     minz = std::max(0,     (int)(0.5 + (z - (radius / wz))));
     maxz = std::min(sz-1,  (int)(0.5 + (z + (radius / wz))));
 
-    for (int y = miny; y <= maxy; y++) {
-      for (int z = minz; z <= maxz; z++) {
+    for (y = miny; y <= maxy; y++) {
+      for (z = minz; z <= maxz; z++) {
         topology[minx + sx * y + sxy * z] += 1;
         topology[maxx + sx * y + sxy * z] -= 1;
       }

@@ -22,6 +22,8 @@ class CMesher {
   zi::mesh::simplifier<double> simplifier_;
   std::vector<uint32_t> voxelresolution_;
 
+  MeshObject collect_simplified_mesh(bool generate_normals);
+
  public:
   CMesher(const std::vector<uint32_t> &voxelresolution);
   ~CMesher();
@@ -29,4 +31,6 @@ class CMesher {
             unsigned int sz);
   std::vector<uint64_t> ids();
   MeshObject get_mesh(uint64_t id, bool generate_normals, int simplification_factor, int max_error);
+  MeshObject simplify(const MeshObject &obj, int simplification_factor,
+                      int max_error, bool generate_normals);
 };

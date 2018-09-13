@@ -9,6 +9,7 @@ Adapted to include passing of multidimensional arrays
 
 #include <vector>
 #include <zi/mesh/int_mesh.hpp>
+#include <zi/mesh/face_mesh.hpp>
 #include <zi/mesh/quadratic_simplifier.hpp>
 #include <zi/vl/vec.hpp>
 
@@ -20,6 +21,43 @@ CMesher::CMesher(const std::vector<uint32_t> &voxelresolution) {
 }
 
 CMesher::~CMesher() {}
+
+MeshObject CMesher::collect_simplified_mesh(bool generate_normals) {
+  MeshObject obj;
+  std::vector<zi::vl::vec3d> points;
+  std::vector<zi::vl::vec3d> normals;
+  std::vector<zi::vl::vec<unsigned, 3>> faces;
+
+  simplifier_.get_faces(points, normals, faces);
+  obj.points.reserve(3 * points.size());
+  obj.faces.reserve(3 * faces.size());
+
+  if (generate_normals) {
+    obj.normals.reserve(3 * normals.size());
+  }
+
+  for (auto v = points.begin(); v != points.end(); ++v) {
+    obj.points.push_back((*v)[2]);
+    obj.points.push_back((*v)[1]);
+    obj.points.push_back((*v)[0]);
+  }
+
+  if (generate_normals) {
+    for (auto vn = normals.begin(); vn != normals.end(); ++vn) {
+      obj.normals.push_back((*vn)[2]);
+      obj.normals.push_back((*vn)[1]);
+      obj.normals.push_back((*vn)[0]);
+    }
+  }
+
+  for (auto f = faces.begin(); f != faces.end(); ++f) {
+    obj.faces.push_back((*f)[0]);
+    obj.faces.push_back((*f)[2]);
+    obj.faces.push_back((*f)[1]);
+  }
+
+  return obj;
+}
 
 void CMesher::mesh(const std::vector<uint64_t> &data, unsigned int sx,
                   unsigned int sy, unsigned int sz) {
@@ -63,37 +101,46 @@ MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
         max_simplification_error);
   }
 
-  std::vector<zi::vl::vec3d> points;
-  std::vector<zi::vl::vec3d> normals;
-  std::vector<zi::vl::vec<unsigned, 3> > faces;
+  return collect_simplified_mesh(generate_normals);
+}
 
-  simplifier_.get_faces(points, normals, faces);
-  obj.points.reserve(3 * points.size());
-  obj.faces.reserve(3 * faces.size());
+MeshObject CMesher::simplify(const MeshObject &pymesh,
+                             int simplification_factor,
+                             int max_simplification_error,
+                             bool generate_normals = false) {
+  zi::mesh::face_mesh<float> zimesh;
 
-  if (generate_normals) {
-    obj.normals.reserve(3 * points.size());
+  size_t v_cnt = pymesh.points.size();
+  size_t f_cnt = pymesh.faces.size();
+
+  const zi::vl::vec<float, 3> * const p =
+      (const zi::vl::vec<float, 3> * const)pymesh.points.data();
+  const zi::vl::vec<uint32_t, 3> * const f =
+      (const zi::vl::vec<uint32_t, 3> * const)pymesh.faces.data();
+
+  bool has_normals = true;
+  const zi::vl::vec<float, 3> * n;
+
+  if (pymesh.normals.size() == v_cnt) {
+    n = (const zi::vl::vec<float, 3> *)pymesh.normals.data();
+  } else {
+    // No vertex normals found, but face_mesh.add() expects a vector to copy
+    // from - just set it to points as a placeholder.
+    // This is unrelated to the `generate_normals` flag. The simplifier
+    // will take care of real vertex normal calculation, if desired.
+    n = (const zi::vl::vec<float, 3> *)pymesh.points.data();
+    has_normals = false;
   }
 
-  for (auto v = points.begin(); v != points.end(); ++v) {
-    obj.points.push_back((*v)[2]);
-    obj.points.push_back((*v)[1]);
-    obj.points.push_back((*v)[0]);
+  zimesh.add(p, n, v_cnt/3, f, f_cnt/3);
+
+  zimesh.fill_simplifier<double>(simplifier_);
+  simplifier_.prepare(generate_normals && !has_normals);
+
+  if (simplification_factor > 0) {
+    simplifier_.optimize(simplifier_.face_count() / simplification_factor,
+                         max_simplification_error);
   }
 
-  if (generate_normals) {
-    for (auto vn = normals.begin(); vn != normals.end(); ++vn) {
-      obj.normals.push_back((*vn)[2]);
-      obj.normals.push_back((*vn)[1]);
-      obj.normals.push_back((*vn)[0]);
-    }
-  }
-
-  for (auto f = faces.begin(); f != faces.end(); ++f) {
-    obj.faces.push_back((*f)[0]);
-    obj.faces.push_back((*f)[2]);
-    obj.faces.push_back((*f)[1]);
-  }
-
-  return obj;
+  return collect_simplified_mesh(generate_normals);
 }

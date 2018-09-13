@@ -56,16 +56,15 @@ int _roll_invalidation_cube(
     }
 
     // perf: could do * iwx
-    minx = std::max(0,  (int)(0.5 + (x - (radius / wx))));
-    maxx = std::min(sx, (int)(0.5 + (x + (radius / wx))));
-    miny = std::max(0,  (int)(0.5 + (y - (radius / wy))));
-    maxy = std::min(sy, (int)(0.5 + (y + (radius / wy))));
-    minz = std::max(0,  (int)(0.5 + (z - (radius / wz))));
-    maxz = std::min(sz, (int)(0.5 + (z + (radius / wz))));
+    minx = std::max(0,     (int)(0.5 + (x - (radius / wx))));
+    maxx = std::min(sx-1,  (int)(0.5 + (x + (radius / wx))));
+    miny = std::max(0,     (int)(0.5 + (y - (radius / wy))));
+    maxy = std::min(sy-1,  (int)(0.5 + (y + (radius / wy))));
+    minz = std::max(0,     (int)(0.5 + (z - (radius / wz))));
+    maxz = std::min(sz-1,  (int)(0.5 + (z + (radius / wz))));
 
-    // perf: could do min_offset, max_offset
-    for (int y = miny; y < maxy; y++) {
-      for (int z = minz; z < maxz; z++) {
+    for (int y = miny; y <= maxy; y++) {
+      for (int z = minz; z <= maxz; z++) {
         topology[minx + sx * y + sxy * z] += 1;
         topology[maxx + sx * y + sxy * z] -= 1;
       }
@@ -80,7 +79,6 @@ int _roll_invalidation_cube(
     coloring = 0;
     for (int i = 0; i < sx; i++, idx++) {
       coloring += topology[idx];
-      // perf: could try invalidated += (coloring > 0) * labels[idx] etc
       if (coloring > 0) {
         invalidated += labels[idx];
         labels[idx] = 0;

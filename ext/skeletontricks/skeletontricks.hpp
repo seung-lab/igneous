@@ -30,7 +30,7 @@ int _roll_invalidation_cube(
   int minx, maxx, miny, maxy, minz, maxz;
   int x, y, z;
 
-  int16_t* topology = new int16_t[voxels];
+  int16_t* topology = new int16_t[voxels]();
   
   const bool power_of_two = !((sx & (sx - 1)) || (sy & (sy - 1))); 
   const int xshift = std::log2(sx); // must use log2 here, not lg/lg2 to avoid fp errors

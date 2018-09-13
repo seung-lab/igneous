@@ -64,7 +64,7 @@ def TEASAR(
   # > 5000 nm, gonna be a soma or blood vessel
   # For somata: specially handle the root by 
   # placing it at the approximate center of the soma
-  if dbf_max > max_boundary_distance:
+  if dbf_max > soma_detection_threshold:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
       labels, DBF, np.array([root], dtype=np.uint32),

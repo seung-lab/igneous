@@ -27,6 +27,16 @@ from collections import defaultdict
 cdef extern from "math.h":
   float INFINITY
 
+cdef extern from "skeletontricks.hpp" namespace "skeletontricks":
+  cdef int _roll_invalidation_cube(
+    uint8_t* labels, float* DBF,
+    int sx, int sy, int sz,
+    float wx, float wy, float wz,
+    int* path, int path_size,
+    float scale, float constant
+  )
+
+
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 @cython.nonecheck(False)
@@ -170,6 +180,44 @@ def get_mapping(
   return remap
 
 
+@cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
+def roll_invalidation_cube(
+    cnp.ndarray[uint8_t, cast=True, ndim=3] labels, 
+    cnp.ndarray[float, ndim=3] DBF, 
+    path, float scale, float const,
+    anisotropy=(1,1,1),
+    invalid_vertices={},
+  ):
+  
+  cdef int sx, sy, sz 
+  sx = labels.shape[0]
+  sy = labels.shape[1]
+  sz = labels.shape[2]
+
+  cdef int sxy = sx * sy
+
+  cdef float wx, wy, wz
+  (wx, wy, wz) = anisotropy
+
+  path = [ 
+    coord[0] + sx * coord[1] + sxy * coord[2] 
+    for coord in path if tuple(coord) not in invalid_vertices 
+  ]
+  path = np.array(path, dtype=np.int32)
+
+  cdef int[:] pathview = path
+
+  cdef int invalidated = _roll_invalidation_cube(
+    <uint8_t*>&labels[0,0,0], <float*>&DBF[0,0,0],
+    sx, sy, sz, 
+    wx, wy, wz,
+    <int*>&pathview[0], path.size,
+    scale, const
+  )
+
+  return invalidated, labels
 
 
 

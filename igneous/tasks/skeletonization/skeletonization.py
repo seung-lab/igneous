@@ -22,7 +22,9 @@ def TEASAR(
     labels, DBF, 
     scale=10, const=10, anisotropy=(1,1,1), 
     max_boundary_distance=5000, 
-    pdrf_scale=5000, pdrf_exponent=16
+    pdrf_scale=5000, pdrf_exponent=16,
+    soma_invalidation_scale=0.5,
+    soma_invalidation_const=0
   ):
   """
   Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
@@ -57,7 +59,9 @@ def TEASAR(
   if dbf_max > max_boundary_distance:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, np.array([ root ],dtype=np.uint32), scale=0.5, const=0, 
+      labels, DBF, np.array([root], dtype=np.uint32),
+      scale=soma_invalidation_scale,
+      const=soma_invalidation_const, 
       anisotropy=anisotropy
     )
   else:

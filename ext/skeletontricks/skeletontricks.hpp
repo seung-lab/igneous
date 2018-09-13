@@ -56,11 +56,11 @@ int _roll_invalidation_cube(
     }
 
     // perf: could do * iwx
-    minx = std::max(0,     (int)(0.5 + (x - (radius / wx))));
+    minx = std::max(0,     (int)(x - (radius / wx)));
     maxx = std::min(sx-1,  (int)(0.5 + (x + (radius / wx))));
-    miny = std::max(0,     (int)(0.5 + (y - (radius / wy))));
+    miny = std::max(0,     (int)(y - (radius / wy)));
     maxy = std::min(sy-1,  (int)(0.5 + (y + (radius / wy))));
-    minz = std::max(0,     (int)(0.5 + (z - (radius / wz))));
+    minz = std::max(0,     (int)(z - (radius / wz)));
     maxz = std::min(sz-1,  (int)(0.5 + (z + (radius / wz))));
 
     for (y = miny; y <= maxy; y++) {

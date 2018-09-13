@@ -48,13 +48,15 @@ def TEASAR(
   Returns: Skeleton object
   """
   dbf_max = np.max(DBF)
+  labels = np.asfortranarray(labels)
+  DBF = np.asfortranarray(DBF)
 
   # > 5000 nm, gonna be a soma or blood vessel
   # For somata: specially handle the root by 
   # placing it at the approximate center of the soma
   if dbf_max > max_boundary_distance:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
-    invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
+    invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
       labels, DBF, [ root ], scale=0.5, const=0, 
       anisotropy=anisotropy
     )
@@ -63,9 +65,8 @@ def TEASAR(
 
   if root is None:
     return Skeleton()
-  
-  DAF = igneous.dijkstra.euclidean_distance_field(
-    np.asfortranarray(labels), root, anisotropy=anisotropy)
+ 
+  DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
 
   DBF[DBF == 0] = np.inf
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
@@ -77,14 +78,14 @@ def TEASAR(
   # Use dijkstra propogation w/o a target to generate a field of
   # pointers from each voxel to its parent. Then we can rapidly
   # compute multiple paths by simply hopping pointers using path_from_parents
-  parents = igneous.dijkstra.parental_field(np.asfortranarray(PDRF), root)
+  parents = igneous.dijkstra.parental_field(PDRF, root)
 
   invalid_vertices = {}
 
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.path_from_parents(parents, target)
-    invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
+    invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
       labels, DBF, path, scale, const, 
       anisotropy=anisotropy, invalid_vertices=invalid_vertices,
     )
@@ -150,7 +151,7 @@ def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
   PDRF *= f(pdrf_scale)
   PDRF += DAF
 
-  return PDRF
+  return np.asfortranarray(PDRF)
 
 def path_union(paths):
   """

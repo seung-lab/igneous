@@ -102,7 +102,8 @@ def TEASAR(
     valid_labels -= invalidated
     for vertex in path:
       invalid_vertices[tuple(vertex)] = True
-    path = np.concatenate(path[0:-2:path_downsample, :], path[-1, :])
+    path = np.concatenate((path[0:-2:path_downsample, :],
+                           path[-1, :][np.newaxis,:]))
     paths.append(path)
 
 

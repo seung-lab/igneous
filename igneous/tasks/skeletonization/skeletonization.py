@@ -67,8 +67,6 @@ def TEASAR(
     return Skeleton()
  
   DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
-
-  DBF[DBF == 0] = np.inf
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
   del DAF
 

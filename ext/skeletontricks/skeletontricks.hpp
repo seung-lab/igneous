@@ -36,6 +36,10 @@ int _roll_invalidation_cube(
 
   int global_minx = sx;
   int global_maxx = 0;
+  int global_miny = sy;
+  int global_maxy = 0;
+  int global_minz = sz;
+  int global_maxz = 0;
 
   int16_t* topology = new int16_t[voxels]();
   
@@ -71,6 +75,10 @@ int _roll_invalidation_cube(
 
     global_minx = std::min(global_minx, minx);
     global_maxx = std::max(global_maxx, maxx);
+    global_miny = std::min(global_miny, miny);
+    global_maxy = std::max(global_maxy, maxy);
+    global_minz = std::min(global_minz, minz);
+    global_maxz = std::max(global_maxz, maxz);
 
     for (y = miny; y <= maxy; y++) {
       for (z = minz; z <= maxz; z++) {
@@ -82,19 +90,21 @@ int _roll_invalidation_cube(
 
   // Second pass: invalidate labels
   int coloring;
-  int idx = 0;
   int invalidated = 0;
-  while (idx < voxels) {
-    coloring = 0;
-    idx += global_minx;
-    for (int i = global_minx; i <= global_maxx; i++, idx++) {
-      coloring += topology[idx];
-      if (coloring > 0 || topology[idx]) {
-        invalidated += labels[idx];
-        labels[idx] = 0;
+  int yzoffset;
+  for (z = global_minz; z <= global_maxz; z++) {
+    for (y = global_miny; y <= global_maxy; y++) {
+      yzoffset = sx * y + sxy * z;
+
+      coloring = 0;
+      for (x = global_minx; x <= global_maxx; x++) {
+        coloring += topology[x + yzoffset];
+        if (coloring > 0 || topology[x + yzoffset]) {
+          invalidated += labels[x + yzoffset];
+          labels[x + yzoffset] = 0;
+        }
       }
     }
-    idx += (sx - global_maxx - 1);
   }
 
   free(topology);

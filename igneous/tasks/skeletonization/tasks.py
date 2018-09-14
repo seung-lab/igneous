@@ -80,6 +80,7 @@ class SkeletonTask(RegisteredTask):
       anisotropy=vol.resolution.tolist(),
       black_border=False,
     )
+    all_dbf = np.asfortranarray(all_dbf)
 
     cc_segids, pxct = np.unique(cc_labels, return_counts=True)
     cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]

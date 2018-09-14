@@ -1,4 +1,4 @@
-/* Includes such classic hits as roll_invalidation_ball.
+/* Includes such classic hits as roll_invalidation_cube.
  * 
  * Author: William Silversmith
  * Affiliation: Seung Lab, Princeton University
@@ -24,11 +24,18 @@ int _roll_invalidation_cube(
   int* path, const int path_size,
   const float scale, const float constant) {
 
+  if (path_size == 0) {
+    return 0;
+  }
+
   const int sxy = sx * sy;
   const int voxels = sxy * sz;
 
   int minx, maxx, miny, maxy, minz, maxz;
   int x, y, z;
+
+  int global_minx = sx;
+  int global_maxx = 0;
 
   int16_t* topology = new int16_t[voxels]();
   
@@ -62,6 +69,9 @@ int _roll_invalidation_cube(
     minz = std::max(0,     (int)(z - (radius / wz)));
     maxz = std::min(sz-1,  (int)(0.5 + (z + (radius / wz))));
 
+    global_minx = std::min(global_minx, minx);
+    global_maxx = std::max(global_maxx, maxx);
+
     for (y = miny; y <= maxy; y++) {
       for (z = minz; z <= maxz; z++) {
         topology[minx + sx * y + sxy * z] += 1;
@@ -76,13 +86,15 @@ int _roll_invalidation_cube(
   int invalidated = 0;
   while (idx < voxels) {
     coloring = 0;
-    for (int i = 0; i < sx; i++, idx++) {
+    idx += global_minx;
+    for (int i = global_minx; i <= global_maxx; i++, idx++) {
       coloring += topology[idx];
       if (coloring > 0 || topology[idx]) {
         invalidated += labels[idx];
         labels[idx] = 0;
       }
     }
+    idx += (sx - global_maxx - 1);
   }
 
   free(topology);

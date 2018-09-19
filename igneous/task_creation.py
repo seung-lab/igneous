@@ -193,7 +193,11 @@ def create_skeletonizing_tasks(task_queue, cloudpath, mip, shape=Vec(512, 512, 5
     vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
     vol.commit_info()
 
-  incr = shape // 2
+  incr = shape.clone()
+  for i in range(3):
+    if incr[i] < vol.bounds.size3()[i]:
+      incr[i] //= 2
+
   crop_zone = 25
   will_postprocess = True
 

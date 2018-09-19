@@ -7,10 +7,25 @@ from scipy.sparse.csgraph import dijkstra
 import scipy.sparse.csgraph as csgraph
 
 from cloudvolume.lib import Bbox
+from cloudvolume import PrecomputedSkeleton
 
 from .definitions import Skeleton, find_row, path2edge
 
 ## Public API of Module
+
+def simple_merge_skeletons(skeleton1, skeleton2):
+  """
+  Simple concatenation of skeletons into one object 
+  without adding edges between them.
+  """
+  n1 = skeleton1.vertices.shape[0]
+
+  return PrecomputedSkeleton(
+    vertices=np.concatenate((skeleton1.vertices, skeleton2.vertices), axis=0),
+    edges=np.concatenate((skeleton1.edges, skeleton2.edges+n1), axis=0),
+    radii=np.concatenate((skeleton1.radii, skeleton2.radii), axis=0),
+    segid=skeleton1.id,
+  )
 
 def crop_skeleton(skeleton, bound):
   """Cropping is required to eliminate edge effects."""

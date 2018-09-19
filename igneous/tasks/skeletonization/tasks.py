@@ -3,6 +3,7 @@ try:
 except ImportError:
     from io import BytesIO
 
+from functools import reduce
 import json
 import pickle
 import os
@@ -29,7 +30,7 @@ from .definitions import Skeleton
 from .skeletonization import TEASAR
 from .postprocess import (
   crop_skeleton, merge_skeletons, trim_skeleton,
-  consolidate_skeleton
+  consolidate_skeleton, simple_merge_skeletons
 )
 
 
@@ -87,8 +88,7 @@ class SkeletonTask(RegisteredTask):
 
     all_slices = scipy.ndimage.find_objects(cc_labels)
 
-    i = 0
-    skeletons, rois = [], []
+    skeletons = defaultdict(list)
     for segid in tqdm(cc_segids):
       if segid == 0:
         continue 
@@ -110,34 +110,34 @@ class SkeletonTask(RegisteredTask):
       if skeleton.empty():
         continue
 
+      orig_segid = remapping[segid]
       skeleton = PrecomputedSkeleton(
         skeleton.nodes, skeleton.edges, skeleton.radii, 
-        segid=remapping[segid]
+        segid=orig_segid
       )
       skeleton.vertices *= vol.resolution
-      skeletons.append(skeleton)
-      rois.append(roi)
+      skeletons[orig_segid].append( (skeleton, roi) )
 
-      i += 1
-      if i % 1000 == 0:
-        self.upload(vol, path, skeletons, rois)
-        skeletons, rois = [], []
+    self.upload(vol, path, skeletons)
       
-    self.upload(vol, path, skeletons, rois)
-      
-  def upload(self, vol, path, skeletons, rois):
+  def upload(self, vol, path, skeletons):
     if not self.will_postprocess:
-      vol.skeleton.upload_multiple(skeletons)
-      return
-
-    with Storage(path, progress=True) as stor:
-      for skeleton, roi in zip(skeletons, rois):
-        stor.put_file(
-          file_path="{}:{}".format(skeleton.id, roi.to_filename()),
-          content=pickle.dumps(skeleton),
-          compress='gzip',
-          content_type="application/python-pickle",
-        )
+      skels = []
+      for segid, skel_roi in skeletons.items():
+        skel = [ skel for skel, roi in skel_roi ]
+        skel = reduce(simple_merge_skeletons, skel)
+        skels.append(skel)
+      vol.skeleton.upload_multiple(skels)
+    else:
+      with Storage(path, progress=True) as stor:
+        for segid, skel_roi in skeletons.items():
+          for skeleton, roi in skel_roi:
+            stor.put_file(
+              file_path="{}:{}".format(skeleton.id, roi.to_filename()),
+              content=pickle.dumps(skeleton),
+              compress='gzip',
+              content_type="application/python-pickle",
+            )
 
 
   def skeletonize(self, labels, dbf, bbox, anisotropy):

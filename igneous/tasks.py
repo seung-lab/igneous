@@ -1073,7 +1073,7 @@ class InferenceTask(RegisteredTask):
     def execute(self):
         self._read_mask()
         # if the mask is black, no need to run inference 
-        if np.all(self.mask == 0):
+        if self.mask is None or np.all(self.mask == 0):
             return 
         self._read_image()
         self._inference()
@@ -1082,6 +1082,10 @@ class InferenceTask(RegisteredTask):
         self._upload_output()
 
     def _read_mask(self):
+        if self.mask_layer_path is None or not self.mask_layer_path: 
+            print('no mask layer path defined')
+            self.mask = None 
+            return 
         print("download mask chunk...")
         vol = CloudVolume(self.mask_layer_path, bounded=False, fill_missing=True,
                           progress=True, mip=self.mask_mip)

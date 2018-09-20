@@ -58,12 +58,9 @@ MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
 
   if (simplification_factor > 0) {
     // This is the most cpu intensive line
-    // max_error expects an error quadric, also MC scales the mesh by a factor
-    // of 2. Therefore we have to square the max_distance, and account for the
-    // factor of 2 from MC.
     simplifier_.optimize(
         simplifier_.face_count() / simplification_factor,
-        (2.0 * max_simplification_error) * (2.0 * max_simplification_error));
+        max_simplification_error);
   }
 
   std::vector<zi::vl::vec3d> points;

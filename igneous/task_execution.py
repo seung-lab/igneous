@@ -61,7 +61,7 @@ def random_exponential_window_backoff(n):
 def execute(tag, queue, server, qurl, loop):
   tq = TaskQueue(queue_name=queue, queue_server=server, n_threads=0, qurl=qurl)
 
-  print("Pulling from {}://{}".format(server, queue))
+  print("Pulling from {}://{}".format(server, qurl))
 
   tries = 0
   with tq:

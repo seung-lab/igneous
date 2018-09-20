@@ -946,20 +946,21 @@ class WatershedRemapTask(RegisteredTask):
 
 class MaskAffinitymapTask(RegisteredTask):
     """
-
+    black out the affinitymap regions according to a mask. The mask could be 
+    lower resolution in a higher mip level. The affinitymap correspond with 
+    zero intensive voxels in the mask will be blacked out. 
     """
     def __init__(self, aff_input_layer_path, aff_output_layer_path, aff_mip, 
-                 mask_layer_path, mask_mip, output_bbox_str):
+                 mask_layer_path, mask_mip, bounds):
         super().__init__(aff_input_layer_path, aff_output_layer_path, aff_mip, 
-                         mask_layer_path, mask_mip, output_bbox_str)
+                         mask_layer_path, mask_mip, bounds)
         self.aff_input_layer_path = aff_input_layer_path 
         self.aff_output_layer_path = aff_output_layer_path 
         self.aff_mip = aff_mip 
         self.mask_layer_path = mask_layer_path
         self.mask_mip = mask_mip 
 
-        aff_bbox = Bbox.from_filename(output_bbox_str)
-        self.aff_slices = aff_bbox.to_slices()
+        self.aff_slices = bounds.to_slices()
 
     def execute(self):
         self._read_mask()
@@ -1047,17 +1048,17 @@ class InferenceTask(RegisteredTask):
     So I always do a reverse of slices before indexing.
     """
     def __init__(self, image_layer_path, convnet_path, mask_layer_path, output_layer_path,
-            output_bbox_str, patch_size, patch_overlap,
+            output_bounds, patch_size, patch_overlap,
             cropping_margin_size, output_key='output', num_output_channels=3, 
                  image_mip=1, output_mip=1, mask_mip=3):
         super().__init__(image_layer_path, convnet_path, mask_layer_path, output_layer_path,
-                output_bbox_str, patch_size, patch_overlap, cropping_margin_size,
+                output_bounds, patch_size, patch_overlap, cropping_margin_size,
                 output_key, num_output_channels, image_mip, output_mip, mask_mip)
         self.image_layer_path = image_layer_path
         self.convnet_path = convnet_path
         self.mask_layer_path = mask_layer_path 
         self.output_layer_path = output_layer_path
-        self.output_bbox = Bbox.from_filename(output_bbox_str)
+        self.output_bounds = output_bounds
         self.patch_size = patch_size
         self.patch_overlap = patch_overlap
         self.cropping_margin_size = cropping_margin_size
@@ -1067,8 +1068,7 @@ class InferenceTask(RegisteredTask):
         self.output_mip = output_mip
         self.mask_mip = mask_mip 
 
-        output_bbox = Bbox.from_filename(output_bbox_str)
-        self.output_slices = output_bbox.to_slices()
+        self.output_slices = output_bounds.to_slices()
     
     def execute(self):
         self._read_mask()
@@ -1132,7 +1132,7 @@ class InferenceTask(RegisteredTask):
     def _read_image(self):
         self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=False,
                                progress=True, mip=self.image_mip, parallel=True)
-        output_slices = self.output_bbox.to_slices()
+        output_slices = self.output_bounds.to_slices()
         self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
                                   zip(output_slices, self.cropping_margin_size))
         # always reverse the indexes since cloudvolume use x,y,z indexing
@@ -1173,7 +1173,7 @@ class InferenceTask(RegisteredTask):
     def _upload_output(self):
         vol = CloudVolume(self.output_layer_path, compress='gzip', fill_missing=True,
                           bounded=False, autocrop=True, mip=self.image_mip, progress=True)
-        output_slices = self.output_bbox.to_slices()
+        output_slices = self.output_bounds.to_slices()
         self.output = np.transpose(self.output)
         vol[output_slices[::-1]+(slice(0,self.output.shape[-1]),)] = self.output
 

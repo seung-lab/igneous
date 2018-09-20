@@ -638,9 +638,9 @@ def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_
     cloud storage. 
     """
     for z in tqdm(range(grid_size[0]), desc='z loop'):
-        for y in tqdm(range(grid_size[1]), desc='y loop'):
-            for x in tqdm(range(grid_size[2]), desc='x loop'):
-                output_bbox = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
+        for y in range(grid_size[1]):
+            for x in range(grid_size[2]):
+                output_bounds = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
                         for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
                 task = MaskAffinitymapTask(
                     aff_input_layer_path=aff_input_layer_path,
@@ -648,7 +648,7 @@ def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_
                     aff_mip=aff_mip, 
                     mask_layer_path=mask_layer_path,
                     mask_mip=mask_mip,
-                    output_bbox_str=output_bbox.to_filename(),
+                    output_bounds=output_bounds,
                 )
                 task_queue.insert(task)
     task_queue.wait()
@@ -664,16 +664,16 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
     cloud storage. 
     """
     for z in tqdm(range(grid_size[0]), desc='z loop'):
-        for y in tqdm(range(grid_size[1]), desc='y loop'):
-            for x in tqdm(range(grid_size[2]), desc='x loop'):
-                output_bbox = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
+        for y in range(grid_size[1]):
+            for x in range(grid_size[2]):
+                output_bounds = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
                         for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
                 task = InferenceTask(
                     image_layer_path=image_layer_path,
                     convnet_path=convnet_path,
                     mask_layer_path=mask_layer_path,
                     output_layer_path=output_layer_path,
-                    output_bbox_str=output_bbox.to_filename(),
+                    output_bounds=output_bounds,
                     patch_size=patch_size, 
                     patch_overlap=patch_overlap,
                     cropping_margin_size=cropping_margin_size,

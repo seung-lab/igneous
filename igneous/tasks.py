@@ -212,7 +212,7 @@ class QuantizeTask(RegisteredTask):
 
 class MeshTask(RegisteredTask):
   def __init__(self, shape, offset, layer_path, **kwargs):
-    super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
+    super(MeshTask, self).__init__(shape, offset, layer_path)
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.layer_path = layer_path

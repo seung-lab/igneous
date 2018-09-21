@@ -3,6 +3,7 @@ from __future__ import print_function
 from six.moves import range
 from itertools import product
 from functools import reduce
+import operator
 
 import copy
 import json
@@ -174,7 +175,8 @@ def create_downsampling_tasks(
     print("Volume Bounds: ", vol.bounds)
     print("Selected ROI:  ", bounds)
 
-    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
+    total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
+    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks", total=total):
       task = DownsampleTask(
         layer_path=layer_path,
         mip=vol.mip,
@@ -276,7 +278,8 @@ def create_transfer_tasks(
   create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape, preserve_chunk_size=True)
   
   bounds = vol.bounds.clone()
-  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks"):
+  total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
+  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks", total=total):
     task = TransferTask(
       src_path=src_layer_path,
       dest_path=dest_layer_path,
@@ -390,24 +393,6 @@ def create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, 
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   vol.commit_provenance()
-
-def create_boss_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec(1024, 1024, 64)):
-  # Note: Weird errors with datatype changing to float64 when requesting 2048,2048,64
-  # 1024,1024,64 worked nicely though.
-  shape = Vec(*shape)
-  vol = CloudVolume(dest_layer_path)
-
-  create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape)
-
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Boss Transfer Tasks"):
-    task = BossTransferTask(
-      src_path=src_layer_path,
-      dest_path=dest_layer_path,
-      shape=shape.clone(),
-      offset=startpt.clone(),
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading Boss Transfer Tasks')
 
 def create_watershed_remap_tasks(task_queue, map_path, src_layer_path, dest_layer_path, shape=Vec(2048, 2048, 64)):
   shape = Vec(*shape)

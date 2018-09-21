@@ -2,7 +2,6 @@ backports.lzma==0.0.8
 click==6.7
 cryptography==2.3
 cloud-volume>=0.31.3
--e git+https://github.com/seung-lab/intern.git#egg=intern
 google-cloud-logging
 google-api-python-client==1.6.2
 networkx==2.1

@@ -228,10 +228,10 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
 
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Mesh Tasks"):
     task = MeshTask(
-      layer_path=layer_path,
+      shape.clone(),
+      startpt.clone(),
+      layer_path,
       mip=vol.mip,
-      shape=shape.clone(),
-      offset=startpt.clone(),
       max_simplification_error=max_simplification_error,
     )
     task_queue.insert(task)

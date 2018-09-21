@@ -137,6 +137,7 @@ class SkeletonTask(RegisteredTask):
               content=pickle.dumps(skeleton),
               compress='gzip',
               content_type="application/python-pickle",
+              cache_control=False,
             )
 
 
@@ -176,18 +177,18 @@ class SkeletonMergeTask(RegisteredTask):
   def execute(self):
     self.vol = CloudVolume(self.cloudpath)
 
-    skels = self.get_filenames_subset(stor)
-
-    vol = self.vol
-
-    for segid, frags in tqdm(skels.items()):
-      ptcloud = self.get_point_cloud(vol, segid, frags)    
-      skeleton = self.fuse_skeletons(frags, stor)
-      skeleton = trim_skeleton(skeleton, ptcloud)
-
-      vol.skeleton.upload(segid, skeleton.nodes, skeleton.edges, skeleton.radii)
-
     with Storage(self.cloudpath) as stor:
+      skels = self.get_filenames_subset(stor)
+
+      vol = self.vol
+
+      for segid, frags in tqdm(skels.items()):
+        ptcloud = self.get_point_cloud(vol, segid, frags)    
+        skeleton = self.fuse_skeletons(frags, stor)
+        skeleton = trim_skeleton(skeleton, ptcloud)
+
+        vol.skeleton.upload(segid, skeleton.vertices, skeleton.edges, skeleton.radii)
+      
       for segid, frags in skels.items():
         stor.delete_files(frags)
 
@@ -250,9 +251,9 @@ class SkeletonMergeTask(RegisteredTask):
 
       skel.edges = skel.edges.astype(np.uint32)
       skel.edges += offset
-      offset += skel.nodes.shape[0]
+      offset += skel.vertices.shape[0]
 
-      fusing.nodes = np.concatenate((fusing.nodes, skel.nodes), axis=0)
+      fusing.vertices = np.concatenate((fusing.vertices, skel.vertices), axis=0)
       fusing.edges = np.concatenate((fusing.edges, skel.edges), axis=0)
       fusing.radii = np.concatenate((fusing.radii, skel.radii), axis=0)
 

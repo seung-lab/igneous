@@ -118,6 +118,8 @@ def find_root(labels, anisotropy):
   return igneous.skeletontricks.find_target(labels, DAF)
 
 def is_power_of_two(num):
+  if int(num) != num:
+    return False
   return num != 0 and ((num & (num - 1)) == 0)
 
 def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):

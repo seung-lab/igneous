@@ -666,14 +666,16 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
     for z in tqdm(range(grid_size[0]), desc='z loop'):
         for y in range(grid_size[1]):
             for x in range(grid_size[2]):
-                output_bounds = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
-                        for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
+                output_offset = tuple(s+x*b for (s, x, b) in 
+                                      zip(output_block_start, (z, y, x), 
+                                          output_block_size))
                 task = InferenceTask(
                     image_layer_path=image_layer_path,
                     convnet_path=convnet_path,
                     mask_layer_path=mask_layer_path,
                     output_layer_path=output_layer_path,
-                    output_bounds=output_bounds,
+                    output_offset=output_offset,
+                    output_shape=output_block_size,
                     patch_size=patch_size, 
                     patch_overlap=patch_overlap,
                     cropping_margin_size=cropping_margin_size,

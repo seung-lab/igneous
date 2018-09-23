@@ -1048,17 +1048,22 @@ class InferenceTask(RegisteredTask):
     So I always do a reverse of slices before indexing.
     """
     def __init__(self, image_layer_path, convnet_path, mask_layer_path, output_layer_path,
-            output_bounds, patch_size, patch_overlap,
+            output_offset, output_shape, patch_size, patch_overlap,
             cropping_margin_size, output_key='output', num_output_channels=3, 
                  image_mip=1, output_mip=1, mask_mip=3):
+        
         super().__init__(image_layer_path, convnet_path, mask_layer_path, output_layer_path,
-                output_bounds, patch_size, patch_overlap, cropping_margin_size,
-                output_key, num_output_channels, image_mip, output_mip, mask_mip)
+                output_offset, output_shape, patch_size, patch_overlap, 
+                cropping_margin_size, output_key, num_output_channels, 
+                image_mip, output_mip, mask_mip)
+        
+        output_shape = Vec(*output_shape)
+        output_offset = Vec(*output_offset)
         self.image_layer_path = image_layer_path
         self.convnet_path = convnet_path
         self.mask_layer_path = mask_layer_path 
         self.output_layer_path = output_layer_path
-        self.output_bounds = output_bounds
+        self.output_bounds = Bbox(output_offset, output_shape + output_offset)
         self.patch_size = patch_size
         self.patch_overlap = patch_overlap
         self.cropping_margin_size = cropping_margin_size
@@ -1067,8 +1072,6 @@ class InferenceTask(RegisteredTask):
         self.image_mip = image_mip
         self.output_mip = output_mip
         self.mask_mip = mask_mip 
-
-        self.output_slices = output_bounds.to_slices()
     
     def execute(self):
         self._read_mask()
@@ -1092,8 +1095,8 @@ class InferenceTask(RegisteredTask):
         self.xyfactor = 2**(self.mask_mip - self.output_mip)
         # only scale the indices in XY plane 
         self.mask_slices = tuple(slice(a.start//self.xyfactor, a.stop//self.xyfactor) 
-                                 for a in self.output_slices[1:3])
-        self.mask_slices = (self.output_slices[0],) + self.mask_slices 
+                                 for a in self.output_bounds.to_slices()[1:3])
+        self.mask_slices = (self.output_bounds.to_slices()[0],) + self.mask_slices 
 
         # the slices did not contain the channel dimension
         print("mask slices: {}".format(self.mask_slices))

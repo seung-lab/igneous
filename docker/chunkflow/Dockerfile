@@ -43,7 +43,7 @@ RUN pip install -r /igneous/requirements.txt
 RUN pip install pyasn1 --upgrade
 RUN cd /igneous && pip install -e .
 
-CMD python /igneous/igneous/task_execution.py
+#CMD python /igneous/igneous/task_execution.py
 
 
 

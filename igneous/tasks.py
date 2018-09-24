@@ -1076,12 +1076,14 @@ class InferenceTask(RegisteredTask):
     def execute(self):
         self._read_mask()
         # if the mask is black, no need to run inference 
-        if self.mask is None or np.all(self.mask == 0):
+        if np.all(self.mask == 0):
             return 
         self._read_image()
         self._inference()
         self._crop()
-        self._mask_output()
+        if self.mask: 
+            self._mask_output()
+
         self._upload_output()
 
     def _read_mask(self):

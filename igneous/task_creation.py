@@ -653,6 +653,19 @@ def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_
                 task_queue.insert(task)
     task_queue.wait()
 
+    vol = CloudVolume(output_layer_path, mip=aff_mip)
+    vol.provenance.processing.append({
+        'method': {
+            'task': 'InferenceTask',
+            'layer_path': aff_output_layer_path,
+            'mip': vol.mip,
+            'shape': Vec(*output_block_size).tolist(),
+        },
+        'by': USER_EMAIL,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+    })
+    vol.commit_provenance()
+
 
 def create_inference_tasks(task_queue, image_layer_path, convnet_path, 
         mask_layer_path, output_layer_path, output_block_start, output_block_size, 
@@ -686,7 +699,20 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
                     mask_mip=mask_mip
                 )
                 task_queue.insert(task)
-    task_queue.wait()
+    task_queue.wait('Uploading InferenceTasks')
+
+    vol = CloudVolume(output_layer_path, mip=output_mip)
+    vol.provenance.processing.append({
+        'method': {
+            'task': 'InferenceTask',
+            'layer_path': output_layer_path,
+            'mip': vol.mip,
+            'shape': Vec(*output_block_size).tolist(),
+        },
+        'by': USER_EMAIL,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+    })
+    vol.commit_provenance()
 
 
 def upload_build_chunks(storage, volume, offset=[0, 0, 0], build_chunk_size=[1024,1024,128]):

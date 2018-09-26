@@ -69,7 +69,7 @@ class SkeletonTask(RegisteredTask):
     self.will_postprocess = will_postprocess
     self.cloudinfo = info
     self.object_ids = object_ids
-    
+
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, info=self.cloudinfo, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)

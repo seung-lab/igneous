@@ -43,6 +43,15 @@ def skeldir(cloudpath):
     skel_dir = info['skeletons']
   return skel_dir
 
+def simple_skeleton_merge(skeleton1, skeleton2):
+  n1 = skeleton1.vertices.shape[0]
+
+  return PrecomputedSkeleton(vertices = np.concatenate((skeleton1.vertices, skeleton2.vertices), axis=0),
+                  edges = np.concatenate((skeleton1.edges, skeleton2.edges+n1), axis=0),
+                  radii = np.concatenate((skeleton1.radii, skeleton2.radii), axis=0),
+                  segid = skeleton1.id)
+
+
 class SkeletonTask(RegisteredTask):
   """
   Stage 1 of skeletonization.
@@ -50,7 +59,7 @@ class SkeletonTask(RegisteredTask):
   Convert chunks of segmentation into chunked skeletons and point clouds.
   They will be merged in the stage 2 task SkeletonMergeTask.
   """
-  def __init__(self, cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess, info=None):
+  def __init__(self, cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess, info=None, object_ids=None):
     super(SkeletonTask, self).__init__(cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess)
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
@@ -59,13 +68,16 @@ class SkeletonTask(RegisteredTask):
     self.crop_zone = crop_zone
     self.will_postprocess = will_postprocess
     self.cloudinfo = info
-
+    self.object_ids = object_ids
+    
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, info=self.cloudinfo, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     all_labels = vol[ bbox.to_slices() ]
     all_labels = all_labels[:,:,:,0]
+    if self.object_ids is not None:
+      all_labels[~np.isin(all_labels,self.object_ids)] = 0
 
     tmp_labels, remapping = fastremap.renumber(all_labels)
     cc_labels = cc3d.connected_components(tmp_labels, max_labels=int(bbox.volume() / 4))
@@ -109,7 +121,6 @@ class SkeletonTask(RegisteredTask):
 
       if skeleton.empty():
         continue
-
       orig_segid = remapping[segid]
       skeleton = PrecomputedSkeleton(
         skeleton.nodes, skeleton.edges, skeleton.radii, 
@@ -141,6 +152,7 @@ class SkeletonTask(RegisteredTask):
             )
 
 
+      
   def skeletonize(self, labels, dbf, bbox, anisotropy):
     skeleton = TEASAR(labels, dbf, anisotropy=anisotropy, **self.teasar_params)
 

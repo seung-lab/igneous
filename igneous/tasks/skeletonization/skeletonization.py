@@ -56,8 +56,8 @@ def TEASAR(
   # placing it at the approximate center of the soma
   if dbf_max > max_boundary_distance:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
-    invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
-      labels, DBF, [ root ], scale=0.5, const=0, 
+    invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
+      labels, DBF, np.array([ root ],dtype=np.uint32), scale=0.5, const=0, 
       anisotropy=anisotropy
     )
   else:

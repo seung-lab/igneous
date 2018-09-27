@@ -66,12 +66,6 @@ def TEASAR(
   # placing it at the approximate center of the soma
   if dbf_max > soma_detection_threshold:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
-    invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, np.array([root], dtype=np.uint32),
-      scale=soma_invalidation_scale,
-      const=soma_invalidation_const, 
-      anisotropy=anisotropy
-    )
   else:
     root = find_root(labels, anisotropy)
 
@@ -82,13 +76,23 @@ def TEASAR(
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
   del DAF
 
-  paths = []
-  valid_labels = np.count_nonzero(labels)
-    
   # Use dijkstra propogation w/o a target to generate a field of
   # pointers from each voxel to its parent. Then we can rapidly
   # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(PDRF, root)
+
+  if dbf_max > soma_detection_threshold:
+      invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
+      labels, DBF, np.array([root], dtype=np.uint32),
+      scale=soma_invalidation_scale,
+      const=soma_invalidation_const, 
+      anisotropy=anisotropy
+    )
+
+  paths = []
+  valid_labels = np.count_nonzero(labels)
+    
+ 
 
   invalid_vertices = {}
 

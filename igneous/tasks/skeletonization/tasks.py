@@ -43,14 +43,6 @@ def skeldir(cloudpath):
     skel_dir = info['skeletons']
   return skel_dir
 
-def simple_skeleton_merge(skeleton1, skeleton2):
-  n1 = skeleton1.vertices.shape[0]
-
-  return PrecomputedSkeleton(vertices = np.concatenate((skeleton1.vertices, skeleton2.vertices), axis=0),
-                  edges = np.concatenate((skeleton1.edges, skeleton2.edges+n1), axis=0),
-                  radii = np.concatenate((skeleton1.radii, skeleton2.radii), axis=0),
-                  segid = skeleton1.id)
-
 
 class SkeletonTask(RegisteredTask):
   """

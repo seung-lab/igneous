@@ -36,7 +36,7 @@ def TEASAR(
   scale: during the "rolling ball" invalidation phase, multiply the DBF value by this.
   const: during the "rolling ball" invalidation phase, this is the minimum radius in chosen physical units (i.e. nm).
   anisotropy: (x,y,z) conversion factor for voxels to chosen physical units (i.e. nm)
-  soma_threshold: if object has a DBF value larger than this, 
+  soma_detection_threshold: if object has a DBF value larger than this, 
     root will be placed at largest DBF value and special one time invalidation
     will be run over that root location (see soma_invalidation scale)
     expressed in chosen physical units (i.e. nm) 

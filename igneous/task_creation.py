@@ -253,7 +253,8 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)):
 def create_transfer_tasks(
     task_queue, src_layer_path, dest_layer_path, 
     chunk_size=None, shape=Vec(2048, 2048, 64), 
-    fill_missing=False, translate=(0,0,0)
+    fill_missing=False, translate=(0,0,0), 
+    bounds=None
   ):
   shape = Vec(*shape)
   translate = Vec(*translate)
@@ -277,7 +278,9 @@ def create_transfer_tasks(
 
   create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape, preserve_chunk_size=True)
   
-  bounds = vol.bounds.clone()
+  if bounds is None:
+    bounds = vol.bounds.clone()
+
   total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks", total=total):
     task = TransferTask(

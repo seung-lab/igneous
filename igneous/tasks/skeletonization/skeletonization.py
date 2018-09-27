@@ -21,23 +21,33 @@ from cloudvolume.lib import save_images, mkdir
 def TEASAR(
     labels, DBF, 
     scale=10, const=10, anisotropy=(1,1,1), 
-    max_boundary_distance=5000, 
-    pdrf_scale=5000, pdrf_exponent=16
+    soma_detection_threshold=5000, 
+    pdrf_scale=5000, pdrf_exponent=16,
+    soma_invalidation_scale=0.5,
+    soma_invalidation_const=0,
+    path_downsample=5
   ):
   """
   Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
   convert it into a skeleton with scale and const TEASAR parameters. 
 
-  DBF: Result of the euclidean distance transform. Must represent a single label.
+  DBF: Result of the euclidean distance transform. Must represent a single label,
+       assumed to be expressed in chosen physical units (i.e. nm)
   scale: during the "rolling ball" invalidation phase, multiply the DBF value by this.
-  const: during the "rolling ball" invalidation phase, this is the minimum radius in voxels.
-  anisotropy: (x,y,z) relative scaling factors for distance
-  max_boundary_distance: skip labels that have a DBF maximum value greater than this
-    (e.g. for skipping somas). This value should be in nanometers, but if you are using
-    this outside its original context it could be voxels.
+  const: during the "rolling ball" invalidation phase, this is the minimum radius in chosen physical units (i.e. nm).
+  anisotropy: (x,y,z) conversion factor for voxels to chosen physical units (i.e. nm)
+  soma_detection_threshold: if object has a DBF value larger than this, 
+    root will be placed at largest DBF value and special one time invalidation
+    will be run over that root location (see soma_invalidation scale)
+    expressed in chosen physical units (i.e. nm) 
   pdrf_scale: scale factor in front of dbf, used to weight dbf over euclidean distance (higher to pay more attention to dbf) (default 5000)
-  pdrf_exponent: exponent in dbf formula on distance from edge (default 16.. one of 1,2,4,8,16,32..)
-
+  pdrf_exponent: exponent in dbf formula on distance from edge, faster if factor of 2 (default 16)
+  soma_invalidation_scale: the 'scale' factor used in the one time soma root invalidation (default .5)
+  soma_invalidation_const: the 'const' factor used in the one time soma root invalidation (default 0)
+                           (units in chosen physical units (i.e. nm))
+  path_downsample: stride length for downsampling the saved skeleton paths (default 5)
+                    (units of node points)
+  
   Based on the algorithm by:
 
   M. Sato, I. Bitter, M. Bender, A. Kaufman, and M. Nakajima. 
@@ -54,12 +64,8 @@ def TEASAR(
   # > 5000 nm, gonna be a soma or blood vessel
   # For somata: specially handle the root by 
   # placing it at the approximate center of the soma
-  if dbf_max > max_boundary_distance:
+  if dbf_max > soma_detection_threshold:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
-    invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
-      labels, DBF, [ root ], scale=0.5, const=0, 
-      anisotropy=anisotropy
-    )
   else:
     root = find_root(labels, anisotropy)
 
@@ -70,13 +76,23 @@ def TEASAR(
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
   del DAF
 
-  paths = []
-  valid_labels = np.count_nonzero(labels)
-    
   # Use dijkstra propogation w/o a target to generate a field of
   # pointers from each voxel to its parent. Then we can rapidly
   # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(PDRF, root)
+
+  if dbf_max > soma_detection_threshold:
+      invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
+      labels, DBF, np.array([root], dtype=np.uint32),
+      scale=soma_invalidation_scale,
+      const=soma_invalidation_const, 
+      anisotropy=anisotropy
+    )
+
+  paths = []
+  valid_labels = np.count_nonzero(labels)
+    
+ 
 
   invalid_vertices = {}
 
@@ -88,9 +104,12 @@ def TEASAR(
       anisotropy=anisotropy, invalid_vertices=invalid_vertices,
     )
     valid_labels -= invalidated
-    paths.append(path)
     for vertex in path:
       invalid_vertices[tuple(vertex)] = True
+    path = np.concatenate((path[0:-2:path_downsample, :],
+                           path[-1, :][np.newaxis,:]))
+    paths.append(path)
+
 
   del invalid_vertices
 

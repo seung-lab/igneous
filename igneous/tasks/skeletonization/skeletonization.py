@@ -83,28 +83,25 @@ def TEASAR(
   # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(PDRF, root)
 
+  invalid_vertices = {}
   if soma_mode:
       invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, np.array([root], dtype=np.uint32),
-      scale=soma_invalidation_scale,
-      const=soma_invalidation_const, 
-      anisotropy=anisotropy
-    )
+                              labels, DBF, np.array([root], dtype=np.uint32),
+                              scale=soma_invalidation_scale,
+                              const=soma_invalidation_const, 
+                              anisotropy=anisotropy)
+      invalid_vertices[root]=True
 
   paths = []
   valid_labels = np.count_nonzero(labels)
     
- 
-
-  invalid_vertices = {}
-
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.path_from_parents(parents, target)
     if soma_mode:
-      d = np.linalg.norm(path - root, axis=1)
+      d = np.linalg.norm(anisotropy*(path - root),axis=1)
       # remove all path points which are within soma_radius of root
-      path = np.concatenate((path[0,:],path[d>soma_radius]))
+      path = np.concatenate((path[0,:][np.newaxis,:],path[d>soma_radius,:]))
 
     invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
       labels, DBF, path, scale, const, 
@@ -113,9 +110,6 @@ def TEASAR(
     valid_labels -= invalidated
     for vertex in path:
       invalid_vertices[tuple(vertex)] = True
-    
-
-
     path = np.concatenate((path[0:-2:path_downsample, :],
                            path[-1, :][np.newaxis,:]))
     paths.append(path)

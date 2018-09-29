@@ -10,6 +10,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import time
 from time import strftime
 
@@ -29,7 +30,13 @@ from igneous.tasks import (
 )
 # from igneous.tasks import BigArrayTask
 
-USER_EMAIL = 'ws9@princeton.edu' # for provenance files
+# for provenance files
+try:
+  USER_EMAIL = subprocess.check_output("git config user.email", shell=True)
+  USER_EMAIL = str(USER_EMAIL.rstrip())
+except:
+  print("WARNING: User email unknown. Cannot attribute user to task in provenance file. Please set 'git config user.email'")
+  USER_EMAIL = ''
 
 def create_ingest_task(storage, task_queue):
     """

@@ -61,11 +61,13 @@ def TEASAR(
   labels = np.asfortranarray(labels)
   DBF = np.asfortranarray(DBF)
 
+  soma_mode = dbf_max > soma_detection_threshold
   # > 5000 nm, gonna be a soma or blood vessel
   # For somata: specially handle the root by 
   # placing it at the approximate center of the soma
-  if dbf_max > soma_detection_threshold:
+  if soma_mode:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
+    soma_radius = dbf_max * soma_invalidation_scale + soma_invalidation_const
   else:
     root = find_root(labels, anisotropy)
 
@@ -81,24 +83,27 @@ def TEASAR(
   # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(PDRF, root)
 
-  if dbf_max > soma_detection_threshold:
+  invalid_vertices = {}
+  if soma_mode:
       invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-      labels, DBF, np.array([root], dtype=np.uint32),
-      scale=soma_invalidation_scale,
-      const=soma_invalidation_const, 
-      anisotropy=anisotropy
-    )
+                              labels, DBF, np.array([root], dtype=np.uint32),
+                              scale=soma_invalidation_scale,
+                              const=soma_invalidation_const, 
+                              anisotropy=anisotropy)
+      invalid_vertices[root]=True
 
   paths = []
   valid_labels = np.count_nonzero(labels)
     
- 
-
-  invalid_vertices = {}
-
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.path_from_parents(parents, target)
+    if soma_mode:
+      dist_to_soma_root = np.linalg.norm(anisotropy*(path - root),axis=1)
+      # remove all path points which are within soma_radius of root
+      path = np.concatenate((path[0,:][np.newaxis,:],
+                             path[dist_to_soma_root>soma_radius,:]))
+
     invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
       labels, DBF, path, scale, const, 
       anisotropy=anisotropy, invalid_vertices=invalid_vertices,

@@ -218,7 +218,7 @@ def create_deletion_tasks(task_queue, layer_path):
     task_queue.insert(task)
   task_queue.wait('Uploading DeleteTasks')
 
-def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512),
+def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
                          max_simplification_error=40):
   shape = Vec(*shape)
 

@@ -1,6 +1,107 @@
 CHANGES
 =======
 
+* add mask disable capability
+* chore: fix some style issues
+* fix(MeshTask): Set default low\_padding to 0 to allow for continuous mesh boundaries
+* chore: bump cloudvolume to be compatible with matrix deployment
+* fix(cMesher): revert change to max\_simplification\_error from #9
+* chore: update requirements.txt, CloudVolume w/ matrix support
+* change aff to output
+* fix mask layer path bug
+* fix some bugs
+* fix: bbox in mip 0 coordiantes
+* rebase to update
+* fix: autoresizing of bounding box needed to use shape not underlying
+* feat: add bounds argument, documentation, and mip=0 to create\_downsampling\_tasks
+* fix(MeshTask): \_update\_vertices() accounts for 'low\_padding' offset
+* fix(setup): Add numpy includes
+* feat: update QuantizeAffinitiesTask to QuantizeTask
+* chore: bump cloud-volume to 0.28.2
+* fix: add google-cloud-logging to requirements
+* chore: bump cloud-volume to 0.28.1
+* feat: Cython array remap code (#14)
+* fix: shape computation error in create\_deletion\_tasks
+* fix: compute mip coordinates correctly in DeleteTask
+* docs: documentation for sparse flag in create\_downsampling\_tasks
+* refactor: move pipeline running commands to pipeline.py
+* feat: add sparse downsampling capability for segmentation (#15)
+* Preparations for agglomeration meshing (#9)
+* set fill\_missing=False to avoid zero image bug
+* refactor: simplified mesh interface, now only need to call mesher.mesh(numpy\_array) (#13)
+* fix: update queue\_pickle to python3
+* fix: always set chunk\_size for transfer task even if info exists
+* Update README.md
+* add mask affinitymap task
+* add option for running without looping, which means single time execution. This is helpful to use container for each task and cleaned up the memory footprint by docker in case any memory leak in program, such as pznet
+* Update README.md
+* Update README.md
+* cloudvolume hangs, may not use it correctly
+* fix: added provenance processing for MeshTask
+* add inference task, not working yet
+* fix: updated deployment.yml to reflect SQS usage
+* docs: some rewording
+* docs: added info on running igneous in the cloud
+* docs: local multicore processing without the cloud
+* chore: bump task-queue to make LocalTaskQueue available
+* fix destvol dtype bug for hypersquare consensus task
+* feat: automatic info file with adjustable chunk size for TransferTask
+* chore: bumped python task queue to version compatible with multi-secrets
+* chore: bugfix cloud-volume version
+* fix: handle boundary shape correctly for ContrastNormalizationTask
+* fix: handle black slices correctly in ContrastNormalizationTask
+* docs: Documented downsampling, deletion, transfer, meshing, and contrast correction
+* fix: ensure Python 2 can perform accurate division in ContrastNormalizationTask
+* feat: ContrastNormalizationTask (#7)
+* chore: upgrade cloud-volume, tqdm, and numpy
+* fix: write to mip level dir for LuminanceLevelsTask
+* feat: created LuminanceLevelsTask (#5)
+* chore: bump cloud-volume to 0.19.1
+* fix: ensure delete tasks stay within volume bounds
+* feat: move provenance email to variable
+* chore: bump cloudvolume to 0.15.2
+* fix: added missing properties to transfer task provenance
+* Improve docs a bit (#4)
+* chore: bumped cloudvolume version
+* chore: clean up
+* fix: provenance uploads correctly for transfer tasks
+* fix: cast lease\_seconds to int
+* fix: added LEASE\_SECONDS to secrets.py
+* feat: added ability to specify lease seconds
+* chore: bumped cloudvolume to 0.10.3
+* fix: fixed DeleteTask for higher level mips
+* fix: HyperSquareConsensusTask working for e2198
+* feat: HyperSquareConsensusTasks are now 64bit
+* fix: correctly reference SQS\_URL
+* chore: upgrade python-task-queue
+* feat: add support for SQS
+* feat: added jittered exp backoff for task\_execution
+* chore: bumped cloud-volume version
+* feat: added support for countless3d (#2)
+* feat: marching cubes now handled uint64  (#3)
+* feat: added cascade function to task\_creation
+* perf: improved memory efficiency and performance of countless downsample
+* feat: sanely compute the downsample chunk size when preserve\_chunk\_size=False
+* chore: remove \*.pyc files from test as well
+* fix: reference seunglab/igneous:master b/c that's what travis deploys
+* feat: default queue is google pull-queue rather than appengine
+* chore: bumped click version in requirements.txt
+* chore: delete \*.pyc files
+* fix: improve context swtiching on processor
+* chore: bump python to 3.4 for better performance
+* feat: queue\_pickly.py script can save or reload task queues
+* feat: added multiprocessing to task execution
+* fix: python3 compatibility for creating mesh manifest tasks
+* feat: able to use appengine queue
+* feat: added example deployment file for kubernetes
+* chore: update python-task-queue to 0.1.7 for appengine support
+* fix: push to seunglab/igneous
+* fix: install in editable mode to expose \_mesher.so
+* fix: include \_mesher.cpp in travis builds
+* feat: added DeleteTask and PrintTask
+* test: adding debug statement to see what's going on in travis
+* test: updating travis file with encrypted docker information
+* fix: made scripts python3 compatible
 * chore: configured dependencies to enable docker build
 * perf: sped up tests
 * fix: python 2/3 compatibility for version.py

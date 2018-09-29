@@ -67,7 +67,7 @@ def TEASAR(
   # placing it at the approximate center of the soma
   if soma_mode:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
-    soma_radius = (DBF[root[0],root[1],root[2]]*soma_invalidation_scale)+soma_invalidation_const
+    soma_radius = dbf_max * soma_invalidation_scale + soma_invalidation_const
   else:
     root = find_root(labels, anisotropy)
 

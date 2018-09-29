@@ -70,6 +70,7 @@ def TEASAR(
     soma_radius = dbf_max * soma_invalidation_scale + soma_invalidation_const
   else:
     root = find_root(labels, anisotropy)
+    soma_radius = 0
 
   if root is None:
     return Skeleton()
@@ -83,40 +84,26 @@ def TEASAR(
   # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(PDRF, root)
 
-  invalid_vertices = {}
   if soma_mode:
-      invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
-                              labels, DBF, np.array([root], dtype=np.uint32),
-                              scale=soma_invalidation_scale,
-                              const=soma_invalidation_const, 
-                              anisotropy=anisotropy)
-      invalid_vertices[root]=True
-
-  paths = []
-  valid_labels = np.count_nonzero(labels)
-    
-  while valid_labels > 0:
-    target = igneous.skeletontricks.find_target(labels, PDRF)
-    path = igneous.dijkstra.path_from_parents(parents, target)
-    if soma_mode:
-      dist_to_soma_root = np.linalg.norm(anisotropy*(path - root),axis=1)
-      # remove all path points which are within soma_radius of root
-      path = np.concatenate((path[0,:][np.newaxis,:],
-                             path[dist_to_soma_root>soma_radius,:]))
-
-    invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
-      labels, DBF, path, scale, const, 
-      anisotropy=anisotropy, invalid_vertices=invalid_vertices,
+    invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
+      labels, DBF, np.array([root], dtype=np.uint32),
+      scale=soma_invalidation_scale,
+      const=soma_invalidation_const, 
+      anisotropy=anisotropy
     )
-    valid_labels -= invalidated
-    for vertex in path:
-      invalid_vertices[tuple(vertex)] = True
-    path = np.concatenate((path[0:-2:path_downsample, :],
-                           path[-1, :][np.newaxis,:]))
-    paths.append(path)
 
+  paths = compute_paths(
+    root, labels, DBF, PDRF, 
+    parents, scale, const, anisotropy, 
+    soma_mode, soma_radius
+  )
 
-  del invalid_vertices
+  # Downsample skeletons by striding. Ensure first and last point remain.
+  # Duplicate points are eliminated in path_union.
+  for i, path in enumerate(paths):
+    paths[i] = np.concatenate(
+      (path[0:-2:path_downsample, :], path[-1:, :])
+    )
 
   skel_verts, skel_edges = path_union(paths)
   skel_radii = DBF[skel_verts[::3], skel_verts[1::3], skel_verts[2::3]]
@@ -125,6 +112,51 @@ def TEASAR(
   skel_edges = skel_edges.reshape( (skel_edges.size // 2, 2)  )
 
   return Skeleton(skel_verts, skel_edges, skel_radii)
+
+def compute_paths(
+    root, labels, DBF, PDRF, 
+    parents, scale, const, anisotropy, 
+    soma_mode, soma_radius
+  ):
+  """
+  Given the labels, DBF, PDRF, dijkstra parents,
+  and associated invalidation knobs, find the set of paths 
+  that cover the object. Somas are given special treatment
+  in that we attempt to cull vertices within a radius of the
+  root vertex.
+  """
+  invalid_vertices = {}
+
+  if soma_mode:
+    invalid_vertices[root] = True
+
+  paths = []
+  valid_labels = np.count_nonzero(labels)
+    
+  while valid_labels > 0:
+    target = igneous.skeletontricks.find_target(labels, PDRF)
+    path = igneous.dijkstra.path_from_parents(parents, target)
+    
+    if soma_mode:
+      dist_to_soma_root = np.linalg.norm(anisotropy * (path - root), axis=1)
+      # remove all path points which are within soma_radius of root
+      path = np.concatenate((
+        path[0,:][np.newaxis,:],
+        path[dist_to_soma_root > soma_radius, :]
+      ))
+
+    invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
+      labels, DBF, path, scale, const, 
+      anisotropy=anisotropy, invalid_vertices=invalid_vertices,
+    )
+
+    valid_labels -= invalidated
+    for vertex in path:
+      invalid_vertices[tuple(vertex)] = True
+
+    paths.append(path)
+
+  return paths
 
 def find_root(labels, anisotropy):
   """

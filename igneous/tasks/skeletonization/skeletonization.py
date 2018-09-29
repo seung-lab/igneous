@@ -99,9 +99,10 @@ def TEASAR(
     target = igneous.skeletontricks.find_target(labels, PDRF)
     path = igneous.dijkstra.path_from_parents(parents, target)
     if soma_mode:
-      d = np.linalg.norm(anisotropy*(path - root),axis=1)
+      dist_to_soma_root = np.linalg.norm(anisotropy*(path - root),axis=1)
       # remove all path points which are within soma_radius of root
-      path = np.concatenate((path[0,:][np.newaxis,:],path[d>soma_radius,:]))
+      path = np.concatenate((path[0,:][np.newaxis,:],
+                             path[dist_to_soma_root>soma_radius,:]))
 
     invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
       labels, DBF, path, scale, const, 

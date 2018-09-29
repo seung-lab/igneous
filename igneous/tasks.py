@@ -40,7 +40,7 @@ def downsample_and_upload(
     # into underlying chunks of 64x64 which permits more scales
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
     underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
-    toidx = { 'x': 0, 'y': 1, 'z': 2 }
+    toidx = {'x': 0, 'y': 1, 'z': 2}
     preserved_idx = toidx[axis]
     underlying_shape[preserved_idx] = float('inf')
 
@@ -943,3 +943,242 @@ class WatershedRemapTask(RegisteredTask):
     remap = np.load(file)
     file.close()
     return remap
+
+class MaskAffinitymapTask(RegisteredTask):
+    """
+    black out the affinitymap regions according to a mask. The mask could be 
+    lower resolution in a higher mip level. The affinitymap correspond with 
+    zero intensive voxels in the mask will be blacked out. 
+    """
+    def __init__(self, aff_input_layer_path, aff_output_layer_path, aff_mip, 
+                 mask_layer_path, mask_mip, bounds):
+        super().__init__(aff_input_layer_path, aff_output_layer_path, aff_mip, 
+                         mask_layer_path, mask_mip, bounds)
+        self.aff_input_layer_path = aff_input_layer_path 
+        self.aff_output_layer_path = aff_output_layer_path 
+        self.aff_mip = aff_mip 
+        self.mask_layer_path = mask_layer_path
+        self.mask_mip = mask_mip 
+
+        self.aff_slices = bounds.to_slices()
+
+    def execute(self):
+        self._read_mask()
+        self._read_affinity_map()
+        self._mask_affinity_map()
+        self._upload_affinity_map()
+
+    def _read_affinity_map(self):
+        print("download affinity map chunk...")
+        if np.all(self.mask==0):
+            print("the mask is all black, fill affinitymap with zeros directly")
+            sz = (3,) + tuple(s.stop-s.start for s in self.aff_slices) 
+            self.aff = np.zeros( sz, dtype='float32' )
+            return 
+
+        vol = CloudVolume(self.aff_input_layer_path, bounded=False, fill_missing=True,
+                          progress=True, mip=self.aff_mip)
+        # the slices did not contain the channel dimension
+        self.aff = vol[self.aff_slices[::-1] + (slice(0,3),)]
+        self.aff = np.transpose(self.aff)
+
+    def _read_mask(self):
+        print("download mask chunk...")
+        vol = CloudVolume(self.mask_layer_path, bounded=False, fill_missing=True,
+                          progress=True, mip=self.mask_mip)
+        self.xyfactor = 2**(self.mask_mip - self.aff_mip)
+        # only scale the indices in XY plane 
+        self.mask_slices = tuple(slice(a.start//self.xyfactor, a.stop//self.xyfactor) 
+                                 for a in self.aff_slices[1:3])
+        self.mask_slices = (self.aff_slices[0],) + self.mask_slices 
+
+        # the slices did not contain the channel dimension
+        print("mask slices: {}".format(self.mask_slices))
+        self.mask = vol[self.mask_slices[::-1]]
+        self.mask = np.transpose(self.mask)
+        print("shape of mask: {}".format(self.mask.shape))
+        self.mask = np.squeeze(self.mask, axis=0)
+
+    def _mask_affinity_map(self):
+        if np.all(self.mask):
+            print("mask elements are all positive, return directly")
+            #return
+        if not np.any(self.aff):
+            print("affinitymap all black, return directly")
+            return 
+
+        print("perform masking ...")
+        # use c++ backend 
+        # from datatools import mask_affiniy_map 
+        # mask_affinity_map(self.aff, self.mask)
+        
+        assert np.any(self.mask)
+        print("upsampling mask ...")
+        # upsampling factor in XY plane 
+        mask = np.zeros(self.aff.shape[1:], dtype=self.mask.dtype)
+        for offset in np.ndindex((self.xyfactor, self.xyfactor)):
+            mask[:, np.s_[offset[0]::self.xyfactor], np.s_[offset[1]::self.xyfactor]] = self.mask 
+
+        assert mask.shape == self.aff.shape[1:]
+        assert np.any(self.mask)
+        np.multiply(self.aff[0,:,:,:], mask, out=self.aff[0,:,:,:])
+        np.multiply(self.aff[1,:,:,:], mask, out=self.aff[1,:,:,:])
+        np.multiply(self.aff[2,:,:,:], mask, out=self.aff[2,:,:,:])
+        assert np.any(self.aff)
+
+    def _upload_affinity_map(self):
+        print("upload affinity map chunk...")
+        print("output path: {}".format(self.aff_output_layer_path))
+        vol = CloudVolume(self.aff_output_layer_path, compress='gzip', 
+                          fill_missing=True, bounded=False, autocrop=True, 
+                          mip=self.aff_mip, progress=True)
+        self.aff = np.transpose(self.aff)
+        vol[self.aff_slices[::-1]+(slice(0,3),)] = self.aff 
+
+
+class InferenceTask(RegisteredTask):
+    """
+    run inference like ChunkFlow.jl
+    1. cutout image using cloudvolume
+    2. run inference
+    3. crop the margin to make the output aligned with cloud storage backend
+    4. upload to cloud storage using cloudvolume
+
+    Note that I always use z,y,x in python, but cloudvolume use x,y,z for indexing.
+    So I always do a reverse of slices before indexing.
+    """
+    def __init__(self, image_layer_path, convnet_path, mask_layer_path, output_layer_path,
+            output_offset, output_shape, patch_size, patch_overlap,
+            cropping_margin_size, output_key='output', num_output_channels=3, 
+                 image_mip=1, output_mip=1, mask_mip=3):
+        
+        super().__init__(image_layer_path, convnet_path, mask_layer_path, output_layer_path,
+                output_offset, output_shape, patch_size, patch_overlap, 
+                cropping_margin_size, output_key, num_output_channels, 
+                image_mip, output_mip, mask_mip)
+        
+        output_shape = Vec(*output_shape)
+        output_offset = Vec(*output_offset)
+        self.image_layer_path = image_layer_path
+        self.convnet_path = convnet_path
+        self.mask_layer_path = mask_layer_path 
+        self.output_layer_path = output_layer_path
+        self.output_bounds = Bbox(output_offset, output_shape + output_offset)
+        self.patch_size = patch_size
+        self.patch_overlap = patch_overlap
+        self.cropping_margin_size = cropping_margin_size
+        self.output_key = output_key
+        self.num_output_channels = num_output_channels
+        self.image_mip = image_mip
+        self.output_mip = output_mip
+        self.mask_mip = mask_mip 
+    
+    def execute(self):
+        self._read_mask()
+        # if the mask is black, no need to run inference 
+        if np.all(self.mask == 0):
+            return 
+        self._read_image()
+        self._inference()
+        self._crop()
+        if self.mask: 
+            self._mask_output()
+
+        self._upload_output()
+
+    def _read_mask(self):
+        if self.mask_layer_path is None or not self.mask_layer_path: 
+            print('no mask layer path defined')
+            self.mask = None 
+            return 
+        print("download mask chunk...")
+        vol = CloudVolume(self.mask_layer_path, bounded=False, fill_missing=True,
+                          progress=True, mip=self.mask_mip)
+        self.xyfactor = 2**(self.mask_mip - self.output_mip)
+        # only scale the indices in XY plane 
+        self.mask_slices = tuple(slice(a.start//self.xyfactor, a.stop//self.xyfactor) 
+                                 for a in self.output_bounds.to_slices()[1:3])
+        self.mask_slices = (self.output_bounds.to_slices()[0],) + self.mask_slices 
+
+        # the slices did not contain the channel dimension
+        print("mask slices: {}".format(self.mask_slices))
+        self.mask = vol[self.mask_slices[::-1]]
+        self.mask = np.transpose(self.mask)
+        print("shape of mask: {}".format(self.mask.shape))
+        self.mask = np.squeeze(self.mask, axis=0)
+
+    def _mask_output(self):
+        if np.all(self.mask):
+            print("mask elements are all positive, return directly")
+            #return
+        if not np.any(self.output):
+            print("output volume is all black, return directly")
+            return 
+
+        print("perform masking ...")
+        # use c++ backend 
+        # from datatools import mask_affiniy_map 
+        # mask_affinity_map(self.aff, self.mask)
+        
+        assert np.any(self.mask)
+        print("upsampling mask ...")
+        # upsampling factor in XY plane 
+        mask = np.zeros(self.output.shape[1:], dtype=self.mask.dtype)
+        for offset in np.ndindex((self.xyfactor, self.xyfactor)):
+            mask[:, np.s_[offset[0]::self.xyfactor], np.s_[offset[1]::self.xyfactor]] = self.mask 
+
+        assert mask.shape == self.output.shape[1:]
+        assert np.any(self.mask)
+        np.multiply(self.output[0,:,:,:], mask, out=self.output[0,:,:,:])
+        np.multiply(self.output[1,:,:,:], mask, out=self.output[1,:,:,:])
+        np.multiply(self.output[2,:,:,:], mask, out=self.output[2,:,:,:])
+        assert np.any(self.output)
+
+    def _read_image(self):
+        self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=False,
+                               progress=True, mip=self.image_mip, parallel=True)
+        output_slices = self.output_bounds.to_slices()
+        self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
+                                  zip(output_slices, self.cropping_margin_size))
+        # always reverse the indexes since cloudvolume use x,y,z indexing
+        self.image = self.vol[self.input_slices[::-1]]
+        # the cutout is fortran ordered, so need to transpose and make it C order
+        self.image = np.transpose(self.image)
+        self.image = np.ascontiguousarray(self.image)
+        assert self.image.shape[0] == 1
+        self.image = np.squeeze(self.image, axis=0)
+
+    def _inference(self):
+        # prepare for inference
+        from chunkflow.block_inference_engine import BlockInferenceEngine
+        from chunkflow.frameworks.pznet_patch_inference_engine import PZNetPatchInferenceEngine
+        patch_engine = PZNetPatchInferenceEngine(self.convnet_path)
+        self.block_inference_engine = BlockInferenceEngine(
+            patch_inference_engine=patch_engine,
+            patch_size=self.patch_size,
+            overlap=self.patch_overlap,
+            output_key=self.output_key,
+            output_channels=self.num_output_channels)
+
+
+        # inference engine input is a OffsetArray rather than normal numpy array
+        # it is actually a numpy array with global offset
+        from chunkflow.offset_array import OffsetArray
+
+        input_offset = tuple(s.start for s in self.input_slices)
+        input_chunk = OffsetArray(self.image, global_offset=input_offset)
+        self.output = self.block_inference_engine(input_chunk)
+
+    def _crop(self):
+        self.output = self.output[:,
+                                  self.cropping_margin_size[0] : -self.cropping_margin_size[0],
+                                  self.cropping_margin_size[1] : -self.cropping_margin_size[1],
+                                  self.cropping_margin_size[2] : -self.cropping_margin_size[2]]
+
+    def _upload_output(self):
+        vol = CloudVolume(self.output_layer_path, compress='gzip', fill_missing=True,
+                          bounded=False, autocrop=True, mip=self.image_mip, progress=True)
+        output_slices = self.output_bounds.to_slices()
+        self.output = np.transpose(self.output)
+        vol[output_slices[::-1]+(slice(0,self.output.shape[-1]),)] = self.output
+

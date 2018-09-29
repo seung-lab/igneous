@@ -16,7 +16,7 @@ def envval(key, default):
 
 QUEUE_NAME = envval('PIPELINE_USER_QUEUE', 'pull-queue') 
 TEST_QUEUE_NAME = envval('TEST_PIPELINE_USER_QUEUE', 'test-pull-queue')
-QUEUE_TYPE = envval('QUEUE_TYPE', 'pull-queue')
+QUEUE_TYPE = envval('QUEUE_TYPE', 'sqs')
 SQS_URL = envval('SQS_URL', None)
 PROJECT_NAME = 'neuromancer-seung-import'
 APPENGINE_QUEUE_URL = 'https://queue-dot-neuromancer-seung-import.appspot.com'

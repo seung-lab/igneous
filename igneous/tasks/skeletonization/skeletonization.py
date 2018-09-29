@@ -140,10 +140,9 @@ def compute_paths(
     if soma_mode:
       dist_to_soma_root = np.linalg.norm(anisotropy * (path - root), axis=1)
       # remove all path points which are within soma_radius of root
-      path = np.concatenate((
-        path[0,:][np.newaxis,:],
-        path[dist_to_soma_root > soma_radius, :]
-      ))
+      path = np.concatenate(
+        (path[:1,:], path[dist_to_soma_root > soma_radius, :])
+      )
 
     invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
       labels, DBF, path, scale, const, 

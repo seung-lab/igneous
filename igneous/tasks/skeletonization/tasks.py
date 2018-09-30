@@ -26,13 +26,11 @@ from igneous import chunks, downsample, downsample_scales
 import igneous.cc3d as cc3d
 import igneous.skeletontricks
 
-from .definitions import Skeleton
 from .skeletonization import TEASAR
 from .postprocess import (
   crop_skeleton, merge_skeletons, trim_skeleton,
   consolidate_skeleton, simple_merge_skeletons
 )
-
 
 def skeldir(cloudpath):
   with SimpleStorage(cloudpath) as storage:
@@ -186,7 +184,7 @@ class SkeletonMergeTask(RegisteredTask):
       vol = self.vol
 
       for segid, frags in tqdm(skels.items()):
-        ptcloud = self.get_point_cloud(vol, segid, frags)    
+        ptcloud = self.get_point_cloud(vol, segid, frags)
         skeleton = self.fuse_skeletons(frags, stor)
         skeleton = trim_skeleton(skeleton, ptcloud)
 

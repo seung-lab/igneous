@@ -9,8 +9,6 @@ import scipy.sparse.csgraph as csgraph
 from cloudvolume.lib import Bbox
 from cloudvolume import PrecomputedSkeleton
 
-from .definitions import Skeleton, find_row, path2edge
-
 ## Public API of Module
 
 def simple_merge_skeletons(skeleton1, skeleton2):
@@ -35,7 +33,7 @@ def crop_skeleton(skeleton, bound):
   if skeleton.empty():
     return skeleton
 
-  nodes_valid_mask = get_valid(skeleton.nodes, bound)
+  nodes_valid_mask = get_valid(skeleton.vertices, bound)
   nodes_valid_idx = np.where(nodes_valid_mask)[0]
 
   edges = skeleton.edges
@@ -57,8 +55,8 @@ def merge_skeletons(skeleton1, skeleton2):
   elif skeleton2.empty():
     return consolidate_skeleton(skeleton1), skeleton2
 
-  nodes1 = skeleton1.nodes
-  nodes2 = skeleton2.nodes
+  nodes1 = skeleton1.vertices
+  nodes2 = skeleton2.vertices
 
   edges1 = skeleton1.edges
   edges2 = skeleton2.edges
@@ -122,7 +120,7 @@ def combination_pairs(n):
       pairs = np.concatenate((pairs, np.array([i, i+j+1 ])))
 
   pairs = np.reshape(pairs,[ pairs.shape[0] // 2, 2 ])
-  return pairs.astype('uint8')
+  return pairs.astype(np.uint8)
 
 def get_valid(points, bound):
   return (points[:,0] > bound[0,0]) \
@@ -143,7 +141,7 @@ def edges2sparse(nodes, edges):
 def find_connected(nodes, edges):
   s = nodes.shape[0] 
   nodes = np.unique(edges)
-  nodes = nodes.astype('int')
+  nodes = nodes.astype(np.int)
 
   conn_mat = lil_matrix((s, s), dtype=bool)
   conn_mat[edges[:,0],edges[:,1]] = 1
@@ -181,7 +179,7 @@ def remove_overlap_edges(nodes_overlap, edges):
 
 def remove_dust(skeleton, dust_threshold):
   """dust_threshold in # of edges"""
-  nodes = skeleton.nodes
+  nodes = skeleton.vertices
   edges = skeleton.edges 
 
   connected = find_connected(nodes, edges)
@@ -217,8 +215,8 @@ def interpolate_line(point1, point2):
   NDIM = point1.size
   int_points = np.zeros((n_step,NDIM))
   
-  point1 = point1.astype('float32')
-  point2 = point2.astype('float32')
+  point1 = point1.astype(np.float32)
+  point2 = point2.astype(np.float32)
   for i in range(n_step):
     a = i + 1
     b = n_step - i
@@ -228,7 +226,7 @@ def interpolate_line(point1, point2):
   return np.unique(int_points, axis=0)
 
 def connect_pieces(skeleton, ptcloud):
-  nodes = skeleton.nodes
+  nodes = skeleton.vertices
   edges = skeleton.edges
 
   all_connected = 1
@@ -243,7 +241,7 @@ def connect_pieces(skeleton, ptcloud):
     for i in range(pairs.shape[0]):
       path_piece = connected[pairs[i,0]]
       nodes_piece = nodes[path_piece]
-      nodes_piece = nodes_piece.astype('float32')
+      nodes_piece = nodes_piece.astype(np.float32)
       nodes_piece_idx = np.where(path_piece)[0]
 
       path_tree = connected[pairs[i,1]]
@@ -326,7 +324,7 @@ def remove_ticks(skeleton, threshold=150):
   return consolidate_skeleton(skeleton)
 
 def remove_loops(skeleton):
-  nodes = skeleton.nodes
+  nodes = skeleton.vertices
   edges = skeleton.edges
   edges = np.sort(edges, axis=1)
   
@@ -348,13 +346,13 @@ def remove_loops(skeleton):
     edges_cycle = np.sort(edges_cycle, axis=1)
 
     nodes_cycle = np.unique(edges_cycle)
-    nodes_cycle = nodes_cycle.astype('int')
+    nodes_cycle = nodes_cycle.astype(np.int64)
     
     unique_nodes, unique_counts = np.unique(edges, return_counts=True)
     branch_nodes = unique_nodes[ unique_counts >= 3 ]
 
     branch_cycle = nodes_cycle[np.isin(nodes_cycle,branch_nodes)]
-    branch_cycle = branch_cycle.astype('int')
+    branch_cycle = branch_cycle.astype(np.int64)
 
     if branch_cycle.shape[0] == 1:
       branch_cycle_point = nodes[branch_cycle,:]
@@ -380,7 +378,7 @@ def remove_loops(skeleton):
       for i in range(edge_path.shape[0]):
         row_valid = row_valid - (edges_cycle[:,0]==edge_path[i,0])*(edges_cycle[:,1]==edge_path[i,1])
 
-      row_valid = row_valid.astype('bool')
+      row_valid = row_valid.astype(np.bool)
       edge_path = edges_cycle[row_valid,:]
 
       edges = remove_row(edges, edge_path)
@@ -408,17 +406,17 @@ def remove_loops(skeleton):
 
       edges = np.concatenate((edges,new_edges), 0)
 
-  skeleton.nodes = nodes
+  skeleton.vertices = nodes
   skeleton.edges = edges
   return consolidate_skeleton(skeleton)
 
 def consolidate_skeleton(skeleton):
-  nodes = skeleton.nodes 
+  nodes = skeleton.vertices 
   edges = skeleton.edges
   radii = skeleton.radii
 
-  if nodes.shape[0] == 0 or edges.shape[0] == 0:
-    return Skeleton()
+  if skeleton.empty():
+    return PrecomputedSkeleton(np.array([[]], dtype=np.float32), np.array([[]], dtype=np.uint32))
   
   # Remove duplicate nodes
   unique_nodes, unique_idx, unique_counts = np.unique(nodes, axis=0, return_index=True, return_counts=True)
@@ -435,7 +433,7 @@ def consolidate_skeleton(skeleton):
 
   # Remove unnecessary nodes
   eff_node_list = np.unique(unique_edges)
-  eff_node_list = eff_node_list.astype('int')
+  eff_node_list = eff_node_list.astype(np.int64)
   
   eff_nodes = nodes[eff_node_list]
   eff_radii = radii[eff_node_list]
@@ -447,7 +445,50 @@ def consolidate_skeleton(skeleton):
 
   eff_edges = np.unique(eff_edges, axis=0)
 
-  skeleton.nodes = eff_nodes
+  skeleton.vertices = eff_nodes
   skeleton.edges = eff_edges
   skeleton.radii = eff_radii
   return skeleton
+
+
+def path2edge(path):
+  """
+  path: sequence of nodes
+
+  Returns: sequence separated into edges
+  """
+  edges = np.zeros([len(path) - 1, 2], dtype=np.uint32)
+  for i in range(len(path)-1):
+    edges[i,0] = path[i]
+    edges[i,1] = path[i+1]
+  return edges
+
+def find_row(array, row):
+  """
+  array: array to search for
+  row: row to find
+
+  Returns: row indices
+  """
+  row = np.array(row)
+
+  if array.shape[1] != row.size:
+    raise ValueError("Dimensions do not match!")
+  
+  NDIM = array.shape[1]
+  valid = np.zeros(array.shape, dtype='bool')
+
+  for i in range(NDIM):
+    valid[:,i] = array[:,i] == row[i]
+
+  row_loc = np.zeros([ array.shape[0], 1 ])
+
+  if NDIM == 2:
+    row_loc = valid[:,0] * valid[:,1]
+  elif NDIM == 3:
+    row_loc = valid[:,0] * valid[:,1] * valid[:,2]
+
+  idx = np.where(row_loc==1)[0]
+  if len(idx) == 0:
+    idx = -1
+  return idx

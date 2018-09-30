@@ -14,7 +14,6 @@ from PIL import Image
 import igneous.dijkstra 
 import igneous.skeletontricks
 
-from .definitions import Skeleton, path2edge
 from math import log
 from cloudvolume.lib import save_images, mkdir
 
@@ -70,7 +69,7 @@ def TEASAR(
     soma_radius = dbf_max * soma_invalidation_scale + soma_invalidation_const
   else:
     root = find_root(labels, anisotropy)
-    soma_radius = 0
+    soma_radius = 0.0
 
   if root is None:
     return Skeleton()

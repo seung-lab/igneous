@@ -416,7 +416,7 @@ def consolidate_skeleton(skeleton):
   radii = skeleton.radii
 
   if skeleton.empty():
-    return PrecomputedSkeleton(np.array([[]], dtype=np.float32), np.array([[]], dtype=np.uint32))
+    return PrecomputedSkeleton()
   
   # Remove duplicate nodes
   unique_nodes, unique_idx, unique_counts = np.unique(nodes, axis=0, return_index=True, return_counts=True)

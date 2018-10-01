@@ -6,6 +6,7 @@ Affiliation: Seung Lab, Princeton Neuroscience Institue
 Date: June-August 2018
 """
 from collections import defaultdict
+from math import log
 
 import numpy as np
 from scipy import ndimage
@@ -14,7 +15,7 @@ from PIL import Image
 import igneous.dijkstra 
 import igneous.skeletontricks
 
-from math import log
+from cloudvolume import PrecomputedSkeleton
 from cloudvolume.lib import save_images, mkdir
 
 def TEASAR(
@@ -72,7 +73,7 @@ def TEASAR(
     soma_radius = 0.0
 
   if root is None:
-    return Skeleton()
+    return PrecomputedSkeleton()
  
   DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
@@ -110,7 +111,7 @@ def TEASAR(
   skel_verts = skel_verts.astype(np.float32).reshape( (skel_verts.size // 3, 3) )
   skel_edges = skel_edges.reshape( (skel_edges.size // 2, 2)  )
 
-  return Skeleton(skel_verts, skel_edges, skel_radii)
+  return PrecomputedSkeleton(skel_verts, skel_edges, skel_radii)
 
 def compute_paths(
     root, labels, DBF, PDRF, 

@@ -59,6 +59,7 @@ class SkeletonTask(RegisteredTask):
     self.will_postprocess = will_postprocess
     self.cloudinfo = info
     self.object_ids = object_ids
+
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, info=self.cloudinfo, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
@@ -110,11 +111,9 @@ class SkeletonTask(RegisteredTask):
 
       if skeleton.empty():
         continue
+
       orig_segid = remapping[segid]
-      skeleton = PrecomputedSkeleton(
-        skeleton.nodes, skeleton.edges, skeleton.radii, 
-        segid=orig_segid
-      )
+      skeleton.id = orig_segid
       skeleton.vertices *= vol.resolution
       skeletons[orig_segid].append( (skeleton, roi) )
 
@@ -140,14 +139,13 @@ class SkeletonTask(RegisteredTask):
               cache_control=False,
             )
 
-
       
   def skeletonize(self, labels, dbf, bbox, anisotropy):
     skeleton = TEASAR(labels, dbf, anisotropy=anisotropy, **self.teasar_params)
 
-    skeleton.nodes[:,0] += bbox.minpt.x
-    skeleton.nodes[:,1] += bbox.minpt.y
-    skeleton.nodes[:,2] += bbox.minpt.z
+    skeleton.vertices[:,0] += bbox.minpt.x
+    skeleton.vertices[:,1] += bbox.minpt.y
+    skeleton.vertices[:,2] += bbox.minpt.z
 
     # Crop by 50px to avoid edge effects.
     crop_bbox = bbox.clone()

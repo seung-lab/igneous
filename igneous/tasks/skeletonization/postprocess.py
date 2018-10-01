@@ -182,6 +182,9 @@ def remove_dust(skeleton, dust_threshold):
   nodes = skeleton.vertices
   edges = skeleton.edges 
 
+  if skeleton.empty():
+    return skeleton
+
   connected = find_connected(nodes, edges)
 
   for i in range(len(connected)):
@@ -226,6 +229,9 @@ def interpolate_line(point1, point2):
   return np.unique(int_points, axis=0)
 
 def connect_pieces(skeleton, ptcloud):
+  if skeleton.empty():
+    return skeleton
+
   nodes = skeleton.vertices
   edges = skeleton.edges
 
@@ -277,6 +283,9 @@ def connect_pieces(skeleton, ptcloud):
   return consolidate_skeleton(skeleton)
 
 def remove_ticks(skeleton, threshold=150):
+  if skeleton.empty():
+    return skeleton
+  
   edges = skeleton.edges
   path_all = np.ones(1)
 
@@ -324,13 +333,16 @@ def remove_ticks(skeleton, threshold=150):
   return consolidate_skeleton(skeleton)
 
 def remove_loops(skeleton):
+  if skeleton.empty():
+    return skeleton
+
   nodes = skeleton.vertices
   edges = skeleton.edges
   edges = np.sort(edges, axis=1)
   
-  cycle_exists = 1
+  cycle_exists = True
 
-  while cycle_exists == 1:
+  while cycle_exists:
     G = nx.Graph()
 
     for i in range(edges.shape[0]):
@@ -339,7 +351,7 @@ def remove_loops(skeleton):
     try: 
       edges_cycle = nx.find_cycle(G, orientation='ignore')
     except:
-      cycle_exists = 0
+      cycle_exists = False
       continue
 
     edges_cycle = np.array(edges_cycle)

@@ -241,6 +241,10 @@ class SkeletonMergeTask(RegisteredTask):
       skeletons[fname2] = skel2
 
     skeletons = list(skeletons.values())
+    skeletons = [ s for s in skeletons if not s.empty() ]
+
+    if len(skeletons) == 0:
+      return PrecomputedSkeleton()
 
     fusing = skeletons[0]
     offset = 0

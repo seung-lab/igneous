@@ -42,10 +42,10 @@ def crop_skeleton(skeleton, bound):
   skeleton.edges = edges[edges_valid_idx,:]
   return consolidate_skeleton(skeleton)
 
-def trim_skeleton(skeleton, ptcloud):
+def trim_skeleton(skeleton):
   skeleton = remove_dust(skeleton, 100) # 100 edges
   skeleton = remove_loops(skeleton)
-  skeleton = connect_pieces(skeleton, ptcloud)
+  skeleton = connect_pieces(skeleton)
   skeleton = remove_ticks(skeleton)
   return skeleton
 
@@ -132,19 +132,19 @@ def get_valid(points, bound):
 
 def edges2sparse(nodes, edges):
   s = nodes.shape[0]
-  conn_mat = lil_matrix((s, s), dtype=bool)
-  conn_mat[edges[:,0],edges[:,1]] = 1
-  conn_mat[edges[:,1],edges[:,0]] = 1
+  conn_mat = lil_matrix((s, s), dtype=np.bool)
+  conn_mat[edges[:,0], edges[:,1]] = 1
+  conn_mat[edges[:,1], edges[:,0]] = 1
 
   return conn_mat
 
 def find_connected(nodes, edges):
   s = nodes.shape[0] 
   nodes = np.unique(edges)
-  nodes = nodes.astype(np.int)
+  nodes = nodes.astype(np.int64)
 
-  conn_mat = lil_matrix((s, s), dtype=bool)
-  conn_mat[edges[:,0],edges[:,1]] = 1
+  conn_mat = lil_matrix((s, s), dtype=np.bool)
+  conn_mat[edges[:,0], edges[:,1]] = 1
 
   n, l = csgraph.connected_components(conn_mat, directed=False)
   
@@ -228,26 +228,23 @@ def interpolate_line(point1, point2):
   int_points = np.round(int_points)
   return np.unique(int_points, axis=0)
 
-def connect_pieces(skeleton, ptcloud):
+def connect_pieces(skeleton):
   if skeleton.empty():
     return skeleton
 
   nodes = skeleton.vertices
   edges = skeleton.edges
+  radii = skeleton.radii
 
-  all_connected = 1
-  while all_connected == 1:
+  all_connected = True
+  while all_connected:
     connected = find_connected(nodes, edges)
+    pairs = combination_pairs(len(connected))
 
-    n_connected = len(connected)
-
-    pairs = combination_pairs(n_connected)
-
-    all_connected = 0
+    all_connected = False
     for i in range(pairs.shape[0]):
       path_piece = connected[pairs[i,0]]
-      nodes_piece = nodes[path_piece]
-      nodes_piece = nodes_piece.astype(np.float32)
+      nodes_piece = nodes[path_piece].astype(np.float32)
       nodes_piece_idx = np.where(path_piece)[0]
 
       path_tree = connected[pairs[i,1]]
@@ -256,27 +253,18 @@ def connect_pieces(skeleton, ptcloud):
       tree = spatial.cKDTree(nodes_tree)
 
       (dist, idx) = tree.query(nodes_piece)
-
       min_dist = np.min(dist)
 
       if min_dist < 50:
-    
-        min_dist_idx = int(np.where(dist==min_dist)[0][0])
+        min_dist_idx = int(np.where(dist == min_dist)[0][0])
         start_idx = nodes_piece_idx[min_dist_idx]
         end_idx = nodes_tree_idx[idx[min_dist_idx]]
 
-        int_points = interpolate_line(nodes[start_idx,:],nodes[end_idx,:])
-  
-        for k in range(int_points.shape[0]):
-          in_seg = np.sum(~np.any(ptcloud - int_points[k,:], axis=1))
-          if in_seg == 0:
-            break
-
-        if in_seg:
-          new_edge = np.array([ start_idx, end_idx ])
-          new_edge = np.reshape(new_edge, [1, 2])
+        # test if line between points exits object
+        if (radii[start_idx] + radii[end_idx]) >= min_dist:
+          new_edge = np.array([[ start_idx, end_idx ]])
           edges = np.concatenate((edges, new_edge), axis=0)
-          all_connected += 1
+          all_connected = True
           break
 
   skeleton.edges = edges
@@ -285,7 +273,7 @@ def connect_pieces(skeleton, ptcloud):
 def remove_ticks(skeleton, threshold=150):
   if skeleton.empty():
     return skeleton
-  
+
   edges = skeleton.edges
   path_all = np.ones(1)
 

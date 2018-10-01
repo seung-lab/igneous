@@ -182,10 +182,8 @@ class SkeletonMergeTask(RegisteredTask):
       vol = self.vol
 
       for segid, frags in tqdm(skels.items()):
-        ptcloud = self.get_point_cloud(vol, segid, frags)
         skeleton = self.fuse_skeletons(frags, stor)
-        skeleton = trim_skeleton(skeleton, ptcloud)
-
+        skeleton = trim_skeleton(skeleton)
         vol.skeleton.upload(segid, skeleton.vertices, skeleton.edges, skeleton.radii)
       
       for segid, frags in skels.items():
@@ -207,20 +205,6 @@ class SkeletonMergeTask(RegisteredTask):
       skeletons[segid].append(filename)
 
     return skeletons
-
-  def get_point_cloud(self, vol, segid, frags):
-    ptcloud = np.array([], dtype=np.uint16).reshape(0, 3)
-    for frag in frags:
-      bbox = Bbox.from_filename(frag)
-      img = vol[ bbox.to_slices() ][:,:,:,0]
-      ptc = np.argwhere( img == segid )
-      ptcloud = np.concatenate((ptcloud, ptc), axis=0)
-
-    if ptcloud.size == 0:
-      return ptcloud
-
-    ptcloud.sort(axis=0) # sorts x column, but not y unfortunately
-    return np.unique(ptcloud, axis=0)
 
   def fuse_skeletons(self, filenames, storage):
     if len(filenames) == 0:

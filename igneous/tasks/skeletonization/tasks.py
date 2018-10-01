@@ -154,7 +154,7 @@ class SkeletonTask(RegisteredTask):
 
     if crop_bbox.volume() <= 0:
       return skeleton
-
+      
     return crop_skeleton(skeleton, crop_bbox)
 
 class SkeletonMergeTask(RegisteredTask):

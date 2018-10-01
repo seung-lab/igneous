@@ -22,6 +22,7 @@ def simple_merge_skeletons(skeleton1, skeleton2):
     vertices=np.concatenate((skeleton1.vertices, skeleton2.vertices), axis=0),
     edges=np.concatenate((skeleton1.edges, skeleton2.edges+n1), axis=0),
     radii=np.concatenate((skeleton1.radii, skeleton2.radii), axis=0),
+    vertex_types=np.concatenate((skeleton1.vertex_types, skeleton2.vertex_types), axis=0),
     segid=skeleton1.id,
   )
 
@@ -444,11 +445,8 @@ def consolidate_skeleton(skeleton):
     eff_edges[row_idx,col_idx] = i
 
   eff_edges = np.unique(eff_edges, axis=0)
-
-  skeleton.vertices = eff_nodes
-  skeleton.edges = eff_edges
-  skeleton.radii = eff_radii
-  return skeleton
+  
+  return PrecomputedSkeleton(eff_nodes, eff_edges, eff_radii)
 
 
 def path2edge(path):

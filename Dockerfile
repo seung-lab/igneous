@@ -1,4 +1,4 @@
-FROM python:3.4
+FROM python:3.5
 MAINTAINER William Silversmith
 # This image contains private keys, make sure the image is not pushed to docker hub or any public repo.
 ## INSTALL gsutil

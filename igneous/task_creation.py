@@ -108,7 +108,10 @@ def create_info_file_from_build(layer_path, layer_type, resolution, encoding):
   
   return vol.info
 
-def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk_size=False):
+def create_downsample_scales(
+    layer_path, mip, ds_shape, axis='z', 
+    preserve_chunk_size=False, chunk_size=None
+  ):
   vol = CloudVolume(layer_path, mip)
   shape = min2(vol.volume_size, ds_shape)
 
@@ -116,6 +119,9 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
   # into underlying chunks of 64x64 which permits more scales
   underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
   underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
+
+  if chunk_size:
+    underlying_shape = Vec(*chunk_size).astype(np.float32)
 
   toidx = { 'x': 0, 'y': 1, 'z': 2 }
   preserved_idx = toidx[axis]
@@ -129,12 +135,22 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
   scales = scales[1:] # omit (1,1,1)
   scales = [ list(map(int, vol.downsample_ratio * Vec(*factor3))) for factor3 in scales ]
 
-  for scale in scales:
-    vol.add_scale(scale)
+  if len(scales) == 0:
+    print("WARNING: No scales generated.")
 
-  if preserve_chunk_size:
-    for i in range(mip + 1, mip + len(scales) + 1):
-      vol.scales[i]['chunk_sizes'] = vol.scales[mip]['chunk_sizes']
+  for scale in scales:
+    vol.add_scale(scale, chunk_size=chunk_size)
+
+  if chunk_size is None:
+    if preserve_chunk_size:
+      chunk_size = vol.scales[mip]['chunk_sizes']
+    else:
+      chunk_size = vol.scales[mip + 1]['chunk_sizes']
+  else:
+    chunk_size = [ chunk_size ]
+
+  for i in range(mip + 1, mip + len(scales) + 1):
+    vol.scales[i]['chunk_sizes'] = chunk_size
 
   return vol.commit_info()
 
@@ -142,7 +158,7 @@ def create_downsampling_tasks(
     task_queue, layer_path, 
     mip=0, fill_missing=False, axis='z', 
     num_mips=5, preserve_chunk_size=True,
-    sparse=False, bounds=None
+    sparse=False, bounds=None, chunk_size=None
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -153,6 +169,7 @@ def create_downsampling_tasks(
     preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
       evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
       useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
+    chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
     sparse: When downsampling segmentation, if true, don't count black pixels when computing
       the mode. Useful for e.g. synapses and point labels.
     bounds: By default, downsample everything, but you can specify restricted bounding boxes
@@ -167,7 +184,10 @@ def create_downsampling_tasks(
 
     vol = CloudVolume(layer_path, mip=mip)
     shape = ds_shape(vol.mip)
-    vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=preserve_chunk_size)
+    vol = create_downsample_scales(
+      layer_path, mip, shape, 
+      preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size
+    )
 
     if not preserve_chunk_size:
       shape = ds_shape(vol.mip + 1)
@@ -205,6 +225,8 @@ def create_downsampling_tasks(
         'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
         'sparse': sparse,
         'bounds': str(bounds),
+        'chunk_size': list(chunk_size),
+        'preserve_chunk_size': preserve_chunk_size,
       },
       'by': USER_EMAIL,
       'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -463,6 +485,7 @@ def create_fixup_downsample_tasks(task_queue, layer_path, points, shape=Vec(2048
     )
     task_queue.insert(task)
   task_queue.wait('Uploading')
+
 def create_quantized_affinity_info(src_layer, dest_layer, shape, mip, chunk_size):
   srcvol = CloudVolume(src_layer)
   

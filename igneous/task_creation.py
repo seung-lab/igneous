@@ -333,6 +333,7 @@ def create_transfer_tasks(
       'shape': list(map(int, shape)),
       'fill_missing': fill_missing,
       'translate': list(map(int, translate)),
+      'bounds': Vec(*bounds).tolist(),
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

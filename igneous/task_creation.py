@@ -142,7 +142,7 @@ def create_downsample_scales(
     vol.add_scale(scale, chunk_size=chunk_size)
 
   if chunk_size is None:
-    if preserve_chunk_size:
+    if preserve_chunk_size or len(scales) == 0:
       chunk_size = vol.scales[mip]['chunk_sizes']
     else:
       chunk_size = vol.scales[mip + 1]['chunk_sizes']
@@ -215,6 +215,7 @@ def create_downsampling_tasks(
         sparse=sparse,
       )
       task_queue.insert(task)
+
     task_queue.wait('Uploading')
     vol.provenance.processing.append({
       'method': {
@@ -225,7 +226,7 @@ def create_downsampling_tasks(
         'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
         'sparse': sparse,
         'bounds': str(bounds),
-        'chunk_size': list(chunk_size),
+        'chunk_size': (list(chunk_size) if chunk_size else None),
         'preserve_chunk_size': preserve_chunk_size,
       },
       'by': USER_EMAIL,
@@ -233,7 +234,7 @@ def create_downsampling_tasks(
     })
     vol.commit_provenance()
 
-def create_deletion_tasks(task_queue, layer_path):
+def create_deletion_tasks(task_queue, layer_path, mips=None):
   vol = CloudVolume(layer_path)
   shape = vol.underlying * 10
 
@@ -243,6 +244,7 @@ def create_deletion_tasks(task_queue, layer_path):
       layer_path=layer_path,
       shape=bounded_shape.clone(),
       offset=startpt.clone(),
+      mips=None,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading DeleteTasks')

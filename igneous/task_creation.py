@@ -238,7 +238,8 @@ def create_deletion_tasks(task_queue, layer_path, mips=None):
   vol = CloudVolume(layer_path)
   shape = vol.underlying * 10
 
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks"):
+  total_tasks = reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks", total=total_tasks):
     bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
     task = DeleteTask(
       layer_path=layer_path,
@@ -248,6 +249,18 @@ def create_deletion_tasks(task_queue, layer_path, mips=None):
     )
     task_queue.insert(task)
   task_queue.wait('Uploading DeleteTasks')
+
+  vol = CloudVolume(layer_path)
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'DeleteTask',
+      'mips': mips,
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  })
+  vol.commit_provenance()
+
 
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
                          max_simplification_error=40):

@@ -156,6 +156,10 @@ class DeleteTask(RegisteredTask):
       bbox = vol.bbox_to_mip(highres_bbox, 0, mip)
       bbox = bbox.round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)
       bbox = Bbox.clamp(bbox, vol.bounds)
+
+      if bbox.volume() == 0: 
+        continue
+
       vol.delete(bbox)
 
 

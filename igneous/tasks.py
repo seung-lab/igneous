@@ -138,22 +138,22 @@ class IngestTask(RegisteredTask):
 class DeleteTask(RegisteredTask):
   """Delete a block of images inside a layer on all mip levels."""
 
-  def __init__(self, layer_path, shape, offset, mips=None):
-    super(DeleteTask, self).__init__(layer_path, shape, offset, mips)
+  def __init__(self, layer_path, shape, offset, mip=0, num_mips=5):
+    super(DeleteTask, self).__init__(layer_path, shape, offset, mip, num_mips)
     self.layer_path = layer_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
-    self.mips = mips
+    self.mip = mip
+    self.num_mips
 
   def execute(self):
-    vol = CloudVolume(self.layer_path)
+    vol = CloudVolume(self.layer_path, mip=self.mip)
 
     highres_bbox = Bbox( self.offset, self.offset + self.shape )
-    mips = self.mips or vol.available_mips
 
-    for mip in mips:
+    for mip in range(self.mip, self.mip + self.num_mips):
       vol.mip = mip
-      bbox = vol.bbox_to_mip(highres_bbox, 0, mip)
+      bbox = vol.bbox_to_mip(highres_bbox, self.mip, mip)
       bbox = bbox.round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)
       bbox = Bbox.clamp(bbox, vol.bounds)
 

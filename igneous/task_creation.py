@@ -234,9 +234,12 @@ def create_downsampling_tasks(
     })
     vol.commit_provenance()
 
-def create_deletion_tasks(task_queue, layer_path, mips=None):
+def create_deletion_tasks(task_queue, layer_path, mip=0, num_mips=5):
   vol = CloudVolume(layer_path)
-  shape = vol.underlying * 10
+  
+  shape = vol.mip_underlying(mip)[:3]
+  shape.x *= 2 ** num_mips
+  shape.y *= 2 ** num_mips
 
   total_tasks = reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks", total=total_tasks):
@@ -245,7 +248,8 @@ def create_deletion_tasks(task_queue, layer_path, mips=None):
       layer_path=layer_path,
       shape=bounded_shape.clone(),
       offset=startpt.clone(),
-      mips=None,
+      mip=mip,
+      num_mips=num_mips,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading DeleteTasks')
@@ -254,7 +258,9 @@ def create_deletion_tasks(task_queue, layer_path, mips=None):
   vol.provenance.processing.append({
     'method': {
       'task': 'DeleteTask',
-      'mips': mips,
+      'mip': mip,
+      'num_mips': num_mips,
+      'shape': shape.tolist(),
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -339,8 +345,7 @@ def create_transfer_tasks(
     task_queue.insert(task)
   task_queue.wait('Uploading Transfer Tasks')
 
-  dvol = CloudVolume(dest_layer_path)
-  dvol.provenance.processing.append({
+  job_details = {
     'method': {
       'task': 'TransferTask',
       'src': src_layer_path,
@@ -352,8 +357,15 @@ def create_transfer_tasks(
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
+  }
+
+  dvol = CloudVolume(dest_layer_path)
+  dvol.provenance.sources = [ src_layer_path ]
+  dvol.provenance.processing.append(job_details) 
   dvol.commit_provenance()
+
+  vol.provenance.processing.append(job_details)
+  vol.commit_provenance()
 
 def create_contrast_normalization_tasks(task_queue, src_path, dest_path, 
   shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0)):

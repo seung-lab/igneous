@@ -144,14 +144,16 @@ class DeleteTask(RegisteredTask):
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.mip = mip
-    self.num_mips
+    self.num_mips = num_mips
 
   def execute(self):
     vol = CloudVolume(self.layer_path, mip=self.mip)
 
     highres_bbox = Bbox( self.offset, self.offset + self.shape )
 
-    for mip in range(self.mip, self.mip + self.num_mips):
+    top_mip = min(vol.available_mips[-1], self.mip + self.num_mips)
+
+    for mip in range(self.mip, top_mip + 1):
       vol.mip = mip
       bbox = vol.bbox_to_mip(highres_bbox, self.mip, mip)
       bbox = bbox.round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)

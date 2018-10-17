@@ -97,6 +97,7 @@ def TEASAR(
       const=soma_invalidation_const, 
       anisotropy=anisotropy
     )
+    invalid_vertices[root] = True
 
   paths = compute_paths(
     root, labels, DBF, PDRF, 

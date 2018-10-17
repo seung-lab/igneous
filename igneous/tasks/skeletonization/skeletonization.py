@@ -8,6 +8,7 @@ Date: June-August 2018
 from collections import defaultdict
 from math import log
 
+import edt
 import numpy as np
 from scipy import ndimage
 from PIL import Image
@@ -25,7 +26,7 @@ def TEASAR(
     pdrf_scale=5000, pdrf_exponent=16,
     soma_invalidation_scale=0.5,
     soma_invalidation_const=0,
-    path_downsample=5
+    path_downsample=1
   ):
   """
   Given the euclidean distance transform of a label ("Distance to Boundary Function"), 
@@ -45,7 +46,7 @@ def TEASAR(
   soma_invalidation_scale: the 'scale' factor used in the one time soma root invalidation (default .5)
   soma_invalidation_const: the 'const' factor used in the one time soma root invalidation (default 0)
                            (units in chosen physical units (i.e. nm))
-  path_downsample: stride length for downsampling the saved skeleton paths (default 5)
+  path_downsample: stride length for downsampling the saved skeleton paths (default 1)
                     (units of node points)
   
   Based on the algorithm by:
@@ -66,6 +67,11 @@ def TEASAR(
   # For somata: specially handle the root by 
   # placing it at the approximate center of the soma
   if soma_mode:
+    labels = ndimage.binary_fill_holes(labels)
+    DBF = edt.edt(np.ascontiguousarray(labels), anisotropy=anisotropy)
+    DBF = np.asfortranarray(DBF)
+    labels = np.asfortranarray(labels)
+    dbf_max = np.max(DBF)
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
     soma_radius = dbf_max * soma_invalidation_scale + soma_invalidation_const
   else:

@@ -7,6 +7,7 @@ try:
 except ImportError:
   from io import BytesIO
 
+import time
 import json
 import math
 import os
@@ -1077,17 +1078,43 @@ class InferenceTask(RegisteredTask):
         self.inference_backend = inference_backend
     
     def execute(self):
+        total_start = time.time()
+        start = time.time()
         self._read_mask()
+        end = time.time()
+        print("Read mask takes %3f sec" % (end-start) )
         # if the mask is black, no need to run inference 
         if np.all(self.mask == 0):
             return 
-        self._read_image()
-        self._inference()
-        self._crop()
-        if self.mask: 
-            self._mask_output()
 
+        start = end  
+        self._read_image()
+        end = time.time()
+        print("Read image takes %3f sec" % (end-start) )
+
+        start = end 
+        self._inference()
+        end = time.time()
+        print("Inference takes %3f min" % ((end-start)/60) )
+
+        start = end 
+        self._crop()
+        end = time.time()
+        print("Cropping takes %3f sec" % (end-start) )
+
+        if self.mask: 
+            start = end 
+            self._mask_output()
+            end = time.time()
+            print("Mask output takes %3f sec" % (end-start) )
+
+        start = end 
         self._upload_output()
+        end = time.time()
+        print("Upload output takes %3f min" % ((end-start)/60) )
+
+        total_end = time.time()
+        print("Whole task takes %3f min" % ((total_end - total_start)/60) )
 
     def _read_mask(self):
         if self.mask_layer_path is None or not self.mask_layer_path: 

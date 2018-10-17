@@ -1047,20 +1047,22 @@ class InferenceTask(RegisteredTask):
     Note that I always use z,y,x in python, but cloudvolume use x,y,z for indexing.
     So I always do a reverse of slices before indexing.
     """
-    def __init__(self, image_layer_path, convnet_path, mask_layer_path, output_layer_path,
-            output_offset, output_shape, patch_size, patch_overlap,
-            cropping_margin_size, output_key='output', num_output_channels=3, 
-                 image_mip=1, output_mip=1, mask_mip=3):
-        
-        super().__init__(image_layer_path, convnet_path, mask_layer_path, output_layer_path,
-                output_offset, output_shape, patch_size, patch_overlap, 
-                cropping_margin_size, output_key, num_output_channels, 
-                image_mip, output_mip, mask_mip)
+    def __init__(self, image_layer_path, convnet_model_path, convnet_weight_path,
+                 mask_layer_path, output_layer_path, output_offset, output_shape, patch_size, 
+                 patch_overlap, cropping_margin_size, output_key='output', 
+                 num_output_channels=3, image_mip=1, output_mip=1, mask_mip=3, 
+                 inference_backend='pznet'):
+        super().__init__(image_layer_path, convnet_model_path, convnet_weight_path, 
+                         mask_layer_path, output_layer_path, output_offset, output_shape, 
+                         patch_size, patch_overlap, cropping_margin_size, 
+                         output_key, num_output_channels, image_mip, output_mip, 
+                         mask_mip, inference_backend)
         
         output_shape = Vec(*output_shape)
         output_offset = Vec(*output_offset)
         self.image_layer_path = image_layer_path
-        self.convnet_path = convnet_path
+        self.convnet_model_path = convnet_model_path
+        self.convnet_weight_path = convnet_weight_path
         self.mask_layer_path = mask_layer_path 
         self.output_layer_path = output_layer_path
         self.output_bounds = Bbox(output_offset, output_shape + output_offset)
@@ -1072,6 +1074,7 @@ class InferenceTask(RegisteredTask):
         self.image_mip = image_mip
         self.output_mip = output_mip
         self.mask_mip = mask_mip 
+        self.inference_backend = inference_backend
     
     def execute(self):
         self._read_mask()
@@ -1151,8 +1154,19 @@ class InferenceTask(RegisteredTask):
     def _inference(self):
         # prepare for inference
         from chunkflow.block_inference_engine import BlockInferenceEngine
-        from chunkflow.frameworks.pznet_patch_inference_engine import PZNetPatchInferenceEngine
-        patch_engine = PZNetPatchInferenceEngine(self.convnet_path)
+        if self.inference_backend == 'pznet':
+            from chunkflow.frameworks.pznet_patch_inference_engine import PZNetPatchInferenceEngine
+            patch_engine = PZNetPatchInferenceEngine(self.convnet_model_path)
+        elif self.inference_backend == 'pytorch':
+            from chunkflow.frameworks.pytorch_patch_inference_engine import PytorchPatchInferenceEngine
+            patch_engine = PytorchPatchInferenceEngine(self.convnet_model_path, 
+                                                       self.convnet_weight_path,
+                                                       patch_size=self.patch_size,
+                                                       output_key=self.output_key,
+                                                       num_output_channels=self.num_output_channels)
+        else:
+            raise Exception('invalid inference backend: {}'.format(self.inference_backend))
+
         self.block_inference_engine = BlockInferenceEngine(
             patch_inference_engine=patch_engine,
             patch_size=self.patch_size,

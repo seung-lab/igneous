@@ -672,11 +672,11 @@ def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_
     vol.commit_provenance()
 
 
-def create_inference_tasks(task_queue, image_layer_path, convnet_path, 
-        mask_layer_path, output_layer_path, output_block_start, output_block_size, 
-        grid_size, patch_size, patch_overlap, cropping_margin_size,
+def create_inference_tasks(task_queue, image_layer_path, convnet_model_path, 
+        convnet_weight_path, mask_layer_path, output_layer_path, output_block_start, 
+        output_block_size, grid_size, patch_size, patch_overlap, cropping_margin_size,
         output_key='output', num_output_channels=3, 
-        image_mip=1, output_mip=1, mask_mip=3):
+        image_mip=1, output_mip=1, mask_mip=3, inference_backend='pznet'):
     """
     convnet inference block by block. The block coordinates should be aligned with 
     cloud storage. 
@@ -689,7 +689,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
                                           output_block_size))
                 task = InferenceTask(
                     image_layer_path=image_layer_path,
-                    convnet_path=convnet_path,
+                    convnet_model_path=convnet_model_path,
+                    convnet_weight_path=convnet_weight_path,
                     mask_layer_path=mask_layer_path,
                     output_layer_path=output_layer_path,
                     output_offset=output_offset,
@@ -701,7 +702,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
                     num_output_channels=num_output_channels,
                     image_mip=image_mip,
                     output_mip=output_mip,
-                    mask_mip=mask_mip
+                    mask_mip=mask_mip,
+                    inference_backend=inference_backend 
                 )
                 task_queue.insert(task)
     task_queue.wait('Uploading InferenceTasks')
@@ -711,7 +713,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
         'method': {
             'task': 'InferenceTask',
             'image_layer_path': image_layer_path,
-            'convnet_path': convnet_path,
+            'convnet_model_path': convnet_model_path,
+            'convnet_weight_path': convnet_weight_path,
             'mask_layer_path': mask_layer_path,
             'output_layer_path': output_layer_path,
             'output_offset': output_offset,
@@ -724,6 +727,7 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
             'image_mip': image_mip,
             'output_mip': output_mip,
             'mask_mip': mask_mip,
+            'inference_backend': inference_backend
         },
         'by': USER_EMAIL,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

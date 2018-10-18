@@ -41,7 +41,6 @@ def skeldir(cloudpath):
     skel_dir = info['skeletons']
   return skel_dir
 
-
 class SkeletonTask(RegisteredTask):
   """
   Stage 1 of skeletonization.
@@ -49,8 +48,16 @@ class SkeletonTask(RegisteredTask):
   Convert chunks of segmentation into chunked skeletons and point clouds.
   They will be merged in the stage 2 task SkeletonMergeTask.
   """
-  def __init__(self, cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess, info=None, object_ids=None):
-    super(SkeletonTask, self).__init__(cloudpath, shape, offset, mip, teasar_params, crop_zone, will_postprocess)
+  def __init__(
+    self, cloudpath, shape, offset, 
+    mip, teasar_params, crop_zone, will_postprocess, 
+    info=None, object_ids=None
+  ):
+    super(SkeletonTask, self).__init__(
+      cloudpath, shape, offset, mip, 
+      teasar_params, crop_zone, will_postprocess, 
+      info, object_ids
+    )
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.mip = mip
@@ -67,7 +74,7 @@ class SkeletonTask(RegisteredTask):
     all_labels = vol[ bbox.to_slices() ]
     all_labels = all_labels[:,:,:,0]
     if self.object_ids is not None:
-      all_labels[~np.isin(all_labels,self.object_ids)] = 0
+      all_labels[~np.isin(all_labels, self.object_ids)] = 0
 
     tmp_labels, remapping = fastremap.renumber(all_labels)
     cc_labels = cc3d.connected_components(tmp_labels, max_labels=int(bbox.volume() / 4))
@@ -107,7 +114,10 @@ class SkeletonTask(RegisteredTask):
       roi = Bbox.from_slices(slices)
       roi += bbox.minpt 
 
-      skeleton = self.skeletonize(labels, dbf, roi, anisotropy=vol.resolution.tolist())
+      skeleton = self.skeletonize(
+        labels, dbf, roi, 
+        anisotropy=vol.resolution.tolist(), volume_bounds=vol.bounds.clone()
+      )
 
       if skeleton.empty():
         continue
@@ -140,17 +150,21 @@ class SkeletonTask(RegisteredTask):
             )
 
       
-  def skeletonize(self, labels, dbf, bbox, anisotropy):
+  def skeletonize(self, labels, dbf, bbox, anisotropy, volume_bounds):
     skeleton = TEASAR(labels, dbf, anisotropy=anisotropy, **self.teasar_params)
 
     skeleton.vertices[:,0] += bbox.minpt.x
     skeleton.vertices[:,1] += bbox.minpt.y
     skeleton.vertices[:,2] += bbox.minpt.z
 
-    # Crop by 50px to avoid edge effects.
+    # Crop by 50px to avoid edge effects, but not on the
+    # edge of the volume.
     crop_bbox = bbox.clone()
-    crop_bbox.minpt += self.crop_zone
-    crop_bbox.maxpt -= self.crop_zone
+    for axis in range(3):
+      if volume_bounds.minpt[axis] != crop_bbox.minpt[axis]:
+        crop_bbox.minpt[axis] += self.crop_zone
+      if volume_bounds.maxpt[axis] != crop_bbox.maxpt[axis]:
+        crop_bbox.maxpt[axis] += self.crop_zone
 
     if crop_bbox.volume() <= 0:
       return skeleton

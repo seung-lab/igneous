@@ -233,12 +233,15 @@ class MeshTask(RegisteredTask):
         'remap_table': kwargs.get('remap_table', None),
         'generate_manifests': kwargs.get('generate_manifests', False),
         'low_padding': kwargs.get('low_padding', 0),
-        'high_padding': kwargs.get('high_padding', 1)
+        'high_padding': kwargs.get('high_padding', 1),
+        'parallel_download': kwargs.get('parallel_download', 1),
+        'cache_control': kwargs.get('cache_control', None)
     }
 
   def execute(self):
     self._volume = CloudVolume(
-        self.layer_path, self.options['mip'], bounded=False)
+        self.layer_path, self.options['mip'], bounded=False,
+        parallel=self.options['parallel_download'])
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 
@@ -294,6 +297,7 @@ class MeshTask(RegisteredTask):
             ),
             content=self._create_mesh(obj_id),
             compress=True,
+            cache_control=self.options['cache_control']
         )
 
         if self.options['generate_manifests']:
@@ -305,7 +309,8 @@ class MeshTask(RegisteredTask):
               file_path='{}/{}:{}'.format(
                   self._mesh_dir, remapped_id, self.options['lod']),
               content=json.dumps({"fragments": fragments}),
-              content_type='application/json'
+              content_type='application/json',
+              cache_control=self.options['cache_control']
           )
 
   def _create_mesh(self, obj_id):

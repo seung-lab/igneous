@@ -257,6 +257,7 @@ class SkeletonMergeTask(RegisteredTask):
       fusing.vertices = np.concatenate((fusing.vertices, skel.vertices), axis=0)
       fusing.edges = np.concatenate((fusing.edges, skel.edges), axis=0)
       fusing.radii = np.concatenate((fusing.radii, skel.radii), axis=0)
+      fusing.vertex_types = np.concatenate((fusing.vertex_types, skel.vertex_types), axis=0)
 
     return consolidate_skeleton(fusing)
 

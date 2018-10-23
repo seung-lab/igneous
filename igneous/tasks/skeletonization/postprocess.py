@@ -50,7 +50,11 @@ def trim_skeleton(skeleton):
   skeleton = remove_ticks(skeleton)
   return skeleton
 
-def merge_skeletons(skeleton1, skeleton2):
+def trim_overlap(skeleton1, skeleton2):
+  """
+  Eliminate the overlap region between two skeletons
+  except for up to a single vertex of overlap.
+  """
   if skeleton1.empty():
     return skeleton1, consolidate_skeleton(skeleton2)
   elif skeleton2.empty():
@@ -63,31 +67,20 @@ def merge_skeletons(skeleton1, skeleton2):
   edges2 = skeleton2.edges
 
   tree1 = spatial.cKDTree(nodes1)
-
-  nodes2 = nodes2.astype(np.float32)
   (dist, nodes1_idx) = tree1.query(nodes2)
 
-  graph2 = edges2sparse(nodes2, edges2)
-  
-  overlap = dist == 0
-  nodes2_overlap = np.where(overlap)[0]
-
+  nodes2_overlap = np.where(dist == 0)[0]
   edges2 = remove_overlap_edges(nodes2_overlap, edges2) 
 
-  connected = find_connected(nodes2, edges2)
+  # e.g. [ T, T, T, F, F, T, F, F, F]
+  connected1 = find_connected(nodes1, edges1)
+  connected2 = find_connected(nodes2, edges2) 
 
-  conn_mat1 = edges2sparse(nodes1, edges1)
-  conn_mat2 = edges2sparse(nodes2, edges2)
-  dist_mat1, pred1 = dijkstra(conn_mat1, directed=False, return_predecessors=True)
+  for i, path2 in enumerate(connected2):
+    path_idx = np.where(path2)[0]
 
-  for i in range(len(connected)):
-    path = connected[i]
-    path_idx = np.where(path)[0]
-
-    conn_mat_path = conn_mat2[path,:][:,path]
-    end_nodes2 = np.where(np.sum(conn_mat_path, 0) == 1)[1]
-    
-    end_idx = path_idx[end_nodes2]
+    end_idx, freq = np.unique(edges2, return_counts=True)
+    end_idx = [ idx for idx, ct in zip(end_idx, freq) if ct == 1 and path2[idx] ]
     end_points = nodes2[end_idx,:]
     
     end_nodes1 = np.zeros(end_points.shape[0], dtype=np.int32)
@@ -96,15 +89,20 @@ def merge_skeletons(skeleton1, skeleton2):
       node_end = find_row(nodes1, p_end)
       end_nodes1[j] = node_end
 
-    if np.sum(end_nodes1<0) > 0:
+    # There was was a mismatch between skeleton 1 and 
+    # skeleton2's endpoints for this component
+    if len(end_nodes1) == 0 or np.any(end_nodes1 < 0):
       continue
 
-    c = 1
-    pairs = combination_pairs(end_nodes1.shape[0])
-    for j in range(pairs.shape[0]):
-      c = c * np.isfinite(dist_mat1[end_nodes1[pairs[j,0]],end_nodes1[pairs[j,1]]])
+    one_two_connected = False
+    for path1 in connected1:
+      if not path1[end_nodes1[0]]:
+        continue
+      else:
+        one_two_connected = np.all(path1[end_nodes1])
+        break
 
-    if c == 1:
+    if one_two_connected:
       edges2 = remove_overlap_edges(path_idx, edges2)
 
   skeleton2.edges = edges2
@@ -121,7 +119,7 @@ def combination_pairs(n):
       pairs = np.concatenate((pairs, np.array([i, i+j+1 ])))
 
   pairs = np.reshape(pairs,[ pairs.shape[0] // 2, 2 ])
-  return pairs.astype(np.uint8)
+  return pairs.astype(np.uint16)
 
 def get_valid(points, bound):
   return (points[:,0] > bound[0,0]) \
@@ -175,7 +173,7 @@ def remove_edges(edges, predecessor, start_idx, end_idx):
 def remove_overlap_edges(nodes_overlap, edges):
   edge_overlap = np.isin(edges, nodes_overlap)
   del_idx = np.where(edge_overlap[:,0] * edge_overlap[:,1])
-  edges = np.delete(edges,del_idx,0)
+  edges = np.delete(edges, del_idx, 0)
   return edges
 
 def remove_dust(skeleton, dust_threshold):
@@ -429,6 +427,7 @@ def consolidate_skeleton(skeleton):
 
   edge_vector_map = np.vectorize(lambda x: idx_representative[x])
   eff_edges = edge_vector_map(edges)
+  eff_edges = np.sort(eff_edges, axis=0)
   eff_edges = np.unique(eff_edges, axis=0)
 
   radii_vector_map = np.vectorize(lambda idx: radii[idx])

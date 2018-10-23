@@ -28,7 +28,7 @@ import igneous.skeletontricks
 
 from .skeletonization import TEASAR
 from .postprocess import (
-  crop_skeleton, merge_skeletons, trim_skeleton,
+  crop_skeleton, trim_overlap, trim_skeleton,
   consolidate_skeleton, simple_merge_skeletons
 )
 
@@ -78,6 +78,7 @@ class SkeletonTask(RegisteredTask):
 
     tmp_labels, remapping = fastremap.renumber(all_labels)
     cc_labels = cc3d.connected_components(tmp_labels, max_labels=int(bbox.volume() / 4))
+
     del tmp_labels
     remapping = igneous.skeletontricks.get_mapping(all_labels, cc_labels)
     del all_labels
@@ -234,7 +235,7 @@ class SkeletonMergeTask(RegisteredTask):
 
     for fname1, fname2 in file_pairs:
       skel1, skel2 = skeletons[fname1], skeletons[fname2]
-      skel1, skel2 = merge_skeletons(skel1, skel2)
+      skel1, skel2 = trim_overlap(skel1, skel2)
       skeletons[fname1] = skel1
       skeletons[fname2] = skel2
 
@@ -245,33 +246,25 @@ class SkeletonMergeTask(RegisteredTask):
       return PrecomputedSkeleton()
 
     fusing = skeletons[0]
-    offset = 0
     for skel in skeletons[1:]:
       if skel.edges.shape[0] == 0:                                                                                                                                                                                                                                                                                                                                                            
         continue
 
-      skel.edges = skel.edges.astype(np.uint32)
-      skel.edges += offset
-      offset += skel.vertices.shape[0]
-
-      fusing.vertices = np.concatenate((fusing.vertices, skel.vertices), axis=0)
-      fusing.edges = np.concatenate((fusing.edges, skel.edges), axis=0)
-      fusing.radii = np.concatenate((fusing.radii, skel.radii), axis=0)
-      fusing.vertex_types = np.concatenate((fusing.vertex_types, skel.vertex_types), axis=0)
+      fusing = simple_merge_skeletons(fusing, skel)
 
     return consolidate_skeleton(fusing)
 
   def find_paired_skeletons(self, filenames):
     pairs = []
 
-    for i in range(len(filenames) - 1):
-      adj1 = Bbox.from_filename(filenames[i])
-      for j in range(i + 1, len(filenames)):
-        adj2 = Bbox.from_filename(filenames[j])
+    bboxes = [ Bbox.from_filename(fname) for fname in filenames ]
+    N = len(bboxes)
 
+    for i in range(N - 1):
+      for j in range(i + 1, N):
         # We're testing for overlap, tasks
         # are created with 50% overlap
-        if Bbox.intersects(adj1, adj2):
+        if Bbox.intersects(bboxes[i], bboxes[j]):
           pairs.append(
             (filenames[i], filenames[j])
           )

@@ -412,42 +412,32 @@ def remove_loops(skeleton):
   return consolidate_skeleton(skeleton)
 
 def consolidate_skeleton(skeleton):
+  """
+  Remove duplicate vertices and edges from a skeleton.
+  """
   nodes = skeleton.vertices 
   edges = skeleton.edges
   radii = skeleton.radii
+  vertex_types = skeleton.vertex_types
 
   if skeleton.empty():
     return PrecomputedSkeleton()
   
-  # Remove duplicate nodes
-  unique_nodes, unique_idx, unique_counts = np.unique(nodes, axis=0, return_index=True, return_counts=True)
-  unique_edges = np.copy(edges)
+  eff_nodes, uniq_idx, idx_representative = np.unique(
+    nodes, axis=0, return_index=True, return_inverse=True
+  )
 
-  dup_idx = np.where(unique_counts > 1)[0]
-  for i in range(dup_idx.shape[0]):
-    dup_node = unique_nodes[dup_idx[i],:]
-    dup_node_idx = find_row(nodes, dup_node)
-
-    for j in range(dup_node_idx.shape[0]-1):
-      start_idx, end_idx = np.where(edges == dup_node_idx[j+1])
-      unique_edges[start_idx, end_idx] = unique_idx[dup_idx[i]]
-
-  # Remove unnecessary nodes
-  eff_node_list = np.unique(unique_edges)
-  eff_node_list = eff_node_list.astype(np.int64)
-  
-  eff_nodes = nodes[eff_node_list]
-  eff_radii = radii[eff_node_list]
-
-  eff_edges = np.copy(unique_edges)
-  for i, node in enumerate(eff_node_list, 0):
-    row_idx, col_idx = np.where(unique_edges == node)
-    eff_edges[row_idx,col_idx] = i
-
+  edge_vector_map = np.vectorize(lambda x: idx_representative[x])
+  eff_edges = edge_vector_map(edges)
   eff_edges = np.unique(eff_edges, axis=0)
-  
-  return PrecomputedSkeleton(eff_nodes, eff_edges, eff_radii)
 
+  radii_vector_map = np.vectorize(lambda idx: radii[idx])
+  eff_radii = radii_vector_map(uniq_idx)
+
+  vertex_type_map = np.vectorize(lambda idx: vertex_types[idx])
+  eff_vtype = vertex_type_map(uniq_idx)  
+    
+  return PrecomputedSkeleton(eff_nodes, eff_edges, eff_radii, eff_vtype, segid=skeleton.id)
 
 def path2edge(path):
   """

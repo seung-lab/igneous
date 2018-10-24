@@ -41,7 +41,7 @@ def crop_skeleton(skeleton, bound):
   edges_valid_mask = np.isin(edges, nodes_valid_idx)
   edges_valid_idx = edges_valid_mask[:,0] * edges_valid_mask[:,1] 
   skeleton.edges = edges[edges_valid_idx,:]
-  return consolidate_skeleton(skeleton)
+  return skeleton.consolidate()
 
 def trim_skeleton(skeleton):
   skeleton = remove_dust(skeleton, 100) # 100 edges
@@ -56,9 +56,9 @@ def trim_overlap(skeleton1, skeleton2):
   except for up to a single vertex of overlap.
   """
   if skeleton1.empty():
-    return skeleton1, consolidate_skeleton(skeleton2)
+    return skeleton1, skeleton2.consolidate()
   elif skeleton2.empty():
-    return consolidate_skeleton(skeleton1), skeleton2
+    return skeleton1.consolidate(), skeleton2
 
   nodes1 = skeleton1.vertices
   nodes2 = skeleton2.vertices
@@ -106,8 +106,7 @@ def trim_overlap(skeleton1, skeleton2):
       edges2 = remove_overlap_edges(path_idx, edges2)
 
   skeleton2.edges = edges2
-  skeleton2 = consolidate_skeleton(skeleton2)
-  return skeleton1, skeleton2
+  return skeleton1, skeleton2.consolidate()
 
 ## Implementation Details Below
 
@@ -197,7 +196,7 @@ def remove_dust(skeleton, dust_threshold):
         edges = np.delete(edges, del_row_idx, 0)
 
   skeleton.edges = edges
-  return consolidate_skeleton(skeleton)
+  return skeleton.consolidate()
 
 def remove_row(array, rows2remove):
   array = np.sort(array, axis=1)
@@ -267,7 +266,7 @@ def connect_pieces(skeleton):
           break
 
   skeleton.edges = edges
-  return consolidate_skeleton(skeleton)
+  return skeleton.consolidate()
 
 def remove_ticks(skeleton, threshold=150):
   if skeleton.empty():
@@ -317,7 +316,7 @@ def remove_ticks(skeleton, threshold=150):
     edges = np.delete(edges,path_all,axis=0)
 
   skeleton.edges = edges
-  return consolidate_skeleton(skeleton)
+  return skeleton.consolidate()
 
 def remove_loops(skeleton):
   if skeleton.empty():
@@ -407,36 +406,7 @@ def remove_loops(skeleton):
 
   skeleton.vertices = nodes
   skeleton.edges = edges
-  return consolidate_skeleton(skeleton)
-
-def consolidate_skeleton(skeleton):
-  """
-  Remove duplicate vertices and edges from a skeleton.
-  """
-  nodes = skeleton.vertices 
-  edges = skeleton.edges
-  radii = skeleton.radii
-  vertex_types = skeleton.vertex_types
-
-  if skeleton.empty():
-    return PrecomputedSkeleton()
-  
-  eff_nodes, uniq_idx, idx_representative = np.unique(
-    nodes, axis=0, return_index=True, return_inverse=True
-  )
-
-  edge_vector_map = np.vectorize(lambda x: idx_representative[x])
-  eff_edges = edge_vector_map(edges)
-  eff_edges = np.sort(eff_edges, axis=0)
-  eff_edges = np.unique(eff_edges, axis=0)
-
-  radii_vector_map = np.vectorize(lambda idx: radii[idx])
-  eff_radii = radii_vector_map(uniq_idx)
-
-  vertex_type_map = np.vectorize(lambda idx: vertex_types[idx])
-  eff_vtype = vertex_type_map(uniq_idx)  
-    
-  return PrecomputedSkeleton(eff_nodes, eff_edges, eff_radii, eff_vtype, segid=skeleton.id)
+  return skeleton.consolidate()
 
 def path2edge(path):
   """

@@ -28,8 +28,7 @@ import igneous.skeletontricks
 
 from .skeletonization import TEASAR
 from .postprocess import (
-  crop_skeleton, trim_overlap, trim_skeleton,
-  consolidate_skeleton, simple_merge_skeletons
+  crop_skeleton, trim_overlap, trim_skeleton, simple_merge_skeletons
 )
 
 def skeldir(cloudpath):
@@ -189,17 +188,19 @@ class SkeletonMergeTask(RegisteredTask):
     self.prefix = prefix
 
   def execute(self):
-    self.vol = CloudVolume(self.cloudpath)
+    self.vol = CloudVolume(self.cloudpath, cdn_cache=False)
 
     with Storage(self.cloudpath) as stor:
       skels = self.get_filenames_subset(stor)
 
       vol = self.vol
 
-      for segid, frags in tqdm(skels.items()):
+      for segid, frags in tqdm(skels.items(), desc='segid'):
         skeleton = self.fuse_skeletons(frags, stor)
-        skeleton = trim_skeleton(skeleton)
-        vol.skeleton.upload(segid, skeleton.vertices, skeleton.edges, skeleton.radii)
+        # skeleton = trim_skeleton(skeleton)
+        vol.skeleton.upload(
+          segid, skeleton.vertices, skeleton.edges, skeleton.radii, skeleton.vertex_types
+        )
       
       for segid, frags in skels.items():
         stor.delete_files(frags)
@@ -235,7 +236,7 @@ class SkeletonMergeTask(RegisteredTask):
 
     for fname1, fname2 in file_pairs:
       skel1, skel2 = skeletons[fname1], skeletons[fname2]
-      skel1, skel2 = trim_overlap(skel1, skel2)
+      # skel1, skel2 = trim_overlap(skel1, skel2)
       skeletons[fname1] = skel1
       skeletons[fname2] = skel2
 
@@ -252,7 +253,7 @@ class SkeletonMergeTask(RegisteredTask):
 
       fusing = simple_merge_skeletons(fusing, skel)
 
-    return consolidate_skeleton(fusing)
+    return fusing.consolidate()
 
   def find_paired_skeletons(self, filenames):
     pairs = []

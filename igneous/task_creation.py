@@ -7,6 +7,7 @@ from functools import reduce
 import copy
 import json
 import math
+import operator
 import os
 import re
 import time
@@ -210,8 +211,9 @@ def create_skeletonizing_tasks(
     crop_zone = 0
     will_postprocess = False
 
+  total = int(math.ceil(reduce(operator.mul, vol.bounds.size3() / incr)))
   # 50% overlap
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ), desc="Inserting Skeleton Tasks"):
+  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ), desc="Inserting Skeleton Tasks", total=total):
     task = SkeletonTask(
       cloudpath=cloudpath,
       shape=shape.clone(),

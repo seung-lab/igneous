@@ -1122,7 +1122,7 @@ class InferenceTask(RegisteredTask):
             self.mask = None 
             return 
         print("download mask chunk...")
-        vol = CloudVolume(self.mask_layer_path, bounded=False, fill_missing=True,
+        vol = CloudVolume(self.mask_layer_path, bounded=False, fill_missing=False,
                           progress=True, mip=self.mask_mip)
         self.xyfactor = 2**(self.mask_mip - self.output_mip)
         # only scale the indices in XY plane 
@@ -1166,7 +1166,7 @@ class InferenceTask(RegisteredTask):
 
     def _read_image(self):
         self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=False,
-                               progress=True, mip=self.image_mip, parallel=True)
+                               progress=True, mip=self.image_mip, parallel=False)
         output_slices = self.output_bounds.to_slices()
         self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
                                   zip(output_slices, self.cropping_margin_size))

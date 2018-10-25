@@ -6,16 +6,17 @@ MAINTAINER Jingpeng Wu
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get install -y -qq --no-install-recommends \
     apt-utils \
+    software-properties-common \
     curl \
     git \
     openssh-client \
-    python-openssl \
-    python \
-    python-pip \
-    python-dev \
+    python3-openssl \
+    python3 \
+    python3-pip \
+    python3-dev \
 #    python-h5py \
-    python-numpy \
-    python-setuptools \
+    python3-numpy \
+    python3-setuptools \
     libboost-all-dev \
 #    libhdf5-dev \
     liblzma-dev \
@@ -23,7 +24,6 @@ RUN apt-get update && apt-get install -y -qq --no-install-recommends \
 #    libmpfr-dev \
 #    libxml2-dev \
     screen \
-    software-properties-common \
     unzip \
     vim \
     git \
@@ -32,16 +32,21 @@ RUN apt-get update && apt-get install -y -qq --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install setuptools Cython wheel numpy 
+RUN pip3 install pip -U
+RUN pip3 install setuptools -U
+RUN pip3 install pyasn1 --upgrade
+RUN pip3 install Cython wheel numpy 
 
 # install igneous 
 RUN mkdir /.ssh
 WORKDIR /
 RUN git clone --depth 1 --single-branch -b chunkflow https://github.com/seung-lab/igneous.git 
 #ADD ./ /igneous
-RUN pip install -r /igneous/requirements.txt 
-RUN pip install pyasn1 --upgrade
-RUN cd /igneous && pip install -e .
+RUN pip3 install -r /igneous/requirements.txt 
+
+WORKDIR /igneous 
+RUN pip3 install intern -U
+RUN pip3 install -e .
 
 #CMD python /igneous/igneous/task_execution.py
 

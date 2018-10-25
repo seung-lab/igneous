@@ -2840,8 +2840,8 @@ static PyObject *__pyx_pw_4cc3d_1connected_components(PyObject *__pyx_self, PyOb
 
 static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_data, int __pyx_v_max_labels) {
   Py_ssize_t __pyx_v_dims;
-  int __pyx_v_cols;
   int __pyx_v_rows;
+  int __pyx_v_cols;
   int __pyx_v_depth;
   __Pyx_memviewslice __pyx_v_arr_memview8u = { 0, 0, { 0 }, { 0 }, { 0 } };
   __Pyx_memviewslice __pyx_v_arr_memview16u = { 0, 0, { 0 }, { 0 }, { 0 } };
@@ -3013,7 +3013,7 @@ static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__p
  *   if dims == 2:
  *     data = data[:, :, np.newaxis]             # <<<<<<<<<<<<<<
  * 
- *   cdef int cols = data.shape[0]
+ *   cdef int rows = data.shape[0]
  */
     __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 54, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
@@ -3049,8 +3049,8 @@ static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__p
   /* "cc3d.pyx":56
  *     data = data[:, :, np.newaxis]
  * 
- *   cdef int cols = data.shape[0]             # <<<<<<<<<<<<<<
- *   cdef int rows = data.shape[1]
+ *   cdef int rows = data.shape[0]             # <<<<<<<<<<<<<<
+ *   cdef int cols = data.shape[1]
  *   cdef int depth = data.shape[2]
  */
   __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_data, __pyx_n_s_shape); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 56, __pyx_L1_error)
@@ -3060,12 +3060,12 @@ static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__p
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_7 = __Pyx_PyInt_As_int(__pyx_t_6); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 56, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_v_cols = __pyx_t_7;
+  __pyx_v_rows = __pyx_t_7;
 
   /* "cc3d.pyx":57
  * 
- *   cdef int cols = data.shape[0]
- *   cdef int rows = data.shape[1]             # <<<<<<<<<<<<<<
+ *   cdef int rows = data.shape[0]
+ *   cdef int cols = data.shape[1]             # <<<<<<<<<<<<<<
  *   cdef int depth = data.shape[2]
  * 
  */
@@ -3076,11 +3076,11 @@ static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__p
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   __pyx_t_7 = __Pyx_PyInt_As_int(__pyx_t_4); if (unlikely((__pyx_t_7 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 57, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_v_rows = __pyx_t_7;
+  __pyx_v_cols = __pyx_t_7;
 
   /* "cc3d.pyx":58
- *   cdef int cols = data.shape[0]
- *   cdef int rows = data.shape[1]
+ *   cdef int rows = data.shape[0]
+ *   cdef int cols = data.shape[1]
  *   cdef int depth = data.shape[2]             # <<<<<<<<<<<<<<
  * 
  *   cdef uint8_t[:,:,:] arr_memview8u
@@ -3927,7 +3927,7 @@ static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__p
  *   # Python 3 can just do np.frombuffer(vec_view, ...)
  *   buf = bytearray(labels_view[:])             # <<<<<<<<<<<<<<
  *   free(labels)
- *   return np.frombuffer(buf, dtype=np.uint32).reshape( (cols, rows, depth), order='F')
+ *   return np.frombuffer(buf, dtype=np.uint32).reshape( (rows, cols, depth), order='F')
  */
   __pyx_t_6 = __pyx_memoryview_fromslice(__pyx_v_labels_view, 1, (PyObject *(*)(char *)) __pyx_memview_get_nn_uint32_t, (int (*)(char *, PyObject *)) __pyx_memview_set_nn_uint32_t, 0);; if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 132, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
@@ -3941,14 +3941,14 @@ static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__p
  *   # Python 3 can just do np.frombuffer(vec_view, ...)
  *   buf = bytearray(labels_view[:])
  *   free(labels)             # <<<<<<<<<<<<<<
- *   return np.frombuffer(buf, dtype=np.uint32).reshape( (cols, rows, depth), order='F')
+ *   return np.frombuffer(buf, dtype=np.uint32).reshape( (rows, cols, depth), order='F')
  */
   free(__pyx_v_labels);
 
   /* "cc3d.pyx":134
  *   buf = bytearray(labels_view[:])
  *   free(labels)
- *   return np.frombuffer(buf, dtype=np.uint32).reshape( (cols, rows, depth), order='F')             # <<<<<<<<<<<<<<
+ *   return np.frombuffer(buf, dtype=np.uint32).reshape( (rows, cols, depth), order='F')             # <<<<<<<<<<<<<<
  */
   __Pyx_XDECREF(__pyx_r);
   __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 134, __pyx_L1_error)
@@ -3978,9 +3978,9 @@ static PyObject *__pyx_pf_4cc3d_connected_components(CYTHON_UNUSED PyObject *__p
   __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_reshape); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 134, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_cols); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 134, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_rows); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 134, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_4 = __Pyx_PyInt_From_int(__pyx_v_rows); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 134, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyInt_From_int(__pyx_v_cols); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 134, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_depth); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 134, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
@@ -21312,7 +21312,7 @@ static int __Pyx_InitCachedConstants(void) {
  *   if dims == 2:
  *     data = data[:, :, np.newaxis]             # <<<<<<<<<<<<<<
  * 
- *   cdef int cols = data.shape[0]
+ *   cdef int rows = data.shape[0]
  */
   __pyx_slice__2 = PySlice_New(Py_None, Py_None, Py_None); if (unlikely(!__pyx_slice__2)) __PYX_ERR(0, 54, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_slice__2);
@@ -21650,7 +21650,7 @@ static int __Pyx_InitCachedConstants(void) {
  *   """
  *   Connected components applied to 3D images
  */
-  __pyx_tuple__39 = PyTuple_Pack(19, __pyx_n_s_data, __pyx_n_s_max_labels, __pyx_n_s_dims, __pyx_n_s_cols, __pyx_n_s_rows, __pyx_n_s_depth, __pyx_n_s_arr_memview8u, __pyx_n_s_arr_memview16u, __pyx_n_s_arr_memview32u, __pyx_n_s_arr_memview64u, __pyx_n_s_arr_memview8, __pyx_n_s_arr_memview16, __pyx_n_s_arr_memview32, __pyx_n_s_arr_memview64, __pyx_n_s_labels, __pyx_n_s_voxels, __pyx_n_s_dtype, __pyx_n_s_labels_view, __pyx_n_s_buf); if (unlikely(!__pyx_tuple__39)) __PYX_ERR(0, 32, __pyx_L1_error)
+  __pyx_tuple__39 = PyTuple_Pack(19, __pyx_n_s_data, __pyx_n_s_max_labels, __pyx_n_s_dims, __pyx_n_s_rows, __pyx_n_s_cols, __pyx_n_s_depth, __pyx_n_s_arr_memview8u, __pyx_n_s_arr_memview16u, __pyx_n_s_arr_memview32u, __pyx_n_s_arr_memview64u, __pyx_n_s_arr_memview8, __pyx_n_s_arr_memview16, __pyx_n_s_arr_memview32, __pyx_n_s_arr_memview64, __pyx_n_s_labels, __pyx_n_s_voxels, __pyx_n_s_dtype, __pyx_n_s_labels_view, __pyx_n_s_buf); if (unlikely(!__pyx_tuple__39)) __PYX_ERR(0, 32, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__39);
   __Pyx_GIVEREF(__pyx_tuple__39);
   __pyx_codeobj__40 = (PyObject*)__Pyx_PyCode_New(2, 0, 19, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__39, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_cc3d_pyx, __pyx_n_s_connected_components, 32, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__40)) __PYX_ERR(0, 32, __pyx_L1_error)

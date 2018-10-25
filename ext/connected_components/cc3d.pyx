@@ -53,8 +53,8 @@ def connected_components(data, int max_labels=-1):
   if dims == 2:
     data = data[:, :, np.newaxis]
 
-  cdef int cols = data.shape[0]
-  cdef int rows = data.shape[1]
+  cdef int rows = data.shape[0]
+  cdef int cols = data.shape[1]
   cdef int depth = data.shape[2]
 
   cdef uint8_t[:,:,:] arr_memview8u
@@ -131,4 +131,4 @@ def connected_components(data, int max_labels=-1):
   # Python 3 can just do np.frombuffer(vec_view, ...)
   buf = bytearray(labels_view[:])
   free(labels)
-  return np.frombuffer(buf, dtype=np.uint32).reshape( (cols, rows, depth), order='F')
+  return np.frombuffer(buf, dtype=np.uint32).reshape( (rows, cols, depth), order='F')

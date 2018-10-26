@@ -43,11 +43,11 @@ def crop_skeleton(skeleton, bound):
   skeleton.edges = edges[edges_valid_idx,:]
   return skeleton.consolidate()
 
-def trim_skeleton(skeleton):
-  skeleton = remove_dust(skeleton, 100) # 100 edges
+def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=150):
+  skeleton = remove_dust(skeleton, dust_threshold) # edges
   skeleton = remove_loops(skeleton)
   skeleton = connect_pieces(skeleton)
-  skeleton = remove_ticks(skeleton)
+  skeleton = remove_ticks(skeleton, tick_threshold)
   return skeleton
 
 def trim_overlap(skeleton1, skeleton2):
@@ -277,14 +277,14 @@ def remove_ticks(skeleton, threshold=150):
   while path_all.shape[0] != 0:
     unique_nodes, unique_counts = np.unique(edges, return_counts=True)
 
-    end_idx = np.where(unique_counts==1)[0]
+    end_idx = np.where(unique_counts == 1)[0]
 
     path_all = np.array([])
     for i in range(end_idx.shape[0]):
       idx = end_idx[i]
       current_node = unique_nodes[idx]
 
-      edge_row_idx, edge_col_idx = np.where(edges==current_node)
+      edge_row_idx, edge_col_idx = np.where(edges == current_node)
 
       path = np.array([])
       single_piece = 0
@@ -297,22 +297,22 @@ def remove_ticks(skeleton, threshold=150):
         prev_col_idx = 1-edge_col_idx
         current_node = next_node
         
-        edge_row_idx, edge_col_idx = np.where(edges==current_node)
+        edge_row_idx, edge_col_idx = np.where(edges == current_node)
 
         if edge_row_idx.shape[0] == 1:
           single_piece = 1
           break
 
         next_row_idx = np.setdiff1d(edge_row_idx,prev_row_idx)
-        next_col_idx = edge_col_idx[np.where(edge_row_idx==next_row_idx[0])[0]]
+        next_col_idx = edge_col_idx[np.where(edge_row_idx == next_row_idx[0])[0]]
 
         edge_row_idx = next_row_idx 
         edge_col_idx = next_col_idx
 
       if path.shape[0] < threshold and single_piece == 0:
-        path_all = np.concatenate((path_all,path))
+        path_all = np.concatenate((path_all, path))
      
-    edges = np.delete(edges,path_all,axis=0)
+    edges = np.delete(edges, path_all, axis=0)
 
   skeleton.edges = edges
   return skeleton.consolidate()
@@ -325,9 +325,7 @@ def remove_loops(skeleton):
   edges = skeleton.edges
   edges = np.sort(edges, axis=1)
   
-  cycle_exists = True
-
-  while cycle_exists:
+  while True: # Loop until all cycles are removed
     G = nx.Graph()
 
     for i in range(edges.shape[0]):
@@ -335,9 +333,8 @@ def remove_loops(skeleton):
 
     try: 
       edges_cycle = nx.find_cycle(G, orientation='ignore')
-    except:
-      cycle_exists = False
-      continue
+    except nx.exception.NetworkXNoCycle:
+      break
 
     edges_cycle = np.array(edges_cycle)
     edges_cycle = np.sort(edges_cycle, axis=1)
@@ -356,7 +353,7 @@ def remove_loops(skeleton):
 
       cycle_points = nodes[nodes_cycle,:]
 
-      dist = np.sum((cycle_points - branch_cycle_point)**2, 1)
+      dist = np.sum((cycle_points - branch_cycle_point) ** 2, 1)
       end_node = nodes_cycle[np.argmax(dist)]
 
       edges = remove_row(edges, edges_cycle)
@@ -373,7 +370,7 @@ def remove_loops(skeleton):
 
       row_valid = np.ones(edges_cycle.shape[0])
       for i in range(edge_path.shape[0]):
-        row_valid = row_valid - (edges_cycle[:,0]==edge_path[i,0])*(edges_cycle[:,1]==edge_path[i,1])
+        row_valid -= (edges_cycle[:,0] == edge_path[i,0]) * (edges_cycle[:,1] == edge_path[i,1])
 
       row_valid = row_valid.astype(np.bool)
       edge_path = edges_cycle[row_valid,:]
@@ -387,18 +384,18 @@ def remove_loops(skeleton):
       branch_cycle_points = nodes[branch_cycle,:]
 
       centroid = np.mean(branch_cycle_points, axis=0)
-      dist = np.sum((nodes - centroid)**2, 1)
+      dist = np.sum((nodes - centroid) ** 2, 1)
       intersect_node = np.argmin(dist)
       intersect_point = nodes[intersect_node,:]
 
       edges = remove_row(edges, edges_cycle)      
 
-      new_edges = np.zeros((branch_cycle.shape[0],2))
+      new_edges = np.zeros((branch_cycle.shape[0], 2))
       new_edges[:,0] = branch_cycle
       new_edges[:,1] = intersect_node
 
       if np.isin(intersect_node, branch_cycle):
-        idx = np.where(branch_cycle==intersect_node)
+        idx = np.where(branch_cycle == intersect_node)
         new_edges = np.delete(new_edges, idx, 0)
 
       edges = np.concatenate((edges,new_edges), 0)

@@ -138,8 +138,7 @@ def edges2sparse(nodes, edges):
 
 def find_connected(nodes, edges):
   s = nodes.shape[0] 
-  nodes = np.unique(edges)
-  nodes = nodes.astype(np.int64)
+  nodes = np.unique(edges).astype(np.uint32)
 
   conn_mat = lil_matrix((s, s), dtype=np.bool)
   conn_mat[edges[:,0], edges[:,1]] = 1
@@ -186,7 +185,7 @@ def remove_dust(skeleton, dust_threshold):
   connected = find_connected(nodes, edges)
 
   for i in range(len(connected)):
-    path = connected[i]
+    path = connected[i] # [ T, T, F, F, T, T ] etc
 
     if np.sum(path) < dust_threshold:
       path_nodes = np.where(path)[0]
@@ -405,7 +404,7 @@ def remove_loops(skeleton):
       edges = np.concatenate((edges,new_edges), 0)
 
   skeleton.vertices = nodes
-  skeleton.edges = edges
+  skeleton.edges = edges.astype(np.uint32)
   return skeleton.consolidate()
 
 def path2edge(path):

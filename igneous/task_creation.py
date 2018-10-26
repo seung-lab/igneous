@@ -188,6 +188,7 @@ def create_deletion_tasks(task_queue, layer_path):
 def create_skeletonizing_tasks(
     task_queue, cloudpath, mip, 
     shape=Vec(512, 512, 512),
+    crop=25,
     teasar_params={'scale':10, 'const': 10}, 
     info=None, object_ids=None
   ):
@@ -203,12 +204,11 @@ def create_skeletonizing_tasks(
     if incr[i] < vol.bounds.size3()[i]:
       incr[i] //= 2
 
-  crop_zone = 25
   will_postprocess = True
 
   if np.all(vol.bounds.size3() <= shape):
     incr = vol.bounds.size3()
-    crop_zone = 0
+    crop = 0
     will_postprocess = False
 
   total = int(math.ceil(reduce(operator.mul, vol.bounds.size3() / incr)))
@@ -220,7 +220,7 @@ def create_skeletonizing_tasks(
       offset=startpt.clone(),
       mip=mip,
       teasar_params=teasar_params,
-      crop_zone=crop_zone,
+      crop_zone=crop,
       will_postprocess=will_postprocess,
       info=info,
       object_ids=object_ids

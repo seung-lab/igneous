@@ -230,6 +230,7 @@ class MeshTask(RegisteredTask):
         'mip': kwargs.get('mip', 0),
         'simplification_factor': kwargs.get('simplification_factor', 100),
         'max_simplification_error': kwargs.get('max_simplification_error', 40),
+        'mesh_dir': kwargs.get('mesh_dir', None),
         'remap_table': kwargs.get('remap_table', None),
         'generate_manifests': kwargs.get('generate_manifests', False),
         'low_padding': kwargs.get('low_padding', 0),
@@ -255,8 +256,8 @@ class MeshTask(RegisteredTask):
     data_bounds.maxpt += self.options['high_padding']
 
     self._mesh_dir = None
-    if 'meshing' in self._volume.info:
-      self._mesh_dir = self._volume.info['meshing']
+    if self.options['mesh_dir'] is not None:
+      self._mesh_dir = self.options['mesh_dir']
     elif 'mesh' in self._volume.info:
       self._mesh_dir = self._volume.info['mesh']
 
@@ -354,20 +355,18 @@ class MeshManifestTask(RegisteredTask):
   a single mesh ['0:','1:',..'9:']
   """
 
-  def __init__(self, layer_path, prefix, lod=0):
+  def __init__(self, layer_path, prefix, lod=0, mesh_dir=None):
     super(MeshManifestTask, self).__init__(layer_path, prefix)
     self.layer_path = layer_path
     self.lod = lod
     self.prefix = prefix
+    self.mesh_dir = mesh_dir
 
   def execute(self):
     with Storage(self.layer_path) as storage:
       self._info = json.loads(storage.get_file('info').decode('utf8'))
 
-      self.mesh_dir = None
-      if 'meshing' in self._info:
-        self.mesh_dir = self._info['meshing']
-      elif 'mesh' in self._info:
+      if self.mesh_dir is None and 'mesh' in self._info:
         self.mesh_dir = self._info['mesh']
 
       self._generate_manifests(storage)

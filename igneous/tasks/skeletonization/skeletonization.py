@@ -112,13 +112,14 @@ def TEASAR(
       (path[0:-2:path_downsample, :], path[-1:, :])
     )
 
-  skel_verts, skel_edges = path_union(paths)
-  skel_radii = DBF[skel_verts[::3], skel_verts[1::3], skel_verts[2::3]]
+  skel = PrecomputedSkeleton.simple_merge(
+    [ PrecomputedSkeleton.from_path(path) for path in paths ]
+  ).consolidate()
 
-  skel_verts = skel_verts.astype(np.float32).reshape( (skel_verts.size // 3, 3) )
-  skel_edges = skel_edges.reshape( (skel_edges.size // 2, 2)  )
+  verts = skel.vertices.flatten().astype(np.uint32)
+  skel.radii = DBF[verts[::3], verts[1::3], verts[2::3]]
 
-  return PrecomputedSkeleton(skel_verts, skel_edges, skel_radii)
+  return skel
 
 def compute_paths(
     root, labels, DBF, PDRF, 

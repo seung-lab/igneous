@@ -28,7 +28,7 @@ import igneous.skeletontricks
 
 from .skeletonization import TEASAR
 from .postprocess import (
-  crop_skeleton, trim_overlap, trim_skeleton, simple_merge_skeletons
+  trim_overlap_original, trim_overlap, trim_skeleton
 )
 
 def skeldir(cloudpath):
@@ -157,19 +157,22 @@ class SkeletonTask(RegisteredTask):
     skeleton.vertices[:,1] += bbox.minpt.y
     skeleton.vertices[:,2] += bbox.minpt.z
 
-    # Crop by 50px to avoid edge effects, but not on the
+    if self.crop_zone == 0:
+      return skeleton
+
+    # Crop to avoid edge effects, but not on the
     # edge of the volume.
     crop_bbox = bbox.clone()
     for axis in range(3):
       if volume_bounds.minpt[axis] != crop_bbox.minpt[axis]:
         crop_bbox.minpt[axis] += self.crop_zone
       if volume_bounds.maxpt[axis] != crop_bbox.maxpt[axis]:
-        crop_bbox.maxpt[axis] += self.crop_zone
+        crop_bbox.maxpt[axis] -= self.crop_zone 
 
     if crop_bbox.volume() <= 0:
-      return skeleton
-      
-    return crop_skeleton(skeleton, crop_bbox)
+      return PrecomputedSkeleton()
+
+    return skeleton.crop(crop_bbox)
 
 class SkeletonMergeTask(RegisteredTask):
   """
@@ -197,7 +200,7 @@ class SkeletonMergeTask(RegisteredTask):
 
       for segid, frags in tqdm(skels.items(), desc='segid'):
         skeleton = self.fuse_skeletons(frags, stor)
-        # skeleton = trim_skeleton(skeleton)
+        skeleton = trim_skeleton(skeleton)
         vol.skeleton.upload(
           segid, skeleton.vertices, skeleton.edges, skeleton.radii, skeleton.vertex_types
         )
@@ -236,7 +239,7 @@ class SkeletonMergeTask(RegisteredTask):
 
     for fname1, fname2 in file_pairs:
       skel1, skel2 = skeletons[fname1], skeletons[fname2]
-      # skel1, skel2 = trim_overlap(skel1, skel2)
+      skel1, skel2 = trim_overlap(skel1, skel2)
       skeletons[fname1] = skel1
       skeletons[fname2] = skel2
 

@@ -11,39 +11,7 @@ from cloudvolume import PrecomputedSkeleton
 
 ## Public API of Module
 
-def simple_merge_skeletons(skeleton1, skeleton2):
-  """
-  Simple concatenation of skeletons into one object 
-  without adding edges between them.
-  """
-  n1 = skeleton1.vertices.shape[0]
-
-  return PrecomputedSkeleton(
-    vertices=np.concatenate((skeleton1.vertices, skeleton2.vertices), axis=0),
-    edges=np.concatenate((skeleton1.edges, skeleton2.edges+n1), axis=0),
-    radii=np.concatenate((skeleton1.radii, skeleton2.radii), axis=0),
-    vertex_types=np.concatenate((skeleton1.vertex_types, skeleton2.vertex_types), axis=0),
-    segid=skeleton1.id,
-  )
-
-def crop_skeleton(skeleton, bound):
-  """Cropping is required to eliminate edge effects."""
-  if type(bound) == Bbox:
-    bound = np.array(bound.to_list()).reshape( (2,3) )
-
-  if skeleton.empty():
-    return skeleton
-
-  nodes_valid_mask = get_valid(skeleton.vertices, bound)
-  nodes_valid_idx = np.where(nodes_valid_mask)[0]
-
-  edges = skeleton.edges
-  edges_valid_mask = np.isin(edges, nodes_valid_idx)
-  edges_valid_idx = edges_valid_mask[:,0] * edges_valid_mask[:,1] 
-  skeleton.edges = edges[edges_valid_idx,:]
-  return skeleton.consolidate()
-
-def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=150):
+def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=100):
   skeleton = remove_dust(skeleton, dust_threshold) # edges
   skeleton = remove_loops(skeleton)
   skeleton = connect_pieces(skeleton)
@@ -119,14 +87,6 @@ def combination_pairs(n):
 
   pairs = np.reshape(pairs,[ pairs.shape[0] // 2, 2 ])
   return pairs.astype(np.uint16)
-
-def get_valid(points, bound):
-  return (points[:,0] > bound[0,0]) \
-    * (points[:,0] < bound[1,0]) \
-    * (points[:,1] > bound[0,1]) \
-    * (points[:,1] < bound[1,1]) \
-    * (points[:,2] > bound[0,2]) \
-    * (points[:,2] < bound[1,2])
 
 def edges2sparse(nodes, edges):
   s = nodes.shape[0]

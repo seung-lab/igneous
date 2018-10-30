@@ -17,7 +17,7 @@ from time import strftime
 import numpy as np
 from tqdm import tqdm
 from cloudvolume import CloudVolume, Storage
-from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor
+from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow
 from taskqueue import TaskQueue, MockTaskQueue 
 
 from igneous import downsample_scales, chunks
@@ -32,11 +32,16 @@ from igneous.tasks import (
 
 # for provenance files
 try:
-  USER_EMAIL = subprocess.check_output("git config user.email", shell=True)
-  USER_EMAIL = str(USER_EMAIL.rstrip())
+  OPERATOR_CONTACT = subprocess.check_output("git config user.email", shell=True)
+  OPERATOR_CONTACT = str(OPERATOR_CONTACT.rstrip())
 except:
-  print("WARNING: User email unknown. Cannot attribute user to task in provenance file. Please set 'git config user.email'")
-  USER_EMAIL = ''
+  try:
+    print(yellow('Unable to determine provenance contact email. Set "git config user.email". Using unix $USER instead.'))
+    OPERATOR_CONTACT = os.environ['USER']
+  except:
+    print(yellow('$USER was not set. The "owner" field of the provenance file will be blank.'))
+    OPERATOR_CONTACT = ''
+
 
 def create_ingest_task(storage, task_queue):
     """
@@ -229,7 +234,7 @@ def create_downsampling_tasks(
         'chunk_size': (list(chunk_size) if chunk_size else None),
         'preserve_chunk_size': preserve_chunk_size,
       },
-      'by': USER_EMAIL,
+      'by': OPERATOR_CONTACT,
       'date': strftime('%Y-%m-%d %H:%M %Z'),
     })
     vol.commit_provenance()
@@ -296,7 +301,7 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
       'mip': vol.mip,
       'shape': shape.tolist(),      
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   vol.commit_provenance()
@@ -355,7 +360,7 @@ def create_transfer_tasks(
       'translate': list(map(int, translate)),
       'bounds': Vec(*bounds).tolist(),
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }
 
@@ -415,7 +420,7 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
       'mip': mip,
       'translate': Vec(*translate).tolist(),
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   dvol.commit_provenance()
@@ -450,7 +455,7 @@ def create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, 
       'coverage_factor': coverage_factor,
       'mip': mip,
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   vol.commit_provenance()
@@ -480,7 +485,7 @@ def create_watershed_remap_tasks(task_queue, map_path, src_layer_path, dest_laye
       'remap_file': map_path,
       'shape': list(shape),
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   dvol.commit_provenance()
@@ -562,7 +567,7 @@ def create_quantize_tasks(
       'fill_missing': fill_missing,
       'mip': mip,
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   destvol.commit_provenance()
@@ -712,7 +717,7 @@ def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_
             'output_block_size': output_block_size, 
             'grid_size': grid_size,
         },
-        'by': USER_EMAIL,
+        'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),
     })
     vol.commit_provenance()
@@ -771,7 +776,7 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_path,
             'output_mip': output_mip,
             'mask_mip': mask_mip,
         },
-        'by': USER_EMAIL,
+        'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),
     })
     vol.commit_provenance()

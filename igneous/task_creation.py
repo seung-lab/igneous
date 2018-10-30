@@ -369,7 +369,10 @@ def create_transfer_tasks(
       'shape': list(map(int, shape)),
       'fill_missing': fill_missing,
       'translate': list(map(int, translate)),
-      'bounds': Vec(*bounds).tolist(),
+      'bounds': [
+        bounds.minpt.tolist(),
+        bounds.maxpt.tolist()
+      ],
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

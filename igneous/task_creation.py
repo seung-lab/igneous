@@ -267,20 +267,26 @@ def create_deletion_tasks(task_queue, layer_path, mip=0, num_mips=5):
       'num_mips': num_mips,
       'shape': shape.tolist(),
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   })
   vol.commit_provenance()
 
 
-def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
-                         max_simplification_error=40):
+def create_meshing_tasks(
+    task_queue, layer_path, mip, 
+    shape=Vec(512, 512, 64), max_simplification_error=40,
+    mesh_dir=None, cdn_cache=False 
+  ):
   shape = Vec(*shape)
 
   vol = CloudVolume(layer_path, mip)
 
+  if mesh_dir is None:
+    mesh_dir = 'mesh_mip_{}_err_{}'.format(mip, max_simplification_error)
+
   if not 'mesh' in vol.info:
-    vol.info['mesh'] = 'mesh_mip_{}_err_{}'.format(mip, max_simplification_error)
+    vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Mesh Tasks"):
@@ -290,6 +296,8 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
       layer_path,
       mip=vol.mip,
       max_simplification_error=max_simplification_error,
+      mesh_dir=mesh_dir, 
+      cache_control=('' if cdn_cache else 'no-cache'),
     )
     task_queue.insert(task)
   task_queue.wait('Uploading MeshTasks')
@@ -299,7 +307,10 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
       'task': 'MeshTask',
       'layer_path': layer_path,
       'mip': vol.mip,
-      'shape': shape.tolist(),      
+      'shape': shape.tolist(),
+      'max_simplification_error': max_simplification_error,
+      'mesh_dir': mesh_dir,
+      'cdn_cache': cdn_cache,
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

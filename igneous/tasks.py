@@ -1052,12 +1052,12 @@ class InferenceTask(RegisteredTask):
                  mask_layer_path, output_layer_path, output_offset, output_shape, patch_size, 
                  patch_overlap, cropping_margin_size, output_key='output', 
                  num_output_channels=3, image_mip=1, output_mip=1, mask_mip=3, 
-                 inference_backend='pznet'):
+                 inference_backend='pznet', missing_section_ids_file_name=None):
         super().__init__(image_layer_path, convnet_model_path, convnet_weight_path, 
                          mask_layer_path, output_layer_path, output_offset, output_shape, 
                          patch_size, patch_overlap, cropping_margin_size, 
                          output_key, num_output_channels, image_mip, output_mip, 
-                         mask_mip, inference_backend)
+                         mask_mip, inference_backend, missing_section_ids_file_name)
         
         output_shape = Vec(*output_shape)
         output_offset = Vec(*output_offset)
@@ -1076,6 +1076,7 @@ class InferenceTask(RegisteredTask):
         self.output_mip = output_mip
         self.mask_mip = mask_mip 
         self.inference_backend = inference_backend
+        self.missing_section_ids_file_name = missing_section_ids_file_name 
     
     def execute(self):
         total_start = time.time()
@@ -1091,6 +1092,11 @@ class InferenceTask(RegisteredTask):
         self._read_image()
         end = time.time()
         print("Read image takes %3f sec" % (end-start) )
+
+        start = end  
+        self._mask_missing_sections()
+        end = time.time()
+        print("Mask missing sections in image takes %3f sec" % (end-start) )
 
         start = end 
         self._inference()
@@ -1137,6 +1143,27 @@ class InferenceTask(RegisteredTask):
         print("shape of mask: {}".format(self.mask.shape))
         self.mask = np.squeeze(self.mask, axis=0)
 
+    def _mask_missing_sections(self):
+        """
+        mask some missing sections if the section id was provided 
+        """
+        if self.missing_section_ids_file_name is None:
+            return 
+
+        zslice = self.image.slices[0]
+        start = zslice.start 
+        stop = zslice.stop  
+
+        missing_section_ids = np.loadtxt(self.missing_section_ids_file_name, dtype='int64')
+        for missing_section_id in missing_section_ids:
+            # the section ID was counted from 1 
+            z = missing_section_id - 1
+            if z > stop:
+                # the section ID list was supposed to be ordered ascendingly 
+                break; 
+            elif z>=start and z<=stop: 
+                self.image[z-self.image.global_offset[0], :,:] = 0
+
     def _mask_output(self):
         if np.all(self.mask):
             print("mask elements are all positive, return directly")
@@ -1177,6 +1204,10 @@ class InferenceTask(RegisteredTask):
         self.image = np.ascontiguousarray(self.image)
         assert self.image.shape[0] == 1
         self.image = np.squeeze(self.image, axis=0)
+        global_offset = tuple(s.start for s in self.input_slices)
+        
+        from chunkflow.offset_array import OffsetArray
+        self.image = OffsetArray(self.image, global_offset=global_offset)
 
     def _inference(self):
         # prepare for inference

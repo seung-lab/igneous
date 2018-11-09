@@ -26,7 +26,7 @@ signal.signal(signal.SIGINT, handler)
 @click.option('--tag', default='',  help='kind of task to execute')
 @click.option('-m', default=False,  help='Run in parallel.', is_flag=True)
 @click.option('--queue', default=QUEUE_NAME,  help='Name of pull queue to use.')
-@click.option('--server', default=QUEUE_TYPE,  help='Which queue server to use. (appengine or pull-queue)')
+@click.option('--server', default=QUEUE_TYPE,  required=True, help='Which queue server to use. (appengine or pull-queue)')
 @click.option('--qurl', default=SQS_URL,  help='SQS Queue URL if using SQS')
 @click.option('--loop/--no-loop', default=LOOP, help='run execution in infinite loop or not', is_flag=True)
 def command(tag, m, queue, server, qurl, loop):

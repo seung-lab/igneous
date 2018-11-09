@@ -1155,9 +1155,7 @@ class InferenceTask(RegisteredTask):
         stop = zslice.stop  
 
         missing_section_ids = np.loadtxt(self.missing_section_ids_file_name, dtype='int64')
-        for missing_section_id in missing_section_ids:
-            # the section ID was counted from 1 
-            z = missing_section_id - 1
+        for z in missing_section_ids:
             if z > stop:
                 # the section ID list was supposed to be ordered ascendingly 
                 break; 

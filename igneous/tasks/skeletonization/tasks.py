@@ -14,6 +14,7 @@ import numpy as np
 import scipy.ndimage
 from tqdm import tqdm
 
+import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
@@ -28,7 +29,7 @@ import igneous.skeletontricks
 
 from .skeletonization import TEASAR
 from .postprocess import (
-  trim_overlap_original, trim_overlap, trim_skeleton
+  trim_overlap, trim_skeleton
 )
 
 def skeldir(cloudpath):
@@ -134,7 +135,8 @@ class SkeletonTask(RegisteredTask):
       skels = []
       for segid, skel_roi in skeletons.items():
         skel = [ skel for skel, roi in skel_roi ]
-        skel = reduce(simple_merge_skeletons, skel)
+        skel = PrecomputedSkeleton.simple_merge(skel)
+        skel = skel.consolidate()
         skels.append(skel)
       vol.skeleton.upload_multiple(skels)
     else:

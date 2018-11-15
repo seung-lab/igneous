@@ -321,7 +321,7 @@ def create_transfer_tasks(
     task_queue, src_layer_path, dest_layer_path, 
     chunk_size=None, shape=Vec(2048, 2048, 64), 
     fill_missing=False, translate=(0,0,0), 
-    bounds=None, mip=0
+    bounds=None, mip=0, preserve_chunk_size=True
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -348,12 +348,14 @@ def create_transfer_tasks(
   dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
   dvol.commit_info()
 
-  create_downsample_scales(dest_layer_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
+  create_downsample_scales(dest_layer_path, 
+    mip=mip, ds_shape=shape, preserve_chunk_size=preserve_chunk_size)
   
   if bounds is None:
     bounds = vol.bounds.clone()
   else:
     bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = Bbox.clamp(bounds, vol.bounds)
 
   total = int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks", total=total):
@@ -392,8 +394,9 @@ def create_transfer_tasks(
   dvol.provenance.processing.append(job_details) 
   dvol.commit_provenance()
 
-  vol.provenance.processing.append(job_details)
-  vol.commit_provenance()
+  if vol.path.protocol != 'boss':
+    vol.provenance.processing.append(job_details)
+    vol.commit_provenance()
 
 def create_contrast_normalization_tasks(task_queue, src_path, dest_path, 
   shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0)):

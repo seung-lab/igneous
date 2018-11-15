@@ -353,7 +353,7 @@ def create_transfer_tasks(
   if bounds is None:
     bounds = vol.bounds.clone()
   else:
-    bounds = vol.bbox_to_mip(bounds, from_mip=0, to_mip=mip)
+    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
 
   total = int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks", total=total):

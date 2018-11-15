@@ -321,34 +321,41 @@ def create_transfer_tasks(
     task_queue, src_layer_path, dest_layer_path, 
     chunk_size=None, shape=Vec(2048, 2048, 64), 
     fill_missing=False, translate=(0,0,0), 
-    bounds=None
+    bounds=None, mip=0
   ):
+  """
+  Transfer data from one data layer to another. It's possible
+  to transfer from a lower resolution mip level within a given
+  bounding box. The bounding box should be specified in terms of
+  the highest resolution.
+  """
   shape = Vec(*shape)
-  translate = Vec(*translate)
-  vol = CloudVolume(src_layer_path)
+  vol = CloudVolume(src_layer_path, mip=mip)
+  translate = Vec(*translate) // vol.downsample_ratio
  
   if not chunk_size:
-    chunk_size = vol.info['scales'][0]['chunk_sizes'][0]
+    chunk_size = vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
 
   try:
-    dvol = CloudVolume(dest_layer_path)
+    dvol = CloudVolume(dest_layer_path, mip=mip)
   except Exception: # no info file
     info = copy.deepcopy(vol.info)
     dvol = CloudVolume(dest_layer_path, info=info)
     dvol.commit_info()
 
-  if chunk_size is not None:
-    dvol.info['scales'] = dvol.info['scales'][:1]
-    dvol.info['scales'][0]['chunk_sizes'] = [ chunk_size.tolist() ]
-    dvol.commit_info()
+  dvol.info['scales'] = dvol.info['scales'][:mip+1]
+  dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
+  dvol.commit_info()
 
-  create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape, preserve_chunk_size=True)
+  create_downsample_scales(dest_layer_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
   
   if bounds is None:
     bounds = vol.bounds.clone()
+  else:
+    bounds = vol.bbox_to_mip(bounds, from_mip=0, to_mip=mip)
 
-  total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
+  total = int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks", total=total):
     task = TransferTask(
       src_path=src_layer_path,
@@ -357,6 +364,7 @@ def create_transfer_tasks(
       offset=startpt.clone(),
       fill_missing=fill_missing,
       translate=translate,
+      mip=mip,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading Transfer Tasks')
@@ -373,6 +381,7 @@ def create_transfer_tasks(
         bounds.minpt.tolist(),
         bounds.maxpt.tolist()
       ],
+      'mip': mip,
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -875,25 +875,33 @@ class LuminanceLevelsTask(RegisteredTask):
 
 class TransferTask(RegisteredTask):
   # translate = change of origin
-  def __init__(self, src_path, dest_path, shape, offset, fill_missing, translate):
+  def __init__(
+    self, src_path, dest_path, 
+    shape, offset, fill_missing, 
+    translate, mip=0
+  ):
     super(TransferTask, self).__init__(
-        src_path, dest_path, shape, offset, fill_missing, translate)
+        src_path, dest_path, shape, 
+        offset, fill_missing, translate, 
+        mip
+    )
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = fill_missing
     self.translate = Vec(*translate)
+    self.mip = int(mip)
 
   def execute(self):
-    srccv = CloudVolume(self.src_path, fill_missing=self.fill_missing)
-    destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing)
+    srccv = CloudVolume(self.src_path, fill_missing=self.fill_missing, mip=self.mip)
+    destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing, mip=self.mip)
 
     bounds = Bbox(self.offset, self.shape + self.offset)
     bounds = Bbox.clamp(bounds, srccv.bounds)
     image = srccv[bounds.to_slices()]
     bounds += self.translate
-    downsample_and_upload(image, bounds, destcv, self.shape)
+    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
 
 class WatershedRemapTask(RegisteredTask):

@@ -86,12 +86,11 @@ class SkeletonTask(RegisteredTask):
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
-    all_dbf = edt.edt(
-      np.ascontiguousarray(cc_labels), 
+    all_dbf = edt.edt(cc_labels, 
       anisotropy=vol.resolution.tolist(),
       black_border=False,
+      order='F',
     )
-    all_dbf = np.asfortranarray(all_dbf)
 
     cc_segids, pxct = np.unique(cc_labels, return_counts=True)
     cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]
@@ -111,6 +110,7 @@ class SkeletonTask(RegisteredTask):
       labels = cc_labels[slices]
       labels = (labels == segid)
       dbf = labels * all_dbf[slices]
+      dbf[ dbf == 0 ] = np.inf
 
       roi = Bbox.from_slices(slices)
       roi += bbox.minpt 

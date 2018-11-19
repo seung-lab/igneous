@@ -110,7 +110,6 @@ class SkeletonTask(RegisteredTask):
       labels = cc_labels[slices]
       labels = (labels == segid)
       dbf = labels * all_dbf[slices]
-      dbf[ dbf == 0 ] = np.inf
 
       roi = Bbox.from_slices(slices)
       roi += bbox.minpt 

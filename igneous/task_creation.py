@@ -115,7 +115,8 @@ def create_info_file_from_build(layer_path, layer_type, resolution, encoding):
 
 def create_downsample_scales(
     layer_path, mip, ds_shape, axis='z', 
-    preserve_chunk_size=False, chunk_size=None
+    preserve_chunk_size=False, chunk_size=None,
+    encoding=None
   ):
   vol = CloudVolume(layer_path, mip)
   shape = min2(vol.volume_size, ds_shape)
@@ -144,7 +145,7 @@ def create_downsample_scales(
     print("WARNING: No scales generated.")
 
   for scale in scales:
-    vol.add_scale(scale, chunk_size=chunk_size)
+    vol.add_scale(scale, encoding=encoding, chunk_size=chunk_size)
 
   if chunk_size is None:
     if preserve_chunk_size or len(scales) == 0:
@@ -153,6 +154,9 @@ def create_downsample_scales(
       chunk_size = vol.scales[mip + 1]['chunk_sizes']
   else:
     chunk_size = [ chunk_size ]
+
+  if encoding is None:
+    encoding = vol.scales[mip]['encoding']
 
   for i in range(mip + 1, mip + len(scales) + 1):
     vol.scales[i]['chunk_sizes'] = chunk_size
@@ -163,7 +167,8 @@ def create_downsampling_tasks(
     task_queue, layer_path, 
     mip=0, fill_missing=False, axis='z', 
     num_mips=5, preserve_chunk_size=True,
-    sparse=False, bounds=None, chunk_size=None
+    sparse=False, bounds=None, chunk_size=None,
+    encoding=None
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -191,7 +196,8 @@ def create_downsampling_tasks(
     shape = ds_shape(vol.mip)
     vol = create_downsample_scales(
       layer_path, mip, shape, 
-      preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size
+      preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
+      encoding=encoding
     )
 
     if not preserve_chunk_size:

@@ -84,6 +84,7 @@ def TEASAR(
  
   DBF[ DBF == 0 ] = np.inf
   DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
+  DAF[ DAF == np.inf ] = 0
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
 
   # Use dijkstra propogation w/o a target to generate a field of
@@ -120,7 +121,7 @@ def TEASAR(
   verts = skel.vertices.flatten().astype(np.uint32)
   skel.radii = DBF[verts[::3], verts[1::3], verts[2::3]]
 
-  return skel, PDRF
+  return skel
 
 def compute_paths(
     root, labels, DBF, DAF, 
@@ -154,7 +155,7 @@ def compute_paths(
       )
 
     invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
-      labels, DAF, path, scale, const, 
+      labels, DBF, path, scale, const, 
       anisotropy=anisotropy, invalid_vertices=invalid_vertices,
     )
 
@@ -213,7 +214,7 @@ def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
     PDRF = (f(1) - (DBF * M)) ** pdrf_exponent
 
   PDRF *= f(pdrf_scale)
-  PDRF += DAF * (1 / finite_max(DAF))
+  PDRF += DAF * (1 / np.max(DAF))
 
   return np.asfortranarray(PDRF)
 

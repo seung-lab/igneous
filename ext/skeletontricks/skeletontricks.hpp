@@ -100,7 +100,7 @@ int _roll_invalidation_cube(
       for (x = global_minx; x <= global_maxx; x++) {
         coloring += topology[x + yzoffset];
         if (coloring > 0 || topology[x + yzoffset]) {
-          invalidated += labels[x + yzoffset];
+          invalidated += (labels[x + yzoffset] || 0); // convert non-bool vals
           labels[x + yzoffset] = 0;
         }
       }

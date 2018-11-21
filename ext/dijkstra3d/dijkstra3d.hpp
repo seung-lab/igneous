@@ -195,6 +195,10 @@ std::vector<uint32_t> dijkstra3d(
   while (!queue.empty()) {
     loc = queue.top().value;
     queue.pop();
+    
+    if (std::signbit(dist[loc])) {
+      continue;
+    }
 
     if (power_of_two) {
       z = loc >> (xshift + yshift);
@@ -220,10 +224,7 @@ std::vector<uint32_t> dijkstra3d(
       // Visited nodes are negative and thus the current node
       // will always be less than as field is filled with non-negative
       // integers.
-      if (std::signbit(dist[neighboridx])) {
-        continue;
-      }
-      else if (dist[loc] + delta < dist[neighboridx]) { 
+      if (dist[loc] + delta < dist[neighboridx]) { 
         dist[neighboridx] = dist[loc] + delta;
         parents[neighboridx] = loc + 1; // +1 to avoid 0 ambiguity
 
@@ -255,16 +256,6 @@ std::vector<uint32_t> dijkstra2d(
   ) {
 
   return dijkstra3d<T>(field, sx, sy, 1, source, target);
-}
-
-// helper function to compute 2D anisotropy ("_s" = "square")
-inline float _s(const float wa, const float wb) {
-  return std::sqrt(wa * wa + wb * wb);
-}
-
-// helper function to compute 3D anisotropy ("_c" = "cube")
-inline float _c(const float wa, const float wb, const float wc) {
-  return std::sqrt(wa * wa + wb * wb + wc * wc);
 }
 
 template <typename T>
@@ -344,6 +335,94 @@ uint32_t* parental_field3d(
   return parents;
 }
 
+
+template <typename T>
+float* distance_field3d(
+    T* field, 
+    const size_t sx, const size_t sy, const size_t sz, 
+    const size_t source
+  ) {
+
+  const size_t voxels = sx * sy * sz;
+  const size_t sxy = sx * sy;
+
+  const bool power_of_two = !((sx & (sx - 1)) || (sy & (sy - 1))); 
+  const int xshift = std::log2(sx); // must use log2 here, not lg/lg2 to avoid fp errors
+  const int yshift = std::log2(sy);
+
+  float *dist = new float[voxels]();
+  fill(dist, +INFINITY, voxels);
+  dist[source] = -0;
+
+  int neighborhood[NHOOD_SIZE];
+
+  std::priority_queue<HeapNode, std::vector<HeapNode>, HeapNodeCompare> queue;
+  queue.emplace(0.0, source);
+
+  size_t loc;
+  float delta;
+  size_t neighboridx;
+
+  size_t x, y, z;
+
+  while (!queue.empty()) {
+    loc = queue.top().value;
+    queue.pop();
+
+    if (std::signbit(dist[loc])) {
+      continue;
+    }
+
+    if (power_of_two) {
+      z = loc >> (xshift + yshift);
+      y = (loc - (z << (xshift + yshift))) >> xshift;
+      x = loc - ((y + (z << yshift)) << xshift);
+    }
+    else {
+      z = loc / sxy;
+      y = (loc - (z * sxy)) / sx;
+      x = loc - sx * (y + z * sy);
+    }
+
+    compute_neighborhood(neighborhood, loc, x, y, z, sx, sy, sz);
+
+    for (int i = 0; i < NHOOD_SIZE; i++) {
+      if (neighborhood[i] == 0) {
+        continue;
+      }
+
+      neighboridx = loc + neighborhood[i];
+      delta = (float)field[neighboridx];
+
+      // Visited nodes are negative and thus the current node
+      // will always be less than as field is filled with non-negative
+      // integers.
+      if (dist[loc] + delta < dist[neighboridx]) { 
+        dist[neighboridx] = dist[loc] + delta;
+        queue.emplace(dist[neighboridx], neighboridx);
+      }
+    }
+
+    dist[loc] *= -1;
+  }
+
+  for (unsigned int i = 0; i < voxels; i++) {
+    dist[i] = std::fabs(dist[i]);
+  }
+
+  return dist;
+}
+
+// helper function to compute 2D anisotropy ("_s" = "square")
+inline float _s(const float wa, const float wb) {
+  return std::sqrt(wa * wa + wb * wb);
+}
+
+// helper function to compute 3D anisotropy ("_c" = "cube")
+inline float _c(const float wa, const float wb, const float wc) {
+  return std::sqrt(wa * wa + wb * wb + wc * wc);
+}
+
 float* euclidean_distance_field3d(
     uint8_t* field, // really a boolean field
     const size_t sx, const size_t sy, const size_t sz, 
@@ -390,6 +469,10 @@ float* euclidean_distance_field3d(
     loc = queue.top().value;
     queue.pop();
 
+    if (std::signbit(dist[loc])) {
+      continue;
+    }
+
     if (power_of_two) {
       z = loc >> (xshift + yshift);
       y = (loc - (z << (xshift + yshift))) >> xshift;
@@ -409,12 +492,15 @@ float* euclidean_distance_field3d(
       }
 
       neighboridx = loc + neighborhood[i];
-      if (!field[neighboridx] || std::signbit(dist[loc])) {
+      if (field[neighboridx] == 0) {
         continue;
       }
 
       new_dist = dist[loc] + neighbor_multiplier[i];
-
+      
+      // Visited nodes are negative and thus the current node
+      // will always be less than as field is filled with non-negative
+      // integers.
       if (new_dist < dist[neighboridx]) { 
         dist[neighboridx] = new_dist;
         queue.emplace(new_dist, neighboridx);
@@ -430,6 +516,7 @@ float* euclidean_distance_field3d(
 
   return dist;
 }
+
 
 
 }; // namespace dijkstra3d

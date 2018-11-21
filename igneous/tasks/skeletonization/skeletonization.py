@@ -213,7 +213,7 @@ def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
     PDRF = (f(1) - (DBF * M)) ** pdrf_exponent
 
   PDRF *= f(pdrf_scale)
-  PDRF += DAF
+  PDRF += DAF * (1 / finite_max(DAF))
 
   return np.asfortranarray(PDRF)
 

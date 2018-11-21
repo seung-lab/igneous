@@ -36,6 +36,45 @@ cdef extern from "skeletontricks.hpp" namespace "skeletontricks":
     float scale, float constant
   )
 
+@cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
+def finite_max(cnp.ndarray[float, cast=True, ndim=3] field):
+  cdef int sx, sy, sz 
+  cdef int  x,  y,  z
+
+  sx = field.shape[0]
+  sy = field.shape[1]
+  sz = field.shape[2]
+
+  cdef float maximum = -INFINITY
+  for z in range(0, sz):
+    for y in range(0, sy):
+      for x in range(0, sx):
+        if (field[x,y,z] > maximum) and (field[x,y,z] < +INFINITY):
+          maximum = field[x,y,z]
+
+  return maximum
+
+@cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
+def finite_min(cnp.ndarray[float, cast=True, ndim=3] field):
+  cdef int sx, sy, sz 
+  cdef int  x,  y,  z
+
+  sx = field.shape[0]
+  sy = field.shape[1]
+  sz = field.shape[2]
+
+  cdef float minimum = -INFINITY
+  for z in range(0, sz):
+    for y in range(0, sy):
+      for x in range(0, sx):
+        if (field[x,y,z] < minimum) and (field[x,y,z] > -INFINITY):
+          minimum = field[x,y,z]
+
+  return minimum
 
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function

@@ -15,6 +15,7 @@ from PIL import Image
 
 import igneous.dijkstra 
 import igneous.skeletontricks
+from igneous.skeletontricks import finite_max, finite_min
 
 from cloudvolume import PrecomputedSkeleton
 from cloudvolume.lib import save_images, mkdir
@@ -84,12 +85,12 @@ def TEASAR(
   DBF[ DBF == 0 ] = np.inf
   DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
-  del DAF
 
   # Use dijkstra propogation w/o a target to generate a field of
   # pointers from each voxel to its parent. Then we can rapidly
   # compute multiple paths by simply hopping pointers using path_from_parents
   parents = igneous.dijkstra.parental_field(PDRF, root)
+  del PDRF
 
   if soma_mode:
     invalidated, labels = igneous.skeletontricks.roll_invalidation_ball(
@@ -100,7 +101,7 @@ def TEASAR(
     )
 
   paths = compute_paths(
-    root, labels, DBF, PDRF, 
+    root, labels, DBF, DAF, 
     parents, scale, const, anisotropy, 
     soma_mode, soma_radius
   )
@@ -119,15 +120,15 @@ def TEASAR(
   verts = skel.vertices.flatten().astype(np.uint32)
   skel.radii = DBF[verts[::3], verts[1::3], verts[2::3]]
 
-  return skel
+  return skel, PDRF
 
 def compute_paths(
-    root, labels, DBF, PDRF, 
+    root, labels, DBF, DAF, 
     parents, scale, const, anisotropy, 
     soma_mode, soma_radius
   ):
   """
-  Given the labels, DBF, PDRF, dijkstra parents,
+  Given the labels, DBF, DAF, dijkstra parents,
   and associated invalidation knobs, find the set of paths 
   that cover the object. Somas are given special treatment
   in that we attempt to cull vertices within a radius of the
@@ -142,7 +143,7 @@ def compute_paths(
   valid_labels = np.count_nonzero(labels)
     
   while valid_labels > 0:
-    target = igneous.skeletontricks.find_target(labels, PDRF)
+    target = igneous.skeletontricks.find_target(labels, DAF)
     path = igneous.dijkstra.path_from_parents(parents, target)
     
     if soma_mode:
@@ -153,7 +154,7 @@ def compute_paths(
       )
 
     invalidated, labels = igneous.skeletontricks.roll_invalidation_cube(
-      labels, DBF, path, scale, const, 
+      labels, DAF, path, scale, const, 
       anisotropy=anisotropy, invalid_vertices=invalid_vertices,
     )
 

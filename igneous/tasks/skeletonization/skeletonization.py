@@ -82,9 +82,9 @@ def TEASAR(
   if root is None:
     return PrecomputedSkeleton()
  
-  DBF[ DBF == 0 ] = np.inf
+  DBF = igneous.skeletontricks.zero2inf(DBF) # DBF[ DBF == 0 ] = np.inf
   DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
-  DAF[ DAF == np.inf ] = 0
+  DAF = igneous.skeletontricks.inf2zero(DAF) # DAF[ DAF == np.inf ] = 0
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
 
   # Use dijkstra propogation w/o a target to generate a field of

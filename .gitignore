@@ -7,7 +7,11 @@ igneous.egg-info
 __pycache__
 .cache
 create.py
+create2.py
+create3.py
 test.py
+skeletonize.py
+saved_images
 pipeline.py
 .pytest_cache
 .vscode

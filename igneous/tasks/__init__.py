@@ -1,7 +1,8 @@
 from .skeletonization import SkeletonTask, SkeletonMergeTask
 from .tasks import (
-  IngestTask, HyperSquareTask, HyperSquareConsensusTask, 
-  MeshTask, MeshManifestTask, DownsampleTask, QuantizeAffinitiesTask, 
+  IngestTask, HyperSquareConsensusTask, 
+  MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
-  LuminanceLevelsTask, ContrastNormalizationTask
+  LuminanceLevelsTask, ContrastNormalizationTask,
+  MaskAffinitymapTask, InferenceTask
 )

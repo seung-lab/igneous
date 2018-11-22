@@ -7,8 +7,10 @@ from functools import reduce
 import copy
 import json
 import math
+import operator
 import os
 import re
+import subprocess
 import time
 from time import strftime
 
@@ -32,7 +34,7 @@ from igneous.tasks import (
 try:
   OPERATOR_CONTACT = subprocess.check_output("git config user.email", shell=True)
   OPERATOR_CONTACT = str(OPERATOR_CONTACT.rstrip())
-except:
+except Exception as err:
   try:
     print(yellow('Unable to determine provenance contact email. Set "git config user.email". Using unix $USER instead.'))
     OPERATOR_CONTACT = os.environ['USER']
@@ -329,7 +331,7 @@ def create_skeletonizing_tasks(
       'shape': shape.tolist(),
       'teasar_params': teasar_params,
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   vol.commit_provenance()

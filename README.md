@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous)
+[![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi)
 
 # Igneous
 
@@ -141,7 +141,7 @@ Whether image or segmentation type downsampling will be used is determined from 
 
 ```python3
 # Signature
-create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True)
+create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True, sparse=False)
 ```
 
 1. layer_path 
@@ -155,6 +155,10 @@ create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, ax
 5. preserve_chunk_size: 
 	False: Use a fixed block size and generate downsamples with decreasing chunk size. 
 	True: Use a fixed underlying chunk size and increase the size of the base block to accomodate it and num_mips.
+6. sparse: 
+	Only has an effect on segmentation type images.
+	False: The dataset contains large continuous labeled areas (most connectomics datasets). Uses the [COUNTLESS 2D](https://towardsdatascience.com/countless-high-performance-2x-downsampling-of-labeled-images-using-python-and-numpy-e70ad3275589) algorithm.
+	True: The dataset contains sparse labels that are disconnected. Use the [Stippled COUNTLESS 2D](https://medium.com/@willsilversmith/countless-2d-inflated-2x-downsampling-of-labeled-images-holding-zero-values-as-background-4d13a7675f2d) algorithm.
 
 ### Data Transfer / Rechunking (TransferTask)
 

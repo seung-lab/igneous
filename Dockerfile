@@ -29,16 +29,15 @@ RUN apt-get update && apt-get install -y -qq --no-install-recommends \
     wget \
     zlib1g-dev \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip install setuptools Cython wheel numpy 
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install setuptools Cython wheel numpy 
 
 # install neuroglancer
 RUN mkdir /.ssh
 ADD ./ /igneous
-RUN pip install -r /igneous/requirements.txt 
-RUN pip install pyasn1 --upgrade
-RUN cd /igneous && pip install -e .
+RUN pip install -r /igneous/requirements.txt \
+    && pip install pyasn1 --upgrade \
+    && cd /igneous && pip install -e .
 
 CMD python /igneous/igneous/task_execution.py
 

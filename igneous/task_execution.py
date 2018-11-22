@@ -28,9 +28,10 @@ signal.signal(signal.SIGINT, handler)
 @click.option('--queue', default=QUEUE_NAME,  help='Name of pull queue to use.')
 @click.option('--server', default=QUEUE_TYPE,  help='Which queue server to use. (appengine or pull-queue)')
 @click.option('--qurl', default=SQS_URL,  help='SQS Queue URL if using SQS')
-def command(tag, m, queue, server, qurl):
+@click.option('--loop/--no-loop', default=LOOP, help='run execution in infinite loop or not', is_flag=True)
+def command(tag, m, queue, server, qurl, loop):
   if not m:
-    execute(tag, queue, server, qurl)
+    execute(tag, queue, server, qurl, loop)
     return 
 
   # if multiprocessing
@@ -39,7 +40,7 @@ def command(tag, m, queue, server, qurl):
   print("Running %s threads of execution." % proc)
   try:
     for _ in range(proc):
-      pool.apply_async(execute, (tag, queue, server, qurl))
+      pool.apply_async(execute, (tag, queue, server, qurl, loop))
     pool.close()
     pool.join()
   except KeyboardInterrupt:
@@ -57,20 +58,21 @@ def random_exponential_window_backoff(n):
   return random.uniform(0, high)
 
 
-def execute(tag, queue, server, qurl):
+def execute(tag, queue, server, qurl, loop):
   tq = TaskQueue(queue_name=queue, queue_server=server, n_threads=0, qurl=qurl)
 
-  print("Pulling from {}://{}".format(server, queue))
+  print("Pulling from {}://{}".format(server, qurl))
 
   tries = 0
   with tq:
-    while LOOP:
+    while True:
       task = 'unknown'
       try:
         task = tq.lease(tag=tag, seconds=int(LEASE_SECONDS))
         tries += 1
         print(task)
         task.execute()
+        print("delete task in queue...")
         tq.delete(task)
         logger.log('INFO', task , "succesfully executed")
         tries = 0
@@ -83,6 +85,9 @@ def execute(tag, queue, server, qurl):
       except Exception as e:
         logger.log('ERROR', task, "raised {}\n {}".format(e , traceback.format_exc()))
         raise #this will restart the container in kubernetes
+      if (not loop) or (not LOOP):
+        print("not in loop mode, will break the loop and exit")
+        break  
 
 
 if __name__ == '__main__':

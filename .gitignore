@@ -8,6 +8,7 @@ __pycache__
 .cache
 create.py
 test.py
+pipeline.py
 .pytest_cache
 .vscode
 data/

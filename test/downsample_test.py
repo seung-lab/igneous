@@ -413,3 +413,63 @@ def test_countless3d():
   res = downsample.downsample_segmentation(odddimension, (2,2,2))
   assert res.dtype == np.float32
   assert res.shape == (1, 1, 1)
+
+def test_stippled_countless2d():
+  a = np.array([ [ 1, 2 ], [ 3, 4 ] ]).reshape((2,2,1,1)) 
+  b = np.array([ [ 0, 2 ], [ 3, 4 ] ]).reshape((2,2,1,1)) 
+  c = np.array([ [ 1, 0 ], [ 3, 4 ] ]).reshape((2,2,1,1)) 
+  d = np.array([ [ 1, 2 ], [ 0, 4 ] ]).reshape((2,2,1,1)) 
+  e = np.array([ [ 1, 2 ], [ 3, 0 ] ]).reshape((2,2,1,1)) 
+  f = np.array([ [ 0, 0 ], [ 3, 4 ] ]).reshape((2,2,1,1)) 
+  g = np.array([ [ 0, 2 ], [ 0, 4 ] ]).reshape((2,2,1,1)) 
+  h = np.array([ [ 0, 2 ], [ 3, 0 ] ]).reshape((2,2,1,1)) 
+  i = np.array([ [ 1, 0 ], [ 0, 4 ] ]).reshape((2,2,1,1)) 
+  j = np.array([ [ 1, 2 ], [ 0, 0 ] ]).reshape((2,2,1,1)) 
+  k = np.array([ [ 1, 0 ], [ 3, 0 ] ]).reshape((2,2,1,1)) 
+  l = np.array([ [ 1, 0 ], [ 0, 0 ] ]).reshape((2,2,1,1)) 
+  m = np.array([ [ 0, 2 ], [ 0, 0 ] ]).reshape((2,2,1,1)) 
+  n = np.array([ [ 0, 0 ], [ 3, 0 ] ]).reshape((2,2,1,1)) 
+  o = np.array([ [ 0, 0 ], [ 0, 4 ] ]).reshape((2,2,1,1)) 
+  z = np.array([ [ 0, 0 ], [ 0, 0 ] ]).reshape((2,2,1,1)) 
+
+  def test(data):
+    return downsample.downsample_segmentation(data, (2,2,1), sparse=True)
+
+  # Note: We only tested non-matching cases above,
+  # cases f,g,h,i,j,k prove their duals work as well
+  # b/c if two pixels are black, either one can be chosen
+  # if they are different or the same.
+
+  assert test(a) == [[[[4]]]] 
+  assert test(b) == [[[[4]]]] 
+  assert test(c) == [[[[4]]]] 
+  assert test(d) == [[[[4]]]] 
+  assert test(e) == [[[[1]]]] 
+  assert test(f) == [[[[4]]]]  
+  assert test(g) == [[[[4]]]]  
+  assert test(h) == [[[[2]]]]  
+  assert test(i) == [[[[4]]]] 
+  assert test(j) == [[[[1]]]]  
+  assert test(k) == [[[[1]]]]  
+  assert test(l) == [[[[1]]]]  
+  assert test(m) == [[[[2]]]]  
+  assert test(n) == [[[[3]]]]  
+  assert test(o) == [[[[4]]]]  
+  assert test(z) == [[[[0]]]]  
+
+  bc = np.array([ [ 0, 2 ], [ 2, 4 ] ]).reshape((2,2,1,1)) 
+  bd = np.array([ [ 0, 2 ], [ 3, 2 ] ]).reshape((2,2,1,1)) 
+  cd = np.array([ [ 0, 2 ], [ 3, 3 ] ]).reshape((2,2,1,1)) 
+  
+  assert test(bc) == [[[[2]]]]
+  assert test(bd) == [[[[2]]]]
+  assert test(cd) == [[[[3]]]]
+
+  ab = np.array([ [ 1, 1 ], [ 0, 4 ] ]).reshape((2,2,1,1)) 
+  ac = np.array([ [ 1, 2 ], [ 1, 0 ] ]).reshape((2,2,1,1)) 
+  ad = np.array([ [ 1, 0 ], [ 3, 1 ] ]).reshape((2,2,1,1)) 
+
+  assert test(ab) == [[[[1]]]]
+  assert test(ac) == [[[[1]]]]
+  assert test(ad) == [[[[1]]]]
+    

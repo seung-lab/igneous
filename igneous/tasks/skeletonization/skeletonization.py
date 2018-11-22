@@ -17,13 +17,14 @@ import igneous.dijkstra
 import igneous.skeletontricks
 from igneous.skeletontricks import finite_max, finite_min
 
-from cloudvolume import PrecomputedSkeleton
+from cloudvolume import PrecomputedSkeleton, view
 from cloudvolume.lib import save_images, mkdir
 
 def TEASAR(
     labels, DBF, 
     scale=10, const=10, anisotropy=(1,1,1), 
-    soma_detection_threshold=5000, 
+    soma_detection_threshold=1100, 
+    soma_acceptance_threshold=4000, 
     pdrf_scale=5000, pdrf_exponent=16,
     soma_invalidation_scale=0.5,
     soma_invalidation_const=0,
@@ -63,16 +64,19 @@ def TEASAR(
   labels = np.asfortranarray(labels)
   DBF = np.asfortranarray(DBF)
 
-  soma_mode = dbf_max > soma_detection_threshold
+  soma_mode = False
   # > 5000 nm, gonna be a soma or blood vessel
   # For somata: specially handle the root by 
   # placing it at the approximate center of the soma
-  if soma_mode:
+  if dbf_max > soma_detection_threshold:
     labels = ndimage.binary_fill_holes(labels)
-    DBF = edt.edt(np.ascontiguousarray(labels), anisotropy=anisotropy)
+    DBF = edt.edt(labels, anisotropy=anisotropy, order='C')
     DBF = np.asfortranarray(DBF)
     labels = np.asfortranarray(labels)
     dbf_max = np.max(DBF)
+    soma_mode = dbf_max > soma_acceptance_threshold
+
+  if soma_mode:
     root = np.unravel_index(np.argmax(DBF), DBF.shape)
     soma_radius = dbf_max * soma_invalidation_scale + soma_invalidation_const
   else:
@@ -82,6 +86,9 @@ def TEASAR(
   if root is None:
     return PrecomputedSkeleton()
  
+  # DBF: Distance to Boundary Field
+  # DAF: Distance from any voxel Field (distance from root field)
+  # PDRF: Penalized Distance from Root Field
   DBF = igneous.skeletontricks.zero2inf(DBF) # DBF[ DBF == 0 ] = np.inf
   DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
   DAF = igneous.skeletontricks.inf2zero(DAF) # DAF[ DAF == np.inf ] = 0
@@ -142,7 +149,7 @@ def compute_paths(
 
   paths = []
   valid_labels = np.count_nonzero(labels)
-    
+
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, DAF)
     path = igneous.dijkstra.path_from_parents(parents, target)
@@ -217,64 +224,6 @@ def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
   PDRF += DAF * (1 / np.max(DAF))
 
   return np.asfortranarray(PDRF)
-
-def path_union(paths):
-  """
-  Given a set of paths with a common root, attempt to join them
-  into a tree at the first common linkage.
-  """
-  if len(paths) == 0:
-    npv = np.zeros((0,), dtype=np.uint32)
-    npe = np.zeros((0,), dtype=np.uint32)
-    return npv, npe
-
-  tree = defaultdict(set)
-  tree_id = {}
-  vertices = []
-
-  ct = 0
-  for path in paths:
-    for i in range(path.shape[0] - 1):
-      parent = tuple(path[i, :].tolist())
-      child = tuple(path[i + 1, :].tolist())
-      tree[parent].add(child)
-      if not parent in tree_id:
-        tree_id[parent] = ct
-        vertices.append(parent)
-        ct += 1
-      if not child in tree:
-        tree[child] = set()
-      if not child in tree_id:
-        tree_id[child] = ct
-        vertices.append(child)
-        ct += 1 
-
-  root = tuple(paths[0][0,:].tolist())
-  edges = []
-
-  # Note: Chose iterative rather than recursive solution
-  # because somas can cause stack overflows for small TEASAR
-  # parameters.
-  stack = [ root ]
-
-  while len(stack) > 0:
-    parent = stack.pop()
-    for child in tree[parent]:
-      edges.append([ tree_id[parent], tree_id[child] ])
-      stack.append(child)
-
-  npv = np.zeros((len(vertices) * 3,), dtype=np.uint32)
-  for i, vertex in enumerate(vertices):
-    npv[ 3 * i + 0 ] = vertex[0]
-    npv[ 3 * i + 1 ] = vertex[1]
-    npv[ 3 * i + 2 ] = vertex[2]
-
-  npe = np.zeros((len(edges) * 2,), dtype=np.uint32)
-  for i, edge in enumerate(edges):
-    npe[ 2 * i + 0 ] = edges[i][0]
-    npe[ 2 * i + 1 ] = edges[i][1]
-
-  return npv, npe
 
 def xy_path_projection(paths, labels, N=0):
   if type(paths) != list:

@@ -69,10 +69,10 @@ def TEASAR(
   # For somata: specially handle the root by 
   # placing it at the approximate center of the soma
   if dbf_max > soma_detection_threshold:
+    del DBF
     labels = ndimage.binary_fill_holes(labels)
-    DBF = edt.edt(labels, anisotropy=anisotropy, order='C')
-    DBF = np.asfortranarray(DBF)
     labels = np.asfortranarray(labels)
+    DBF = edt.edt(labels, anisotropy=anisotropy, order='F')   
     dbf_max = np.max(DBF)
     soma_mode = dbf_max > soma_acceptance_threshold
 

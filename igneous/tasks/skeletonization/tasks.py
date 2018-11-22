@@ -91,9 +91,10 @@ class SkeletonTask(RegisteredTask):
       black_border=False,
       order='F',
     )
-    max_all_dbf = np.max(all_dbf)
-    if max_all_dbf < np.finfo(np.float16).max:
-      all_dbf = all_dbf.astype(np.float16)
+    # slows things down, but saves memory
+    # max_all_dbf = np.max(all_dbf)
+    # if max_all_dbf < np.finfo(np.float16).max:
+    #   all_dbf = all_dbf.astype(np.float16)
 
     cc_segids, pxct = np.unique(cc_labels, return_counts=True)
     cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]

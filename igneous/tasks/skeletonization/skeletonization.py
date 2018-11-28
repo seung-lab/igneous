@@ -8,12 +8,12 @@ Date: June-August 2018
 from collections import defaultdict
 from math import log
 
+import dijkstra3d
 import edt
 import numpy as np
 from scipy import ndimage
 from PIL import Image
 
-import igneous.dijkstra 
 import igneous.skeletontricks
 from igneous.skeletontricks import finite_max, finite_min
 
@@ -90,14 +90,14 @@ def TEASAR(
   # DAF: Distance from any voxel Field (distance from root field)
   # PDRF: Penalized Distance from Root Field
   DBF = igneous.skeletontricks.zero2inf(DBF) # DBF[ DBF == 0 ] = np.inf
-  DAF = igneous.dijkstra.euclidean_distance_field(labels, root, anisotropy=anisotropy)
+  DAF = dijkstra3d.euclidean_distance_field(labels, root, anisotropy=anisotropy)
   DAF = igneous.skeletontricks.inf2zero(DAF) # DAF[ DAF == np.inf ] = 0
   PDRF = compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF)
 
   # Use dijkstra propogation w/o a target to generate a field of
   # pointers from each voxel to its parent. Then we can rapidly
   # compute multiple paths by simply hopping pointers using path_from_parents
-  parents = igneous.dijkstra.parental_field(PDRF, root)
+  parents = dijkstra3d.parental_field(PDRF, root)
   del PDRF
 
   if soma_mode:
@@ -115,7 +115,7 @@ def TEASAR(
   )
 
   # Downsample skeletons by striding. Ensure first and last point remain.
-  # Duplicate points are eliminated in path_union.
+  # Duplicate points are eliminated in consolidation.
   for i, path in enumerate(paths):
     paths[i] = np.concatenate(
       (path[0:-2:path_downsample, :], path[-1:, :])
@@ -152,7 +152,7 @@ def compute_paths(
 
   while valid_labels > 0:
     target = igneous.skeletontricks.find_target(labels, DAF)
-    path = igneous.dijkstra.path_from_parents(parents, target)
+    path = dijkstra3d.path_from_parents(parents, target)
     
     if soma_mode:
       dist_to_soma_root = np.linalg.norm(anisotropy * (path - root), axis=1)
@@ -185,7 +185,7 @@ def find_root(labels, anisotropy):
   if any_voxel is None: 
     return None
 
-  DAF = igneous.dijkstra.euclidean_distance_field(
+  DAF = dijkstra3d.euclidean_distance_field(
     np.asfortranarray(labels), any_voxel, anisotropy=anisotropy)
   return igneous.skeletontricks.find_target(labels, DAF)
 

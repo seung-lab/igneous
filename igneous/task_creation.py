@@ -279,7 +279,8 @@ def create_deletion_tasks(task_queue, layer_path, mip=0, num_mips=5):
   vol.commit_provenance()
 
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
-                         max_simplification_error=40, obj_id_range=None): 
+                         max_simplification_error=40, mesh_dir=None, 
+                         cdn_cache=False, obj_id_range=None): 
   shape = Vec(*shape)
 
   vol = CloudVolume(layer_path, mip)

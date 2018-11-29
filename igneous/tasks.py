@@ -283,7 +283,8 @@ class MeshTask(RegisteredTask):
       data = self._data[:, :, :, 0].T
       self._mesher.mesh(data)
       obj_id_range = self.options['obj_id_range']
-      if isinstance(obj_id_range, tuple):
+
+      if isinstance(obj_id_range, (tuple, list)):
         obj_id_range = range(*obj_id_range)
 
       for obj_id in self._mesher.ids():
@@ -292,7 +293,7 @@ class MeshTask(RegisteredTask):
         else:
           remapped_id = self._remap_list[obj_id]
 
-        if obj_id_range and obj_id not in obj_id_range:
+        if obj_id_range and remapped_id not in obj_id_range:
           continue
 
         storage.put_file(

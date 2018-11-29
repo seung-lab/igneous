@@ -269,8 +269,7 @@ def create_deletion_tasks(task_queue, layer_path, mip=0, num_mips=5):
 
 
 def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
-                         max_simplification_error=40, obj_id_range=None, 
-                         generate_manifests=False):
+                         max_simplification_error=40, obj_id_range=None): 
   shape = Vec(*shape)
 
   vol = CloudVolume(layer_path, mip)
@@ -287,7 +286,6 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
       mip=vol.mip,
       max_simplification_error=max_simplification_error,
       obj_id_range=obj_id_range,
-      generate_manifests=generate_manifests,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading MeshTasks')
@@ -299,7 +297,6 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 256),
       'mip': vol.mip,
       'shape': shape.tolist(), 
       'obj_id_range': obj_id_range,
-      'generate_manifests': generate_manifests,
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

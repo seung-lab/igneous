@@ -226,14 +226,15 @@ class MeshTask(RegisteredTask):
     self.offset = Vec(*offset)
     self.layer_path = layer_path
     self.options = {
-        'lod': kwargs.get('lod', 0),
-        'mip': kwargs.get('mip', 0),
-        'simplification_factor': kwargs.get('simplification_factor', 100),
-        'max_simplification_error': kwargs.get('max_simplification_error', 40),
-        'remap_table': kwargs.get('remap_table', None),
-        'generate_manifests': kwargs.get('generate_manifests', False),
-        'low_padding': kwargs.get('low_padding', 0),
-        'high_padding': kwargs.get('high_padding', 1)
+      'lod': kwargs.get('lod', 0),
+      'mip': kwargs.get('mip', 0),
+      'simplification_factor': kwargs.get('simplification_factor', 100),
+      'max_simplification_error': kwargs.get('max_simplification_error', 40),
+      'remap_table': kwargs.get('remap_table', None),
+      'generate_manifests': kwargs.get('generate_manifests', False),
+      'low_padding': kwargs.get('low_padding', 0),
+      'high_padding': kwargs.get('high_padding', 1),
+      'obj_id_range': kwargs.get('obj_id_range', None)
     }
 
   def execute(self):
@@ -268,7 +269,7 @@ class MeshTask(RegisteredTask):
   def _remap(self):
     if self.options['remap_table'] is not None:
       actual_remap = {
-          int(k): int(v) for k, v in self.options['remap_table'].items()
+        int(k): int(v) for k, v in self.options['remap_table'].items()
       }
 
       self._remap_list = [0] + list(actual_remap.values())
@@ -281,19 +282,26 @@ class MeshTask(RegisteredTask):
     with Storage(self.layer_path) as storage:
       data = self._data[:, :, :, 0].T
       self._mesher.mesh(data)
+      obj_id_range = self.options['obj_id_range']
+      if isinstance(obj_id_range, tuple):
+        obj_id_range = range(*obj_id_range)
+
       for obj_id in self._mesher.ids():
         if self.options['remap_table'] is None:
           remapped_id = obj_id
         else:
           remapped_id = self._remap_list[obj_id]
 
+        if obj_id_range and obj_id not in obj_id_range:
+          continue
+
         storage.put_file(
-            file_path='{}/{}:{}:{}'.format(
-                self._mesh_dir, remapped_id, self.options['lod'],
-                self._bounds.to_filename()
-            ),
-            content=self._create_mesh(obj_id),
-            compress=True,
+          file_path='{}/{}:{}:{}'.format(
+            self._mesh_dir, remapped_id, self.options['lod'],
+            self._bounds.to_filename()
+          ),
+          content=self._create_mesh(obj_id),
+          compress=True,
         )
 
         if self.options['generate_manifests']:
@@ -302,24 +310,24 @@ class MeshTask(RegisteredTask):
                                              self._bounds.to_filename()))
 
           storage.put_file(
-              file_path='{}/{}:{}'.format(
-                  self._mesh_dir, remapped_id, self.options['lod']),
-              content=json.dumps({"fragments": fragments}),
-              content_type='application/json'
+            file_path='{}/{}:{}'.format(
+              self._mesh_dir, remapped_id, self.options['lod']),
+            content=json.dumps({"fragments": fragments}),
+            content_type='application/json'
           )
 
   def _create_mesh(self, obj_id):
     mesh = self._mesher.get_mesh(
-        obj_id,
-        simplification_factor=self.options['simplification_factor'],
-        max_simplification_error=self.options['max_simplification_error']
+      obj_id,
+      simplification_factor=self.options['simplification_factor'],
+      max_simplification_error=self.options['max_simplification_error']
     )
     vertices = self._update_vertices(
-        np.array(mesh['points'], dtype=np.float32))
+      np.array(mesh['points'], dtype=np.float32))
     vertex_index_format = [
-        np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
-        vertices,
-        np.array(mesh['faces'], dtype=np.uint32)
+      np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
+      vertices,
+      np.array(mesh['faces'], dtype=np.uint32)
     ]
     return b''.join([array.tobytes() for array in vertex_index_format])
 

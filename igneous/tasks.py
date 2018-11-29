@@ -234,12 +234,15 @@ class MeshTask(RegisteredTask):
       'generate_manifests': kwargs.get('generate_manifests', False),
       'low_padding': kwargs.get('low_padding', 0),
       'high_padding': kwargs.get('high_padding', 1),
-      'obj_id_range': kwargs.get('obj_id_range', None)
+      'obj_id_range': kwargs.get('obj_id_range', None),
+      'parallel_download': kwargs.get('parallel_download', 1),
+      'cache_control': kwargs.get('cache_control', None),
     }
 
   def execute(self):
     self._volume = CloudVolume(
-        self.layer_path, self.options['mip'], bounded=False)
+        self.layer_path, self.options['mip'], bounded=False,
+        parallel=self.options['parallel_download'])
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 
@@ -253,8 +256,8 @@ class MeshTask(RegisteredTask):
     data_bounds.maxpt += self.options['high_padding']
 
     self._mesh_dir = None
-    if 'meshing' in self._volume.info:
-      self._mesh_dir = self._volume.info['meshing']
+    if self.options['mesh_dir'] is not None:
+      self._mesh_dir = self.options['mesh_dir']
     elif 'mesh' in self._volume.info:
       self._mesh_dir = self._volume.info['mesh']
 
@@ -303,6 +306,7 @@ class MeshTask(RegisteredTask):
           ),
           content=self._create_mesh(obj_id),
           compress=True,
+          cache_control=self.options['cache_control']
         )
 
         if self.options['generate_manifests']:
@@ -314,7 +318,8 @@ class MeshTask(RegisteredTask):
             file_path='{}/{}:{}'.format(
               self._mesh_dir, remapped_id, self.options['lod']),
             content=json.dumps({"fragments": fragments}),
-            content_type='application/json'
+            content_type='application/json',
+            cache_control=self.options['cache_control']
           )
 
   def _create_mesh(self, obj_id):
@@ -358,20 +363,18 @@ class MeshManifestTask(RegisteredTask):
   a single mesh ['0:','1:',..'9:']
   """
 
-  def __init__(self, layer_path, prefix, lod=0):
+  def __init__(self, layer_path, prefix, lod=0, mesh_dir=None):
     super(MeshManifestTask, self).__init__(layer_path, prefix)
     self.layer_path = layer_path
     self.lod = lod
     self.prefix = prefix
+    self.mesh_dir = mesh_dir
 
   def execute(self):
     with Storage(self.layer_path) as storage:
       self._info = json.loads(storage.get_file('info').decode('utf8'))
 
-      self.mesh_dir = None
-      if 'meshing' in self._info:
-        self.mesh_dir = self._info['meshing']
-      elif 'mesh' in self._info:
+      if self.mesh_dir is None and 'mesh' in self._info:
         self.mesh_dir = self._info['mesh']
 
       self._generate_manifests(storage)
@@ -880,25 +883,33 @@ class LuminanceLevelsTask(RegisteredTask):
 
 class TransferTask(RegisteredTask):
   # translate = change of origin
-  def __init__(self, src_path, dest_path, shape, offset, fill_missing, translate):
+  def __init__(
+    self, src_path, dest_path, 
+    shape, offset, fill_missing, 
+    translate, mip=0
+  ):
     super(TransferTask, self).__init__(
-        src_path, dest_path, shape, offset, fill_missing, translate)
+        src_path, dest_path, shape, 
+        offset, fill_missing, translate, 
+        mip
+    )
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = fill_missing
     self.translate = Vec(*translate)
+    self.mip = int(mip)
 
   def execute(self):
-    srccv = CloudVolume(self.src_path, fill_missing=self.fill_missing)
-    destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing)
+    srccv = CloudVolume(self.src_path, fill_missing=self.fill_missing, mip=self.mip)
+    destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing, mip=self.mip)
 
     bounds = Bbox(self.offset, self.shape + self.offset)
     bounds = Bbox.clamp(bounds, srccv.bounds)
     image = srccv[bounds.to_slices()]
     bounds += self.translate
-    downsample_and_upload(image, bounds, destcv, self.shape)
+    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
 
 class WatershedRemapTask(RegisteredTask):

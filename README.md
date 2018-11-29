@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous)
+[![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi)
 
 # Igneous
 
@@ -19,7 +19,9 @@ git clone git@github.com:seung-lab/igneous.git
 cd igneous
 virtualenv venv
 source venv/bin/activate
-pip install -e .
+pip install numpy
+pip install -r requirements.txt
+python setup.py develop
 ```
 
 The installation will download the dependencies listed in requirements.txt and

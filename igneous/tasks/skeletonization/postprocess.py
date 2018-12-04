@@ -30,14 +30,6 @@ def combination_pairs(n):
   pairs = np.reshape(pairs,[ pairs.shape[0] // 2, 2 ])
   return pairs.astype(np.uint16)
 
-def edges2sparse(nodes, edges):
-  s = nodes.shape[0]
-  conn_mat = lil_matrix((s, s), dtype=np.bool)
-  conn_mat[edges[:,0], edges[:,1]] = 1
-  conn_mat[edges[:,1], edges[:,0]] = 1
-
-  return conn_mat
-
 def find_connected(nodes, edges):
   s = nodes.shape[0] 
   nodes = np.unique(edges).astype(np.uint32)

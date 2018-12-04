@@ -66,7 +66,7 @@ class SkeletonTask(RegisteredTask):
     self.object_ids = object_ids
 
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip, cache=True, info=self.cloudinfo, cdn_cache=False)
+    vol = CloudVolume(self.cloudpath, mip=self.mip, info=self.cloudinfo, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     all_labels = vol[ bbox.to_slices() ]
@@ -208,8 +208,8 @@ class SkeletonMergeTask(RegisteredTask):
           segid, skeleton.vertices, skeleton.edges, skeleton.radii, skeleton.vertex_types
         )
       
-      for segid, frags in skels.items():
-        stor.delete_files(frags)
+      # for segid, frags in skels.items():
+      #   stor.delete_files(frags)
 
   def get_filenames_subset(self, storage):
     prefix = '{}/{}'.format(self.vol.skeleton.path, self.prefix)

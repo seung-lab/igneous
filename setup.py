@@ -20,7 +20,11 @@ import numpy as np
 third_party_dir = './ext/third_party'
 
 setuptools.setup(
-  setup_requires=['pbr'],
+  setup_requires=['pbr', 'numpy'],
+  extras_require={
+     ':python_version == "2.7"': ['futures'],
+     ':python_version == "2.6"': ['futures'],
+  },
   pbr=True,
   ext_modules=[
     setuptools.Extension(

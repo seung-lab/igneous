@@ -28,9 +28,7 @@ import igneous.cc3d as cc3d
 import igneous.skeletontricks
 
 from .skeletonization import TEASAR
-from .postprocess import (
-  trim_overlap, trim_skeleton
-)
+from .postprocess import trim_skeleton
 
 def skeldir(cloudpath):
   with SimpleStorage(cloudpath) as storage:
@@ -240,14 +238,6 @@ class SkeletonMergeTask(RegisteredTask):
     if len(skeletons) == 1:
       return skeletons[filenames[0]]
 
-    file_pairs = self.find_paired_skeletons(filenames)
-
-    for fname1, fname2 in file_pairs:
-      skel1, skel2 = skeletons[fname1], skeletons[fname2]
-      skel1, skel2 = trim_overlap(skel1, skel2)
-      skeletons[fname1] = skel1
-      skeletons[fname2] = skel2
-
     skeletons = list(skeletons.values())
     skeletons = [ s for s in skeletons if not s.empty() ]
 
@@ -256,22 +246,6 @@ class SkeletonMergeTask(RegisteredTask):
 
     return PrecomputedSkeleton.simple_merge(skeletons).consolidate()
 
-  def find_paired_skeletons(self, filenames):
-    pairs = []
-
-    bboxes = [ Bbox.from_filename(fname) for fname in filenames ]
-    N = len(bboxes)
-
-    for i in range(N - 1):
-      for j in range(i + 1, N):
-        # We're testing for overlap, tasks
-        # are created with 50% overlap
-        if Bbox.intersects(bboxes[i], bboxes[j]):
-          pairs.append(
-            (filenames[i], filenames[j])
-          )
-
-    return pairs
 
 
 

@@ -18,64 +18,6 @@ def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=100):
   skeleton = remove_ticks(skeleton, tick_threshold)
   return skeleton
 
-def trim_overlap(skeleton1, skeleton2):
-  """
-  Eliminate the overlap region between two skeletons
-  except for up to a single vertex of overlap.
-  """
-  if skeleton1.empty():
-    return skeleton1, skeleton2.consolidate()
-  elif skeleton2.empty():
-    return skeleton1.consolidate(), skeleton2
-
-  nodes1 = skeleton1.vertices
-  nodes2 = skeleton2.vertices
-
-  edges1 = skeleton1.edges
-  edges2 = skeleton2.edges
-
-  tree1 = spatial.cKDTree(nodes1)
-  (dist, nodes1_idx) = tree1.query(nodes2)
-
-  nodes2_overlap = np.where(dist == 0)[0]
-  edges2 = remove_overlap_edges(nodes2_overlap, edges2) 
-
-  # e.g. [ T, T, T, F, F, T, F, F, F]
-  connected1 = find_connected(nodes1, edges1)
-  connected2 = find_connected(nodes2, edges2) 
-
-  for i, path2 in enumerate(connected2):
-    path_idx = np.where(path2)[0]
-
-    end_idx, freq = np.unique(edges2, return_counts=True)
-    end_idx = [ idx for idx, ct in zip(end_idx, freq) if ct == 1 and path2[idx] ]
-    end_points = nodes2[end_idx,:]
-    
-    end_nodes1 = np.zeros(end_points.shape[0], dtype=np.int32)
-    for j in range(end_points.shape[0]):
-      p_end = end_points[j,:]
-      node_end = find_row(nodes1, p_end)
-      end_nodes1[j] = node_end
-
-    # There was was a mismatch between skeleton 1 and 
-    # skeleton2's endpoints for this component
-    if len(end_nodes1) == 0 or np.any(end_nodes1 < 0):
-      continue
-
-    one_two_connected = False
-    for path1 in connected1:
-      if not path1[end_nodes1[0]]:
-        continue
-      else:
-        one_two_connected = np.all(path1[end_nodes1])
-        break
-
-    if one_two_connected:
-      edges2 = remove_overlap_edges(path_idx, edges2)
-
-  skeleton2.edges = edges2
-  return skeleton1, skeleton2.consolidate()
-
 ## Implementation Details Below
 
 def combination_pairs(n):
@@ -127,12 +69,6 @@ def remove_edges(edges, predecessor, start_idx, end_idx):
 
   path = np.array(path)
   return edges, path
-
-def remove_overlap_edges(nodes_overlap, edges):
-  edge_overlap = np.isin(edges, nodes_overlap)
-  del_idx = np.where(edge_overlap[:,0] * edge_overlap[:,1])
-  edges = np.delete(edges, del_idx, 0)
-  return edges
 
 def remove_dust(skeleton, dust_threshold):
   """dust_threshold in # of edges"""

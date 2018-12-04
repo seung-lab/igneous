@@ -254,14 +254,7 @@ class SkeletonMergeTask(RegisteredTask):
     if len(skeletons) == 0:
       return PrecomputedSkeleton()
 
-    fusing = skeletons[0]
-    for skel in skeletons[1:]:
-      if skel.edges.shape[0] == 0:                                                                                                                                                                                                                                                                                                                                                            
-        continue
-
-      fusing = simple_merge_skeletons(fusing, skel)
-
-    return fusing.consolidate()
+    return PrecomputedSkeleton.simple_merge(skeletons).consolidate()
 
   def find_paired_skeletons(self, filenames):
     pairs = []

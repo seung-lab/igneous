@@ -48,19 +48,18 @@ class SkeletonTask(RegisteredTask):
   """
   def __init__(
     self, cloudpath, shape, offset, 
-    mip, teasar_params, crop_zone, will_postprocess, 
+    mip, teasar_params, will_postprocess, 
     info=None, object_ids=None
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
-      teasar_params, crop_zone, will_postprocess, 
+      teasar_params, will_postprocess, 
       info, object_ids
     )
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.mip = mip
     self.teasar_params = teasar_params
-    self.crop_zone = crop_zone
     self.will_postprocess = will_postprocess
     self.cloudinfo = info
     self.object_ids = object_ids
@@ -118,7 +117,7 @@ class SkeletonTask(RegisteredTask):
 
       skeleton = self.skeletonize(
         labels, dbf, roi, 
-        anisotropy=vol.resolution.tolist(), volume_bounds=vol.bounds.clone()
+        anisotropy=vol.resolution.tolist()
       )
 
       if skeleton.empty():
@@ -127,25 +126,24 @@ class SkeletonTask(RegisteredTask):
       orig_segid = remapping[segid]
       skeleton.id = orig_segid
       skeleton.vertices *= vol.resolution
-      skeletons[orig_segid].append( (skeleton, roi) )
+      skeletons[orig_segid].append(skeleton)
 
-    self.upload(vol, path, skeletons)
+    self.upload(vol, path, bbox, skeletons)
       
-  def upload(self, vol, path, skeletons):
+  def upload(self, vol, path, bbox, skeletons):
     if not self.will_postprocess:
       skels = []
-      for segid, skel_roi in skeletons.items():
-        skel = [ skel for skel, roi in skel_roi ]
+      for segid, skel in skeletons.items():
         skel = PrecomputedSkeleton.simple_merge(skel)
         skel = skel.consolidate()
         skels.append(skel)
       vol.skeleton.upload_multiple(skels)
     else:
       with Storage(path, progress=True) as stor:
-        for segid, skel_roi in skeletons.items():
-          for skeleton, roi in skel_roi:
+        for segid, skels in skeletons.items():
+          for skeleton in skels:
             stor.put_file(
-              file_path="{}:{}".format(skeleton.id, roi.to_filename()),
+              file_path="{}:{}".format(skeleton.id, bbox.to_filename()),
               content=pickle.dumps(skeleton),
               compress='gzip',
               content_type="application/python-pickle",
@@ -153,29 +151,14 @@ class SkeletonTask(RegisteredTask):
             )
 
       
-  def skeletonize(self, labels, dbf, bbox, anisotropy, volume_bounds):
+  def skeletonize(self, labels, dbf, bbox, anisotropy):
     skeleton = TEASAR(labels, dbf, anisotropy=anisotropy, **self.teasar_params)
 
     skeleton.vertices[:,0] += bbox.minpt.x
     skeleton.vertices[:,1] += bbox.minpt.y
     skeleton.vertices[:,2] += bbox.minpt.z
 
-    if self.crop_zone == 0:
-      return skeleton
-
-    # Crop to avoid edge effects, but not on the
-    # edge of the volume.
-    crop_bbox = bbox.clone()
-    for axis in range(3):
-      if volume_bounds.minpt[axis] != crop_bbox.minpt[axis]:
-        crop_bbox.minpt[axis] += self.crop_zone
-      if volume_bounds.maxpt[axis] != crop_bbox.maxpt[axis]:
-        crop_bbox.maxpt[axis] -= self.crop_zone 
-
-    if crop_bbox.volume() <= 0:
-      return PrecomputedSkeleton()
-
-    return skeleton.crop(crop_bbox)
+    return skeleton
 
 class SkeletonMergeTask(RegisteredTask):
   """
@@ -188,10 +171,11 @@ class SkeletonMergeTask(RegisteredTask):
   processed and need to be handle specifically by creating tasks that will process
   a single mesh ['0:','1:',..'9:']
   """
-  def __init__(self, cloudpath, prefix):
-    super(SkeletonMergeTask, self).__init__(cloudpath, prefix)
+  def __init__(self, cloudpath, prefix, crop=0):
+    super(SkeletonMergeTask, self).__init__(cloudpath, prefix, crop)
     self.cloudpath = cloudpath
     self.prefix = prefix
+    self.crop_zone = crop
 
   def execute(self):
     self.vol = CloudVolume(self.cloudpath, cdn_cache=False)
@@ -233,12 +217,10 @@ class SkeletonMergeTask(RegisteredTask):
       return Skeleton()
     
     skldl = storage.get_files(filenames)
-    skeletons = { item['filename'] : pickle.loads(item['content']) for item in skldl }
+    bbxs = [ Bbox.from_filename(item['filename']) for item in skldl ]
+    skeletons = [ pickle.loads(item['content']) for item in skldl ]
 
-    if len(skeletons) == 1:
-      return skeletons[filenames[0]]
-
-    skeletons = list(skeletons.values())
+    skeletons = self.crop(bbxs, skeletons)
     skeletons = [ s for s in skeletons if not s.empty() ]
 
     if len(skeletons) == 0:
@@ -246,10 +228,20 @@ class SkeletonMergeTask(RegisteredTask):
 
     return PrecomputedSkeleton.simple_merge(skeletons).consolidate()
 
+  def crop(self, bbx, skeletons):
+    cropped = [ s.clone() for s in skeletons ]
 
+    if self.crop_zone <= 0:
+      return cropped
+    
+    for i in range(len(skldl)):
+      bbx = bbxs[i]
+      bbx.minpt += self.crop_zone
+      bbx.maxpt -= self.crop_zone
 
+      if bbx.volume() <= 0:
+        continue
 
+      cropped[i] = cropped[i].crop(bbx)
 
-
-
-
+    return cropped

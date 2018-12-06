@@ -187,7 +187,7 @@ class SkeletonMergeTask(RegisteredTask):
 
       for segid, frags in tqdm(skels.items(), desc='segid'):
         skeleton = self.fuse_skeletons(frags, stor)
-        skeleton = trim_skeleton(skeleton)
+        # skeleton = trim_skeleton(skeleton)
         vol.skeleton.upload(
           segid, skeleton.vertices, skeleton.edges, skeleton.radii, skeleton.vertex_types
         )

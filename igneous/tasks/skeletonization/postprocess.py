@@ -216,8 +216,7 @@ def remove_loops(skeleton):
   while True: # Loop until all cycles are removed
     G = nx.Graph()
 
-    for i in range(edges.shape[0]):
-      G.add_edge(edges[i,0], edges[i,1])
+    G.add_edges_from(edges)
 
     try: 
       edges_cycle = nx.find_cycle(G, orientation='ignore')

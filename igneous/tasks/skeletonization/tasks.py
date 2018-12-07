@@ -142,6 +142,7 @@ class SkeletonTask(RegisteredTask):
       with Storage(path, progress=True) as stor:
         for segid, skels in skeletons.items():
           for skeleton in skels:
+            bbox *= vol.resolution
             stor.put_file(
               file_path="{}:{}".format(skeleton.id, bbox.to_filename()),
               content=pickle.dumps(skeleton),

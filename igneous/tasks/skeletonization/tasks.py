@@ -172,14 +172,15 @@ class SkeletonMergeTask(RegisteredTask):
   processed and need to be handle specifically by creating tasks that will process
   a single mesh ['0:','1:',..'9:']
   """
-  def __init__(self, cloudpath, prefix, crop=0):
-    super(SkeletonMergeTask, self).__init__(cloudpath, prefix, crop)
+  def __init__(self, cloudpath, prefix, crop=0, mip=0):
+    super(SkeletonMergeTask, self).__init__(cloudpath, prefix, crop, mip)
     self.cloudpath = cloudpath
     self.prefix = prefix
-    self.crop_zone = crop
+    self.crop_zone = crop # voxels
+    self.mip = mip
 
   def execute(self):
-    self.vol = CloudVolume(self.cloudpath, cdn_cache=False)
+    self.vol = CloudVolume(self.cloudpath, mip=self.mip, cdn_cache=False)
 
     with Storage(self.cloudpath) as stor:
       skels = self.get_filenames_subset(stor)
@@ -236,9 +237,9 @@ class SkeletonMergeTask(RegisteredTask):
       return cropped
     
     for i in range(len(skeletons)):
-      bbx = bbxs[i]
-      bbx.minpt += self.crop_zone
-      bbx.maxpt -= self.crop_zone
+      bbx = bbxs[i] 
+      bbx.minpt += self.crop_zone * self.vol.resolution
+      bbx.maxpt -= self.crop_zone * self.vol.resolution
 
       if bbx.volume() <= 0:
         continue

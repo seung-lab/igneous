@@ -229,13 +229,13 @@ class SkeletonMergeTask(RegisteredTask):
 
     return PrecomputedSkeleton.simple_merge(skeletons).consolidate()
 
-  def crop(self, bbx, skeletons):
+  def crop(self, bbxs, skeletons):
     cropped = [ s.clone() for s in skeletons ]
 
     if self.crop_zone <= 0:
       return cropped
     
-    for i in range(len(skldl)):
+    for i in range(len(skeletons)):
       bbx = bbxs[i]
       bbx.minpt += self.crop_zone
       bbx.maxpt -= self.crop_zone

@@ -43,25 +43,6 @@ def find_connected(nodes, edges):
   l_list = np.unique(l_nodes)
   return [ l == i for i in l_list  ]
 
-def remove_edges(edges, predecessor, start_idx, end_idx):
-  edges = np.sort(edges)
-
-  path = [end_idx]
-  current_idx = end_idx
-  
-  while current_idx != start_idx:
-    pred_idx = predecessor[start_idx, current_idx]
-    
-    current_edge = np.sort(np.array([pred_idx, current_idx]))
-    current_edge_idx = np.where((edges[:,0]==current_edge[0])*(edges[:,1]==current_edge[1]))[0]
-    edges = np.delete(edges,current_edge_idx,0)
-
-    current_idx = pred_idx
-    path.append(pred_idx)
-
-  path = np.array(path)
-  return edges, path
-
 def remove_dust(skeleton, dust_threshold):
   """dust_threshold in # of edges"""
   nodes = skeleton.vertices

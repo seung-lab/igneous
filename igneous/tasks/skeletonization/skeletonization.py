@@ -213,6 +213,8 @@ def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
   f = lambda x: np.float32(x)
   M = f( 1 / (dbf_max ** 1.01) )
 
+  # First branch is much faster than ** which presumably
+  # uses logarithms to do the exponentiation.
   if is_power_of_two(pdrf_exponent) and (pdrf_exponent < (2 ** 16)):
     PDRF = (f(1) - (DBF * M)) # ^1
     for _ in range(int(np.log2(pdrf_exponent))):
@@ -221,11 +223,14 @@ def compute_pdrf(dbf_max, pdrf_scale, pdrf_exponent, DBF, DAF):
     PDRF = (f(1) - (DBF * M)) ** pdrf_exponent
 
   PDRF *= f(pdrf_scale)
-  PDRF += DAF * (1 / np.max(DAF))
+
+  # provide trickle of gradient so open spaces don't collapse
+  PDRF += DAF * (1 / np.max(DAF)) 
 
   return np.asfortranarray(PDRF)
 
 def xy_path_projection(paths, labels, N=0):
+  """Used for debugging paths."""
   if type(paths) != list:
     paths = [ paths ]
 

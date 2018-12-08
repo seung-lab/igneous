@@ -85,34 +85,6 @@ def remove_dust(skeleton, dust_threshold):
   skeleton.edges = edges
   return skeleton.consolidate()
 
-def remove_row(array, rows2remove):
-  array = np.sort(array, axis=1)
-  rows2remove = np.sort(rows2remove, axis=1)
-
-  for i in range(rows2remove.shape[0]):
-    idx = find_row(array,rows2remove[i,:])
-
-    if np.sum(idx == -1) == 0:
-      array = np.delete(array, idx, axis=0)
-
-  return array
-
-def interpolate_line(point1, point2):
-  n_step = 10
-
-  NDIM = point1.size
-  int_points = np.zeros((n_step,NDIM))
-  
-  point1 = point1.astype(np.float32)
-  point2 = point2.astype(np.float32)
-  for i in range(n_step):
-    a = i + 1
-    b = n_step - i
-    int_points[i,:] = (a*point2 + b*point1) / (a + b)
-
-  int_points = np.round(int_points)
-  return np.unique(int_points, axis=0)
-
 def connect_pieces(skeleton):
   if skeleton.empty():
     return skeleton
@@ -295,33 +267,3 @@ def path2edge(path):
     edges[i,0] = path[i]
     edges[i,1] = path[i+1]
   return edges
-
-def find_row(array, row):
-  """
-  array: array to search for
-  row: row to find
-
-  Returns: row indices
-  """
-  row = np.array(row)
-
-  if array.shape[1] != row.size:
-    raise ValueError("Dimensions do not match!")
-  
-  NDIM = array.shape[1]
-  valid = np.zeros(array.shape, dtype='bool')
-
-  for i in range(NDIM):
-    valid[:,i] = array[:,i] == row[i]
-
-  row_loc = np.zeros([ array.shape[0], 1 ])
-
-  if NDIM == 2:
-    row_loc = valid[:,0] * valid[:,1]
-  elif NDIM == 3:
-    row_loc = valid[:,0] * valid[:,1] * valid[:,2]
-
-  idx = np.where(row_loc==1)[0]
-  if len(idx) == 0:
-    idx = -1
-  return idx

@@ -210,26 +210,22 @@ def remove_loops(skeleton):
     return skeleton
 
   nodes = skeleton.vertices
-  edges = skeleton.edges
-  edges = np.sort(edges, axis=1)
+  G = nx.Graph()
+  G.add_edges_from(skeleton.edges)
   
   while True: # Loop until all cycles are removed
-    G = nx.Graph()
-
-    G.add_edges_from(edges)
-
     try: 
       edges_cycle = nx.find_cycle(G, orientation='ignore')
     except nx.exception.NetworkXNoCycle:
       break
 
-    edges_cycle = np.array(edges_cycle)
+    edges_cycle = np.array(edges_cycle, dtype=np.uint32)
     edges_cycle = np.sort(edges_cycle, axis=1)
 
     nodes_cycle = np.unique(edges_cycle)
     nodes_cycle = nodes_cycle.astype(np.int64)
     
-    unique_nodes, unique_counts = np.unique(edges, return_counts=True)
+    unique_nodes, unique_counts = np.unique(list(G.edges), return_counts=True)
     branch_nodes = unique_nodes[ unique_counts >= 3 ]
 
     branch_cycle = nodes_cycle[np.isin(nodes_cycle,branch_nodes)]
@@ -243,14 +239,11 @@ def remove_loops(skeleton):
       dist = np.sum((cycle_points - branch_cycle_point) ** 2, 1)
       end_node = nodes_cycle[np.argmax(dist)]
 
-      edges = remove_row(edges, edges_cycle)
-
-      new_edge = np.array([branch_cycle[0],end_node])
-      new_edge = np.reshape(new_edge,[1,2])
-      edges = np.concatenate((edges,new_edge), 0)
+      G.remove_edges_from(edges_cycle)
+      G.add_edge(branch_cycle[0], end_node)
 
     elif branch_cycle.shape[0] == 2:
-      path = nx.shortest_path(G,branch_cycle[0],branch_cycle[1])
+      path = nx.shortest_path(G, branch_cycle[0], branch_cycle[1])
 
       edge_path = path2edge(path)
       edge_path = np.sort(edge_path, axis=1)
@@ -262,10 +255,10 @@ def remove_loops(skeleton):
       row_valid = row_valid.astype(np.bool)
       edge_path = edges_cycle[row_valid,:]
 
-      edges = remove_row(edges, edge_path)
+      G.remove_edges_from(edge_path)
 
     elif branch_cycle.shape[0] == 0:
-      edges = remove_row(edges, edges_cycle)
+      G.remove_edges_from(edges_cycle)
 
     else:
       branch_cycle_points = nodes[branch_cycle,:]
@@ -275,7 +268,7 @@ def remove_loops(skeleton):
       intersect_node = np.argmin(dist)
       intersect_point = nodes[intersect_node,:]
 
-      edges = remove_row(edges, edges_cycle)      
+      G.remove_edges_from(edges_cycle)
 
       new_edges = np.zeros((branch_cycle.shape[0], 2))
       new_edges[:,0] = branch_cycle
@@ -285,10 +278,10 @@ def remove_loops(skeleton):
         idx = np.where(branch_cycle == intersect_node)
         new_edges = np.delete(new_edges, idx, 0)
 
-      edges = np.concatenate((edges,new_edges), 0)
+      G.add_edges_from(new_edges)
 
   skeleton.vertices = nodes
-  skeleton.edges = edges.astype(np.uint32)
+  skeleton.edges = np.array(list(G.edges), dtype=np.uint32)
   return skeleton.consolidate()
 
 def path2edge(path):

@@ -109,6 +109,19 @@ def connect_pieces(skeleton):
   return skeleton.consolidate()
 
 def remove_ticks(skeleton, threshold=150):
+  """
+  Simple merging of individual TESAR cubes results in lots of little 
+  ticks due to the edge effect. We can remove them by thresholding
+  the path length from a given branch to the "main body" of the neurite.
+
+  If TEASAR parameters were chosen such that they allowed for spines to
+  be traced, this is also an opportunity to correct for that.
+
+  Parameters:
+    threshold: The maximum length in edges that may be culled.
+
+  Returns: tick free skeleton
+  """
   if skeleton.empty():
     return skeleton
 
@@ -128,29 +141,29 @@ def remove_ticks(skeleton, threshold=150):
       edge_row_idx, edge_col_idx = np.where(edges == current_node)
 
       path = np.array([])
-      single_piece = 0
+      single_piece = False
       while edge_row_idx.shape[0] == 1 and path.shape[0] < threshold:
         
-        next_node = edges[edge_row_idx,1-edge_col_idx]
-        path = np.concatenate((path,edge_row_idx))
+        next_node = edges[edge_row_idx, 1 - edge_col_idx]
+        path = np.concatenate((path, edge_row_idx))
 
         prev_row_idx = edge_row_idx
-        prev_col_idx = 1-edge_col_idx
+        prev_col_idx = 1 - edge_col_idx
         current_node = next_node
         
         edge_row_idx, edge_col_idx = np.where(edges == current_node)
 
         if edge_row_idx.shape[0] == 1:
-          single_piece = 1
+          single_piece = True
           break
 
-        next_row_idx = np.setdiff1d(edge_row_idx,prev_row_idx)
+        next_row_idx = np.setdiff1d(edge_row_idx, prev_row_idx)
         next_col_idx = edge_col_idx[np.where(edge_row_idx == next_row_idx[0])[0]]
 
         edge_row_idx = next_row_idx 
         edge_col_idx = next_col_idx
 
-      if path.shape[0] < threshold and single_piece == 0:
+      if path.shape[0] < threshold and single_piece == False:
         path_all = np.concatenate((path_all, path))
      
     edges = np.delete(edges, path_all, axis=0)

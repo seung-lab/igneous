@@ -11,7 +11,7 @@ from cloudvolume import PrecomputedSkeleton
 
 ## Public API of Module
 
-def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=100):
+def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=1500):
   skeleton = remove_dust(skeleton, dust_threshold) # edges
   skeleton = remove_loops(skeleton)
   skeleton = connect_pieces(skeleton)
@@ -108,7 +108,7 @@ def connect_pieces(skeleton):
   skeleton.edges = edges
   return skeleton.consolidate()
 
-def remove_ticks(skeleton, threshold=150):
+def remove_ticks(skeleton, threshold=1500):
   """
   Simple merging of individual TESAR cubes results in lots of little 
   ticks due to the edge effect. We can remove them by thresholding
@@ -118,7 +118,7 @@ def remove_ticks(skeleton, threshold=150):
   be traced, this is also an opportunity to correct for that.
 
   Parameters:
-    threshold: The maximum length in edges that may be culled.
+    threshold: The maximum length in nanometers that may be culled.
 
   Returns: tick free skeleton
   """
@@ -128,42 +128,49 @@ def remove_ticks(skeleton, threshold=150):
   edges = skeleton.edges
   path_all = np.ones(1)
 
-  while path_all.shape[0] != 0:
+  def extract_tick(current_node):
+    edge_row_idx, edge_col_idx = np.where(edges == current_node)
+
+    path = np.array([])
+    distance = 0
+    single_piece = False
+    while edge_row_idx.shape[0] == 1 and distance < threshold:
+      next_node = edges[edge_row_idx, 1 - edge_col_idx][0]
+      path = np.concatenate((path, edge_row_idx))
+
+      vertices = np.array([ skeleton.vertices[current_node], skeleton.vertices[next_node] ], dtype=np.float32)
+      distance += np.linalg.norm(vertices[1,:] - vertices[0,:])
+
+      prev_row_idx = edge_row_idx
+      prev_col_idx = 1 - edge_col_idx
+      current_node = next_node
+      
+      edge_row_idx, edge_col_idx = np.where(edges == current_node)
+
+      if edge_row_idx.shape[0] == 1:
+        single_piece = True
+        break
+
+      next_row_idx = np.setdiff1d(edge_row_idx, prev_row_idx)
+      next_col_idx = edge_col_idx[np.where(edge_row_idx == next_row_idx[0])[0]]
+
+      edge_row_idx = next_row_idx 
+      edge_col_idx = next_col_idx
+
+    return path, single_piece, distance
+
+  while path_all.shape[0] > 0:
     unique_nodes, unique_counts = np.unique(edges, return_counts=True)
-
     end_idx = np.where(unique_counts == 1)[0]
-
     path_all = np.array([])
+
     for i in range(end_idx.shape[0]):
       idx = end_idx[i]
       current_node = unique_nodes[idx]
 
-      edge_row_idx, edge_col_idx = np.where(edges == current_node)
+      path, single_piece, distance = extract_tick(current_node)
 
-      path = np.array([])
-      single_piece = False
-      while edge_row_idx.shape[0] == 1 and path.shape[0] < threshold:
-        
-        next_node = edges[edge_row_idx, 1 - edge_col_idx]
-        path = np.concatenate((path, edge_row_idx))
-
-        prev_row_idx = edge_row_idx
-        prev_col_idx = 1 - edge_col_idx
-        current_node = next_node
-        
-        edge_row_idx, edge_col_idx = np.where(edges == current_node)
-
-        if edge_row_idx.shape[0] == 1:
-          single_piece = True
-          break
-
-        next_row_idx = np.setdiff1d(edge_row_idx, prev_row_idx)
-        next_col_idx = edge_col_idx[np.where(edge_row_idx == next_row_idx[0])[0]]
-
-        edge_row_idx = next_row_idx 
-        edge_col_idx = next_col_idx
-
-      if path.shape[0] < threshold and single_piece == False:
+      if distance < threshold and single_piece == False:
         path_all = np.concatenate((path_all, path))
      
     edges = np.delete(edges, path_all, axis=0)

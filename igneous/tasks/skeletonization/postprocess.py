@@ -117,6 +117,9 @@ def remove_ticks(skeleton, threshold=1500):
   If TEASAR parameters were chosen such that they allowed for spines to
   be traced, this is also an opportunity to correct for that.
 
+  O(N^2) in the number of branches, but it should be possible to make
+  this faster by being more intelligent about recomputation.
+
   Parameters:
     threshold: The maximum length in nanometers that may be culled.
 
@@ -125,8 +128,7 @@ def remove_ticks(skeleton, threshold=1500):
   if skeleton.empty():
     return skeleton
 
-  edges = skeleton.edges
-  path_all = np.ones(1)
+  edges = np.copy(skeleton.edges)
 
   def extract_tick(current_node):
     edge_row_idx, edge_col_idx = np.where(edges == current_node)
@@ -159,21 +161,27 @@ def remove_ticks(skeleton, threshold=1500):
 
     return path, single_piece, distance
 
-  while path_all.shape[0] > 0:
+  while True:
     unique_nodes, unique_counts = np.unique(edges, return_counts=True)
     end_idx = np.where(unique_counts == 1)[0]
     path_all = np.array([])
 
-    for i in range(end_idx.shape[0]):
-      idx = end_idx[i]
+    potentials = []
+    for idx in end_idx:
       current_node = unique_nodes[idx]
-
       path, single_piece, distance = extract_tick(current_node)
 
-      if distance < threshold and single_piece == False:
-        path_all = np.concatenate((path_all, path))
-     
-    edges = np.delete(edges, path_all, axis=0)
+      if distance < threshold and not single_piece:
+        potentials.append([ path, single_piece, distance ])
+
+    if len(potentials) == 0:
+      break
+
+    potentials = sorted(potentials, key=lambda x: x[2])
+    path, single_piece, distance = potentials[0]
+
+    if distance < threshold and not single_piece:
+      edges = np.delete(edges, path, axis=0)
 
   skeleton.edges = edges
   return skeleton.consolidate()

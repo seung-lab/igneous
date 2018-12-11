@@ -133,7 +133,7 @@ def remove_ticks(skeleton, threshold=1500):
   def extract_tick(current_node):
     edge_row_idx, edge_col_idx = np.where(edges == current_node)
 
-    path = np.array([])
+    path = np.array([], dtype=np.uint32)
     distance = 0
     single_piece = False
     while edge_row_idx.shape[0] == 1 and distance < threshold:
@@ -164,24 +164,22 @@ def remove_ticks(skeleton, threshold=1500):
   while True:
     unique_nodes, unique_counts = np.unique(edges, return_counts=True)
     end_idx = np.where(unique_counts == 1)[0]
-    path_all = np.array([])
-
     potentials = []
+
     for idx in end_idx:
       current_node = unique_nodes[idx]
       path, single_piece, distance = extract_tick(current_node)
 
       if distance < threshold and not single_piece:
-        potentials.append([ path, single_piece, distance ])
+        potentials.append([ path, distance ])
 
     if len(potentials) == 0:
       break
 
-    potentials = sorted(potentials, key=lambda x: x[2])
-    path, single_piece, distance = potentials[0]
-
-    if distance < threshold and not single_piece:
-      edges = np.delete(edges, path, axis=0)
+    unique_counts = { unique_nodes[i]: unique_counts[i] for i in range(unique_counts.shape[0]) }
+    potentials = sorted(potentials, key=lambda x: x[1])
+    path, distance = potentials[0]
+    edges = np.delete(edges, path, axis=0)
 
   skeleton.edges = edges
   return skeleton.consolidate()

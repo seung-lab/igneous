@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import networkx as nx
 import numpy as np
 
@@ -119,9 +121,6 @@ def remove_ticks(skeleton, threshold):
   If TEASAR parameters were chosen such that they allowed for spines to
   be traced, this is also an opportunity to correct for that.
 
-  O(N^2) in the number of branches, but it should be possible to make
-  this faster by being more intelligent about recomputation.
-
   Parameters:
     threshold: The maximum length in nanometers that may be culled.
 
@@ -130,61 +129,115 @@ def remove_ticks(skeleton, threshold):
   if skeleton.empty():
     return skeleton
 
-  edges = np.copy(skeleton.edges)
+  skels = []
+  for component in tqdm(skeleton.components(), desc='components'):
+    skels.append(_remove_ticks(component, threshold))
 
-  def extract_tick(current_node):
-    edge_row_idx, edge_col_idx = np.where(edges == current_node)
+  return PrecomputedSkeleton.simple_merge(skels).consolidate()
 
-    path = np.array([], dtype=np.uint32)
-    distance = 0
-    single_piece = False
-    while edge_row_idx.shape[0] == 1 and distance < threshold:
-      next_node = edges[edge_row_idx, 1 - edge_col_idx][0]
-      path = np.concatenate((path, edge_row_idx))
+def _remove_ticks(skeleton, threshold):
+  if skeleton.empty():
+    return skeleton
 
-      vertices = np.array([ skeleton.vertices[current_node], skeleton.vertices[next_node] ], dtype=np.float32)
-      distance += np.linalg.norm(vertices[1,:] - vertices[0,:])
+  dgraph = _create_distance_graph(skeleton)
+  vertices = skeleton.vertices
+  edges = skeleton.edges
 
-      prev_row_idx = edge_row_idx
-      prev_col_idx = 1 - edge_col_idx
-      current_node = next_node
-      
-      edge_row_idx, edge_col_idx = np.where(edges == current_node)
+  unique_nodes, unique_counts = np.unique(edges, return_counts=True)
+  terminal_nodes = set(unique_nodes[ unique_counts == 1 ])
 
-      if edge_row_idx.shape[0] == 1:
-        single_piece = True
-        break
+  branch_idx = np.where(unique_counts >= 3)[0]
 
-      next_row_idx = np.setdiff1d(edge_row_idx, prev_row_idx)
-      next_col_idx = edge_col_idx[np.where(edge_row_idx == next_row_idx[0])[0]]
+  branch_counts = defaultdict(int)
+  for i in branch_idx:
+    branch_counts[unique_nodes[i]] = unique_counts[i]
 
-      edge_row_idx = next_row_idx 
-      edge_col_idx = next_col_idx
+  G = nx.Graph()
+  G.add_edges_from(edges)
 
-    return path, single_piece, distance
+  def fuse_edge(edg1):
+    unify = [ edg for edg in dgraph.keys() if edg1 in edg ]
+    new_dist = 0.0
+    for edg in unify:
+      new_dist += dgraph[edg]
+      del dgraph[edg]
+    unify = set([ item for sublist in unify for item in sublist ])
+    unify.remove(edg1)
+    dgraph[tuple(unify)] = new_dist
+    branch_counts[edg1] = 0
 
-  while True:
-    unique_nodes, unique_counts = np.unique(edges, return_counts=True)
-    end_idx = np.where(unique_counts == 1)[0]
-    potentials = []
+  while len(dgraph) > 1:
+    terminal_superedges = [ edg for edg in dgraph.keys() if (edg[0] in terminal_nodes or edg[1] in terminal_nodes) ]
+    min_edge = min(terminal_superedges, key=dgraph.get)
+    e1, e2 = min_edge
 
-    for idx in end_idx:
-      current_node = unique_nodes[idx]
-      path, single_piece, distance = extract_tick(current_node)
-
-      if distance < threshold and not single_piece:
-        potentials.append([ path, distance ])
-
-    if len(potentials) == 0:
+    if branch_counts[e1] == 1 and branch_counts[e2] == 1:
+      break
+    elif dgraph[min_edge] >= threshold:
       break
 
-    unique_counts = { unique_nodes[i]: unique_counts[i] for i in range(unique_counts.shape[0]) }
-    potentials = sorted(potentials, key=lambda x: x[1])
-    path, distance = potentials[0]
-    edges = np.delete(edges, path, axis=0)
+    path = nx.shortest_path(G, e1, e2)
+    path = [ (path[i], path[i+1]) for i in range(len(path) - 1) ]
+    G.remove_edges_from(path)
 
-  skeleton.edges = edges
-  return skeleton.consolidate()
+    del dgraph[min_edge]
+    branch_counts[e1] -= 1
+    branch_counts[e2] -= 1
+
+    if branch_counts[e1] == 2:
+      fuse_edge(e1)
+    if branch_counts[e2] == 2:
+      fuse_edge(e2)
+
+  skel = skeleton.clone()
+  skel.edges = np.array(list(G.edges), dtype=np.uint32)
+  return skel.consolidate()
+
+def _create_distance_graph(skeleton):
+  """Make a graph of all the """
+  vertices = skeleton.vertices
+  edges = skeleton.edges
+
+  unique_nodes, unique_counts = np.unique(edges, return_counts=True)
+  terminal_nodes = unique_nodes[ unique_counts == 1 ]
+  branch_nodes = set(unique_nodes[ unique_counts >= 3 ])
+  
+  critical_points = set(terminal_nodes)
+  critical_points.update(branch_nodes)
+
+  tree = defaultdict(set)
+
+  for e1, e2 in edges:
+    tree[e1].add(e2)
+    tree[e2].add(e1)
+
+  stack = [ terminal_nodes[0] ]
+  parents = [ -1 ]
+  dist_stack = [ 0.0 ]
+  root_stack = [ terminal_nodes[0] ]
+  distgraph = defaultdict(float)
+
+  while stack:
+    node = stack.pop()
+    dist = dist_stack.pop()
+    root = root_stack.pop()
+    parent = parents.pop()
+
+    if node in critical_points and node != root:
+      distgraph[ (root, node) ] = dist
+      dist = 0.0
+      root = node
+
+    for child in tree[node]:
+      if child != parent:
+        stack.append(child)
+        parents.append(node)
+        dist_stack.append(
+          dist + np.linalg.norm(vertices[node,:] - vertices[child,:])
+        )
+        root_stack.append(root)
+
+  return distgraph
 
 def remove_loops(skeleton):
   if skeleton.empty():

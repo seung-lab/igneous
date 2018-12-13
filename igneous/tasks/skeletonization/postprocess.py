@@ -9,6 +9,8 @@ import scipy.sparse.csgraph as csgraph
 from cloudvolume.lib import Bbox
 from cloudvolume import PrecomputedSkeleton
 
+import igneous.skeletontricks
+
 ## Public API of Module
 
 def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=1500):
@@ -108,7 +110,7 @@ def connect_pieces(skeleton):
   skeleton.edges = edges
   return skeleton.consolidate()
 
-def remove_ticks(skeleton, threshold=1500):
+def remove_ticks(skeleton, threshold):
   """
   Simple merging of individual TESAR cubes results in lots of little 
   ticks due to the edge effect. We can remove them by thresholding
@@ -188,14 +190,22 @@ def remove_loops(skeleton):
   if skeleton.empty():
     return skeleton
 
+  skels = []
+  for component in skeleton.components():
+    skels.append(_remove_loops(component))
+
+  return PrecomputedSkeleton.simple_merge(skels).consolidate()
+
+def _remove_loops(skeleton):
   nodes = skeleton.vertices
   G = nx.Graph()
   G.add_edges_from(skeleton.edges)
   
   while True: # Loop until all cycles are removed
-    try: 
-      edges_cycle = nx.find_cycle(G, orientation='ignore')
-    except nx.exception.NetworkXNoCycle:
+    edges = np.array(list(G.edges), dtype=np.int32)
+    edges_cycle = igneous.skeletontricks.find_cycle(edges)
+
+    if len(edges_cycle) == 0:
       break
 
     edges_cycle = np.array(edges_cycle, dtype=np.uint32)
@@ -204,16 +214,16 @@ def remove_loops(skeleton):
     nodes_cycle = np.unique(edges_cycle)
     nodes_cycle = nodes_cycle.astype(np.int64)
     
-    unique_nodes, unique_counts = np.unique(list(G.edges), return_counts=True)
+    unique_nodes, unique_counts = np.unique(edges, return_counts=True)
     branch_nodes = unique_nodes[ unique_counts >= 3 ]
 
+    # branch cycles are cycle nodes that coincide with a branch point
     branch_cycle = nodes_cycle[np.isin(nodes_cycle,branch_nodes)]
     branch_cycle = branch_cycle.astype(np.int64)
 
     if branch_cycle.shape[0] == 1:
-      branch_cycle_point = nodes[branch_cycle,:]
-
-      cycle_points = nodes[nodes_cycle,:]
+      branch_cycle_point = nodes[branch_cycle, :]
+      cycle_points = nodes[nodes_cycle, :]
 
       dist = np.sum((cycle_points - branch_cycle_point) ** 2, 1)
       end_node = nodes_cycle[np.argmax(dist)]
@@ -261,7 +271,7 @@ def remove_loops(skeleton):
 
   skeleton.vertices = nodes
   skeleton.edges = np.array(list(G.edges), dtype=np.uint32)
-  return skeleton.consolidate()
+  return skeleton
 
 def path2edge(path):
   """

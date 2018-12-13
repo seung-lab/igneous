@@ -297,4 +297,69 @@ def roll_invalidation_cube(
   return invalidated, labels
 
 
+@cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
+def find_cycle(cnp.ndarray[int32_t, ndim=2] edges):
+  index = defaultdict(set)
+  visited = defaultdict(int)
 
+  if edges.size == 0:
+    return []
+
+  for e1, e2 in edges:
+    index[e1].add(e2)
+    index[e2].add(e1)
+
+  cdef int root = edges[0,0]
+  cdef int node
+  cdef int child
+  cdef int parent
+  cdef int depth
+  cdef int i
+
+  cdef list stack = [root]
+  cdef list parents = [-1]
+  cdef list depth_stack = [0]
+  cdef list path = []
+
+  while stack:
+    node = stack.pop()
+    parent = parents.pop()
+    depth = depth_stack.pop()
+
+    for i in range(len(path) - depth):
+      path.pop()
+
+    path.append(node)
+
+    if visited[node] == 1:
+      break
+
+    visited[node] = 1
+
+    for child in index[node]:
+      if child != parent:
+        stack.append(child)
+        parents.append(node)
+        depth_stack.append(depth + 1)
+
+  if len(path) <= 1:
+    return []
+  
+  for i in range(len(path) - 1):
+    if path[i] == node:
+      break
+
+  path = path[i:]
+
+  if len(path) < 3:
+    return []
+
+  cdef list elist = []
+  for i in range(len(path) - 1):
+    elist.append(
+      (path[i], path[i+1])
+    )
+
+  return elist

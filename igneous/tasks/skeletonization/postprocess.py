@@ -199,10 +199,20 @@ def remove_loops(skeleton):
 def _remove_loops(skeleton):
   nodes = skeleton.vertices
   G = nx.Graph()
+
+  # Double bookeeping to prevent having to 
+  # (expensively) call:
+  #
+  # edges = np.array(list(G.edges), dtype=np.int32)
+  #
+  # which effectively doubled the running time. The
+  # iterator of that function is just slow.
+
   G.add_edges_from(skeleton.edges)
-  
+  edges = np.copy(skeleton.edges).astype(np.int32)
+
   while True: # Loop until all cycles are removed
-    edges = np.array(list(G.edges), dtype=np.int32)
+    edges = edges.astype(np.int32)
     edges_cycle = igneous.skeletontricks.find_cycle(edges)
 
     if len(edges_cycle) == 0:
@@ -212,14 +222,14 @@ def _remove_loops(skeleton):
     edges_cycle = np.sort(edges_cycle, axis=1)
 
     nodes_cycle = np.unique(edges_cycle)
-    nodes_cycle = nodes_cycle.astype(np.int64)
+    nodes_cycle = nodes_cycle.astype(np.int32)
     
     unique_nodes, unique_counts = np.unique(edges, return_counts=True)
     branch_nodes = unique_nodes[ unique_counts >= 3 ]
 
     # branch cycles are cycle nodes that coincide with a branch point
     branch_cycle = nodes_cycle[np.isin(nodes_cycle,branch_nodes)]
-    branch_cycle = branch_cycle.astype(np.int64)
+    branch_cycle = branch_cycle.astype(np.int32)
 
     if branch_cycle.shape[0] == 1:
       branch_cycle_point = nodes[branch_cycle, :]
@@ -230,6 +240,10 @@ def _remove_loops(skeleton):
 
       G.remove_edges_from(edges_cycle)
       G.add_edge(branch_cycle[0], end_node)
+
+      edges = remove_row(edges, edges_cycle)        
+      new_edge = np.array([[branch_cycle[0], end_node]], dtype=np.int32) 
+      edges = np.concatenate((edges, new_edge), 0)
 
     elif branch_cycle.shape[0] == 2:
       path = nx.shortest_path(G, branch_cycle[0], branch_cycle[1])
@@ -245,9 +259,11 @@ def _remove_loops(skeleton):
       edge_path = edges_cycle[row_valid,:]
 
       G.remove_edges_from(edge_path)
+      edges = remove_row(edges, edge_path)
 
     elif branch_cycle.shape[0] == 0:
       G.remove_edges_from(edges_cycle)
+      edges = remove_row(edges, edges_cycle)
 
     else:
       branch_cycle_points = nodes[branch_cycle,:]
@@ -258,6 +274,7 @@ def _remove_loops(skeleton):
       intersect_point = nodes[intersect_node,:]
 
       G.remove_edges_from(edges_cycle)
+      edges = remove_row(edges, edges_cycle)      
 
       new_edges = np.zeros((branch_cycle.shape[0], 2))
       new_edges[:,0] = branch_cycle
@@ -268,9 +285,10 @@ def _remove_loops(skeleton):
         new_edges = np.delete(new_edges, idx, 0)
 
       G.add_edges_from(new_edges)
+      edges = np.concatenate((edges,new_edges), 0)
 
   skeleton.vertices = nodes
-  skeleton.edges = np.array(list(G.edges), dtype=np.uint32)
+  skeleton.edges = edges.astype(np.uint32)
   return skeleton
 
 def path2edge(path):
@@ -284,3 +302,41 @@ def path2edge(path):
     edges[i,0] = path[i]
     edges[i,1] = path[i+1]
   return edges
+
+def remove_row(array, rows2remove): 
+  array = np.sort(array, axis=1)  
+  rows2remove = np.sort(rows2remove, axis=1)  
+
+  for i in range(rows2remove.shape[0]):  
+    idx = find_row(array,rows2remove[i,:])  
+    if np.sum(idx == -1) == 0: 
+      array = np.delete(array, idx, axis=0) 
+  
+  return array.astype(np.int32)
+
+
+def find_row(array, row): 
+  """ 
+  array: array to search for  
+  row: row to find  
+   Returns: row indices 
+  """ 
+  row = np.array(row) 
+  if array.shape[1] != row.size: 
+    raise ValueError("Dimensions do not match!")  
+    
+  NDIM = array.shape[1] 
+  valid = np.zeros(array.shape, dtype=np.bool) 
+  for i in range(NDIM):  
+    valid[:,i] = array[:,i] == row[i] 
+  
+  row_loc = np.zeros([ array.shape[0], 1 ])  
+  if NDIM == 2:  
+    row_loc = valid[:,0] * valid[:,1] 
+  elif NDIM == 3: 
+    row_loc = valid[:,0] * valid[:,1] * valid[:,2]  
+  
+  idx = np.where(row_loc==1)[0]  
+  if len(idx) == 0: 
+    idx = -1  
+  return idx 

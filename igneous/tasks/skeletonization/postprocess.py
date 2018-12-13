@@ -130,7 +130,7 @@ def remove_ticks(skeleton, threshold):
     return skeleton
 
   skels = []
-  for component in tqdm(skeleton.components(), desc='components'):
+  for component in skeleton.components():
     skels.append(_remove_ticks(component, threshold))
 
   return PrecomputedSkeleton.simple_merge(skels).consolidate()

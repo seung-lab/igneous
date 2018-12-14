@@ -1,7 +1,7 @@
 backports.lzma==0.0.8
 click==6.7
 cryptography==2.3
-cloud-volume>=0.38.0
+cloud-volume>=0.41.0
 dijkstra3d>=1.0.0
 edt>=1.2.0
 google-cloud-logging

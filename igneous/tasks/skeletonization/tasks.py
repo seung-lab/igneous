@@ -137,7 +137,7 @@ class SkeletonTask(RegisteredTask):
         skel = PrecomputedSkeleton.simple_merge(skel)
         skel = skel.consolidate()
         skels.append(skel)
-      vol.skeleton.upload_multiple(skels)
+      vol.skeleton.upload(skels)
     else:
       bbox = bbox * vol.resolution
       with Storage(path, progress=True) as stor:
@@ -200,9 +200,7 @@ class SkeletonMergeTask(RegisteredTask):
       for segid, frags in tqdm(skels.items(), desc='segid'):
         skeleton = self.fuse_skeletons(frags, stor)
         skeleton = trim_skeleton(skeleton, self.dust_threshold, self.tick_threshold)
-        vol.skeleton.upload(
-          segid, skeleton.vertices, skeleton.edges, skeleton.radii, skeleton.vertex_types
-        )
+        vol.skeleton.upload(skeleton)
       
       if self.delete_fragments:
         for segid, frags in skels.items():

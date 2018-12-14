@@ -172,7 +172,7 @@ class SkeletonMergeTask(RegisteredTask):
   processed and need to be handle specifically by creating tasks that will process
   a single mesh ['0:','1:',..'9:']
   """
-  def __init__(self, cloudpath, prefix, crop=0, mip=0, dust_threshold=100, tick_threshold=1500):
+  def __init__(self, cloudpath, prefix, crop=0, mip=0, dust_threshold=4000, tick_threshold=6000):
     super(SkeletonMergeTask, self).__init__(cloudpath, prefix, crop, mip, dust_threshold, tick_threshold)
     self.cloudpath = cloudpath
     self.prefix = prefix

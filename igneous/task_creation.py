@@ -334,7 +334,10 @@ def create_skeletonizing_tasks(
   vol.commit_provenance()
 
 # split the work up into ~1000 tasks (magnitude 3)
-def create_skeleton_merge_tasks(task_queue, layer_path, magnitude=3):
+def create_skeleton_merge_tasks(
+    task_queue, layer_path, mip, crop=0,
+    magnitude=3, dust_threshold=4000, tick_threshold=6000
+  ):
   assert int(magnitude) == magnitude
 
   start = 10 ** (magnitude - 1)
@@ -344,12 +347,26 @@ def create_skeleton_merge_tasks(task_queue, layer_path, magnitude=3):
   # enumerating them individually with a suffixed ':' to limit matches to
   # only those small numbers
   for prefix in range(1, start):
-    task = SkeletonMergeTask(layer_path, prefix=str(prefix) + ':')
+    task = SkeletonMergeTask(
+      cloudpath=layer_path, 
+      prefix=str(prefix) + ':',
+      crop=crop,
+      mip=mip,
+      dust_threshold=dust_threshold,
+      tick_threshold=tick_threshold,
+    )
     task_queue.insert(task)
 
   # enumerate from e.g. 100 to 999
   for prefix in range(start, end):
-    task = SkeletonMergeTask(layer_path, prefix=prefix)
+    task = SkeletonMergeTask(
+      cloudpath=layer_path, 
+      prefix=prefix, 
+      crop=crop,
+      mip=mip, 
+      dust_threshold=dust_threshold, 
+      tick_threshold=tick_threshold
+    )
     task_queue.insert(task)
 
   task_queue.wait('Uploading Skeleton Merge Tasks')

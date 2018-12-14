@@ -15,14 +15,10 @@ import igneous.skeletontricks
 
 ## Public API of Module
 
-def trim_skeleton(
-    skeleton, dust_threshold=4000, 
-    tick_threshold=6000, proximity_threshold=50
-  ):
-
+def trim_skeleton(skeleton, dust_threshold=4000, tick_threshold=6000):
   skeleton = remove_dust(skeleton, dust_threshold) 
   skeleton = remove_loops(skeleton)
-  skeleton = connect_pieces(skeleton, proximity_threshold)
+  skeleton = connect_pieces(skeleton)
   skeleton = remove_ticks(skeleton, tick_threshold)
   return skeleton
 
@@ -65,7 +61,7 @@ def remove_dust(skeleton, dust_threshold):
   skeleton = PrecomputedSkeleton.simple_merge(skels)
   return skeleton.consolidate()
 
-def connect_pieces(skeleton, proximity_threshold=50):
+def connect_pieces(skeleton):
   if skeleton.empty():
     return skeleton
 
@@ -92,17 +88,16 @@ def connect_pieces(skeleton, proximity_threshold=50):
       (dist, idx) = tree.query(nodes_piece)
       min_dist = np.min(dist)
 
-      if min_dist < proximity_threshold:
-        min_dist_idx = int(np.where(dist == min_dist)[0][0])
-        start_idx = nodes_piece_idx[min_dist_idx]
-        end_idx = nodes_tree_idx[idx[min_dist_idx]]
+      min_dist_idx = int(np.where(dist == min_dist)[0][0])
+      start_idx = nodes_piece_idx[min_dist_idx]
+      end_idx = nodes_tree_idx[idx[min_dist_idx]]
 
-        # test if line between points exits object
-        if (radii[start_idx] + radii[end_idx]) >= min_dist:
-          new_edge = np.array([[ start_idx, end_idx ]])
-          edges = np.concatenate((edges, new_edge), axis=0)
-          all_connected = True
-          break
+      # test if line between points exits object
+      if (radii[start_idx] + radii[end_idx]) >= min_dist:
+        new_edge = np.array([[ start_idx, end_idx ]])
+        edges = np.concatenate((edges, new_edge), axis=0)
+        all_connected = True
+        break
 
   skeleton.edges = edges
   return skeleton.consolidate()

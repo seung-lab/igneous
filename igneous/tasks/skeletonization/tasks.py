@@ -175,11 +175,11 @@ class SkeletonMergeTask(RegisteredTask):
   def __init__(
       self, cloudpath, prefix, 
       crop=0, mip=0, dust_threshold=4000, 
-      tick_threshold=6000, proximity_threshold=50
+      tick_threshold=6000, delete_fragments=False
     ):
     super(SkeletonMergeTask, self).__init__(
       cloudpath, prefix, crop, mip, 
-      dust_threshold, tick_threshold, proximity_threshold
+      dust_threshold, tick_threshold, delete_fragments
     )
     self.cloudpath = cloudpath
     self.prefix = prefix
@@ -187,7 +187,7 @@ class SkeletonMergeTask(RegisteredTask):
     self.mip = mip
     self.dust_threshold = dust_threshold # nm
     self.tick_threshold = tick_threshold # nm
-    self.proximity_threshold = proximity_threshold # voxels
+    self.delete_fragments = delete_fragments
 
   def execute(self):
     self.vol = CloudVolume(self.cloudpath, mip=self.mip, cdn_cache=False)
@@ -199,16 +199,14 @@ class SkeletonMergeTask(RegisteredTask):
 
       for segid, frags in tqdm(skels.items(), desc='segid'):
         skeleton = self.fuse_skeletons(frags, stor)
-        skeleton = trim_skeleton(
-          skeleton, self.dust_threshold, 
-          self.tick_threshold, self.proximity_threshold
-        )
+        skeleton = trim_skeleton(skeleton, self.dust_threshold, self.tick_threshold)
         vol.skeleton.upload(
           segid, skeleton.vertices, skeleton.edges, skeleton.radii, skeleton.vertex_types
         )
       
-      # for segid, frags in skels.items():
-      #   stor.delete_files(frags)
+      if self.delete_fragments:
+        for segid, frags in skels.items():
+          stor.delete_files(frags)
 
   def get_filenames_subset(self, storage):
     prefix = '{}/{}'.format(self.vol.skeleton.path, self.prefix)

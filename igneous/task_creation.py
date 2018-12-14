@@ -337,7 +337,7 @@ def create_skeletonizing_tasks(
 def create_skeleton_merge_tasks(
     task_queue, layer_path, mip, crop=0,
     magnitude=3, dust_threshold=4000, 
-    tick_threshold=6000, proximity_threshold=50
+    tick_threshold=6000
   ):
   assert int(magnitude) == magnitude
 
@@ -355,7 +355,6 @@ def create_skeleton_merge_tasks(
       mip=mip,
       dust_threshold=dust_threshold,
       tick_threshold=tick_threshold,
-      proximity_threshold=proximity_threshold,
     )
     task_queue.insert(task)
 
@@ -368,7 +367,6 @@ def create_skeleton_merge_tasks(
       mip=mip, 
       dust_threshold=dust_threshold, 
       tick_threshold=tick_threshold,
-      proximity_threshold=proximity_threshold,
     )
     task_queue.insert(task)
 

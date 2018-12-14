@@ -172,14 +172,22 @@ class SkeletonMergeTask(RegisteredTask):
   processed and need to be handle specifically by creating tasks that will process
   a single mesh ['0:','1:',..'9:']
   """
-  def __init__(self, cloudpath, prefix, crop=0, mip=0, dust_threshold=4000, tick_threshold=6000):
-    super(SkeletonMergeTask, self).__init__(cloudpath, prefix, crop, mip, dust_threshold, tick_threshold)
+  def __init__(
+      self, cloudpath, prefix, 
+      crop=0, mip=0, dust_threshold=4000, 
+      tick_threshold=6000, proximity_threshold=50
+    ):
+    super(SkeletonMergeTask, self).__init__(
+      cloudpath, prefix, crop, mip, 
+      dust_threshold, tick_threshold, proximity_threshold
+    )
     self.cloudpath = cloudpath
     self.prefix = prefix
     self.crop_zone = crop # voxels
     self.mip = mip
-    self.dust_threshold = dust_threshold # vertices
-    self.tick_threshold = tick_threshold # edges
+    self.dust_threshold = dust_threshold # nm
+    self.tick_threshold = tick_threshold # nm
+    self.proximity_threshold = proximity_threshold # voxels
 
   def execute(self):
     self.vol = CloudVolume(self.cloudpath, mip=self.mip, cdn_cache=False)
@@ -191,7 +199,10 @@ class SkeletonMergeTask(RegisteredTask):
 
       for segid, frags in tqdm(skels.items(), desc='segid'):
         skeleton = self.fuse_skeletons(frags, stor)
-        skeleton = trim_skeleton(skeleton, self.dust_threshold, self.tick_threshold)
+        skeleton = trim_skeleton(
+          skeleton, self.dust_threshold, 
+          self.tick_threshold, self.proximity_threshold
+        )
         vol.skeleton.upload(
           segid, skeleton.vertices, skeleton.edges, skeleton.radii, skeleton.vertex_types
         )

@@ -15,8 +15,8 @@ import igneous.skeletontricks
 
 ## Public API of Module
 
-def trim_skeleton(skeleton, dust_threshold=100, tick_threshold=1500):
-  skeleton = remove_dust(skeleton, dust_threshold) # edges
+def trim_skeleton(skeleton, dust_threshold=4000, tick_threshold=6000):
+  skeleton = remove_dust(skeleton, dust_threshold) 
   skeleton = remove_loops(skeleton)
   skeleton = connect_pieces(skeleton)
   skeleton = remove_ticks(skeleton, tick_threshold)
@@ -48,26 +48,17 @@ def find_connected(nodes, edges):
   return [ l == i for i in l_list  ]
 
 def remove_dust(skeleton, dust_threshold):
-  """dust_threshold in # of edges"""
-  nodes = skeleton.vertices
-  edges = skeleton.edges 
-
+  """Dust threshold in physical cable length."""
+  
   if skeleton.empty():
     return skeleton
 
-  connected = find_connected(nodes, edges)
+  skels = [] 
+  for skel in skeleton.components():
+    if skel.cable_length() > dust_threshold:
+      skels.append(skel)
 
-  for i in range(len(connected)):
-    path = connected[i] # [ T, T, F, F, T, T ] etc
-
-    if np.sum(path) < dust_threshold:
-      path_nodes = np.where(path)[0]
-
-      for j in range(len(path_nodes)):
-        del_row_idx, del_col_idx = np.where(edges == path_nodes[j])
-        edges = np.delete(edges, del_row_idx, 0)
-
-  skeleton.edges = edges
+  skeleton = PrecomputedSkeleton.simple_merge(skels)
   return skeleton.consolidate()
 
 def connect_pieces(skeleton):

@@ -301,6 +301,12 @@ def roll_invalidation_cube(
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 @cython.nonecheck(False)
 def find_cycle(cnp.ndarray[int32_t, ndim=2] edges):
+  """
+  Given a graph of edges that are a single connected component,
+  find a cycle via depth first search.
+
+  Returns: list of edges in a cycle (empty list if no cycle is found)
+  """
   index = defaultdict(set)
   visited = defaultdict(int)
 

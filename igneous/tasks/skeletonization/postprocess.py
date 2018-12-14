@@ -116,10 +116,14 @@ def remove_ticks(skeleton, threshold):
   """
   Simple merging of individual TESAR cubes results in lots of little 
   ticks due to the edge effect. We can remove them by thresholding
-  the path length from a given branch to the "main body" of the neurite.
+  the path length from a given branch to the "main body" of the neurite. 
+  We successively remove paths from shortest to longest until no branches
+  below threshold remain.
 
   If TEASAR parameters were chosen such that they allowed for spines to
   be traced, this is also an opportunity to correct for that.
+
+  This algorithm is O(N^2) in the number of terminal nodes.
 
   Parameters:
     threshold: The maximum length in nanometers that may be culled.
@@ -136,6 +140,46 @@ def remove_ticks(skeleton, threshold):
   return PrecomputedSkeleton.simple_merge(skels).consolidate()
 
 def _remove_ticks(skeleton, threshold):
+  """
+  For a single connected component, remove "ticks" below a threshold. 
+  Ticks are a path connecting a terminal node to a branch point that
+  are physically shorter than the specified threshold. 
+
+  Every time a tick is removed, it potentially changes the topology
+  of the components. Once a branch point's number of edges drops to
+  two, the two paths connecting to it can be unified into one. Sometimes
+  a single object exists that has no branches but is below threshold. We
+  do not delete these objects as there would be nothing left.
+
+  Each time the minimum length tick is removed, it can change which 
+  tick is the new minimum tick and requires reevaluation of the whole 
+  skeleton. Previously, we did not perform this reevaluation and it 
+  resulted in the ends of neurites being clipped. 
+
+  This makes the algorithm quadratic in the number of terminal branches.
+  As high resolution skeletons can have tens of thousands of nodes and 
+  dozens of branches, a full topological reevaluation becomes relatively 
+  expensive. However, we only need to know the graph of distances between
+  critical points, defined as the set of branch points and terminal points, 
+  in the skeleton in order to evaluate the topology. 
+
+  Therefore, we first compute this distance graph before proceeding with
+  tick removal. The algorithm remains quadratic in the number of terminal
+  points, but the constant speed up is very large as we move from a regime
+  of tens of thousands to hundreds of thousands of points needing reevaluation
+  to at most hundreds and often only a handful in typical cases. In the 
+  pathological case of a skeleton with numerous single point extrusions,
+  the performance of the algorithm collapses approximately to the previous
+  regime (though without the assistence of the constant factor of numpy speed).
+
+  Requires:
+    skeleton: a PrecomputedSkeleton that is guaranteed to be a single 
+      connected component.
+    threshold: distance in nanometers below which a branch is considered
+      a "tick" eligible to be removed.
+
+  Returns: a "tick" free PrecomputedSkeleton
+  """
   if skeleton.empty():
     return skeleton
 
@@ -194,7 +238,28 @@ def _remove_ticks(skeleton, threshold):
   return skel.consolidate()
 
 def _create_distance_graph(skeleton):
-  """Make a graph of all the """
+  """
+  Creates the distance "supergraph" from a single connected component 
+  skeleton as described in _remove_ticks.
+
+  Returns: a distance "supergraph" describing the physical distance
+    between the critical points in the skeleton's structure.
+
+  Example skeleton with output:
+
+      60nm   60nm   60nm     
+    1------2------3------4
+      30nm |  70nm \
+           5        ----6
+
+  { 
+    (1,2): 60,  
+    (2,3): 60,
+    (2,5): 30,
+    (3,4): 60,
+    (3,6): 70,
+  }
+  """
   vertices = skeleton.vertices
   edges = skeleton.edges
 
@@ -211,11 +276,16 @@ def _create_distance_graph(skeleton):
     tree[e1].add(e2)
     tree[e2].add(e1)
 
+  # The below depth first search would be
+  # more elegantly implemented as recursion,
+  # but it quickly blows the stack, mandating
+  # an iterative implementation.
+
   stack = [ terminal_nodes[0] ]
   parents = [ -1 ]
   dist_stack = [ 0.0 ]
   root_stack = [ terminal_nodes[0] ]
-  distgraph = defaultdict(float)
+  distgraph = defaultdict(float) # the distance "supergraph"
 
   while stack:
     node = stack.pop()

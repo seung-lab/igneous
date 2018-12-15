@@ -73,6 +73,9 @@ class SkeletonTask(RegisteredTask):
     if self.object_ids is not None:
       all_labels[~np.isin(all_labels, self.object_ids)] = 0
 
+    if not np.any(all_labels):
+      return
+
     tmp_labels, remapping = fastremap.renumber(all_labels)
     cc_labels = cc3d.connected_components(tmp_labels, max_labels=int(bbox.volume() / 4))
 

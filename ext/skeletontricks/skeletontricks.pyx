@@ -5,9 +5,11 @@ and the euclidean distance transform) have a home here.
 
 Author: William Silversmith
 Affiliation: Seung Lab, Princeton Neuroscience Institute
-Date: August 2018
+Date: August-December 2018
 """
 cimport cython
+from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
+
 from libc.stdlib cimport calloc, free
 from libc.stdint cimport (
   int8_t, int16_t, int32_t, int64_t,
@@ -300,22 +302,24 @@ def roll_invalidation_cube(
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 @cython.nonecheck(False)
-def find_cycle(cnp.ndarray[int32_t, ndim=2] edges):
+def find_cycle(cnp.ndarray[int32_t, ndim=2] edges, int num_verts=-1):
   """
   Given a graph of edges that are a single connected component,
   find a cycle via depth first search.
 
   Returns: list of edges in a cycle (empty list if no cycle is found)
   """
-  index = defaultdict(set)
-  visited = defaultdict(int)
+  index = defaultdict(list)
 
   if edges.size == 0:
     return []
 
+  if num_verts < 0:
+    num_verts = np.max(edges)
+
   for e1, e2 in edges:
-    index[e1].add(e2)
-    index[e2].add(e1)
+    index[e1].append(e2)
+    index[e2].append(e1)
 
   cdef int root = edges[0,0]
   cdef int node
@@ -324,31 +328,45 @@ def find_cycle(cnp.ndarray[int32_t, ndim=2] edges):
   cdef int depth
   cdef int i
 
-  cdef list stack = [root]
-  cdef list parents = [-1]
-  cdef list depth_stack = [0]
+  cdef int sp = 0 # stack pointer
+  cdef int *stack = <int*>PyMem_Malloc((num_verts + 1) * sizeof(int))
+  cdef int *parents = <int*>PyMem_Malloc((num_verts + 1) * sizeof(int))
+  cdef int *depth_stack = <int*>PyMem_Malloc((num_verts + 1) * sizeof(int))
+
+  stack[0] = root 
+  parents[0] = -1
+  depth_stack[0] = 0
+
+  cdef bool *visited = <bool*>calloc(num_verts, sizeof(bool))
+
   cdef list path = []
 
-  while stack:
-    node = stack.pop()
-    parent = parents.pop()
-    depth = depth_stack.pop()
+  while sp >= 0:
+    node = stack[sp]
+    parent = parents[sp]
+    depth = depth_stack[sp]
+    sp -= 1
 
     for i in range(len(path) - depth):
       path.pop()
-
     path.append(node)
 
-    if visited[node] == 1:
+    if visited[node]:
       break
 
-    visited[node] = 1
+    visited[node] = True
 
     for child in index[node]:
       if child != parent:
-        stack.append(child)
-        parents.append(node)
-        depth_stack.append(depth + 1)
+        sp += 1
+        stack[sp] = child
+        parents[sp] = node
+        depth_stack[sp] = depth + 1
+
+  PyMem_Free(stack)
+  PyMem_Free(parents)
+  PyMem_Free(depth_stack)
+  free(visited)
 
   if len(path) <= 1:
     return []

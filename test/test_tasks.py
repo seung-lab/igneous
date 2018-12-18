@@ -11,11 +11,50 @@ from taskqueue import MockTaskQueue
 from igneous import (
     DownsampleTask, MeshTask, MeshManifestTask, 
     QuantizeTask, HyperSquareConsensusTask,
-    DeleteTask
+    DeleteTask, InferenceTask
 )
 from igneous import downsample
 from igneous.task_creation import create_downsample_scales, create_downsampling_tasks, create_quantized_affinity_info
 from .layer_harness import delete_layer, create_layer
+
+
+def test_inference():
+    """
+        test_inference 
+    
+    use random array and identity patch inference engine for tests
+    Note that this is just a basic test without masking. 
+    """
+    delete_layer()
+
+    image_storage, image_data = create_layer(size=((256-64)*2+64,(256-64)*2+64,28*2+4,1), offset=(0,0,0), 
+                                            layer_type='image', layer_name='image')
+    image_cv = CloudVolume(image_storage.layer_path)
+    image_cv.commit_info()
+    
+    aff_storage, aff_data = create_layer(size=((256-64)*2+64,(256-64)*2+64,28*2+4,3), offset=(0,0,0), 
+                                            layer_type='affinities', layer_name='aff')
+    aff_cv = CloudVolume(aff_storage.layer_path)
+    print('affinity map layer path: {}'.format(aff_storage.layer_path))
+    aff_cv.commit_info()
+
+    InferenceTask(
+        image_layer_path=image_storage.layer_path, convnet_model_path='', convnet_weight_path='',
+        mask_layer_path='', output_layer_path=aff_storage.layer_path, output_offset=(0,0,0), 
+        output_shape=(28*2+4, (256-64)*2+64, (256-64)*2+64), patch_size=(32, 256, 256), 
+        patch_overlap=(4,64,64), cropping_margin_size=(0,0,0), output_key='output', 
+        num_output_channels=3, image_mip=0, output_mip=0,  
+        framework='identity', 
+    ).execute()
+   
+    aff = aff_cv[:,:,:]
+    aff = np.asarray(aff)
+    print('shape of affinitymap: {}'.format(aff.shape))
+    print('shape of image: {}'.format(image_data.shape))
+    # we can only test the central regions because the voxels in overlapping region around boundary 
+    # will be masked/normalized by the patch normalization.
+    np.testing.assert_allclose(image_data[100:150,100:150,20:40,0], 
+                                      aff[100:150,100:150,20:40,0]*255, rtol=1, atol=1)
 
 def test_ingest_image():
     delete_layer()
@@ -379,4 +418,4 @@ def test_mesh_manifests():
 #                   layer_path_segmentation='s3://neuroglancer/pinky40_v11/chunked_watershed',
 #                   high_threshold=0.999987, low_threshold=0.003, merge_threshold=0.3, 
 #                   merge_size=800, dust_size=800).execute()
-   
+

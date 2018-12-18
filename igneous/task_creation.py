@@ -632,111 +632,109 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
   task_queue.wait()
 
 def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_layer_path, 
-        aff_mip, mask_layer_path, mask_mip, output_block_start, output_block_size, grid_size ):
-    """
-    affinity map masking block by block. The block coordinates should be aligned with 
-    cloud storage. 
-    """
-    for z in tqdm(range(grid_size[0]), desc='z loop'):
-        for y in range(grid_size[1]):
-            for x in range(grid_size[2]):
-                output_bounds = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
-                        for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
-                task = MaskAffinitymapTask(
-                    aff_input_layer_path=aff_input_layer_path,
-                    aff_output_layer_path=aff_output_layer_path,
-                    aff_mip=aff_mip, 
-                    mask_layer_path=mask_layer_path,
-                    mask_mip=mask_mip,
-                    output_bounds=output_bounds,
-                )
-                task_queue.insert(task)
-    task_queue.wait()
+      aff_mip, mask_layer_path, mask_mip, output_block_start, output_block_size, grid_size ):
+  """
+  affinity map masking block by block. The block coordinates should be aligned with 
+  cloud storage. 
+  """
+  for z in tqdm(range(grid_size[0]), desc='z loop'):
+    for y in range(grid_size[1]):
+      for x in range(grid_size[2]):
+        output_bounds = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
+                for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
+        task = MaskAffinitymapTask(
+          aff_input_layer_path=aff_input_layer_path,
+          aff_output_layer_path=aff_output_layer_path,
+          aff_mip=aff_mip, 
+          mask_layer_path=mask_layer_path,
+          mask_mip=mask_mip,
+          output_bounds=output_bounds,
+        )
+        task_queue.insert(task)
+  task_queue.wait()
 
-    vol = CloudVolume(output_layer_path, mip=aff_mip)
-    vol.provenance.processing.append({
-        'method': {
-            'task': 'InferenceTask',
-            'aff_input_layer_path': aff_input_layer_path,
-            'aff_output_layer_path': aff_output_layer_path,
-            'aff_mip': aff_mip,
-            'mask_layer_path': mask_layer_path,
-            'mask_mip': mask_mip,
-            'output_block_start': output_block_start,
-            'output_block_size': output_block_size, 
-            'grid_size': grid_size,
-        },
-        'by': USER_EMAIL,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-    })
-    vol.commit_provenance()
-
+  vol = CloudVolume(output_layer_path, mip=aff_mip)
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'InferenceTask',
+      'aff_input_layer_path': aff_input_layer_path,
+      'aff_output_layer_path': aff_output_layer_path,
+      'aff_mip': aff_mip,
+      'mask_layer_path': mask_layer_path,
+      'mask_mip': mask_mip,
+      'output_block_start': output_block_start,
+      'output_block_size': output_block_size, 
+      'grid_size': grid_size,
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  })
+  vol.commit_provenance()
 
 def create_inference_tasks(task_queue, image_layer_path, convnet_model_path, 
-        convnet_weight_path, mask_layer_path, output_layer_path, output_block_start, 
-        output_block_size, grid_size, patch_size, patch_overlap, cropping_margin_size,
-        output_key='output', num_output_channels=3, 
-        image_mip=1, output_mip=1, mask_mip=3, inference_backend='pznet', 
-        missing_section_ids_file_name=None):
-    """
-    convnet inference block by block. The block coordinates should be aligned with 
-    cloud storage. 
-    """
-    for z in tqdm(range(grid_size[0]), desc='z loop'):
-        for y in range(grid_size[1]):
-            for x in range(grid_size[2]):
-                output_offset = tuple(s+x*b for (s, x, b) in 
-                                      zip(output_block_start, (z, y, x), 
-                                          output_block_size))
-                task = InferenceTask(
-                    image_layer_path=image_layer_path,
-                    convnet_model_path=convnet_model_path,
-                    convnet_weight_path=convnet_weight_path,
-                    mask_layer_path=mask_layer_path,
-                    output_layer_path=output_layer_path,
-                    output_offset=output_offset,
-                    output_shape=output_block_size,
-                    patch_size=patch_size, 
-                    patch_overlap=patch_overlap,
-                    cropping_margin_size=cropping_margin_size,
-                    output_key=output_key,
-                    num_output_channels=num_output_channels,
-                    image_mip=image_mip,
-                    output_mip=output_mip,
-                    mask_mip=mask_mip,
-                    inference_backend=inference_backend,
-                    missing_section_ids_file_name=missing_section_ids_file_name 
-                )
-                task_queue.insert(task)
-    task_queue.wait('Uploading InferenceTasks')
+      convnet_weight_path, mask_layer_path, output_layer_path, output_block_start, 
+      output_block_size, grid_size, patch_size, patch_overlap, cropping_margin_size,
+      output_key='output', num_output_channels=3, 
+      image_mip=1, output_mip=1, mask_mip=3, framework='pznet', 
+      missing_section_ids_file_name=None):
+  """
+  convnet inference block by block. The block coordinates should be aligned with 
+  cloud storage. 
+  """
+  for z in tqdm(range(grid_size[0]), desc='z loop'):
+    for y in range(grid_size[1]):
+      for x in range(grid_size[2]):
+        output_offset = tuple(s+x*b for (s, x, b) in 
+                            zip(output_block_start, (z, y, x), 
+                                output_block_size))
+        task = InferenceTask(
+          image_layer_path=image_layer_path,
+          convnet_model_path=convnet_model_path,
+          convnet_weight_path=convnet_weight_path,
+          mask_layer_path=mask_layer_path,
+          output_layer_path=output_layer_path,
+          output_offset=output_offset,
+          output_shape=output_block_size,
+          patch_size=patch_size, 
+          patch_overlap=patch_overlap,
+          cropping_margin_size=cropping_margin_size,
+          output_key=output_key,
+          num_output_channels=num_output_channels,
+          image_mip=image_mip,
+          output_mip=output_mip,
+          mask_mip=mask_mip,
+          framework=framework,
+          missing_section_ids_file_name=missing_section_ids_file_name 
+        )
+        task_queue.insert(task)
+  task_queue.wait('Uploading InferenceTasks')
 
-    vol = CloudVolume(output_layer_path, mip=output_mip)
-    vol.provenance.processing.append({
-        'method': {
-            'task': 'InferenceTask',
-            'image_layer_path': image_layer_path,
-            'convnet_model_path': convnet_model_path,
-            'convnet_weight_path': convnet_weight_path,
-            'mask_layer_path': mask_layer_path,
-            'output_layer_path': output_layer_path,
-            'output_offset': output_offset,
-            'output_shape': output_block_size,
-            'patch_size': patch_size,
-            'patch_overlap': patch_overlap,
-            'cropping_margin_size': cropping_margin_size,
-            'output_key': output_key,
-            'num_output_channels': num_output_channels,
-            'image_mip': image_mip,
-            'output_mip': output_mip,
-            'mask_mip': mask_mip,
-            'inference_backend': inference_backend,
-            'missing_section_ids_file_name': missing_section_ids_file_name 
-        },
-        'by': USER_EMAIL,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-    })
-    vol.commit_provenance()
-
+  vol = CloudVolume(output_layer_path, mip=output_mip)
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'InferenceTask',
+      'image_layer_path': image_layer_path,
+      'convnet_model_path': convnet_model_path,
+      'convnet_weight_path': convnet_weight_path,
+      'mask_layer_path': mask_layer_path,
+      'output_layer_path': output_layer_path,
+      'output_offset': output_offset,
+      'output_shape': output_block_size,
+      'patch_size': patch_size,
+      'patch_overlap': patch_overlap,
+      'cropping_margin_size': cropping_margin_size,
+      'output_key': output_key,
+      'num_output_channels': num_output_channels,
+      'image_mip': image_mip,
+      'output_mip': output_mip,
+      'mask_mip': mask_mip,
+      'framework': framework,
+      'missing_section_ids_file_name': missing_section_ids_file_name 
+    },
+    'by': USER_EMAIL,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  })
+  vol.commit_provenance()
 
 def upload_build_chunks(storage, volume, offset=[0, 0, 0], build_chunk_size=[1024,1024,128]):
   offset = Vec(*offset)

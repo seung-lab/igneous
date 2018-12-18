@@ -405,9 +405,9 @@ class MeshManifestTask(RegisteredTask):
     segids = self._get_mesh_filenames_subset(storage)
     for segid, frags in tqdm(segids.items()):
       storage.put_file(
-          file_path='{}/{}:{}'.format(self.mesh_dir, segid, self.lod),
-          content=json.dumps({"fragments": frags}),
-          content_type='application/json',
+        file_path='{}/{}:{}'.format(self.mesh_dir, segid, self.lod),
+        content=json.dumps({"fragments": frags}),
+        content_type='application/json',
       )
 
 

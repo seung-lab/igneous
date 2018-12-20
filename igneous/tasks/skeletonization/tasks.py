@@ -134,26 +134,26 @@ class SkeletonTask(RegisteredTask):
     self.upload(vol, path, bbox, skeletons)
       
   def upload(self, vol, path, bbox, skeletons):
-    if not self.will_postprocess:
-      skels = []
-      for segid, skel in skeletons.items():
-        skel = PrecomputedSkeleton.simple_merge(skel)
-        skel = skel.consolidate()
-        skels.append(skel)
-      vol.skeleton.upload(skels)
-    else:
-      bbox = bbox * vol.resolution
-      with Storage(path, progress=True) as stor:
-        for segid, skels in skeletons.items():
-          for skeleton in skels:
-            stor.put_file(
-              file_path="{}:{}".format(skeleton.id, bbox.to_filename()),
-              content=pickle.dumps(skeleton),
-              compress='gzip',
-              content_type="application/python-pickle",
-              cache_control=False,
-            )
 
+    skel_lst = []
+    for segid, skels in skeletons.items():
+      skel = PrecomputedSkeleton.simple_merge(skels)
+      skel_lst.append( skel.consolidate() )
+      
+    if not self.will_postprocess:
+      vol.skeleton.upload(skel_lst)
+      return 
+
+    bbox = bbox * vol.resolution
+    with Storage(path, progress=vol.progress) as stor:
+      for skel in skel_lst:
+        stor.put_file(
+          file_path="{}:{}".format(skel.id, bbox.to_filename()),
+          content=pickle.dumps(skel),
+          compress='gzip',
+          content_type="application/python-pickle",
+          cache_control=False,
+        )
       
   def skeletonize(self, labels, dbf, bbox, anisotropy):
     skeleton = TEASAR(labels, dbf, anisotropy=anisotropy, **self.teasar_params)

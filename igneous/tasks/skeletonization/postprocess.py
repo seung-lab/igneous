@@ -324,11 +324,9 @@ def _remove_loops(skeleton):
   G.add_edges_from(skeleton.edges)
   edges = np.copy(skeleton.edges).astype(np.int32)
 
-  num_verts = skeleton.vertices.shape[0]
-
   while True: # Loop until all cycles are removed
     edges = edges.astype(np.int32)
-    edges_cycle = igneous.skeletontricks.find_cycle(edges, num_verts)
+    edges_cycle = igneous.skeletontricks.find_cycle(edges)
 
     if len(edges_cycle) == 0:
       break

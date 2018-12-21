@@ -30,6 +30,16 @@ import igneous.skeletontricks
 from .skeletonization import TEASAR
 from .postprocess import trim_skeleton
 
+SEGIDRE = re.compile(r'/(\d+):.*?$')
+
+def filename_to_segid(filename):
+  matches = SEGIDRE.search(filename)
+  if matches is None:
+    raise ValueError("There was an issue with the fragment filename: " + filename)
+
+  segid, = matches.groups()
+  return int(segid)
+
 def skeldir(cloudpath):
   with SimpleStorage(cloudpath) as storage:
     info = storage.get_json('info')
@@ -195,44 +205,56 @@ class SkeletonMergeTask(RegisteredTask):
   def execute(self):
     self.vol = CloudVolume(self.cloudpath, mip=self.mip, cdn_cache=False)
 
-    with Storage(self.cloudpath) as stor:
-      skels = self.get_filenames_subset(stor)
+    fragment_filenames = self.get_filenames()
+    skels = self.get_skeletons_by_segid(fragment_filenames)
 
-      vol = self.vol
+    skeletons = []
+    for segid, frags in tqdm(skels.items(), desc='segid'):
+      skeleton = self.fuse_skeletons(frags)
+      skeleton = trim_skeleton(skeleton, self.dust_threshold, self.tick_threshold)
+      skeleton.id = segid
+      skeletons.append(skeleton)
 
-      for segid, frags in tqdm(skels.items(), desc='segid'):
-        skeleton = self.fuse_skeletons(frags, stor)
-        skeleton = trim_skeleton(skeleton, self.dust_threshold, self.tick_threshold)
-        vol.skeleton.upload(skeleton)
-      
-      if self.delete_fragments:
-        for segid, frags in skels.items():
-          stor.delete_files(frags)
+    self.vol.skeleton.upload(skeletons)
+    
+    if self.delete_fragments:
+      with Storage(self.cloudpath, progress=True) as stor:
+        stor.delete_files(fragment_filenames)
 
-  def get_filenames_subset(self, storage):
+  def get_filenames(self):
     prefix = '{}/{}'.format(self.vol.skeleton.path, self.prefix)
+
+    with Storage(self.cloudpath, progress=True) as stor:
+      return [ _ for _ in stor.list_files(prefix=prefix) ]
+
+  def get_skeletons_by_segid(self, filenames):
+    with Storage(self.cloudpath, progress=True) as stor:
+      skels = stor.get_files(filenames)
+
     skeletons = defaultdict(list)
-
-    for filename in storage.list_files(prefix=prefix):
-      # `match` implies the beginning (^). `search` matches whole string
-      matches = re.search(r'(\d+):', filename)
-
-      if not matches:
+    for skel in skels:
+      try:
+        segid = filename_to_segid(skel['filename'])
+      except ValueError:
+        # Typically this is due to preexisting fully
+        # formed skeletons e.g. skeletons_mip_3/1588494
         continue
 
-      segid, = matches.groups()
-      segid = int(segid)
-      skeletons[segid].append(filename)
+      skeletons[segid].append( 
+        (
+          Bbox.from_filename(skel['filename']),
+          pickle.loads(skel['content'])
+        )
+      )
 
     return skeletons
 
-  def fuse_skeletons(self, filenames, storage):
-    if len(filenames) == 0:
-      return Skeleton()
-    
-    skldl = storage.get_files(filenames)
-    bbxs = [ Bbox.from_filename(item['filename']) for item in skldl ]
-    skeletons = [ pickle.loads(item['content']) for item in skldl ]
+  def fuse_skeletons(self, skels):
+    if len(skels) == 0:
+      return PrecomputedSkeleton()
+
+    bbxs = [ item[0] for item in skels ]
+    skeletons = [ item[1] for item in skels ]
 
     skeletons = self.crop(bbxs, skeletons)
     skeletons = [ s for s in skeletons if not s.empty() ]

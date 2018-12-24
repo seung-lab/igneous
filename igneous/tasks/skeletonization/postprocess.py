@@ -344,6 +344,7 @@ def _remove_loops(skeleton):
     branch_cycle = nodes_cycle[np.isin(nodes_cycle,branch_nodes)]
     branch_cycle = branch_cycle.astype(np.int32)
 
+    # Loop with a tail
     if branch_cycle.shape[0] == 1:
       branch_cycle_point = nodes[branch_cycle, :]
       cycle_points = nodes[nodes_cycle, :]
@@ -358,6 +359,7 @@ def _remove_loops(skeleton):
       new_edge = np.array([[branch_cycle[0], end_node]], dtype=np.int32) 
       edges = np.concatenate((edges, new_edge), 0)
 
+    # Loop with an enterence and an exit
     elif branch_cycle.shape[0] == 2:
       path = nx.shortest_path(G, branch_cycle[0], branch_cycle[1])
 
@@ -374,10 +376,15 @@ def _remove_loops(skeleton):
       G.remove_edges_from(edge_path)
       edges = remove_row(edges, edge_path)
 
+    # Totally isolated loop
     elif branch_cycle.shape[0] == 0:
       G.remove_edges_from(edges_cycle)
       edges = remove_row(edges, edges_cycle)
 
+    # Loops with many ways in and out
+    # looks like here we unify them into their
+    # centroid. This doesn't work well if the loop
+    # is large.
     else:
       branch_cycle_points = nodes[branch_cycle,:]
 
@@ -385,6 +392,18 @@ def _remove_loops(skeleton):
       dist = np.sum((nodes - centroid) ** 2, 1)
       intersect_node = np.argmin(dist)
       intersect_point = nodes[intersect_node,:]
+
+      dist = np.sum((branch_cycle_points - intersect_point) ** 2, 1)
+      dist = np.sqrt(np.max(dist))
+
+      # Fix the "stargate" issue where a large loop
+      # can join lots of things to the near center
+      # by just making a tiny snip if the distance
+      # is greater than the radius of the connected node.
+      if dist > skeleton.radii[ intersect_node ]:
+        G.remove_edges_from(edges_cycle[:1,:])
+        edges = remove_row(edges, edges_cycle[:1,:])
+        continue
 
       G.remove_edges_from(edges_cycle)
       edges = remove_row(edges, edges_cycle)      

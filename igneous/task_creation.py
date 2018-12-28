@@ -676,7 +676,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_model_path,
       output_block_size, grid_size, patch_size, patch_overlap, cropping_margin_size,
       output_key='output', num_output_channels=3, 
       image_mip=1, output_mip=1, mask_mip=3, framework='pznet', 
-      missing_section_ids_file_name=None):
+      missing_section_ids_file_name=None,
+      is_masked_in_device=False):
   """
   convnet inference block by block. The block coordinates should be aligned with 
   cloud storage. 
@@ -704,7 +705,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_model_path,
           output_mip=output_mip,
           mask_mip=mask_mip,
           framework=framework,
-          missing_section_ids_file_name=missing_section_ids_file_name 
+          missing_section_ids_file_name=missing_section_ids_file_name,
+          is_masked_in_device=is_masked_in_device
         )
         task_queue.insert(task)
   task_queue.wait('Uploading InferenceTasks')
@@ -729,7 +731,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_model_path,
       'output_mip': output_mip,
       'mask_mip': mask_mip,
       'framework': framework,
-      'missing_section_ids_file_name': missing_section_ids_file_name 
+      'missing_section_ids_file_name': missing_section_ids_file_name,
+      'is_masked_in_device': is_masked_in_device
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -1084,9 +1084,7 @@ class InferenceTask(RegisteredTask):
     self.missing_section_ids_file_name = missing_section_ids_file_name 
     self.is_masked_in_device = is_masked_in_device 
 
-    # build the inference engine
-    self._prepare_inference_engine()  
-  
+ 
   def execute(self):
     total_start = time.time()
     start = time.time()
@@ -1156,20 +1154,18 @@ class InferenceTask(RegisteredTask):
     """
     mask some missing sections if the section id was provided 
     """
-    if self.missing_section_ids_file_name is None:
-      return 
+    if self.missing_section_ids_file_name: 
+      zslice = self.image.slices[0]
+      start = zslice.start 
+      stop = zslice.stop  
 
-    zslice = self.image.slices[0]
-    start = zslice.start 
-    stop = zslice.stop  
-
-    missing_section_ids = np.loadtxt(self.missing_section_ids_file_name, dtype='int64')
-    for z in missing_section_ids:
-      if z > stop:
-        # the section ID list was supposed to be ordered ascendingly 
-        break; 
-      elif z>=start and z<=stop: 
-        self.image[z-self.image.global_offset[0], :,:] = 0
+      missing_section_ids = np.loadtxt(self.missing_section_ids_file_name, dtype='int64')
+      for z in missing_section_ids:
+        if z > stop:
+          # the section ID list was supposed to be ordered ascendingly 
+          break; 
+        elif z>=start and z<=stop: 
+          self.image[z-self.image.global_offset[0], :,:] = 0
 
   def _mask_output(self):
       if np.all(self.mask):
@@ -1229,6 +1225,15 @@ class InferenceTask(RegisteredTask):
                                                   patch_size=self.patch_size,
                                                   output_key=self.output_key,
                                                   num_output_channels=self.num_output_channels)
+    elif self.framework == 'pytorch-multitask':
+      from chunkflow.frameworks.pytorch_multitask_patch_inference import PytorchMultitaskPatchInferenceEngine
+      patch_engine = PytorchMultitaskPatchInferenceEngine(
+                                    self.convnet_model_path, 
+                                    self.convnet_weight_path,
+                                    patch_size=self.patch_size,
+                                    output_key=self.output_key,
+                                    patch_overlap=self.patch_overlap,
+                                    num_output_channels=self.num_output_channels)
     elif self.framework == 'identity':
       from chunkflow.frameworks.identity_patch_inference_engine import IdentityPatchInferenceEngine 
       patch_engine = IdentityPatchInferenceEngine(num_output_channels=3)
@@ -1247,6 +1252,9 @@ class InferenceTask(RegisteredTask):
     # inference engine input is a OffsetArray rather than normal numpy array
     # it is actually a numpy array with global offset
     from chunkflow.offset_array import OffsetArray
+    
+    # build the inference engine
+    self._prepare_inference_engine()  
 
     input_offset = tuple(s.start for s in self.input_slices)
     input_chunk = OffsetArray(self.image, global_offset=input_offset)

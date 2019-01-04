@@ -1050,19 +1050,21 @@ class InferenceTask(RegisteredTask):
   Parameters:
     is_masked_in_device: the patch could be masked/normalized around the boundary, 
         so we only need to do summation in CPU end.
+    image_validate_mip: the mip level of image used for checking whether all of 
+        the nonzero voxels were downloaded or not.
   """
   def __init__(self, image_layer_path, convnet_model_path, convnet_weight_path,
               mask_layer_path, output_layer_path, output_offset, output_shape, patch_size, 
               patch_overlap, cropping_margin_size, output_key='output', 
-              num_output_channels=3, image_mip=1, output_mip=1, mask_mip=3, 
+              num_output_channels=3, image_mip=1, output_mip=1, mask_mip=3,
               framework='pznet', missing_section_ids_file_name=None, 
-              is_masked_in_device=False):
+               is_masked_in_device=False, image_validate_mip=None):
     super().__init__(image_layer_path, convnet_model_path, convnet_weight_path, 
                       mask_layer_path, output_layer_path, output_offset, output_shape, 
                       patch_size, patch_overlap, cropping_margin_size, 
                       output_key, num_output_channels, image_mip, output_mip, 
                       mask_mip, framework, missing_section_ids_file_name, 
-                      is_masked_in_device)
+                      is_masked_in_device, image_validate_mip)
     
     output_shape = Vec(*output_shape)
     output_offset = Vec(*output_offset)
@@ -1083,7 +1085,7 @@ class InferenceTask(RegisteredTask):
     self.framework = framework
     self.missing_section_ids_file_name = missing_section_ids_file_name 
     self.is_masked_in_device = is_masked_in_device 
-
+    self.image_validate_mip = image_validate_mip 
  
   def execute(self):
     total_start = time.time()
@@ -1099,6 +1101,11 @@ class InferenceTask(RegisteredTask):
     self._read_image()
     end = time.time()
     print("Read image takes %3f sec" % (end-start) )
+
+    start = end  
+    self.validate_image()
+    end = time.time()
+    print("Validate image takes %3f sec" % (end-start) )
 
     start = end  
     self._mask_missing_sections()
@@ -1195,13 +1202,14 @@ class InferenceTask(RegisteredTask):
       assert np.any(self.output)
 
   def _read_image(self):
-    self.vol = CloudVolume(self.image_layer_path, bounded=False, fill_missing=False,
-                            progress=True, mip=self.image_mip, parallel=False)
+    self.image_vol = CloudVolume(self.image_layer_path, bounded=False, 
+                           fill_missing=False, progress=True, 
+                           mip=self.image_mip, parallel=False)
     output_slices = self.output_bounds.to_slices()
     self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
                               zip(output_slices, self.cropping_margin_size))
     # always reverse the indexes since cloudvolume use x,y,z indexing
-    self.image = self.vol[self.input_slices[::-1]]
+    self.image = self.image_vol[self.input_slices[::-1]]
     # the cutout is fortran ordered, so need to transpose and make it C order
     self.image = np.transpose(self.image)
     self.image = np.ascontiguousarray(self.image)
@@ -1211,6 +1219,60 @@ class InferenceTask(RegisteredTask):
     
     from chunkflow.offset_array import OffsetArray
     self.image = OffsetArray(self.image, global_offset=global_offset)
+    
+  def validate_image(self):
+    """
+    check that all the image voxels was downloaded without black region  
+    We have found some black regions in previous inference run, 
+    so hopefully this will solve the problem.
+    """
+    if self.image_validate_mip is None: 
+      print('no validate mip parameter defined, skiping validation')
+      return 
+
+    # only use the region corresponds to higher mip level 
+    # clamp the surrounding regions in XY plane 
+    # this assumes that the image dataset was downsampled starting from the 
+    # beginning offset in the info file 
+    global_offset = self.image.global_offset 
+    
+    # factor3 follows xyz order in CloudVolume 
+    factor3 = np.array([2**(self.image_validate_mip-self.image_mip), 
+                        2**(self.image_validate_mip-self.image_mip), 1], 
+                       dtype=np.int32)
+    clamped_offset = tuple(go+f-(go-vo)%f for go,vo,f in zip(global_offset[::-1],
+                                                  self.image_vol.voxel_offset, 
+                                                  factor3))
+    clamped_stop = tuple(go+s-(go+s-vo)%f for go,s,vo,f in zip(global_offset[::-1], 
+                                                           self.image.shape[::-1],
+                                                           self.image_vol.voxel_offset,
+                                                           factor3))
+    clamped_slices = tuple(slice(o,s) for o,s in zip(clamped_offset, clamped_stop))
+    clamped_bbox = Bbox.from_slices(clamped_slices)
+    clamped_image = self.image.cutout(clamped_slices[::-1])
+    # transform to xyz order
+    clamped_image = np.transpose(clamped_image)
+    # get the corresponding bounding box for validation
+    validate_bbox = self.image_vol.bbox_to_mip(clamped_bbox, mip=self.image_mip, 
+                                                to_mip=self.image_validate_mip) 
+    #validate_bbox = clamped_bbox // factor3
+
+    # downsample the image using avaraging
+    # keep the z as it is since the mip only applies to xy plane 
+    from igneous.downsample import downsample_with_averaging 
+    downsampled_image = downsample_with_averaging( clamped_image, factor3 )
+
+    validate_vol = CloudVolume(self.image_layer_path, bounded=False, 
+                               fill_missing=False, progress=True, 
+                               mip=self.image_validate_mip, parallel=False)
+    validate_image = validate_vol[validate_bbox.to_slices()]
+    assert validate_image.shape[3] == 1 
+    validate_image = np.squeeze(validate_image, axis=3) 
+
+    import pdb 
+    pdb.set_trace()
+    # use the validate image to check the downloaded image
+    assert np.alltrue(validate_image==downsampled_image)     
 
   def _prepare_inference_engine(self):
     # prepare for inference

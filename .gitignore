@@ -9,3 +9,7 @@ __pycache__
 test.py
 pipeline.py
 .pytest_cache
+igneous/scripts
+.vscode 
+SpaceVim.d
+jwu

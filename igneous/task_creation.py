@@ -656,7 +656,7 @@ def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_
   vol = CloudVolume(output_layer_path, mip=aff_mip)
   vol.provenance.processing.append({
     'method': {
-      'task': 'InferenceTask',
+        'task': 'MaskAffinityMapTask',
       'aff_input_layer_path': aff_input_layer_path,
       'aff_output_layer_path': aff_output_layer_path,
       'aff_mip': aff_mip,
@@ -677,7 +677,7 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_model_path,
       output_key='output', num_output_channels=3, 
       image_mip=1, output_mip=1, mask_mip=3, framework='pznet', 
       missing_section_ids_file_name=None,
-      is_masked_in_device=False):
+      is_masked_in_device=False, image_validate_mip=None):
   """
   convnet inference block by block. The block coordinates should be aligned with 
   cloud storage. 
@@ -706,7 +706,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_model_path,
           mask_mip=mask_mip,
           framework=framework,
           missing_section_ids_file_name=missing_section_ids_file_name,
-          is_masked_in_device=is_masked_in_device
+          is_masked_in_device=is_masked_in_device,
+          image_validate_mip=image_validate_mip,
         )
         task_queue.insert(task)
   task_queue.wait('Uploading InferenceTasks')
@@ -732,7 +733,8 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_model_path,
       'mask_mip': mask_mip,
       'framework': framework,
       'missing_section_ids_file_name': missing_section_ids_file_name,
-      'is_masked_in_device': is_masked_in_device
+      'is_masked_in_device': is_masked_in_device,
+      'image_validate_mip': image_validate_mip,
     },
     'by': USER_EMAIL,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

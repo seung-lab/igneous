@@ -1103,7 +1103,7 @@ class InferenceTask(RegisteredTask):
     print("Read image takes %3f sec" % (end-start) )
 
     start = end  
-    self.validate_image()
+    self._validate_image()
     end = time.time()
     print("Validate image takes %3f sec" % (end-start) )
 
@@ -1220,7 +1220,7 @@ class InferenceTask(RegisteredTask):
     from chunkflow.offset_array import OffsetArray
     self.image = OffsetArray(self.image, global_offset=global_offset)
     
-  def validate_image(self):
+  def _validate_image(self):
     """
     check that all the image voxels was downloaded without black region  
     We have found some black regions in previous inference run, 
@@ -1260,7 +1260,11 @@ class InferenceTask(RegisteredTask):
     # downsample the image using avaraging
     # keep the z as it is since the mip only applies to xy plane 
     from igneous.downsample import downsample_with_averaging 
-    downsampled_image = downsample_with_averaging( clamped_image, factor3 )
+    # recursivly downsample the image 
+    # if we do it directly, the downsampled image will not be the same with the recursive one 
+    # because of the rounding error of integer division
+    for i in range(self.image_validate_mip-self.image_mip):
+      clamped_image = downsample_with_averaging( clamped_image, np.array([2,2,1], dtype=np.int32) )
 
     validate_vol = CloudVolume(self.image_layer_path, bounded=False, 
                                fill_missing=False, progress=True, 
@@ -1269,10 +1273,8 @@ class InferenceTask(RegisteredTask):
     assert validate_image.shape[3] == 1 
     validate_image = np.squeeze(validate_image, axis=3) 
 
-    import pdb 
-    pdb.set_trace()
     # use the validate image to check the downloaded image
-    assert np.alltrue(validate_image==downsampled_image)     
+    assert np.alltrue(validate_image==clamped_image)     
 
   def _prepare_inference_engine(self):
     # prepare for inference

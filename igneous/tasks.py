@@ -60,7 +60,7 @@ def downsample_and_upload(
 
     downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
 
-    if vol.layer_type == 'image':
+    if downsamplefn == downsample.downsample_with_averaging:
       image = image.astype(np.float32)
 
     vol.mip = mip

@@ -60,9 +60,12 @@ def downsample_and_upload(
 
     downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
 
+    if vol.layer_type == 'image':
+      image = image.astype(np.float32)
+
     vol.mip = mip
     if not skip_first:
-      vol[bounds.to_slices()] = image
+      vol[bounds.to_slices()] = image.astype(vol.dtype)
 
     new_bounds = bounds.clone()
 
@@ -71,7 +74,7 @@ def downsample_and_upload(
       image = downsamplefn(image, factor3)
       new_bounds //= factor3
       new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
-      vol[new_bounds.to_slices()] = image
+      vol[new_bounds.to_slices()] = image.astype(vol.dtype)
 
 
 def cache(task, cloudpath):

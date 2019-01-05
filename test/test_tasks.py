@@ -43,7 +43,7 @@ def test_ingest_image():
     cv.mip = 1
     assert np.all(cv[slice64] == data_ds1[slice64])
 
-    data_ds2 = downsample.downsample_with_averaging(data_ds1, factor=[2, 2, 1, 1])
+    data_ds2 = downsample.downsample_with_averaging(data, factor=[4, 4, 1, 1])
     cv.mip = 2
     assert np.all(cv[slice64] == data_ds2[slice64])
 
@@ -103,21 +103,21 @@ def test_downsample_no_offset():
     cv.mip = 0
     assert np.all(cv[slice64] == data[slice64])
 
-    data_ds1 = downsample.downsample_with_averaging(data, factor=[2, 2, 1, 1])
+    data_ds = downsample.downsample_with_averaging(data, factor=[2, 2, 1, 1])
     cv.mip = 1
-    assert np.all(cv[slice64] == data_ds1[slice64])
+    assert np.all(cv[slice64] == data_ds[slice64])
 
-    data_ds2 = downsample.downsample_with_averaging(data_ds1, factor=[2, 2, 1, 1])
+    data_ds = downsample.downsample_with_averaging(data, factor=[4, 4, 1, 1])
     cv.mip = 2
-    assert np.all(cv[slice64] == data_ds2[slice64])
+    assert np.all(cv[slice64] == data_ds[slice64])
 
-    data_ds3 = downsample.downsample_with_averaging(data_ds2, factor=[2, 2, 1, 1])
+    data_ds = downsample.downsample_with_averaging(data, factor=[8, 8, 1, 1])
     cv.mip = 3
-    assert np.all(cv[slice64] == data_ds3[slice64])
+    assert np.all(cv[slice64] == data_ds[slice64])
 
-    data_ds4 = downsample.downsample_with_averaging(data_ds3, factor=[2, 2, 1, 1])
+    data_ds = downsample.downsample_with_averaging(data, factor=[16, 16, 1, 1])
     cv.mip = 4
-    assert np.all(cv[slice64] == data_ds4[slice64])
+    assert np.all(cv[slice64] == data_ds[slice64])
 
 def test_downsample_with_offset():
     delete_layer()
@@ -143,17 +143,17 @@ def test_downsample_with_offset():
     cv.mip = 0
     assert np.all(cv[3:67, 7:71, 11:75] == data[0:64, 0:64, 0:64])
 
-    data_ds1 = downsample.downsample_with_averaging(data, factor=[2, 2, 1, 1])
+    data_ds = downsample.downsample_with_averaging(data, factor=[2, 2, 1, 1])
     cv.mip = 1
-    assert np.all(cv[1:33, 3:35, 11:75] == data_ds1[0:32, 0:32, 0:64])
+    assert np.all(cv[1:33, 3:35, 11:75] == data_ds[0:32, 0:32, 0:64])
 
-    data_ds2 = downsample.downsample_with_averaging(data_ds1, factor=[2, 2, 1, 1])
+    data_ds = downsample.downsample_with_averaging(data, factor=[4, 4, 1, 1])
     cv.mip = 2
-    assert np.all(cv[0:16, 1:17, 11:75] == data_ds2[0:16, 0:16, 0:64])
+    assert np.all(cv[0:16, 1:17, 11:75] == data_ds[0:16, 0:16, 0:64])
 
-    data_ds3 = downsample.downsample_with_averaging(data_ds2, factor=[2, 2, 1, 1])
+    data_ds = downsample.downsample_with_averaging(data, factor=[8, 8, 1, 1])
     cv.mip = 3
-    assert np.all(cv[0:8, 0:8, 11:75] == data_ds3[0:8,0:8,0:64])
+    assert np.all(cv[0:8, 0:8, 11:75] == data_ds[0:8,0:8,0:64])
 
 def test_downsample_w_missing():
     delete_layer()

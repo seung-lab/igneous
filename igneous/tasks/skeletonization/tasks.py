@@ -19,12 +19,12 @@ from cloudvolume import CloudVolume, PrecomputedSkeleton
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
 
+import cc3d # connected components
 import edt # euclidean distance transform
 import fastremap
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample, downsample_scales
-import igneous.cc3d as cc3d
 import igneous.skeletontricks
 
 from .skeletonization import TEASAR

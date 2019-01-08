@@ -16,3 +16,4 @@ tenacity>=4.10.0
 -e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
 oauth2client==3.0.0
 protobuf>=3.5.1
+scikit-image>=0.14.1

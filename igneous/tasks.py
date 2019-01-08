@@ -21,6 +21,7 @@ import re
 
 import numpy as np
 from tqdm import tqdm
+from skimage.feature import match_template 
 
 from cloudvolume import CloudVolume, Storage
 from cloudvolume.lib import min2, Vec, Bbox, mkdir
@@ -104,6 +105,66 @@ def cache(task, cloudpath):
       f.write(filestr)
 
   return filestr
+
+def validate_by_template_matching(img):
+  """
+  detect 3d black boxes by template matching.
+  1. binarize the image. the voxels inside the black box will be false, and the outside will be true
+  2. The template is 7x7x2 with one section true and the other false. 
+  3. sliding the template through the array, and detect the matching regions. 
+  4. rotate the template to be 7x2x7 and 2x7x7, do the same detection.
+  5. if we can find multiple matchings in all the x,y,z direction, there is probably a black box. 
+
+  Note that this is always effective. If the black box is large enough to reach both sides, 
+  the detection will fail.
+  """
+  print("testing validation by template matching...")
+  if img.dtype == np.uint8: 
+    img = img.astype(dtype=np.bool) 
+  assert img.dtype==np.bool 
+  matching_threshold = 100
+  evidence_point = 0
+
+  temp = np.zeros((7,7,2), dtype=np.bool)
+  temp[:,:,0] = True 
+  result = match_template(img, temp) 
+  if np.count_nonzero(result==1) > matching_threshold: 
+    evidence_point += 1
+
+  temp = np.zeros((7,7,2), dtype=np.bool)
+  temp[:,:,1] = True 
+  result = match_template(img, temp) 
+  if np.count_nonzero(result==1) > matching_threshold: 
+    evidence_point += 1
+
+  temp = np.zeros((2,7,7), dtype=np.bool)
+  temp[0,:,:] = True 
+  result = match_template(img, temp) 
+  if np.count_nonzero(result==1) > matching_threshold: 
+    evidence_point += 1
+
+  temp = np.zeros((2,7,7), dtype=np.bool)
+  temp[1,:,:] = True 
+  result = match_template(img, temp) 
+  if np.count_nonzero(result==1) > matching_threshold: 
+    evidence_point += 1
+  
+  temp = np.zeros((7,2,7), dtype=np.bool)
+  temp[:,0,:] = True 
+  result = match_template(img, temp) 
+  if np.count_nonzero(result==1) > matching_threshold: 
+    evidence_point += 1
+  
+  temp = np.zeros((7,2,7), dtype=np.bool)
+  temp[:,1,:] = True 
+  result = match_template(img, temp) 
+  if np.count_nonzero(result==1) > matching_threshold: 
+    evidence_point += 1
+  
+  if evidence_point > 4: 
+    return False 
+  else:
+    return True
 
 
 class PrintTask(RegisteredTask):
@@ -1297,6 +1358,20 @@ class InferenceTask(RegisteredTask):
     # because of the rounding error of integer division
     for i in range(self.image_validate_mip-self.image_mip):
       clamped_image = downsample_with_averaging( clamped_image, np.array([2,2,1], dtype=np.int32) )
+    
+    # validation by template matching  
+    result = validate_by_template_matching(clamped_image)
+    if result is False:
+      # save the log to error directory
+      log_path = os.path.join(self.output_layer_path, 'error') 
+      log_storage = Storage(log_path) 
+
+      with Storage(log_path) as storage:
+        storage.put_file(
+            file_path=self.output_bounds.to_filename(),
+            content=json.dumps(self.log),
+            content_type='application/json') 
+      raise Exception("detected a black box by template matching!")
 
     validate_vol = CloudVolume(self.image_layer_path, bounded=False, 
                                fill_missing=False, progress=True, 

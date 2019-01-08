@@ -33,8 +33,13 @@ from igneous import Mesher  # broken out for ease of commenting out
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
-    sparse=False
-  ):
+    sparse=False, only_last_mip=False
+  ): 
+  """ 
+  mip:int, the current mip level of image
+  only_last_mip::bool, only save the last mip level or not. 
+    In default as False, we'll save all the intermediate mip level 
+  """ 
   ds_shape = min2(vol.volume_size, ds_shape[:3])
 
   # sometimes we downsample a base layer of 512x512
@@ -72,7 +77,13 @@ def downsample_and_upload(
     image = downsamplefn(image, factor3)
     new_bounds //= factor3
     new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
-    vol[new_bounds.to_slices()] = image
+    if factor3 is factors[-1]: 
+      # this is the last mip level
+      vol[new_bounds.to_slices()] = image 
+    else: 
+      # this is not the last mip level
+      if not only_last_mip:
+        vol[new_bounds.to_slices()] = image 
 
 
 def cache(task, cloudpath):
@@ -1087,54 +1098,75 @@ class InferenceTask(RegisteredTask):
     self.is_masked_in_device = is_masked_in_device 
     self.image_validate_mip = image_validate_mip 
  
-  def execute(self):
-    total_start = time.time()
+  def execute(self): 
+    self.log = dict()
+    total_start = time.time() 
+
     start = time.time()
     self._read_mask()
-    end = time.time()
-    print("Read mask takes %3f sec" % (end-start) )
+    end = time.time() 
+    elapsed = time.time() - start 
+    self.log['read_output_mask'] = elapsed
+    print("Read output mask takes %3f sec" % (elapsed) )
     # if the mask is black, no need to run inference 
     if np.all(self.mask == 0):
       return 
 
-    start = end  
+    start = time.time()  
     self._read_image()
-    end = time.time()
-    print("Read image takes %3f sec" % (end-start) )
+    elapsed = time.time() - start 
+    self.log['read_image'] = elapsed 
+    print("Read image takes %3f sec" % (elapsed) )
 
-    start = end  
+    start = time.time()  
     self._validate_image()
-    end = time.time()
-    print("Validate image takes %3f sec" % (end-start) )
+    elapsed = time.time() - start
+    self.log['validate_image'] = elapsed
+    print("Validate image takes %3f sec" % (elapsed) )
 
-    start = end  
+    start = time.time()  
     self._mask_missing_sections()
-    end = time.time()
-    print("Mask missing sections in image takes %3f sec" % (end-start) )
+    elapsed = time.time() - start 
+    self.log['mask_missing_sections'] = elapsed
+    print("Mask missing sections in image takes %3f sec" % (elapsed) )
 
-    start = end 
+    start = time.time() 
     self._inference()
-    end = time.time()
-    print("Inference takes %3f min" % ((end-start)/60) )
+    elapsed = time.time() - start 
+    self.log['convnet_inference'] = elapsed
+    print("Inference takes %3f min" % (elapsed/60) )
 
-    start = end 
+    start = time.time() 
     self._crop()
-    end = time.time()
-    print("Cropping takes %3f sec" % (end-start) )
+    elapsed = time.time() - start 
+    self.log['crop_output'] = elapsed 
+    print("Cropping takes %3f sec" % (elapsed) )
 
     if self.mask: 
-      start = end 
+      start = time.time() 
       self._mask_output()
-      end = time.time()
-      print("Mask output takes %3f sec" % (end-start) )
+      elapsed = time.time() - start 
+      self.log['mask_output'] = elapsed 
+      print("Mask output takes %3f sec" % (elapsed) )
 
-    start = end 
+    start = time.time() 
     self._upload_output()
-    end = time.time()
-    print("Upload output takes %3f min" % ((end-start)/60) )
+    elapsed = time.time() - start 
+    self.log['upload_output'] = elapsed 
+    print("Upload output takes %3f min" % (elapsed/60) )
+    
+    start = time.time() 
+    self._create_output_thumbnail()
+    elapsed = time.time() - start 
+    self.log['create_output_thumbnail'] = elapsed 
+    print("create output thumbnail takes %3f min" % (elapsed/60) )
 
-    total_end = time.time()
-    print("Whole task takes %3f min" % ((total_end - total_start)/60) )
+
+    total_time = time.time() - total_start 
+    self.log['total_time'] = total_time 
+    print("Whole task takes %3f min" % (total_time/60) )
+    
+    self._upload_log()
 
   def _read_mask(self):
     if self.mask_layer_path is None or not self.mask_layer_path: 
@@ -1313,6 +1345,10 @@ class InferenceTask(RegisteredTask):
       is_masked_in_device=self.is_masked_in_device)
 
   def _inference(self):
+    # this is for fast tests
+    # self.output = np.random.randn(3, *self.image.shape).astype('float32')
+    # return 
+
     # inference engine input is a OffsetArray rather than normal numpy array
     # it is actually a numpy array with global offset
     from chunkflow.offset_array import OffsetArray
@@ -1329,11 +1365,57 @@ class InferenceTask(RegisteredTask):
         self.cropping_margin_size[0] : self.output.shape[1]-self.cropping_margin_size[0],
         self.cropping_margin_size[1] : self.output.shape[2]-self.cropping_margin_size[1],
         self.cropping_margin_size[2] : self.output.shape[3]-self.cropping_margin_size[2]]
-
+  
   def _upload_output(self):
+    # this is for fast test
+    #self.output = np.transpose(self.output)
+    #return
+
     vol = CloudVolume(self.output_layer_path, compress='gzip', fill_missing=True,
                       bounded=False, autocrop=True, mip=self.image_mip, progress=True)
-    output_slices = self.output_bounds.to_slices()
+    output_slices = self.output_bounds.to_slices() 
+    # transpose czyx to xyzc order
     self.output = np.transpose(self.output)
     vol[output_slices[::-1]+(slice(0,self.output.shape[-1]),)] = self.output
+
+  def _create_output_thumbnail(self):
+    """
+    quantize the affinitymap and downsample to higher mip level 
+    upload the data for visual inspection.
+    """
+    thumbnail_path = os.path.join(self.output_layer_path, 'thumbnail')
+    thumbnail_vol = CloudVolume(thumbnail_path, compress='gzip', 
+                            fill_missing=True, bounded=False, autocrop=True, mip=self.image_mip, 
+                            progress=True)
+    # the output was already transposed to xyz/fortran order in previous step while uploading the output
+    # self.output = np.transpose(self.output)
+    
+    # only use the first channel, it is the x affinity if this is affinitymap 
+    output = self.output[:, :, :, :1]  
+    image = (output * 255.0).astype(np.uint8) 
+
+    # transform zyx to xyz
+    output_bounds = Bbox.from_slices( self.output_bounds.to_slices()[::-1] )
+    shape = Vec(*(output.shape[:3]))
+    
+    downsample_and_upload(image, output_bounds, thumbnail_vol, shape, 
+                          mip=self.image_mip, axis='z', skip_first=True,
+                          only_last_mip=True) 
+
+  def _upload_log(self): 
+    """
+    upload internal log as a file to the same place of output 
+    the file name is the output range 
+    """
+    log_path = os.path.join(self.output_layer_path, 'log') 
+    log_storage = Storage(log_path) 
+
+    with Storage(log_path) as storage:
+      storage.put_file(
+          file_path=self.output_bounds.to_filename(),
+          content=json.dumps(self.log),
+          content_type='application/json'
+      )
+
+
 

@@ -1,4 +1,5 @@
 from builtins import range
+from collections import defaultdict
 import json
 import os.path
 import shutil
@@ -14,6 +15,7 @@ from igneous import (
     DeleteTask
 )
 from igneous import downsample
+import igneous.task_creation as tc
 from igneous.task_creation import create_downsample_scales, create_downsampling_tasks, create_quantized_affinity_info
 from .layer_harness import delete_layer, create_layer
 
@@ -336,7 +338,40 @@ def test_mesh_manifests():
 
     if os.path.exists(directory):
         shutil.rmtree(directory)
-        
+
+def test_luminance_levels_task():
+    directory = '/tmp/removeme/luminance_levels/'
+    layer_path = 'file://' + directory
+
+    delete_layer(layer_path)
+
+    storage, imgd = create_layer(
+        size=(256,256,128,1), offset=(0,0,0), 
+        layer_type="image", layer_name='luminance_levels'
+    )
+
+    with MockTaskQueue() as tq:
+        tc.create_luminance_levels_tasks(tq, 
+            layer_path=layer_path,
+            coverage_factor=0.01, 
+            shape=None, 
+            offset=(0,0,0), 
+            mip=0
+        )
+
+
+    gt = [ 0 ] * 256
+    for x,y,z in lib.xyzrange( (0,0,0), list(imgd.shape[:2]) + [1] ):
+        gt[ imgd[x,y,0,0] ] += 1
+
+
+    with open('/tmp/removeme/luminance_levels/levels/0/0', 'rt') as f:
+        levels = f.read()
+
+    levels = json.loads(levels)
+    assert levels['coverage_ratio'] == 1.0
+    assert levels['levels'] == gt
+
         
 # def test_watershed():
 #     return # needs expensive julia stuff enabled in dockerfile

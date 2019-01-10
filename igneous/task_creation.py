@@ -16,6 +16,7 @@ from time import strftime
 
 import numpy as np
 from tqdm import tqdm
+import cloudvolume
 from cloudvolume import CloudVolume, Storage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow
 from taskqueue import TaskQueue, MockTaskQueue 
@@ -457,7 +458,30 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
   }) 
   dvol.commit_provenance()
 
-def create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0):
+def create_luminance_levels_tasks(
+    task_queue, layer_path, 
+    levels_path=None, coverage_factor=0.01, 
+    shape=None, offset=(0,0,0), mip=0
+  ):
+  """
+  Compute per slice luminance level histogram and write them as
+  $layer_path/levels/$z. Each z file looks like:
+
+  {
+    "levels": [ 0, 35122, 12, ... ], # 256 indices, index = luminance i.e. 0 is black, 255 is white 
+    "patch_size": [ sx, sy, sz ], # metadata on how large the patches were
+    "num_patches": 20, # metadata on
+    "coverage_ratio": 0.011, # actual sampled area on this slice normalized by ROI size.
+  }
+
+  layer_path: source image to sample from
+  levels_path: which path to write ./levels/ to (default: $layer_path)
+  coverage_factor: what fraction of the image to sample
+
+  offset & shape: Allows you to specify an ROI if much of
+    the edges are black. Defaults to entire image.
+  mip: int, which mip to work with, default maximum resolution
+  """
   vol = CloudVolume(layer_path)
 
   if shape == None:
@@ -470,6 +494,7 @@ def create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, 
     offset.z = z
     task = LuminanceLevelsTask( 
       src_path=layer_path, 
+      levels_path=levels_path,
       shape=shape, 
       offset=offset, 
       coverage_factor=coverage_factor,
@@ -478,19 +503,27 @@ def create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, 
     task_queue.insert(task)
   task_queue.wait('Uploading Luminance Levels Tasks')
 
-  vol.provenance.processing.append({
-    'method': {
-      'task': 'LuminanceLevelsTask',
-      'src': layer_path,
-      'shape': Vec(*shape).tolist(),
-      'offset': Vec(*offset).tolist(),
-      'coverage_factor': coverage_factor,
-      'mip': mip,
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  vol.commit_provenance()
+  if levels_path:
+    try:
+      vol = CloudVolume(levels_path)
+    except cloudvolume.exceptions.InfoUnavailableError:
+      vol = CloudVolume(levels_path, info=vol.info)
+
+  if vol.path.protocol != 'boss':
+    vol.provenance.processing.append({
+      'method': {
+        'task': 'LuminanceLevelsTask',
+        'src': layer_path,
+        'levels_path': levels_path,
+        'shape': Vec(*shape).tolist(),
+        'offset': Vec(*offset).tolist(),
+        'coverage_factor': coverage_factor,
+        'mip': mip,
+      },
+      'by': OPERATOR_CONTACT,
+      'date': strftime('%Y-%m-%d %H:%M %Z'),
+    }) 
+    vol.commit_provenance()
 
 def create_watershed_remap_tasks(task_queue, map_path, src_layer_path, dest_layer_path, shape=Vec(2048, 2048, 64)):
   shape = Vec(*shape)

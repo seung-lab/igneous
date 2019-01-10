@@ -794,14 +794,17 @@ class ContrastNormalizationTask(RegisteredTask):
 class LuminanceLevelsTask(RegisteredTask):
   """Generate a frequency count of luminance values by random sampling. Output to $PATH/levels/$MIP/$Z"""
 
-  def __init__(self, src_path, shape, offset, coverage_factor, mip):
+  def __init__(self, src_path, levels_path, shape, offset, coverage_factor, mip):
     super(LuminanceLevelsTask, self).__init__(
-        src_path, shape, offset, coverage_factor, mip)
+      src_path, levels_path, shape, 
+      offset, coverage_factor, mip
+    )
     self.src_path = src_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.coverage_factor = coverage_factor
     self.mip = int(mip)
+    self.levels_path = levels_path
 
     assert 0 < coverage_factor <= 1, "Coverage Factor must be between 0 and 1"
 
@@ -828,18 +831,19 @@ class LuminanceLevelsTask(RegisteredTask):
     biggest = bboxes[-1][1]
 
     output = {
-        "levels": levels.tolist(),
-        "patch_size": biggest.tolist(),
-        "num_patches": len(bboxes),
-        "coverage_ratio": covered_area / self.shape.rectVolume(),
+      "levels": levels.tolist(),
+      "patch_size": biggest.tolist(),
+      "num_patches": len(bboxes),
+      "coverage_ratio": covered_area / self.shape.rectVolume(),
     }
 
-    levels_path = os.path.join(self.src_path, 'levels')
-    with Storage(levels_path, n_threads=0) as stor:
+    path = self.levels_path if self.levels_path else self.src_path
+    path = os.path.join(path, 'levels')
+    with Storage(path, n_threads=0) as stor:
       stor.put_json(
-          file_path="{}/{}".format(self.mip, self.offset.z),
-          content=output,
-          cache_control='no-cache'
+        file_path="{}/{}".format(self.mip, self.offset.z),
+        content=output,
+        cache_control='no-cache'
       )
 
   def select_bounding_boxes(self, dataset_bounds):

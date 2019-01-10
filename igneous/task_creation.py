@@ -461,7 +461,7 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
 def create_luminance_levels_tasks(
     task_queue, layer_path, 
     levels_path=None, coverage_factor=0.01, 
-    shape=None, offset=(0,0,0), mip=0
+    shape=None, offset=(0,0,0), mip=0, bounds=None
   ):
   """
   Compute per slice luminance level histogram and write them as
@@ -482,21 +482,28 @@ def create_luminance_levels_tasks(
     the edges are black. Defaults to entire image.
   mip: int, which mip to work with, default maximum resolution
   """
-  vol = CloudVolume(layer_path)
+  vol = CloudVolume(layer_path, mip=mip)
 
   if shape == None:
     shape = vol.shape.clone()
     shape.z = 1
 
   offset = Vec(*offset)
+  zoffset = offset.clone()
 
-  for z in range(vol.bounds.minpt.z, vol.bounds.maxpt.z + 1):
-    offset.z = z
+  if bounds is None:
+    bounds = vol.bounds.clone()
+  else:
+    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = Bbox.clamp(bounds, vol.bounds)
+
+  for z in range(bounds.minpt.z, bounds.maxpt.z + 1):
+    zoffset.z = z
     task = LuminanceLevelsTask( 
       src_path=layer_path, 
       levels_path=levels_path,
       shape=shape, 
-      offset=offset, 
+      offset=zoffset, 
       coverage_factor=coverage_factor,
       mip=mip,
     )
@@ -517,6 +524,10 @@ def create_luminance_levels_tasks(
         'levels_path': levels_path,
         'shape': Vec(*shape).tolist(),
         'offset': Vec(*offset).tolist(),
+        'bounds': [
+          bounds.minpt.tolist(),
+          bounds.maxpt.tolist()
+        ],
         'coverage_factor': coverage_factor,
         'mip': mip,
       },

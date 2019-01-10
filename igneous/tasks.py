@@ -692,9 +692,17 @@ class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""
   # translate = change of origin
 
-  def __init__(self, src_path, dest_path, shape, offset, mip, clip_fraction, fill_missing, translate):
-    super(ContrastNormalizationTask, self).__init__(src_path, dest_path,
-                                                    shape, offset, mip, clip_fraction, fill_missing, translate)
+  def __init__(
+    self, src_path, dest_path, levels_path, shape, 
+    offset, mip, clip_fraction, fill_missing, 
+    translate, minval, maxval
+  ):
+
+    super(ContrastNormalizationTask, self).__init__(
+      src_path, dest_path, levels_path, shape, offset, 
+      mip, clip_fraction, fill_missing, translate,
+      minval, maxval
+    )
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
@@ -703,6 +711,10 @@ class ContrastNormalizationTask(RegisteredTask):
     self.translate = Vec(*translate)
     self.mip = int(mip)
     self.clip_fraction = float(clip_fraction)
+    self.minval = minval 
+    self.maxval = maxval
+
+    self.levels_path = levels_path if levels_path else self.src_path
 
     assert 0 <= self.clip_fraction <= 1
 
@@ -733,7 +745,11 @@ class ContrastNormalizationTask(RegisteredTask):
       image[:, :, imagez] = img
 
     image = np.round(image)
-    image = np.clip(image, 0.0, maxval).astype(destcv.dtype)
+
+    minval = self.minval if self.minval is not None else 0.0
+    maxval = self.maxval if self.maxval is not None else maxval
+
+    image = np.clip(image, minval, maxval).astype(destcv.dtype)
 
     bounds += self.translate
     downsample_and_upload(image, bounds, destcv, self.shape)
@@ -771,24 +787,32 @@ class ContrastNormalizationTask(RegisteredTask):
 
   def fetch_z_levels(self):
     bounds = Bbox(self.offset, self.shape[:3] + self.offset)
-    levelfilenames = ['levels/{}/{}'.format(self.mip, z)
-                      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)]
-    with Storage(self.src_path) as stor:
+
+    levelfilenames = [
+      'levels/{}/{}'.format(self.mip, z) \
+      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)
+    ]
+    
+    with Storage(self.levels_path) as stor:
       levels = stor.get_files(levelfilenames)
 
-    errors = [level['filename']
-              for level in levels if level['content'] == None]
+    errors = [ 
+      level['filename'] \
+      for level in levels if level['content'] == None
+    ]
+
     if len(errors):
       raise Exception(", ".join(
           errors) + " were not defined. Did you run a LuminanceLevelsTask for these slices?")
 
     levels = [(
-        int(os.path.basename(item['filename'])),
-        json.loads(item['content'].decode('utf-8'))
-    ) for item in levels]
+      int(os.path.basename(item['filename'])),
+      json.loads(item['content'].decode('utf-8'))
+    ) for item in levels ]
+
     levels.sort(key=lambda x: x[0])
     levels = [x[1] for x in levels]
-    return [np.array(x['levels'], dtype=np.uint64) for x in levels]
+    return [ np.array(x['levels'], dtype=np.uint64) for x in levels ]
 
 
 class LuminanceLevelsTask(RegisteredTask):

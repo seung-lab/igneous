@@ -405,8 +405,12 @@ def create_transfer_tasks(
     vol.provenance.processing.append(job_details)
     vol.commit_provenance()
 
-def create_contrast_normalization_tasks(task_queue, src_path, dest_path, 
-  shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0)):
+def create_contrast_normalization_tasks(
+    task_queue, src_path, dest_path, levels_path=None,
+    shape=None, mip=0, clip_fraction=0.01, 
+    fill_missing=False, translate=(0,0,0),
+    minval=None, maxval=None
+  ):
 
   srcvol = CloudVolume(src_path, mip=mip)
   
@@ -433,12 +437,15 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
     task = ContrastNormalizationTask( 
       src_path=src_path, 
       dest_path=dest_path,
+      levels_path=levels_path,
       shape=task_shape, 
       offset=startpt.clone(), 
       clip_fraction=clip_fraction,
       mip=mip,
       fill_missing=fill_missing,
       translate=translate,
+      minval=minval,
+      maxval=maxval,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading Contrast Normalization Tasks')
@@ -452,6 +459,8 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
       'clip_fraction': clip_fraction,
       'mip': mip,
       'translate': Vec(*translate).tolist(),
+      'minval': minval,
+      'maxval': maxval,
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

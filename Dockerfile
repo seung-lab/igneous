@@ -1,28 +1,25 @@
-FROM python:3.6
-MAINTAINER William Silversmith
-# This image contains private keys, make sure the image is not pushed to docker hub or any public repo.
+FROM python:3.6-slim
+LABEL maintainer="William Silversmith, Nico Kemnitz"
 
-# Prepare the image.
-ENV DEBIAN_FRONTEND noninteractive
 ADD ./ /igneous
-RUN apt update \
+RUN apt-get update \
     # Build dependencies
-    && apt install -y -qq --no-install-recommends \
+    && apt-get install -y -qq --no-install-recommends \
+        git \
         libboost-dev \
-    && pip install --no-cache-dir \
-        Cython \
-    \
+        build-essential \
     # igneous + runtime dependencies
     && cd igneous \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir -e . \
     \
     # Cleanup build dependencies
-    && apt remove --purge -y \
+    && apt-get remove --purge -y \
         libboost-dev \
-    && apt autoremove --purge -y \
+        build-essential \
+    && apt-get autoremove --purge -y \
     # Cleanup apt
-    && apt clean \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     # Cleanup temporary python files
     && find /usr/local/lib/python3.6 -depth \

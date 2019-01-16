@@ -16,8 +16,7 @@ script:
 - docker run -it -v /secrets:/secrets seunglab/igneous:$APPVERSION /bin/sh -c "cd /igneous
   && py.test -v -x test" || travis_terminate 1; 
 - echo "$DOCKER_PASSWORD" | docker login -u="$DOCKER_USERNAME" --password-stdin || travis_terminate 1; 
-deploy:
-- if [ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == false ];
+- if [ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" = "false" ];
   then 
     docker push seunglab/igneous || travis_terminate 1; 
   else 

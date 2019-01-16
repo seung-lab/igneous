@@ -18,8 +18,10 @@ script:
 - echo "$DOCKER_PASSWORD" | docker login -u="$DOCKER_USERNAME" --password-stdin || travis_terminate 1; 
 - if [ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" = "false" ];
   then 
+    echo "Pushing to production seunglab/igneous.";
     docker push seunglab/igneous || travis_terminate 1; 
   else 
+    echo "Pushing to seunglab/igneous:$APPVERSION";
     docker push seunglab/igneous:$APPVERSION || travis_terminate 1; 
   fi
 env:

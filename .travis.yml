@@ -19,10 +19,10 @@ script:
 - echo "APPVERSION $APPVERSION"
 - echo "TRAVIS_BRANCH $TRAVIS_BRANCH"
 - echo "TRAVIS_PULL_REQUEST $TRAVIS_PULL_REQUEST"
-- if [[ "$APPVERSION" = "master" && "$TRAVIS_PULL_REQUEST" = "false" ]];
+- if [[ "$APPVERSION" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]];
   then 
     (docker push seunglab/igneous || travis_terminate 1)
-  elif [[ "$APPVERSION" != "master" && "$TRAVIS_PULL_REQUEST" = "false" ]];
+  elif [[ "$APPVERSION" != "master" && "$TRAVIS_PULL_REQUEST" == "false" ]];
   then
     (docker push seunglab/igneous:$APPVERSION || travis_terminate 1)
   else

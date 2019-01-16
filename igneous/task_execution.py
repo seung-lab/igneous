@@ -25,21 +25,25 @@ signal.signal(signal.SIGINT, handler)
 @click.command()
 @click.option('--tag', default='',  help='kind of task to execute')
 @click.option('-m', default=False,  help='Run in parallel.', is_flag=True)
+@click.option('--np', default=0, help='the number of processes to use; the default 0 will use all the cores.')
+@click.option('--interval', default=0, help='interval of starting the processes')
 @click.option('--queue', default=QUEUE_NAME,  help='Name of pull queue to use.')
 @click.option('--server', default=QUEUE_TYPE,  required=True, help='Which queue server to use. (appengine or pull-queue)')
 @click.option('--qurl', default=SQS_URL,  help='SQS Queue URL if using SQS')
 @click.option('--loop/--no-loop', default=LOOP, help='run execution in infinite loop or not', is_flag=True)
-def command(tag, m, queue, server, qurl, loop):
+def command(tag, m, np, interval, queue, server, qurl, loop):
   if not m:
     execute(tag, queue, server, qurl, loop)
     return 
 
   # if multiprocessing
-  proc = mp.cpu_count()
-  pool = mp.Pool(processes=proc)
-  print("Running %s threads of execution." % proc)
+  if np <= 0:
+    np = mp.cpu_count()
+  pool = mp.Pool(processes=np)
+  print("Running %s processes of execution." % np)
   try:
-    for _ in range(proc):
+    for i in range(np):
+      time.sleep(i*interval) 
       pool.apply_async(execute, (tag, queue, server, qurl, loop))
     pool.close()
     pool.join()

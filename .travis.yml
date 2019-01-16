@@ -19,15 +19,15 @@ script:
 - echo "APPVERSION $APPVERSION"
 - echo "TRAVIS_BRANCH $TRAVIS_BRANCH"
 - echo "TRAVIS_PULL_REQUEST $TRAVIS_PULL_REQUEST"
-- if [ "$APPVERSION" == "master" && "$TRAVIS_PULL_REQUEST" = "false" ];
+- if [ "$APPVERSION" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ];
   then 
-    docker push seunglab/igneous || travis_terminate 1;
-  elif [ "$APPVERSION" -neq "master" && "$TRAVIS_PULL_REQUEST" = "false" ]; 
+    (docker push seunglab/igneous || travis_terminate 1)
+  elif [ "$APPVERSION" != "master" && "$TRAVIS_PULL_REQUEST" == "false" ];
   then
-    docker push seunglab/igneous:$APPVERSION || travis_terminate 1;
+    (docker push seunglab/igneous:$APPVERSION || travis_terminate 1)
   else
     echo "Not pushing."
-  fi
+  fi;
 env:
   global:
     secure: I/0iDy0P6UHhhILYNjhjg5cWM4uNfxcpEcJsYGmYhB/m2vkjY35wOvHoEVbUsoRURNG+rwFDI8HDiHHpSN5bCugT4yeZqvryRSzhFRQbDoQIYuk9uj4QmG7vPbYUBuylBxqdhOhU07McBnKPE9bwFgDVmbhE7GNT1g6+fVTxu3P3nPU/ASW5T+HB6CBwZBIuAuvfx48Z7i10UPY5RrR+iERFi3KzYw1OgkujJSTr89Gn4ox7X/klzawLWu5Xs9VnZJtXtmh2qV6rhCDSuNdMNrw0U1A7x8tpIj2B7r+Bj79IttPUMiWJV6/BroLT7wV0WJ2hSSLQvHrn/2vzZhNH1QeY7JOtILpRGvk1psTp70tvKKnawFmdobErpNUWcGemhBsXZr/KybqzNFkLufiH3ndoSIzL+FtKViPnhiQndIQUh6suiGms+wyTmlkcSw21aAXBHq01W66wBfKZ/x+klV1He3+7+Yp6yOZaJzBc0ruAPpuywkx5LUr9E20Rij2CLiV1IOYOZ0FjUuh4huKVeP5t1k1K4fdmAqpuH2tWs1bJoe9OaoUuUceJRBImFZm58sNVvtwbdkVLKNzaT0WzPeWYUPOnalKqWgwjqGaQanzsvDIUudrUP11tVqIOcwc9c2yn2YTw+Rv8RxOwRTUzfo6/HDrXw92cg2gjWcFVBPY=

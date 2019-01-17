@@ -3,19 +3,22 @@ from __future__ import print_function
 from six.moves import range
 from itertools import product
 from functools import reduce
+import operator
 
 import copy
 import json
 import math
 import os
 import re
+import subprocess
 import time
 from time import strftime
 
 import numpy as np
 from tqdm import tqdm
+import cloudvolume
 from cloudvolume import CloudVolume, Storage
-from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor
+from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow
 from taskqueue import TaskQueue, MockTaskQueue 
 
 from igneous import downsample_scales, chunks
@@ -28,7 +31,18 @@ from igneous.tasks import (
 )
 # from igneous.tasks import BigArrayTask
 
-USER_EMAIL = 'ws9@princeton.edu' # for provenance files
+# for provenance files
+try:
+  OPERATOR_CONTACT = subprocess.check_output("git config user.email", shell=True)
+  OPERATOR_CONTACT = str(OPERATOR_CONTACT.rstrip())
+except:
+  try:
+    print(yellow('Unable to determine provenance contact email. Set "git config user.email". Using unix $USER instead.'))
+    OPERATOR_CONTACT = os.environ['USER']
+  except:
+    print(yellow('$USER was not set. The "owner" field of the provenance file will be blank.'))
+    OPERATOR_CONTACT = ''
+
 
 def create_ingest_task(storage, task_queue):
     """
@@ -100,7 +114,11 @@ def create_info_file_from_build(layer_path, layer_type, resolution, encoding):
   
   return vol.info
 
-def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk_size=False):
+def create_downsample_scales(
+    layer_path, mip, ds_shape, axis='z', 
+    preserve_chunk_size=False, chunk_size=None,
+    encoding=None
+  ):
   vol = CloudVolume(layer_path, mip)
   shape = min2(vol.volume_size, ds_shape)
 
@@ -108,6 +126,9 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
   # into underlying chunks of 64x64 which permits more scales
   underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
   underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
+
+  if chunk_size:
+    underlying_shape = Vec(*chunk_size).astype(np.float32)
 
   toidx = { 'x': 0, 'y': 1, 'z': 2 }
   preserved_idx = toidx[axis]
@@ -121,12 +142,25 @@ def create_downsample_scales(layer_path, mip, ds_shape, axis='z', preserve_chunk
   scales = scales[1:] # omit (1,1,1)
   scales = [ list(map(int, vol.downsample_ratio * Vec(*factor3))) for factor3 in scales ]
 
-  for scale in scales:
-    vol.add_scale(scale)
+  if len(scales) == 0:
+    print("WARNING: No scales generated.")
 
-  if preserve_chunk_size:
-    for i in range(mip + 1, mip + len(scales) + 1):
-      vol.scales[i]['chunk_sizes'] = vol.scales[mip]['chunk_sizes']
+  for scale in scales:
+    vol.add_scale(scale, encoding=encoding, chunk_size=chunk_size)
+
+  if chunk_size is None:
+    if preserve_chunk_size or len(scales) == 0:
+      chunk_size = vol.scales[mip]['chunk_sizes']
+    else:
+      chunk_size = vol.scales[mip + 1]['chunk_sizes']
+  else:
+    chunk_size = [ chunk_size ]
+
+  if encoding is None:
+    encoding = vol.scales[mip]['encoding']
+
+  for i in range(mip + 1, mip + len(scales) + 1):
+    vol.scales[i]['chunk_sizes'] = chunk_size
 
   return vol.commit_info()
 
@@ -134,7 +168,8 @@ def create_downsampling_tasks(
     task_queue, layer_path, 
     mip=0, fill_missing=False, axis='z', 
     num_mips=5, preserve_chunk_size=True,
-    sparse=False, bounds=None
+    sparse=False, bounds=None, chunk_size=None,
+    encoding=None
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -145,6 +180,7 @@ def create_downsampling_tasks(
     preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
       evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
       useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
+    chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
     sparse: When downsampling segmentation, if true, don't count black pixels when computing
       the mode. Useful for e.g. synapses and point labels.
     bounds: By default, downsample everything, but you can specify restricted bounding boxes
@@ -159,7 +195,11 @@ def create_downsampling_tasks(
 
     vol = CloudVolume(layer_path, mip=mip)
     shape = ds_shape(vol.mip)
-    vol = create_downsample_scales(layer_path, mip, shape, preserve_chunk_size=preserve_chunk_size)
+    vol = create_downsample_scales(
+      layer_path, mip, shape, 
+      preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
+      encoding=encoding
+    )
 
     if not preserve_chunk_size:
       shape = ds_shape(vol.mip + 1)
@@ -175,7 +215,8 @@ def create_downsampling_tasks(
     print("Volume Bounds: ", vol.bounds)
     print("Selected ROI:  ", bounds)
 
-    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks"):
+    total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
+    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks", total=total):
       task = DownsampleTask(
         layer_path=layer_path,
         mip=vol.mip,
@@ -186,6 +227,7 @@ def create_downsampling_tasks(
         sparse=sparse,
       )
       task_queue.insert(task)
+
     task_queue.wait('Uploading')
     vol.provenance.processing.append({
       'method': {
@@ -196,34 +238,61 @@ def create_downsampling_tasks(
         'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
         'sparse': sparse,
         'bounds': str(bounds),
+        'chunk_size': (list(chunk_size) if chunk_size else None),
+        'preserve_chunk_size': preserve_chunk_size,
       },
-      'by': USER_EMAIL,
+      'by': OPERATOR_CONTACT,
       'date': strftime('%Y-%m-%d %H:%M %Z'),
     })
     vol.commit_provenance()
 
-def create_deletion_tasks(task_queue, layer_path):
+def create_deletion_tasks(task_queue, layer_path, mip=0, num_mips=5):
   vol = CloudVolume(layer_path)
-  shape = vol.underlying * 10
+  
+  shape = vol.mip_underlying(mip)[:3]
+  shape.x *= 2 ** num_mips
+  shape.y *= 2 ** num_mips
 
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks"):
+  total_tasks = reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks", total=total_tasks):
     bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
     task = DeleteTask(
       layer_path=layer_path,
       shape=bounded_shape.clone(),
       offset=startpt.clone(),
+      mip=mip,
+      num_mips=num_mips,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading DeleteTasks')
 
-def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512),
-                         max_simplification_error=40):
+  vol = CloudVolume(layer_path)
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'DeleteTask',
+      'mip': mip,
+      'num_mips': num_mips,
+      'shape': shape.tolist(),
+    },
+    'by': OPERATOR_CONTACT,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  })
+  vol.commit_provenance()
+
+def create_meshing_tasks(
+    task_queue, layer_path, mip, 
+    shape=Vec(512, 512, 64), max_simplification_error=40,
+    mesh_dir=None, cdn_cache=False 
+  ):
   shape = Vec(*shape)
 
   vol = CloudVolume(layer_path, mip)
 
+  if mesh_dir is None:
+    mesh_dir = 'mesh_mip_{}_err_{}'.format(mip, max_simplification_error)
+
   if not 'mesh' in vol.info:
-    vol.info['mesh'] = 'mesh_mip_{}_err_{}'.format(mip, max_simplification_error)
+    vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Mesh Tasks"):
@@ -233,6 +302,8 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512),
       layer_path,
       mip=vol.mip,
       max_simplification_error=max_simplification_error,
+      mesh_dir=mesh_dir, 
+      cache_control=('' if cdn_cache else 'no-cache'),
     )
     task_queue.insert(task)
   task_queue.wait('Uploading MeshTasks')
@@ -242,9 +313,12 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512),
       'task': 'MeshTask',
       'layer_path': layer_path,
       'mip': vol.mip,
-      'shape': shape.tolist(),      
+      'shape': shape.tolist(),
+      'max_simplification_error': max_simplification_error,
+      'mesh_dir': mesh_dir,
+      'cdn_cache': cdn_cache,
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   vol.commit_provenance()
@@ -252,32 +326,45 @@ def create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512),
 def create_transfer_tasks(
     task_queue, src_layer_path, dest_layer_path, 
     chunk_size=None, shape=Vec(2048, 2048, 64), 
-    fill_missing=False, translate=(0,0,0)
+    fill_missing=False, translate=(0,0,0), 
+    bounds=None, mip=0, preserve_chunk_size=True
   ):
+  """
+  Transfer data from one data layer to another. It's possible
+  to transfer from a lower resolution mip level within a given
+  bounding box. The bounding box should be specified in terms of
+  the highest resolution.
+  """
   shape = Vec(*shape)
-  translate = Vec(*translate)
-  vol = CloudVolume(src_layer_path)
+  vol = CloudVolume(src_layer_path, mip=mip)
+  translate = Vec(*translate) // vol.downsample_ratio
  
   if not chunk_size:
-    chunk_size = vol.info['scales'][0]['chunk_sizes'][0]
+    chunk_size = vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
 
   try:
-    dvol = CloudVolume(dest_layer_path)
+    dvol = CloudVolume(dest_layer_path, mip=mip)
   except Exception: # no info file
     info = copy.deepcopy(vol.info)
     dvol = CloudVolume(dest_layer_path, info=info)
     dvol.commit_info()
 
-  if chunk_size is not None:
-    dvol.info['scales'] = dvol.info['scales'][:1]
-    dvol.info['scales'][0]['chunk_sizes'] = [ chunk_size.tolist() ]
-    dvol.commit_info()
+  dvol.info['scales'] = dvol.info['scales'][:mip+1]
+  dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
+  dvol.commit_info()
 
-  create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape, preserve_chunk_size=True)
+  create_downsample_scales(dest_layer_path, 
+    mip=mip, ds_shape=shape, preserve_chunk_size=preserve_chunk_size)
   
-  bounds = vol.bounds.clone()
-  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks"):
+  if bounds is None:
+    bounds = vol.bounds.clone()
+  else:
+    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = Bbox.clamp(bounds, vol.bounds)
+
+  total = int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
+  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks", total=total):
     task = TransferTask(
       src_path=src_layer_path,
       dest_path=dest_layer_path,
@@ -285,12 +372,12 @@ def create_transfer_tasks(
       offset=startpt.clone(),
       fill_missing=fill_missing,
       translate=translate,
+      mip=mip,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading Transfer Tasks')
 
-  dvol = CloudVolume(dest_layer_path)
-  dvol.provenance.processing.append({
+  job_details = {
     'method': {
       'task': 'TransferTask',
       'src': src_layer_path,
@@ -298,14 +385,31 @@ def create_transfer_tasks(
       'shape': list(map(int, shape)),
       'fill_missing': fill_missing,
       'translate': list(map(int, translate)),
+      'bounds': [
+        bounds.minpt.tolist(),
+        bounds.maxpt.tolist()
+      ],
+      'mip': mip,
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
+  }
+
+  dvol = CloudVolume(dest_layer_path)
+  dvol.provenance.sources = [ src_layer_path ]
+  dvol.provenance.processing.append(job_details) 
   dvol.commit_provenance()
 
-def create_contrast_normalization_tasks(task_queue, src_path, dest_path, 
-  shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0)):
+  if vol.path.protocol != 'boss':
+    vol.provenance.processing.append(job_details)
+    vol.commit_provenance()
+
+def create_contrast_normalization_tasks(
+    task_queue, src_path, dest_path, levels_path=None,
+    shape=None, mip=0, clip_fraction=0.01, 
+    fill_missing=False, translate=(0,0,0),
+    minval=None, maxval=None
+  ):
 
   srcvol = CloudVolume(src_path, mip=mip)
   
@@ -332,12 +436,15 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
     task = ContrastNormalizationTask( 
       src_path=src_path, 
       dest_path=dest_path,
+      levels_path=levels_path,
       shape=task_shape, 
       offset=startpt.clone(), 
       clip_fraction=clip_fraction,
       mip=mip,
       fill_missing=fill_missing,
       translate=translate,
+      minval=minval,
+      maxval=maxval,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading Contrast Normalization Tasks')
@@ -351,64 +458,91 @@ def create_contrast_normalization_tasks(task_queue, src_path, dest_path,
       'clip_fraction': clip_fraction,
       'mip': mip,
       'translate': Vec(*translate).tolist(),
+      'minval': minval,
+      'maxval': maxval,
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   dvol.commit_provenance()
 
-def create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0):
-  vol = CloudVolume(layer_path)
+def create_luminance_levels_tasks(
+    task_queue, layer_path, 
+    levels_path=None, coverage_factor=0.01, 
+    shape=None, offset=(0,0,0), mip=0, bounds=None
+  ):
+  """
+  Compute per slice luminance level histogram and write them as
+  $layer_path/levels/$z. Each z file looks like:
+
+  {
+    "levels": [ 0, 35122, 12, ... ], # 256 indices, index = luminance i.e. 0 is black, 255 is white 
+    "patch_size": [ sx, sy, sz ], # metadata on how large the patches were
+    "num_patches": 20, # metadata on
+    "coverage_ratio": 0.011, # actual sampled area on this slice normalized by ROI size.
+  }
+
+  layer_path: source image to sample from
+  levels_path: which path to write ./levels/ to (default: $layer_path)
+  coverage_factor: what fraction of the image to sample
+
+  offset & shape: Allows you to specify an ROI if much of
+    the edges are black. Defaults to entire image.
+  mip: int, which mip to work with, default maximum resolution
+  """
+  vol = CloudVolume(layer_path, mip=mip)
 
   if shape == None:
     shape = vol.shape.clone()
     shape.z = 1
 
   offset = Vec(*offset)
+  zoffset = offset.clone()
 
-  for z in range(vol.bounds.minpt.z, vol.bounds.maxpt.z + 1):
-    offset.z = z
+  if bounds is None:
+    bounds = vol.bounds.clone()
+  else:
+    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = Bbox.clamp(bounds, vol.bounds)
+
+  for z in range(bounds.minpt.z, bounds.maxpt.z + 1):
+    zoffset.z = z
     task = LuminanceLevelsTask( 
       src_path=layer_path, 
+      levels_path=levels_path,
       shape=shape, 
-      offset=offset, 
+      offset=zoffset, 
       coverage_factor=coverage_factor,
       mip=mip,
     )
     task_queue.insert(task)
   task_queue.wait('Uploading Luminance Levels Tasks')
 
-  vol.provenance.processing.append({
-    'method': {
-      'task': 'LuminanceLevelsTask',
-      'src': layer_path,
-      'shape': Vec(*shape).tolist(),
-      'offset': Vec(*offset).tolist(),
-      'coverage_factor': coverage_factor,
-      'mip': mip,
-    },
-    'by': USER_EMAIL,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  vol.commit_provenance()
+  if levels_path:
+    try:
+      vol = CloudVolume(levels_path)
+    except cloudvolume.exceptions.InfoUnavailableError:
+      vol = CloudVolume(levels_path, info=vol.info)
 
-def create_boss_transfer_tasks(task_queue, src_layer_path, dest_layer_path, shape=Vec(1024, 1024, 64)):
-  # Note: Weird errors with datatype changing to float64 when requesting 2048,2048,64
-  # 1024,1024,64 worked nicely though.
-  shape = Vec(*shape)
-  vol = CloudVolume(dest_layer_path)
-
-  create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape)
-
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Boss Transfer Tasks"):
-    task = BossTransferTask(
-      src_path=src_layer_path,
-      dest_path=dest_layer_path,
-      shape=shape.clone(),
-      offset=startpt.clone(),
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading Boss Transfer Tasks')
+  if vol.path.protocol != 'boss':
+    vol.provenance.processing.append({
+      'method': {
+        'task': 'LuminanceLevelsTask',
+        'src': layer_path,
+        'levels_path': levels_path,
+        'shape': Vec(*shape).tolist(),
+        'offset': Vec(*offset).tolist(),
+        'bounds': [
+          bounds.minpt.tolist(),
+          bounds.maxpt.tolist()
+        ],
+        'coverage_factor': coverage_factor,
+        'mip': mip,
+      },
+      'by': OPERATOR_CONTACT,
+      'date': strftime('%Y-%m-%d %H:%M %Z'),
+    }) 
+    vol.commit_provenance()
 
 def create_watershed_remap_tasks(task_queue, map_path, src_layer_path, dest_layer_path, shape=Vec(2048, 2048, 64)):
   shape = Vec(*shape)
@@ -435,7 +569,7 @@ def create_watershed_remap_tasks(task_queue, map_path, src_layer_path, dest_laye
       'remap_file': map_path,
       'shape': list(shape),
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   dvol.commit_provenance()
@@ -468,6 +602,7 @@ def create_fixup_downsample_tasks(task_queue, layer_path, points, shape=Vec(2048
     )
     task_queue.insert(task)
   task_queue.wait('Uploading')
+
 def create_quantized_affinity_info(src_layer, dest_layer, shape, mip, chunk_size):
   srcvol = CloudVolume(src_layer)
   
@@ -516,7 +651,7 @@ def create_quantize_tasks(
       'fill_missing': fill_missing,
       'mip': mip,
     },
-    'by': USER_EMAIL,
+    'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   }) 
   destvol.commit_provenance()
@@ -740,6 +875,7 @@ def create_inference_tasks(task_queue, image_layer_path, convnet_model_path,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
   })
   vol.commit_provenance()
+
 
 def upload_build_chunks(storage, volume, offset=[0, 0, 0], build_chunk_size=[1024,1024,128]):
   offset = Vec(*offset)

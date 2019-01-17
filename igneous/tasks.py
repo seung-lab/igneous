@@ -211,21 +211,30 @@ class IngestTask(RegisteredTask):
 class DeleteTask(RegisteredTask):
   """Delete a block of images inside a layer on all mip levels."""
 
-  def __init__(self, layer_path, shape, offset):
-    super(DeleteTask, self).__init__(layer_path, shape, offset)
+  def __init__(self, layer_path, shape, offset, mip=0, num_mips=5):
+    super(DeleteTask, self).__init__(layer_path, shape, offset, mip, num_mips)
     self.layer_path = layer_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
+    self.mip = mip
+    self.num_mips = num_mips
 
   def execute(self):
-    vol = CloudVolume(self.layer_path)
+    vol = CloudVolume(self.layer_path, mip=self.mip)
 
     highres_bbox = Bbox( self.offset, self.offset + self.shape )
-    for mip in vol.available_mips:
+
+    top_mip = min(vol.available_mips[-1], self.mip + self.num_mips)
+
+    for mip in range(self.mip, top_mip + 1):
       vol.mip = mip
-      bbox = vol.bbox_to_mip(highres_bbox, 0, mip)
+      bbox = vol.bbox_to_mip(highres_bbox, self.mip, mip)
       bbox = bbox.round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)
       bbox = Bbox.clamp(bbox, vol.bounds)
+
+      if bbox.volume() == 0: 
+        continue
+
       vol.delete(bbox)
 
 
@@ -294,15 +303,19 @@ class MeshTask(RegisteredTask):
         'mip': kwargs.get('mip', 0),
         'simplification_factor': kwargs.get('simplification_factor', 100),
         'max_simplification_error': kwargs.get('max_simplification_error', 40),
+        'mesh_dir': kwargs.get('mesh_dir', None),
         'remap_table': kwargs.get('remap_table', None),
         'generate_manifests': kwargs.get('generate_manifests', False),
         'low_padding': kwargs.get('low_padding', 0),
-        'high_padding': kwargs.get('high_padding', 1)
+        'high_padding': kwargs.get('high_padding', 1),
+        'parallel_download': kwargs.get('parallel_download', 1),
+        'cache_control': kwargs.get('cache_control', None)
     }
 
   def execute(self):
     self._volume = CloudVolume(
-        self.layer_path, self.options['mip'], bounded=False)
+        self.layer_path, self.options['mip'], bounded=False,
+        parallel=self.options['parallel_download'])
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 
@@ -316,8 +329,8 @@ class MeshTask(RegisteredTask):
     data_bounds.maxpt += self.options['high_padding']
 
     self._mesh_dir = None
-    if 'meshing' in self._volume.info:
-      self._mesh_dir = self._volume.info['meshing']
+    if self.options['mesh_dir'] is not None:
+      self._mesh_dir = self.options['mesh_dir']
     elif 'mesh' in self._volume.info:
       self._mesh_dir = self._volume.info['mesh']
 
@@ -358,6 +371,7 @@ class MeshTask(RegisteredTask):
             ),
             content=self._create_mesh(obj_id),
             compress=True,
+            cache_control=self.options['cache_control']
         )
 
         if self.options['generate_manifests']:
@@ -369,7 +383,8 @@ class MeshTask(RegisteredTask):
               file_path='{}/{}:{}'.format(
                   self._mesh_dir, remapped_id, self.options['lod']),
               content=json.dumps({"fragments": fragments}),
-              content_type='application/json'
+              content_type='application/json',
+              cache_control=self.options['cache_control']
           )
 
   def _create_mesh(self, obj_id):
@@ -413,20 +428,18 @@ class MeshManifestTask(RegisteredTask):
   a single mesh ['0:','1:',..'9:']
   """
 
-  def __init__(self, layer_path, prefix, lod=0):
+  def __init__(self, layer_path, prefix, lod=0, mesh_dir=None):
     super(MeshManifestTask, self).__init__(layer_path, prefix)
     self.layer_path = layer_path
     self.lod = lod
     self.prefix = prefix
+    self.mesh_dir = mesh_dir
 
   def execute(self):
     with Storage(self.layer_path) as storage:
       self._info = json.loads(storage.get_file('info').decode('utf8'))
 
-      self.mesh_dir = None
-      if 'meshing' in self._info:
-        self.mesh_dir = self._info['meshing']
-      elif 'mesh' in self._info:
+      if self.mesh_dir is None and 'mesh' in self._info:
         self.mesh_dir = self._info['mesh']
 
       self._generate_manifests(storage)
@@ -752,9 +765,17 @@ class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""
   # translate = change of origin
 
-  def __init__(self, src_path, dest_path, shape, offset, mip, clip_fraction, fill_missing, translate):
-    super(ContrastNormalizationTask, self).__init__(src_path, dest_path,
-                                                    shape, offset, mip, clip_fraction, fill_missing, translate)
+  def __init__(
+    self, src_path, dest_path, levels_path, shape, 
+    offset, mip, clip_fraction, fill_missing, 
+    translate, minval, maxval
+  ):
+
+    super(ContrastNormalizationTask, self).__init__(
+      src_path, dest_path, levels_path, shape, offset, 
+      mip, clip_fraction, fill_missing, translate,
+      minval, maxval
+    )
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
@@ -763,6 +784,10 @@ class ContrastNormalizationTask(RegisteredTask):
     self.translate = Vec(*translate)
     self.mip = int(mip)
     self.clip_fraction = float(clip_fraction)
+    self.minval = minval 
+    self.maxval = maxval
+
+    self.levels_path = levels_path if levels_path else self.src_path
 
     assert 0 <= self.clip_fraction <= 1
 
@@ -793,7 +818,11 @@ class ContrastNormalizationTask(RegisteredTask):
       image[:, :, imagez] = img
 
     image = np.round(image)
-    image = np.clip(image, 0.0, maxval).astype(destcv.dtype)
+
+    minval = self.minval if self.minval is not None else 0.0
+    maxval = self.maxval if self.maxval is not None else maxval
+
+    image = np.clip(image, minval, maxval).astype(destcv.dtype)
 
     bounds += self.translate
     downsample_and_upload(image, bounds, destcv, self.shape)
@@ -831,37 +860,48 @@ class ContrastNormalizationTask(RegisteredTask):
 
   def fetch_z_levels(self):
     bounds = Bbox(self.offset, self.shape[:3] + self.offset)
-    levelfilenames = ['levels/{}/{}'.format(self.mip, z)
-                      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)]
-    with Storage(self.src_path) as stor:
+
+    levelfilenames = [
+      'levels/{}/{}'.format(self.mip, z) \
+      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)
+    ]
+    
+    with Storage(self.levels_path) as stor:
       levels = stor.get_files(levelfilenames)
 
-    errors = [level['filename']
-              for level in levels if level['content'] == None]
+    errors = [ 
+      level['filename'] \
+      for level in levels if level['content'] == None
+    ]
+
     if len(errors):
       raise Exception(", ".join(
           errors) + " were not defined. Did you run a LuminanceLevelsTask for these slices?")
 
     levels = [(
-        int(os.path.basename(item['filename'])),
-        json.loads(item['content'].decode('utf-8'))
-    ) for item in levels]
+      int(os.path.basename(item['filename'])),
+      json.loads(item['content'].decode('utf-8'))
+    ) for item in levels ]
+
     levels.sort(key=lambda x: x[0])
     levels = [x[1] for x in levels]
-    return [np.array(x['levels'], dtype=np.uint64) for x in levels]
+    return [ np.array(x['levels'], dtype=np.uint64) for x in levels ]
 
 
 class LuminanceLevelsTask(RegisteredTask):
   """Generate a frequency count of luminance values by random sampling. Output to $PATH/levels/$MIP/$Z"""
 
-  def __init__(self, src_path, shape, offset, coverage_factor, mip):
+  def __init__(self, src_path, levels_path, shape, offset, coverage_factor, mip):
     super(LuminanceLevelsTask, self).__init__(
-        src_path, shape, offset, coverage_factor, mip)
+      src_path, levels_path, shape, 
+      offset, coverage_factor, mip
+    )
     self.src_path = src_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.coverage_factor = coverage_factor
     self.mip = int(mip)
+    self.levels_path = levels_path
 
     assert 0 < coverage_factor <= 1, "Coverage Factor must be between 0 and 1"
 
@@ -888,18 +928,19 @@ class LuminanceLevelsTask(RegisteredTask):
     biggest = bboxes[-1][1]
 
     output = {
-        "levels": levels.tolist(),
-        "patch_size": biggest.tolist(),
-        "num_patches": len(bboxes),
-        "coverage_ratio": covered_area / self.shape.rectVolume(),
+      "levels": levels.tolist(),
+      "patch_size": biggest.tolist(),
+      "num_patches": len(bboxes),
+      "coverage_ratio": covered_area / self.shape.rectVolume(),
     }
 
-    levels_path = os.path.join(self.src_path, 'levels')
-    with Storage(levels_path, n_threads=0) as stor:
+    path = self.levels_path if self.levels_path else self.src_path
+    path = os.path.join(path, 'levels')
+    with Storage(path, n_threads=0) as stor:
       stor.put_json(
-          file_path="{}/{}".format(self.mip, self.offset.z),
-          content=output,
-          cache_control='no-cache'
+        file_path="{}/{}".format(self.mip, self.offset.z),
+        content=output,
+        cache_control='no-cache'
       )
 
   def select_bounding_boxes(self, dataset_bounds):
@@ -935,25 +976,33 @@ class LuminanceLevelsTask(RegisteredTask):
 
 class TransferTask(RegisteredTask):
   # translate = change of origin
-  def __init__(self, src_path, dest_path, shape, offset, fill_missing, translate):
+  def __init__(
+    self, src_path, dest_path, 
+    shape, offset, fill_missing, 
+    translate, mip=0
+  ):
     super(TransferTask, self).__init__(
-        src_path, dest_path, shape, offset, fill_missing, translate)
+        src_path, dest_path, shape, 
+        offset, fill_missing, translate, 
+        mip
+    )
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = fill_missing
     self.translate = Vec(*translate)
+    self.mip = int(mip)
 
   def execute(self):
-    srccv = CloudVolume(self.src_path, fill_missing=self.fill_missing)
-    destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing)
+    srccv = CloudVolume(self.src_path, fill_missing=self.fill_missing, mip=self.mip)
+    destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing, mip=self.mip)
 
     bounds = Bbox(self.offset, self.shape + self.offset)
     bounds = Bbox.clamp(bounds, srccv.bounds)
     image = srccv[bounds.to_slices()]
     bounds += self.translate
-    downsample_and_upload(image, bounds, destcv, self.shape)
+    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
 
 class WatershedRemapTask(RegisteredTask):
@@ -1491,6 +1540,3 @@ class InferenceTask(RegisteredTask):
           content=json.dumps(self.log),
           content_type='application/json'
       )
-
-
-

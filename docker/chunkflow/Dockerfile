@@ -17,13 +17,13 @@ RUN apt-get update \
         build-essential \
     # igneous + runtime dependencies
     && cd igneous \
-    && pip install --no-cache-dir -r requirements.txt \
+    && pip3 install --no-cache-dir -r requirements.txt \
     # we can only use numpy==1.15 due to an issue of skimage:
     # https://github.com/scikit-image/scikit-image/issues/3551
     # the fix was not released yet. 
     # https://github.com/scikit-image/scikit-image/pull/3556
-    && pip install numpy==1.15 --no-cache-dir \
-    && pip install --no-cache-dir -e . \
+    && pip3 install numpy==1.15 --no-cache-dir \
+    && pip3 install --no-cache-dir -e . \
     \
     # Cleanup build dependencies
     && apt-get remove --purge -y \
@@ -34,7 +34,7 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     # Cleanup temporary python files
-    && find /usr/local/lib/python3.6 -depth \
+    && find /opt/conda/bin/python3.6 -depth \
       \( \
         \( -type d -a \( -name __pycache__ \) \) \
         -o \

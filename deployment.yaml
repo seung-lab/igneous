@@ -23,6 +23,8 @@ spec:
           resources:
             requests:
               memory: 2.5Gi
+            limits:
+              memory: 7.0Gi
           env:
             - name: QUEUE_TYPE
               value: aws

@@ -1,0 +1,11 @@
+dist
+build
+igneous.egg-info
+*.so
+.eggs
+*.pyc
+__pycache__
+.cache
+test.py
+pipeline.py
+.pytest_cache

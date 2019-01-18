@@ -5,10 +5,11 @@ cryptography==2.3
 cloud-volume>=0.41.0
 dijkstra3d>=1.0.0
 edt>=1.2.0
+fastremap
 google-cloud-logging
 google-api-python-client==1.6.2
 networkx==2.1
-numpy>=1.14.2
+numpy>=1.16.0
 pyasn1
 pyopenssl>=17.5.0
 pytest>=3.3.1

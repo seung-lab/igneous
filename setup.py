@@ -45,16 +45,6 @@ setuptools.setup(
         '-std=c++11', '-O3', '-ffast-math'
       ]
     ),
-    setuptools.Extension(
-      'fastremap',
-      sources=[ './ext/remap/fastremap.cpp' ],
-      depends=[],
-      language='c++',
-      include_dirs=[ np.get_include() ],
-      extra_compile_args=[
-        '-std=c++11', '-O3'
-     ]
-    ) #don't use  '-fvisibility=hidden', python can't see init module
   ],
 )
 

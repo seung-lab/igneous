@@ -752,7 +752,7 @@ class ContrastNormalizationTask(RegisteredTask):
     image = np.clip(image, minval, maxval).astype(destcv.dtype)
 
     bounds += self.translate
-    downsample_and_upload(image, bounds, destcv, self.shape)
+    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
   def find_section_clamping_values(self, zlevel, lowerfract, upperfract):
     filtered = np.copy(zlevel)
@@ -871,9 +871,8 @@ class LuminanceLevelsTask(RegisteredTask):
       )
 
   def select_bounding_boxes(self, dataset_bounds):
-    # Sample 1024x1024x1 patches until coverage factor is
-    # satisfied. Ensure the patches are non-overlapping and
-    # random.
+    # Sample patches until coverage factor is satisfied. 
+    # Ensure the patches are non-overlapping and random.
     sample_shape = Bbox((0, 0, 0), (2048, 2048, 1))
     area = self.shape.rectVolume()
 

@@ -74,7 +74,8 @@ def execute(tag, queue, server, qurl, loop):
         task.execute()
         print("delete task in queue...")
         tq.delete(task)
-        logger.log('INFO', task , "succesfully executed")
+        #logger.log('INFO', task , "succesfully executed")
+        print("Successfully executed")
         tries = 0
       except TaskQueue.QueueEmpty:
         time.sleep(random_exponential_window_backoff(tries))

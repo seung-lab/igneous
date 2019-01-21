@@ -44,6 +44,21 @@ except:
     OPERATOR_CONTACT = ''
 
 
+def get_bounds(vol, bounds, shape, mip):
+  if bounds is None:
+    bounds = vol.bounds.clone()
+  else:
+    bounds = Bbox.create(bounds)
+    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = bounds.expand_to_chunk_size(shape, vol.mip_voxel_offset(mip))
+    bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
+  
+
+  print("Volume Bounds: ", vol.mip_bounds(mip))
+  print("Selected ROI:  ", bounds)
+
+  return bounds
+
 def create_ingest_task(storage, task_queue):
     """
     Creates one task for each ingest chunk present in the build folder.
@@ -204,16 +219,7 @@ def create_downsampling_tasks(
     if not preserve_chunk_size:
       shape = ds_shape(vol.mip + 1)
 
-    if bounds is None:
-      bounds = vol.bounds.clone()
-    else:
-      bounds = Bbox.create(bounds)
-      bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
-      bounds = bounds.expand_to_chunk_size(shape, vol.voxel_offset)
-      bounds = Bbox.clamp(bounds, vol.bounds)
-
-    print("Volume Bounds: ", vol.bounds)
-    print("Selected ROI:  ", bounds)
+    bounds = get_bounds(vol, bounds, shape, mip)
 
     total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
     for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks", total=total):
@@ -409,7 +415,7 @@ def create_contrast_normalization_tasks(
     task_queue, src_path, dest_path, levels_path=None,
     shape=None, mip=0, clip_fraction=0.01, 
     fill_missing=False, translate=(0,0,0),
-    minval=None, maxval=None
+    minval=None, maxval=None, bounds=None
   ):
 
   srcvol = CloudVolume(src_path, mip=mip)
@@ -431,7 +437,8 @@ def create_contrast_normalization_tasks(
   create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
   dvol.refresh_info()
 
-  bounds = srcvol.bounds.clone()
+  bounds = get_bounds(srcvol, bounds, shape, mip)
+
   for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Contrast Normalization Tasks"):
     task_shape = min2(shape.clone(), srcvol.bounds.maxpt - startpt)
     task = ContrastNormalizationTask( 
@@ -500,11 +507,7 @@ def create_luminance_levels_tasks(
   offset = Vec(*offset)
   zoffset = offset.clone()
 
-  if bounds is None:
-    bounds = vol.bounds.clone()
-  else:
-    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
-    bounds = Bbox.clamp(bounds, vol.bounds)
+  bounds = get_bounds(vol, bounds, shape, mip)
 
   for z in range(bounds.minpt.z, bounds.maxpt.z + 1):
     zoffset.z = z

@@ -9,7 +9,7 @@ import click
 from taskqueue import TaskQueue
 
 from igneous import EmptyVolumeException
-from igneous import logger
+#from igneous import logger
 
 from igneous.secrets import QUEUE_NAME, QUEUE_TYPE, SQS_URL, LEASE_SECONDS
 
@@ -78,16 +78,19 @@ def execute(tag, queue, server, qurl, loop):
         task.execute()
         print("delete task in queue...")
         tq.delete(task)
-        logger.log('INFO', task , "succesfully executed")
+        #logger.log('INFO', task , "succesfully executed")
+        print("successfully executed")
         tries = 0
       except TaskQueue.QueueEmpty:
         time.sleep(random_exponential_window_backoff(tries))
         continue
       except EmptyVolumeException:
-        logger.log('WARNING', task, "raised an EmptyVolumeException")
-        tq.delete(task)
+        #logger.log('WARNING', task, "raised an EmptyVolumeException")
+        print('raised an EmptyVolumeException')
+        raise 
+	#tq.delete(task)
       except Exception as e:
-        logger.log('ERROR', task, "raised {}\n {}".format(e , traceback.format_exc()))
+        #logger.log('ERROR', task, "raised {}\n {}".format(e , traceback.format_exc()))
         raise #this will restart the container in kubernetes
       if (not loop) or (not LOOP):
         print("not in loop mode, will break the loop and exit")

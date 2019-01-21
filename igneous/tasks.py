@@ -1344,8 +1344,8 @@ class InferenceTask(RegisteredTask):
       assert np.any(self.output)
 
   def _read_image(self):
-    self.image_vol = CloudVolume(self.image_layer_path, bounded=False, 
-                           fill_missing=False, progress=True, 
+    self.image_vol = CloudVolume(self.image_layer_path, bounded=True, 
+                           fill_missing=True, progress=True, 
                            mip=self.image_mip, parallel=False)
     output_slices = self.output_bounds.to_slices()
     self.input_slices = tuple(slice(s.start - m, s.stop + m) for s, m in
@@ -1422,8 +1422,8 @@ class InferenceTask(RegisteredTask):
             content_type='application/json') 
       raise Exception("detected a black box by template matching!")
 
-    validate_vol = CloudVolume(self.image_layer_path, bounded=False, 
-                               fill_missing=False, progress=True, 
+    validate_vol = CloudVolume(self.image_layer_path, bounded=True, 
+                               fill_missing=True, progress=True, 
                                mip=self.image_validate_mip, parallel=False)
     validate_image = validate_vol[validate_bbox.to_slices()]
     assert validate_image.shape[3] == 1 

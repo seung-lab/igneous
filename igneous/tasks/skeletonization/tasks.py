@@ -80,8 +80,12 @@ class SkeletonTask(RegisteredTask):
 
     all_labels = vol[ bbox.to_slices() ]
     all_labels = all_labels[:,:,:,0]
+
     if self.object_ids is not None:
-      all_labels[~np.isin(all_labels, self.object_ids)] = 0
+      if len(self.object_ids) == 1:
+        all_labels = igneous.skeletontricks.zero_out_all_except(all_labels, self.object_ids[0]) # faster
+      else:
+        all_labels[~np.isin(all_labels, self.object_ids)] = 0
 
     if not np.any(all_labels):
       return

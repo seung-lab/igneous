@@ -94,7 +94,7 @@ class SkeletonTask(RegisteredTask):
     if np.dtype(all_labels.dtype).itemsize > 1:
       tmp_labels, remapping = fastremap.renumber(all_labels)
 
-    cc_labels = cc3d.connected_components(tmp_labels, max_labels=1e5)
+    cc_labels = cc3d.connected_components(tmp_labels, max_labels=int(bbox.volume() / 4))
 
     del tmp_labels
     remapping = igneous.skeletontricks.get_mapping(all_labels, cc_labels)

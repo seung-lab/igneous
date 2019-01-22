@@ -216,11 +216,11 @@ def create_downsampling_tasks(
       encoding=encoding
     )
 
-    if not preserve_chunk_size:
+    if not preserve_chunk_size or chunk_size:
       shape = ds_shape(vol.mip + 1)
 
     bounds = get_bounds(vol, bounds, shape, mip)
-
+    
     total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
     for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks", total=total):
       task = DownsampleTask(

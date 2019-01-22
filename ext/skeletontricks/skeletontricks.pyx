@@ -24,6 +24,11 @@ import numpy as np
 
 from collections import defaultdict
 
+ctypedef fused INTEGER:
+  cython.int
+  cython.uint
+  unsigned char
+
 cdef extern from "math.h":
   float INFINITY
 
@@ -35,6 +40,25 @@ cdef extern from "skeletontricks.hpp" namespace "skeletontricks":
     int* path, int path_size,
     float scale, float constant
   )
+
+@cython.boundscheck(False)
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+@cython.nonecheck(False)
+def zero_out_all_except(cnp.ndarray[INTEGER, cast=True, ndim=3] field, int leave_alone):
+  cdef int sx, sy, sz 
+  cdef int  x,  y,  z
+
+  sx = field.shape[0]
+  sy = field.shape[1]
+  sz = field.shape[2]
+
+  for z in range(0, sz):
+    for y in range(0, sy):
+      for x in range(0, sx):
+        if (field[x,y,z] != leave_alone):
+          field[x,y,z] = 0
+
+  return field  
 
 @cython.boundscheck(False)
 @cython.wraparound(False)  # turn off negative index wrapping for entire function

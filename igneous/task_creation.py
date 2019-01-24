@@ -304,9 +304,14 @@ def create_skeletonizing_tasks(
     incr = vol.bounds.size3()
     will_postprocess = False
 
-  total = int(math.ceil(reduce(operator.mul, vol.bounds.size3() / incr)))
+  total = int(math.ceil(reduce(operator.mul, vol.bounds.size3().astype(np.float32) / incr)))
   # 50% overlap
   for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ), desc="Inserting Skeleton Tasks", total=total):
+    
+    # eliminate double coverage on right edges during 50% overlap
+    if np.any(startpt - incr + shape > vol.bounds.maxpt):
+      continue
+    
     task = SkeletonTask(
       cloudpath=cloudpath,
       shape=shape.clone(),
@@ -327,6 +332,10 @@ def create_skeletonizing_tasks(
       'mip': vol.mip,
       'shape': shape.tolist(),
       'teasar_params': teasar_params,
+      'object_ids': object_ids,
+      'info': info,
+      'will_postprocess': will_postprocess,
+      'incr': incr.tolist(),
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

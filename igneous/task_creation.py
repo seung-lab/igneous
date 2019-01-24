@@ -346,7 +346,7 @@ def create_skeletonizing_tasks(
 def create_skeleton_merge_tasks(
     task_queue, layer_path, mip, crop=0,
     magnitude=3, dust_threshold=4000, 
-    tick_threshold=6000
+    tick_threshold=6000, delete_fragments=False
   ):
   assert int(magnitude) == magnitude
 
@@ -364,6 +364,7 @@ def create_skeleton_merge_tasks(
       mip=mip,
       dust_threshold=dust_threshold,
       tick_threshold=tick_threshold,
+      delete_fragments=delete_fragments,
     )
     task_queue.insert(task)
 
@@ -376,11 +377,27 @@ def create_skeleton_merge_tasks(
       mip=mip, 
       dust_threshold=dust_threshold, 
       tick_threshold=tick_threshold,
+      delete_fragments=delete_fragments,
     )
     task_queue.insert(task)
 
   task_queue.wait('Uploading Skeleton Merge Tasks')
 
+  vol = CloudVolume(layer_path)
+  vol.provenance.processing.append({
+    'method': {
+      'task': 'SkeletonMergeTask',
+      'cloudpath': layer_path,
+      'mip': mip,
+      'crop': crop,
+      'dust_threshold': dust_threshold,
+      'tick_threshold': tick_threshold,
+      'delete_fragments': delete_fragments,
+    },
+    'by': OPERATOR_CONTACT,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  vol.commit_provenance()
 
 def create_meshing_tasks(
     task_queue, layer_path, mip, 

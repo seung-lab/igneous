@@ -1,7 +1,4 @@
-try:
-    from StringIO import cStringIO as BytesIO
-except ImportError:
-    from io import BytesIO
+import six
 
 from functools import reduce
 import json
@@ -24,11 +21,11 @@ import edt # euclidean distance transform
 import fastremap
 from taskqueue import RegisteredTask
 
-from igneous import chunks, downsample, downsample_scales
 import igneous.skeletontricks
 
-from .skeletonization import TEASAR
 from .postprocess import trim_skeleton
+
+import kimimaro
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
 
@@ -78,92 +75,35 @@ class SkeletonTask(RegisteredTask):
     vol = CloudVolume(self.cloudpath, mip=self.mip, info=self.cloudinfo, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
-    all_labels = vol[ bbox.to_slices() ]
-    all_labels = all_labels[:,:,:,0]
-
-    if self.object_ids is not None:
-      if len(self.object_ids) == 1:
-        all_labels = igneous.skeletontricks.zero_out_all_except(all_labels, self.object_ids[0]) # faster
-      else:
-        all_labels[~np.isin(all_labels, self.object_ids)] = 0
-
-    if not np.any(all_labels):
-      return
-
-    tmp_labels = all_labels
-    if np.dtype(all_labels.dtype).itemsize > 1:
-      tmp_labels, remapping = fastremap.renumber(all_labels)
-
-    cc_labels = cc3d.connected_components(tmp_labels, max_labels=int(bbox.volume() / 4))
-
-    del tmp_labels
-    remapping = igneous.skeletontricks.get_mapping(all_labels, cc_labels)
-    del all_labels
-
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
 
-    all_dbf = edt.edt(cc_labels, 
-      anisotropy=vol.resolution.tolist(),
-      black_border=False,
-      order='F',
+    all_labels = vol[ bbox.to_slices() ]
+    all_labels = all_labels[:,:,:,0]
+
+    skeletons = kimimaro.skeletonize(
+      all_labels, self.teasar_params, 
+      object_ids=self.object_ids, anisotropy=vol.resolution,
+      dust_threshold=1000, cc_safety_factor=0.25,
+      progress=True
     )
-    # slows things down, but saves memory
-    # max_all_dbf = np.max(all_dbf)
-    # if max_all_dbf < np.finfo(np.float16).max:
-    #   all_dbf = all_dbf.astype(np.float16)
 
-    cc_segids, pxct = np.unique(cc_labels, return_counts=True)
-    cc_segids = [ sid for sid, ct in zip(cc_segids, pxct) if ct > 1000 ]
+    for segid, skel in six.iteritems(skeletons):
+      skel.vertices[:,0] += bbox.minpt.x
+      skel.vertices[:,1] += bbox.minpt.y
+      skel.vertices[:,2] += bbox.minpt.z
 
-    all_slices = scipy.ndimage.find_objects(cc_labels)
-
-    skeletons = defaultdict(list)
-    for segid in tqdm(cc_segids):
-      if segid == 0:
-        continue 
-
-      # Crop DBF to ROI
-      slices = all_slices[segid - 1]
-      if slices is None:
-        continue
-
-      labels = cc_labels[slices]
-      labels = (labels == segid)
-      dbf = (labels * all_dbf[slices]).astype(np.float32)
-
-      roi = Bbox.from_slices(slices)
-      roi += bbox.minpt 
-
-      skeleton = self.skeletonize(
-        labels, dbf, roi, 
-        anisotropy=vol.resolution.tolist()
-      )
-
-      if skeleton.empty():
-        continue
-
-      orig_segid = remapping[segid]
-      skeleton.id = orig_segid
-      skeleton.vertices *= vol.resolution
-      skeletons[orig_segid].append(skeleton)
-
-    self.upload(vol, path, bbox, skeletons)
+    self.upload(vol, path, bbox, skeletons.values())
       
   def upload(self, vol, path, bbox, skeletons):
 
-    skel_lst = []
-    for segid, skels in skeletons.items():
-      skel = PrecomputedSkeleton.simple_merge(skels)
-      skel_lst.append( skel.consolidate() )
-      
     if not self.will_postprocess:
-      vol.skeleton.upload(skel_lst)
+      vol.skeleton.upload(skeletons)
       return 
 
     bbox = bbox * vol.resolution
     with Storage(path, progress=vol.progress) as stor:
-      for skel in skel_lst:
+      for skel in skeletons:
         stor.put_file(
           file_path="{}:{}".format(skel.id, bbox.to_filename()),
           content=pickle.dumps(skel),
@@ -172,14 +112,6 @@ class SkeletonTask(RegisteredTask):
           cache_control=False,
         )
       
-  def skeletonize(self, labels, dbf, bbox, anisotropy):
-    skeleton = TEASAR(labels, dbf, anisotropy=anisotropy, **self.teasar_params)
-
-    skeleton.vertices[:,0] += bbox.minpt.x
-    skeleton.vertices[:,1] += bbox.minpt.y
-    skeleton.vertices[:,2] += bbox.minpt.z
-
-    return skeleton
 
 class SkeletonMergeTask(RegisteredTask):
   """

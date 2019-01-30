@@ -44,13 +44,14 @@ except:
     OPERATOR_CONTACT = ''
 
 
-def get_bounds(vol, bounds, shape, mip):
+def get_bounds(vol, bounds, shape, mip, chunk_size=None):
   if bounds is None:
     bounds = vol.bounds.clone()
   else:
     bounds = Bbox.create(bounds)
     bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
-    bounds = bounds.expand_to_chunk_size(shape, vol.mip_voxel_offset(mip))
+    if chunk_size is not None:
+      bounds = bounds.expand_to_chunk_size(chunk_size, vol.mip_voxel_offset(mip))
     bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
   
 
@@ -219,7 +220,7 @@ def create_downsampling_tasks(
     if not preserve_chunk_size or chunk_size:
       shape = ds_shape(vol.mip + 1)
 
-    bounds = get_bounds(vol, bounds, shape, mip)
+    bounds = get_bounds(vol, bounds, shape, mip, vol.chunk_size)
     
     total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
     for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks", total=total):

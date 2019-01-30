@@ -468,6 +468,10 @@ def create_contrast_normalization_tasks(
       'translate': Vec(*translate).tolist(),
       'minval': minval,
       'maxval': maxval,
+      'bounds': [
+        bounds.minpt.tolist(),
+        bounds.maxpt.tolist()
+      ],
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

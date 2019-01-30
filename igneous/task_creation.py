@@ -284,7 +284,7 @@ def create_skeletonizing_tasks(
     task_queue, cloudpath, mip, 
     shape=Vec(512, 512, 512),
     teasar_params={'scale':10, 'const': 10}, 
-    info=None, object_ids=None
+    info=None, object_ids=None, fix_branching=True
   ):
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -320,7 +320,8 @@ def create_skeletonizing_tasks(
       teasar_params=teasar_params,
       will_postprocess=will_postprocess,
       info=info,
-      object_ids=object_ids
+      object_ids=object_ids,
+      fix_branching=fix_branching
     )
     task_queue.insert(task)
   task_queue.wait('Uploading SkeletonTasks')
@@ -336,6 +337,7 @@ def create_skeletonizing_tasks(
       'info': info,
       'will_postprocess': will_postprocess,
       'incr': incr.tolist(),
+      'fix_branching': fix_branching,
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),

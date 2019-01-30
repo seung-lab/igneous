@@ -56,12 +56,12 @@ class SkeletonTask(RegisteredTask):
   def __init__(
     self, cloudpath, shape, offset, 
     mip, teasar_params, will_postprocess, 
-    info=None, object_ids=None
+    info=None, object_ids=None, fix_branching=True
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
       teasar_params, will_postprocess, 
-      info, object_ids
+      info, object_ids, fix_branching
     )
     self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
@@ -70,6 +70,7 @@ class SkeletonTask(RegisteredTask):
     self.will_postprocess = will_postprocess
     self.cloudinfo = info
     self.object_ids = object_ids
+    self.fix_branching = fix_branching
 
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip, info=self.cloudinfo, cdn_cache=False)
@@ -85,7 +86,7 @@ class SkeletonTask(RegisteredTask):
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, anisotropy=vol.resolution,
       dust_threshold=1000, cc_safety_factor=0.25,
-      progress=True
+      progress=True, fix_branching=self.fix_branching
     )
 
     for segid, skel in six.iteritems(skeletons):

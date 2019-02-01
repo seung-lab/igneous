@@ -9,17 +9,29 @@ Example:
 """
 from six.moves import range
 
+import copy
 from datetime import datetime
 import json
 import math
 import os
 
 import click
+import numpy as np
 from tqdm import tqdm
 
+from igneous import tasks
+from cloudvolume.lib import touch
 from taskqueue import TaskQueue
 
+def serializenumpy(obj):
+  if isinstance(obj, np.ndarray):
+    return obj.tolist()
+  return obj
+
 def deserialize(file):
+  if not os.path.exists(file):
+    return []
+
   with open(file, 'r') as f:
     queue = json.loads(f.read())
   return queue
@@ -41,24 +53,43 @@ def save(qurl, file):
     print("Restarting with {} as seed. Tasks: {}".format(file, len(queue)))
 
   def save_progress(tq, last_few):
+    new_queue = [ ]
+
+    for obj in queue:
+      if type(obj) is dict:
+        task = obj
+      else:
+        task = copy.deepcopy(obj._args)
+        task['class'] = obj.__class__.__name__
+
+      new_queue.append(task)
+
+    def serializenumpy(obj):
+      if isinstance(obj, np.ndarray):
+        return obj.tolist()
+      return obj
+
     with open(file, 'w') as f:
-      f.write(json.dumps(queue))
+      f.write(json.dumps(new_queue, default=serializenumpy))
 
     for t in last_few:
-      tq.delete(t['id'])
+      tq.delete(t)
     tq.wait()
 
   # Get all task queues
-  num_lease = 100
+  num_lease = 1
   last_few = []
 
   with TaskQueue(queue_server='sqs', qurl=qurl) as tq:
     iters = int(math.ceil(float(tq.enqueued) / float(num_lease)))
 
     for i in tqdm(range(iters), desc='Leasing Tasks'):
-      tasks = tq.raw_lease(numTasks=num_lease, leaseSecs=10)
-      queue.extend(tasks['items'])
-      last_few.extend(tasks['items'])
+      tasks = tq.lease(num_tasks=num_lease, seconds=10)
+      if type(tasks) is not list:
+        tasks = [ tasks ]
+
+      queue.extend(tasks)
+      last_few.extend(tasks)
       
       if i % 10 == 0:
         save_progress(tq, last_few)

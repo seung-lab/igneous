@@ -276,6 +276,6 @@ create_contrast_normalization_tasks(task_queue, src_path, dest_path, shape=None,
 
 It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks/tasks.py` for the most current information.  
 
-Please post an issue or PR if you think something needs to be addressed. 
+Please post an issue or PR if you think something needs to be addressed.  
 
 

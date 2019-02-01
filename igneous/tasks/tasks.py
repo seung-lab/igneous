@@ -692,9 +692,17 @@ class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""
   # translate = change of origin
 
-  def __init__(self, src_path, dest_path, shape, offset, mip, clip_fraction, fill_missing, translate):
-    super(ContrastNormalizationTask, self).__init__(src_path, dest_path,
-                                                    shape, offset, mip, clip_fraction, fill_missing, translate)
+  def __init__(
+    self, src_path, dest_path, levels_path, shape, 
+    offset, mip, clip_fraction, fill_missing, 
+    translate, minval, maxval
+  ):
+
+    super(ContrastNormalizationTask, self).__init__(
+      src_path, dest_path, levels_path, shape, offset, 
+      mip, clip_fraction, fill_missing, translate,
+      minval, maxval
+    )
     self.src_path = src_path
     self.dest_path = dest_path
     self.shape = Vec(*shape)
@@ -703,6 +711,10 @@ class ContrastNormalizationTask(RegisteredTask):
     self.translate = Vec(*translate)
     self.mip = int(mip)
     self.clip_fraction = float(clip_fraction)
+    self.minval = minval 
+    self.maxval = maxval
+
+    self.levels_path = levels_path if levels_path else self.src_path
 
     assert 0 <= self.clip_fraction <= 1
 
@@ -733,10 +745,14 @@ class ContrastNormalizationTask(RegisteredTask):
       image[:, :, imagez] = img
 
     image = np.round(image)
-    image = np.clip(image, 0.0, maxval).astype(destcv.dtype)
+
+    minval = self.minval if self.minval is not None else 0.0
+    maxval = self.maxval if self.maxval is not None else maxval
+
+    image = np.clip(image, minval, maxval).astype(destcv.dtype)
 
     bounds += self.translate
-    downsample_and_upload(image, bounds, destcv, self.shape)
+    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
   def find_section_clamping_values(self, zlevel, lowerfract, upperfract):
     filtered = np.copy(zlevel)
@@ -771,37 +787,48 @@ class ContrastNormalizationTask(RegisteredTask):
 
   def fetch_z_levels(self):
     bounds = Bbox(self.offset, self.shape[:3] + self.offset)
-    levelfilenames = ['levels/{}/{}'.format(self.mip, z)
-                      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)]
-    with Storage(self.src_path) as stor:
+
+    levelfilenames = [
+      'levels/{}/{}'.format(self.mip, z) \
+      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)
+    ]
+    
+    with Storage(self.levels_path) as stor:
       levels = stor.get_files(levelfilenames)
 
-    errors = [level['filename']
-              for level in levels if level['content'] == None]
+    errors = [ 
+      level['filename'] \
+      for level in levels if level['content'] == None
+    ]
+
     if len(errors):
       raise Exception(", ".join(
           errors) + " were not defined. Did you run a LuminanceLevelsTask for these slices?")
 
     levels = [(
-        int(os.path.basename(item['filename'])),
-        json.loads(item['content'].decode('utf-8'))
-    ) for item in levels]
+      int(os.path.basename(item['filename'])),
+      json.loads(item['content'].decode('utf-8'))
+    ) for item in levels ]
+
     levels.sort(key=lambda x: x[0])
     levels = [x[1] for x in levels]
-    return [np.array(x['levels'], dtype=np.uint64) for x in levels]
+    return [ np.array(x['levels'], dtype=np.uint64) for x in levels ]
 
 
 class LuminanceLevelsTask(RegisteredTask):
   """Generate a frequency count of luminance values by random sampling. Output to $PATH/levels/$MIP/$Z"""
 
-  def __init__(self, src_path, shape, offset, coverage_factor, mip):
+  def __init__(self, src_path, levels_path, shape, offset, coverage_factor, mip):
     super(LuminanceLevelsTask, self).__init__(
-        src_path, shape, offset, coverage_factor, mip)
+      src_path, levels_path, shape, 
+      offset, coverage_factor, mip
+    )
     self.src_path = src_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.coverage_factor = coverage_factor
     self.mip = int(mip)
+    self.levels_path = levels_path
 
     assert 0 < coverage_factor <= 1, "Coverage Factor must be between 0 and 1"
 
@@ -828,24 +855,24 @@ class LuminanceLevelsTask(RegisteredTask):
     biggest = bboxes[-1][1]
 
     output = {
-        "levels": levels.tolist(),
-        "patch_size": biggest.tolist(),
-        "num_patches": len(bboxes),
-        "coverage_ratio": covered_area / self.shape.rectVolume(),
+      "levels": levels.tolist(),
+      "patch_size": biggest.tolist(),
+      "num_patches": len(bboxes),
+      "coverage_ratio": covered_area / self.shape.rectVolume(),
     }
 
-    levels_path = os.path.join(self.src_path, 'levels')
-    with Storage(levels_path, n_threads=0) as stor:
+    path = self.levels_path if self.levels_path else self.src_path
+    path = os.path.join(path, 'levels')
+    with Storage(path, n_threads=0) as stor:
       stor.put_json(
-          file_path="{}/{}".format(self.mip, self.offset.z),
-          content=output,
-          cache_control='no-cache'
+        file_path="{}/{}".format(self.mip, self.offset.z),
+        content=output,
+        cache_control='no-cache'
       )
 
   def select_bounding_boxes(self, dataset_bounds):
-    # Sample 1024x1024x1 patches until coverage factor is
-    # satisfied. Ensure the patches are non-overlapping and
-    # random.
+    # Sample patches until coverage factor is satisfied. 
+    # Ensure the patches are non-overlapping and random.
     sample_shape = Bbox((0, 0, 0), (2048, 2048, 1))
     area = self.shape.rectVolume()
 

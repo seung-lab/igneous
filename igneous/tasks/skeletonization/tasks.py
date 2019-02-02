@@ -63,14 +63,8 @@ class SkeletonTask(RegisteredTask):
       teasar_params, will_postprocess, 
       info, object_ids, fix_branching
     )
-    self.cloudpath = cloudpath
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
-    self.mip = mip
-    self.teasar_params = teasar_params
-    self.will_postprocess = will_postprocess
-    self.cloudinfo = info
-    self.object_ids = object_ids
-    self.fix_branching = fix_branching
+
 
   def execute(self):
     vol = CloudVolume(self.cloudpath, mip=self.mip, info=self.cloudinfo, cdn_cache=False)
@@ -134,13 +128,6 @@ class SkeletonMergeTask(RegisteredTask):
       cloudpath, prefix, crop, mip, 
       dust_threshold, tick_threshold, delete_fragments
     )
-    self.cloudpath = cloudpath
-    self.prefix = prefix
-    self.crop_zone = crop # voxels
-    self.mip = mip
-    self.dust_threshold = dust_threshold # nm
-    self.tick_threshold = tick_threshold # nm
-    self.delete_fragments = delete_fragments
 
   def execute(self):
     self.vol = CloudVolume(self.cloudpath, mip=self.mip, cdn_cache=False)
@@ -196,7 +183,7 @@ class SkeletonMergeTask(RegisteredTask):
     bbxs = [ item[0] for item in skels ]
     skeletons = [ item[1] for item in skels ]
 
-    skeletons = self.crop(bbxs, skeletons)
+    skeletons = self.crop_skels(bbxs, skeletons)
     skeletons = [ s for s in skeletons if not s.empty() ]
 
     if len(skeletons) == 0:
@@ -204,16 +191,16 @@ class SkeletonMergeTask(RegisteredTask):
 
     return PrecomputedSkeleton.simple_merge(skeletons).consolidate()
 
-  def crop(self, bbxs, skeletons):
+  def crop_skels(self, bbxs, skeletons):
     cropped = [ s.clone() for s in skeletons ]
 
-    if self.crop_zone <= 0:
+    if self.crop <= 0:
       return cropped
     
     for i in range(len(skeletons)):
       bbx = bbxs[i] 
-      bbx.minpt += self.crop_zone * self.vol.resolution
-      bbx.maxpt -= self.crop_zone * self.vol.resolution
+      bbx.minpt += self.crop * self.vol.resolution
+      bbx.maxpt -= self.crop * self.vol.resolution
 
       if bbx.volume() <= 0:
         continue

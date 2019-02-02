@@ -65,9 +65,8 @@ class SkeletonTask(RegisteredTask):
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
 
-
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip, info=self.cloudinfo, cdn_cache=False)
+    vol = CloudVolume(self.cloudpath, mip=self.mip, info=self.info, cdn_cache=False)
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     path = skeldir(self.cloudpath)

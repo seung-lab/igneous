@@ -84,9 +84,9 @@ class SkeletonTask(RegisteredTask):
     )
 
     for segid, skel in six.iteritems(skeletons):
-      skel.vertices[:,0] += bbox.minpt.x
-      skel.vertices[:,1] += bbox.minpt.y
-      skel.vertices[:,2] += bbox.minpt.z
+      skel.vertices[:,0] += bbox.minpt.x * vol.resolution.x
+      skel.vertices[:,1] += bbox.minpt.y * vol.resolution.y
+      skel.vertices[:,2] += bbox.minpt.z * vol.resolution.z
 
     self.upload(vol, path, bbox, skeletons.values())
       

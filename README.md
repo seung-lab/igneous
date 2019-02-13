@@ -139,7 +139,18 @@ Whether image or segmentation type downsampling will be used is determined from 
 
 ```python3
 # Signature
-create_downsampling_tasks(task_queue, layer_path, mip=-1, fill_missing=False, axis='z', num_mips=5, preserve_chunk_size=True, sparse=False)
+create_downsampling_tasks(task_queue, 
+    layer_path, 
+    mip=0, # Start downsampling from this mip level (writes to next level up)
+    fill_missing=False, # Ignore missing chunks and fill them with black
+    axis='z', 
+    num_mips=5, # number of downsamples to produce. Downloaded shape is chunk_size * 2^num_mip
+    chunk_size=None, # manually set chunk size of next scales, overrides preserve_chunk_size
+    preserve_chunk_size=True, # use existing chunk size, don't halve to get more downsamples
+    sparse=False, # for sparse segmentation, allow inflation of pixels against background
+    bounds=None, # mip 0 bounding box to downsample 
+    encoding=None # e.g. 'raw', 'compressed_segmentation', etc
+  ):
 ```
 
 1. layer_path 

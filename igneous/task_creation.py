@@ -181,9 +181,8 @@ def create_downsample_scales(
   return vol.commit_info()
 
 def create_downsampling_tasks(
-    task_queue, layer_path, 
-    mip=0, fill_missing=False, axis='z', 
-    num_mips=5, preserve_chunk_size=True,
+    layer_path, mip=0, fill_missing=False, 
+    axis='z', num_mips=5, preserve_chunk_size=True,
     sparse=False, bounds=None, chunk_size=None,
     encoding=None
   ):
@@ -222,73 +221,79 @@ def create_downsampling_tasks(
 
     bounds = get_bounds(vol, bounds, shape, mip, vol.chunk_size)
     
-    total = reduce(operator.mul, np.ceil(bounds.size3() / shape))
-    for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Downsample Tasks", total=total):
-      task = DownsampleTask(
-        layer_path=layer_path,
-        mip=vol.mip,
-        shape=shape.clone(),
-        offset=startpt.clone(),
-        axis=axis,
-        fill_missing=fill_missing,
-        sparse=sparse,
-      )
-      task_queue.insert(task)
+    class DownsampleTaskIterator():
+      def __len__(self):
+        return reduce(operator.mul, np.ceil(bounds.size3() / shape))
+      def __iter__(self):
+        for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
+          yield DownsampleTask(
+            layer_path=layer_path,
+            mip=vol.mip,
+            shape=shape.clone(),
+            offset=startpt.clone(),
+            axis=axis,
+            fill_missing=fill_missing,
+            sparse=sparse,
+          )
 
-    task_queue.wait('Uploading')
-    vol.provenance.processing.append({
-      'method': {
-        'task': 'DownsampleTask',
-        'mip': mip,
-        'shape': shape.tolist(),
-        'axis': axis,
-        'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
-        'sparse': sparse,
-        'bounds': str(bounds),
-        'chunk_size': (list(chunk_size) if chunk_size else None),
-        'preserve_chunk_size': preserve_chunk_size,
-      },
-      'by': OPERATOR_CONTACT,
-      'date': strftime('%Y-%m-%d %H:%M %Z'),
-    })
-    vol.commit_provenance()
+        vol.provenance.processing.append({
+          'method': {
+            'task': 'DownsampleTask',
+            'mip': mip,
+            'shape': shape.tolist(),
+            'axis': axis,
+            'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
+            'sparse': sparse,
+            'bounds': str(bounds),
+            'chunk_size': (list(chunk_size) if chunk_size else None),
+            'preserve_chunk_size': preserve_chunk_size,
+          },
+          'by': OPERATOR_CONTACT,
+          'date': strftime('%Y-%m-%d %H:%M %Z'),
+        })
+        vol.commit_provenance()
 
-def create_deletion_tasks(task_queue, layer_path, mip=0, num_mips=5):
+    return DownsampleTaskIterator()
+
+def create_deletion_tasks(layer_path, mip=0, num_mips=5):
   vol = CloudVolume(layer_path)
   
   shape = vol.mip_underlying(mip)[:3]
   shape.x *= 2 ** num_mips
   shape.y *= 2 ** num_mips
 
-  total_tasks = reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Deletion Tasks", total=total_tasks):
-    bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
-    task = DeleteTask(
-      layer_path=layer_path,
-      shape=bounded_shape.clone(),
-      offset=startpt.clone(),
-      mip=mip,
-      num_mips=num_mips,
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading DeleteTasks')
+  class DeleteTaskIterator():
+    def __len__(self):
+      return reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+    def __iter__(self):
+      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
+        bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
+        yield DeleteTask(
+          layer_path=layer_path,
+          shape=bounded_shape.clone(),
+          offset=startpt.clone(),
+          mip=mip,
+          num_mips=num_mips,
+        )
 
-  vol = CloudVolume(layer_path)
-  vol.provenance.processing.append({
-    'method': {
-      'task': 'DeleteTask',
-      'mip': mip,
-      'num_mips': num_mips,
-      'shape': shape.tolist(),
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  })
-  vol.commit_provenance()
+      vol = CloudVolume(layer_path)
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'DeleteTask',
+          'mip': mip,
+          'num_mips': num_mips,
+          'shape': shape.tolist(),
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      vol.commit_provenance()
+
+  return DeleteTaskIterator()
 
 
 def create_meshing_tasks(
-    task_queue, layer_path, mip, 
+    layer_path, mip, 
     shape=Vec(512, 512, 64), max_simplification_error=40,
     mesh_dir=None, cdn_cache=False 
   ):
@@ -303,33 +308,37 @@ def create_meshing_tasks(
     vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Mesh Tasks"):
-    task = MeshTask(
-      shape.clone(),
-      startpt.clone(),
-      layer_path,
-      mip=vol.mip,
-      max_simplification_error=max_simplification_error,
-      mesh_dir=mesh_dir, 
-      cache_control=('' if cdn_cache else 'no-cache'),
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading MeshTasks')
+  class MeshTaskIterator():
+    def __len__(self):
+      return reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+    def __iter__(self):
+      for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Mesh Tasks"):
+        yield MeshTask(
+          shape.clone(),
+          startpt.clone(),
+          layer_path,
+          mip=vol.mip,
+          max_simplification_error=max_simplification_error,
+          mesh_dir=mesh_dir, 
+          cache_control=('' if cdn_cache else 'no-cache'),
+        )
 
-  vol.provenance.processing.append({
-    'method': {
-      'task': 'MeshTask',
-      'layer_path': layer_path,
-      'mip': vol.mip,
-      'shape': shape.tolist(),
-      'max_simplification_error': max_simplification_error,
-      'mesh_dir': mesh_dir,
-      'cdn_cache': cdn_cache,
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  vol.commit_provenance()
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'MeshTask',
+          'layer_path': layer_path,
+          'mip': vol.mip,
+          'shape': shape.tolist(),
+          'max_simplification_error': max_simplification_error,
+          'mesh_dir': mesh_dir,
+          'cdn_cache': cdn_cache,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
+
+  return MeshTaskIterator()
 
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 

@@ -332,7 +332,7 @@ def create_meshing_tasks(
   vol.commit_provenance()
 
 def create_transfer_tasks(
-    task_queue, src_layer_path, dest_layer_path, 
+    src_layer_path, dest_layer_path, 
     chunk_size=None, shape=Vec(2048, 2048, 64), 
     fill_missing=False, translate=(0,0,0), 
     bounds=None, mip=0, preserve_chunk_size=True
@@ -371,46 +371,49 @@ def create_transfer_tasks(
     bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
     bounds = Bbox.clamp(bounds, vol.bounds)
 
-  total = int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
-  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Transfer Tasks", total=total):
-    task = TransferTask(
-      src_path=src_layer_path,
-      dest_path=dest_layer_path,
-      shape=shape.clone(),
-      offset=startpt.clone(),
-      fill_missing=fill_missing,
-      translate=translate,
-      mip=mip,
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading Transfer Tasks')
+  class TransferTaskIterator(object):
+    def __len__(self):
+      return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
+    def __iter__(self):
+      for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
+        yield TransferTask(
+          src_path=src_layer_path,
+          dest_path=dest_layer_path,
+          shape=shape.clone(),
+          offset=startpt.clone(),
+          fill_missing=fill_missing,
+          translate=translate,
+          mip=mip,
+        )
 
-  job_details = {
-    'method': {
-      'task': 'TransferTask',
-      'src': src_layer_path,
-      'dest': dest_layer_path,
-      'shape': list(map(int, shape)),
-      'fill_missing': fill_missing,
-      'translate': list(map(int, translate)),
-      'bounds': [
-        bounds.minpt.tolist(),
-        bounds.maxpt.tolist()
-      ],
-      'mip': mip,
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }
+      job_details = {
+        'method': {
+          'task': 'TransferTask',
+          'src': src_layer_path,
+          'dest': dest_layer_path,
+          'shape': list(map(int, shape)),
+          'fill_missing': fill_missing,
+          'translate': list(map(int, translate)),
+          'bounds': [
+            bounds.minpt.tolist(),
+            bounds.maxpt.tolist()
+          ],
+          'mip': mip,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }
 
-  dvol = CloudVolume(dest_layer_path)
-  dvol.provenance.sources = [ src_layer_path ]
-  dvol.provenance.processing.append(job_details) 
-  dvol.commit_provenance()
+      dvol = CloudVolume(dest_layer_path)
+      dvol.provenance.sources = [ src_layer_path ]
+      dvol.provenance.processing.append(job_details) 
+      dvol.commit_provenance()
 
-  if vol.path.protocol != 'boss':
-    vol.provenance.processing.append(job_details)
-    vol.commit_provenance()
+      if vol.path.protocol != 'boss':
+        vol.provenance.processing.append(job_details)
+        vol.commit_provenance()
+
+  return TransferTaskIterator()
 
 def create_contrast_normalization_tasks(
     task_queue, src_path, dest_path, levels_path=None,

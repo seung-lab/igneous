@@ -89,7 +89,9 @@ def test_downsample_no_offset():
 
     cv.commit_info()
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=4)
+    tq = MockTaskQueue()
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=4)
+    tq.insert_all(tasks)
 
     cv.refresh_info()
 
@@ -130,7 +132,9 @@ def test_downsample_with_offset():
 
     cv.commit_info()
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=3)
+    tq = MockTaskQueue()
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3)
+    tq.insert_all(tasks)
 
     cv.refresh_info()
 
@@ -167,12 +171,16 @@ def test_downsample_w_missing():
 
     cv.commit_info()
 
+    tq = MockTaskQueue()
+
     try:
-        create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=3, fill_missing=False)
+        tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3, fill_missing=False)
+        tq.insert_all(tasks)
     except EmptyVolumeException:
         pass
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=3, fill_missing=True)
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3, fill_missing=True)
+    tq.insert_all(tasks)
 
     cv.refresh_info()
 
@@ -194,12 +202,16 @@ def test_downsample_higher_mip():
     cv = CloudVolume(storage.layer_path)
     cv.info['scales'] = cv.info['scales'][:1]
     
+    tq = MockTaskQueue()
+
     cv.commit_info()
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=2)
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=2)
+    tq.insert_all(tasks)
     cv.refresh_info()
     assert len(cv.available_mips) == 3
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=1, num_mips=2)
+    tasks = create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=1, num_mips=2)
+    tq.insert_all(tasks)
     cv.refresh_info()
     assert len(cv.available_mips) == 4
 
@@ -350,20 +362,19 @@ def test_luminance_levels_task():
         layer_type="image", layer_name='luminance_levels'
     )
 
-    with MockTaskQueue() as tq:
-        tc.create_luminance_levels_tasks(tq, 
-            layer_path=layer_path,
-            coverage_factor=0.01, 
-            shape=None, 
-            offset=(0,0,0), 
-            mip=0
-        )
-
+    tq = MockTaskQueue()
+    tasks = tc.create_luminance_levels_tasks( 
+        layer_path=layer_path,
+        coverage_factor=0.01, 
+        shape=None, 
+        offset=(0,0,0), 
+        mip=0
+    )
+    tq.insert_all(tasks)
 
     gt = [ 0 ] * 256
     for x,y,z in lib.xyzrange( (0,0,0), list(imgd.shape[:2]) + [1] ):
         gt[ imgd[x,y,0,0] ] += 1
-
 
     with open('/tmp/removeme/luminance_levels/levels/0/0', 'rt') as f:
         levels = f.read()

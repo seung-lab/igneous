@@ -452,48 +452,51 @@ def create_contrast_normalization_tasks(
 
   bounds = get_bounds(srcvol, bounds, shape, mip)
 
-  for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Contrast Normalization Tasks"):
-    task_shape = min2(shape.clone(), srcvol.bounds.maxpt - startpt)
-    task = ContrastNormalizationTask( 
-      src_path=src_path, 
-      dest_path=dest_path,
-      levels_path=levels_path,
-      shape=task_shape, 
-      offset=startpt.clone(), 
-      clip_fraction=clip_fraction,
-      mip=mip,
-      fill_missing=fill_missing,
-      translate=translate,
-      minval=minval,
-      maxval=maxval,
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading Contrast Normalization Tasks')
+  class ContrastNormalizationTaskIterator(object):
+    def __len__(self):
+      return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
+    def __iter__(self):
+      for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Contrast Normalization Tasks"):
+        task_shape = min2(shape.clone(), srcvol.bounds.maxpt - startpt)
+        yield ContrastNormalizationTask( 
+          src_path=src_path, 
+          dest_path=dest_path,
+          levels_path=levels_path,
+          shape=task_shape, 
+          offset=startpt.clone(), 
+          clip_fraction=clip_fraction,
+          mip=mip,
+          fill_missing=fill_missing,
+          translate=translate,
+          minval=minval,
+          maxval=maxval,
+        )
+        
+      dvol.provenance.processing.append({
+        'method': {
+          'task': 'ContrastNormalizationTask',
+          'src_path': src_path,
+          'dest_path': dest_path,
+          'shape': Vec(*shape).tolist(),
+          'clip_fraction': clip_fraction,
+          'mip': mip,
+          'translate': Vec(*translate).tolist(),
+          'minval': minval,
+          'maxval': maxval,
+          'bounds': [
+            bounds.minpt.tolist(),
+            bounds.maxpt.tolist()
+          ],
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      dvol.commit_provenance()
 
-  dvol.provenance.processing.append({
-    'method': {
-      'task': 'ContrastNormalizationTask',
-      'src_path': src_path,
-      'dest_path': dest_path,
-      'shape': Vec(*shape).tolist(),
-      'clip_fraction': clip_fraction,
-      'mip': mip,
-      'translate': Vec(*translate).tolist(),
-      'minval': minval,
-      'maxval': maxval,
-      'bounds': [
-        bounds.minpt.tolist(),
-        bounds.maxpt.tolist()
-      ],
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  dvol.commit_provenance()
+  return ContrastNormalizationTaskIterator()
 
 def create_luminance_levels_tasks(
-    task_queue, layer_path, 
-    levels_path=None, coverage_factor=0.01, 
+    layer_path, levels_path=None, coverage_factor=0.01, 
     shape=None, offset=(0,0,0), mip=0, bounds=None
   ):
   """
@@ -526,46 +529,54 @@ def create_luminance_levels_tasks(
 
   bounds = get_bounds(vol, bounds, shape, mip)
 
-  for z in range(bounds.minpt.z, bounds.maxpt.z + 1):
-    zoffset.z = z
-    task = LuminanceLevelsTask( 
-      src_path=layer_path, 
-      levels_path=levels_path,
-      shape=shape, 
-      offset=zoffset, 
-      coverage_factor=coverage_factor,
-      mip=mip,
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading Luminance Levels Tasks')
+  class LuminanceLevelsTaskIterator(object):
+    def __len__(self):
+      return bounds.maxpt.z - bounds.minpt.z
+    def __iter__(self):
+      for z in range(bounds.minpt.z, bounds.maxpt.z + 1):
+        zoffset.z = z
+        yield LuminanceLevelsTask( 
+          src_path=layer_path, 
+          levels_path=levels_path,
+          shape=shape, 
+          offset=zoffset, 
+          coverage_factor=coverage_factor,
+          mip=mip,
+        )
 
-  if levels_path:
-    try:
-      vol = CloudVolume(levels_path)
-    except cloudvolume.exceptions.InfoUnavailableError:
-      vol = CloudVolume(levels_path, info=vol.info)
+      if vol.path.protocol == 'boss':
+        raise StopIteration()
 
-  if vol.path.protocol != 'boss':
-    vol.provenance.processing.append({
-      'method': {
-        'task': 'LuminanceLevelsTask',
-        'src': layer_path,
-        'levels_path': levels_path,
-        'shape': Vec(*shape).tolist(),
-        'offset': Vec(*offset).tolist(),
-        'bounds': [
-          bounds.minpt.tolist(),
-          bounds.maxpt.tolist()
-        ],
-        'coverage_factor': coverage_factor,
-        'mip': mip,
-      },
-      'by': OPERATOR_CONTACT,
-      'date': strftime('%Y-%m-%d %H:%M %Z'),
-    }) 
-    vol.commit_provenance()
+      if levels_path:
+        try:
+          vol = CloudVolume(levels_path)
+        except cloudvolume.exceptions.InfoUnavailableError:
+          vol = CloudVolume(levels_path, info=vol.info)
+      
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'LuminanceLevelsTask',
+          'src': layer_path,
+          'levels_path': levels_path,
+          'shape': Vec(*shape).tolist(),
+          'offset': Vec(*offset).tolist(),
+          'bounds': [
+            bounds.minpt.tolist(),
+            bounds.maxpt.tolist()
+          ],
+          'coverage_factor': coverage_factor,
+          'mip': mip,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
 
-def create_watershed_remap_tasks(task_queue, map_path, src_layer_path, dest_layer_path, shape=Vec(2048, 2048, 64)):
+  return LuminanceLevelsTaskIterator()
+
+def create_watershed_remap_tasks(
+  map_path, src_layer_path, dest_layer_path, 
+  shape=Vec(2048, 2048, 64)):
   shape = Vec(*shape)
   vol = CloudVolume(src_layer_path)
 
@@ -678,7 +689,7 @@ def create_quantize_tasks(
   destvol.commit_provenance()
 
 # split the work up into ~1000 tasks (magnitude 3)
-def create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3):
+def create_mesh_manifest_tasks(layer_path, magnitude=3):
   assert int(magnitude) == magnitude
 
   start = 10 ** (magnitude - 1)
@@ -687,18 +698,26 @@ def create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3):
   # For a prefix like 100, tasks 1-99 will be missed. Account for them by
   # enumerating them individually with a suffixed ':' to limit matches to
   # only those small numbers
-  for prefix in range(1, start):
-    task = MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':')
-    task_queue.insert(task)
 
-  # enumerate from e.g. 100 to 999
-  for prefix in range(start, end):
-    task = MeshManifestTask(layer_path=layer_path, prefix=prefix)
-    task_queue.insert(task)
+  class MeshManifestTaskIterator(object):
+    def __len__(self):
+      return 10 ** magnitude
+    def __iter__(self):
+      for prefix in range(1, start):
+        yield MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':')
 
-  task_queue.wait('Uploading Manifest Tasks')
+      # enumerate from e.g. 100 to 999
+      for prefix in range(start, end):
+        yield MeshManifestTask(layer_path=layer_path, prefix=prefix)
 
-def create_hypersquare_ingest_tasks(task_queue, hypersquare_bucket_name, dataset_name, hypersquare_chunk_size, resolution, voxel_offset, volume_size, overlap):
+  return MeshManifestTaskIterator()
+
+def create_hypersquare_ingest_tasks(
+    hypersquare_bucket_name, dataset_name, 
+    hypersquare_chunk_size, resolution, 
+    voxel_offset, volume_size, overlap
+  ):
+  
   def crtinfo(layer_type, dtype, encoding):
     return CloudVolume.create_new_info(
       num_channels=1,
@@ -746,14 +765,21 @@ def create_hypersquare_ingest_tasks(task_queue, hypersquare_bucket_name, dataset
 
   volumes_listing = [ x.split('/')[-2] for x in volumes_listing ]
 
-  for cloudpath in tqdm(volumes_listing, desc="Creating Ingest Tasks"):
-    # print(cloudpath)
-    # img_task = crttask(cloudpath, 'image', IMG_LAYER_NAME)
-    seg_task = crttask(cloudpath, 'segmentation', SEG_LAYER_NAME)
-    # seg_task.execute()
-    tq.insert(seg_task)
+  class CreateHypersquareIngestTaskIterator(object):
+    def __len__(self):
+      return len(volumes_listing)
+    def __iter__(self):
+      for cloudpath in volumes_listing:
+        # img_task = crttask(cloudpath, 'image', IMG_LAYER_NAME)
+        yield crttask(cloudpath, 'segmentation', SEG_LAYER_NAME)
+        # seg_task.execute()
 
-def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_map_file, consensus_map_path):
+  return CreateHypersquareIngestTaskIterator()
+
+def create_hypersquare_consensus_tasks(
+    src_path, dest_path, 
+    volume_map_file, consensus_map_path
+  ):
   """
   Transfer an Eyewire consensus into neuroglancer. This first requires
   importing the raw segmentation via a hypersquare ingest task. However,
@@ -771,21 +797,25 @@ def create_hypersquare_consensus_tasks(task_queue, src_path, dest_path, volume_m
 
   vol = CloudVolume(dest_path)
 
-  for boundstr, volume_id in tqdm(volume_map.items(), desc="Inserting HyperSquare Consensus Remap Tasks"):
-    bbox = Bbox.from_filename(boundstr)
-    bbox.minpt = Vec.clamp(bbox.minpt, vol.bounds.minpt, vol.bounds.maxpt)
-    bbox.maxpt = Vec.clamp(bbox.maxpt, vol.bounds.minpt, vol.bounds.maxpt)
+  class HyperSquareConsensusTaskIterator(object):
+    def __len__(self):
+      return len(volume_map)
+    def __iter__(self):
+      for boundstr, volume_id in volume_map.items():
+        bbox = Bbox.from_filename(boundstr)
+        bbox.minpt = Vec.clamp(bbox.minpt, vol.bounds.minpt, vol.bounds.maxpt)
+        bbox.maxpt = Vec.clamp(bbox.maxpt, vol.bounds.minpt, vol.bounds.maxpt)
 
-    task = HyperSquareConsensusTask(
-      src_path=src_path,
-      dest_path=dest_path,
-      ew_volume_id=int(volume_id),
-      consensus_map_path=consensus_map_path,
-      shape=bbox.size3(),
-      offset=bbox.minpt.clone(),
-    )
-    task_queue.insert(task)
-  task_queue.wait()
+        yield HyperSquareConsensusTask(
+          src_path=src_path,
+          dest_path=dest_path,
+          ew_volume_id=int(volume_id),
+          consensus_map_path=consensus_map_path,
+          shape=bbox.size3(),
+          offset=bbox.minpt.clone(),
+        )
+
+  return HyperSquareConsensusTaskIterator()
 
 def create_mask_affinity_map_tasks(task_queue, aff_input_layer_path, aff_output_layer_path, 
         aff_mip, mask_layer_path, mask_mip, output_block_start, output_block_size, grid_size ):

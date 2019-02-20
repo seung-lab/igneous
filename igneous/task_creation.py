@@ -528,6 +528,7 @@ def create_luminance_levels_tasks(
   zoffset = offset.clone()
 
   bounds = get_bounds(vol, bounds, shape, mip)
+  protocol = vol.path.protocol
 
   class LuminanceLevelsTaskIterator(object):
     def __len__(self):
@@ -544,7 +545,7 @@ def create_luminance_levels_tasks(
           mip=mip,
         )
 
-      if vol.path.protocol == 'boss':
+      if protocol == 'boss':
         raise StopIteration()
 
       if levels_path:
@@ -552,6 +553,8 @@ def create_luminance_levels_tasks(
           vol = CloudVolume(levels_path)
         except cloudvolume.exceptions.InfoUnavailableError:
           vol = CloudVolume(levels_path, info=vol.info)
+      else:
+        vol = CloudVolume(layer_path, mip=mip)
       
       vol.provenance.processing.append({
         'method': {

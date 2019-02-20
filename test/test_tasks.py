@@ -210,7 +210,7 @@ def test_downsample_higher_mip():
     cv.refresh_info()
     assert len(cv.available_mips) == 3
 
-    tasks = create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=1, num_mips=2)
+    tasks = create_downsampling_tasks(storage.layer_path, mip=1, num_mips=2)
     tq.insert_all(tasks)
     cv.refresh_info()
     assert len(cv.available_mips) == 4

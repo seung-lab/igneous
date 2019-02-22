@@ -10,9 +10,6 @@ import numpy as np
 # NOTE: If _mesher.cpp does not exist, you must run
 # cython --cplus -I./ext/third_party/zi_lib/ ./ext/third_party/mc/_mesher.pyx
 
-# NOTE: If fastremap.cpp does not exist, you must run
-# cython --cplus ./ext/remap/fastremap.pyx
-
 third_party_dir = './ext/third_party'
 
 setuptools.setup(
@@ -32,15 +29,6 @@ setuptools.setup(
             extra_compile_args=[
               '-std=c++11','-O3'
             ]), #don't use  '-fvisibility=hidden', python can't see init module
-        setuptools.Extension(
-            'fastremap',
-            sources=[ './ext/remap/fastremap.cpp' ],
-            depends=[],
-            language='c++',
-            include_dirs=[np.get_include()],
-            extra_compile_args=[
-              '-std=c++11', '-O3'
-            ]) #don't use  '-fvisibility=hidden', python can't see init module
     ],
 )
 

@@ -33,6 +33,7 @@ from igneous.tasks import (
 
 # for provenance files
 
+OPERATOR_CONTACT = ''
 if __name__ == '__main__':
   try:
     OPERATOR_CONTACT = subprocess.check_output("git config user.email", shell=True)
@@ -60,7 +61,7 @@ def get_bounds(vol, bounds, shape, mip, chunk_size=None):
 
   return bounds
 
-def create_ingest_task(cloudpath):
+def create_ingest_tasks(cloudpath):
   """
   Creates one task for each ingest chunk present in the build folder.
   It is required that the info file is already placed in order for this task
@@ -889,7 +890,7 @@ def create_mask_affinity_map_tasks(
         })
         vol.commit_provenance()
 
-  return MaskAffinityMapTaskIterator()
+    return MaskAffinityMapTaskIterator()
 
 
 def create_inference_tasks(
@@ -953,7 +954,7 @@ def create_inference_tasks(
         })
         vol.commit_provenance()
 
-  return InferenceTaskIterator()
+    return InferenceTaskIterator()
 
 
 def upload_build_chunks(storage, volume, offset=[0, 0, 0], build_chunk_size=[1024,1024,128]):

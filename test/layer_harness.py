@@ -6,8 +6,10 @@ import numpy as np
 import os
 
 from cloudvolume import Storage
-from igneous.task_creation import (upload_build_chunks, create_info_file_from_build,
-    create_ingest_task, MockTaskQueue)
+from igneous.task_creation import (
+    upload_build_chunks, create_info_file_from_build,
+    create_ingest_tasks, MockTaskQueue
+)
 
 layer_path = '/tmp/removeme/'
 
@@ -38,7 +40,8 @@ def upload_image(image, offset, layer_type, layer_name):
     upload_build_chunks(storage, image, offset)
     # Jpeg encoding is lossy so it won't work
     create_info_file_from_build(storage.layer_path, layer_type=layer_type, encoding="raw", resolution=[1,1,1])
-    create_ingest_task(storage, MockTaskQueue())
+    tasks = create_ingest_tasks(storage.layer_path)
+    MockTaskQueue().insert_all(tasks)
     return storage
 
 def delete_layer(path=layer_path):

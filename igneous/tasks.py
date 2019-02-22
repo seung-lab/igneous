@@ -93,18 +93,6 @@ def cache(task, cloudpath):
 
   return filestr
 
-
-class PrintTask(RegisteredTask):
-  """For testing the task_execution.py script."""
-
-  def __init__(self, index):
-    super(PrintTask, self).__init__(index)
-    self.index = index
-
-  def execute(self):
-    print(self.index)
-
-
 class IngestTask(RegisteredTask):
   """Ingests and does downsampling.
      We want tasks execution to be independent of each other, so that no synchronization is

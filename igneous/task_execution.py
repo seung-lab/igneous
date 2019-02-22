@@ -6,7 +6,7 @@ import time
 import traceback
 
 import click
-from taskqueue import TaskQueue
+from taskqueue import TaskQueue, QueueEmpty
 
 from igneous import EmptyVolumeException
 from igneous import logger
@@ -76,7 +76,7 @@ def execute(tag, queue, server, qurl, loop):
         tq.delete(task)
         logger.log('INFO', task , "succesfully executed")
         tries = 0
-      except TaskQueue.QueueEmpty:
+      except QueueEmpty:
         time.sleep(random_exponential_window_backoff(tries))
         continue
       except EmptyVolumeException:

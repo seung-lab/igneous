@@ -231,7 +231,7 @@ def create_downsampling_tasks(
     
     class DownsampleTaskIterator():
       def __len__(self):
-        return reduce(operator.mul, np.ceil(bounds.size3() / shape))
+        return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
       def __iter__(self):
         for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
           yield DownsampleTask(

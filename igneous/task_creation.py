@@ -425,7 +425,7 @@ def create_transfer_tasks(
   return TransferTaskIterator()
 
 def create_contrast_normalization_tasks(
-    task_queue, src_path, dest_path, levels_path=None,
+    src_path, dest_path, levels_path=None,
     shape=None, mip=0, clip_fraction=0.01, 
     fill_missing=False, translate=(0,0,0),
     minval=None, maxval=None, bounds=None
@@ -456,7 +456,7 @@ def create_contrast_normalization_tasks(
     def __len__(self):
       return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
     def __iter__(self):
-      for startpt in tqdm(xyzrange( bounds.minpt, bounds.maxpt, shape ), desc="Inserting Contrast Normalization Tasks"):
+      for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
         task_shape = min2(shape.clone(), srcvol.bounds.maxpt - startpt)
         yield ContrastNormalizationTask( 
           src_path=src_path, 

@@ -452,7 +452,8 @@ def create_contrast_normalization_tasks(
   if shape == None:
     shape = Bbox( (0,0,0), (2048, 2048, 64) )
     shape = shape.shrink_to_chunk_size(dvol.underlying).size3()
-
+    shape = Vec.clamp(shape, (1,1,1), bounds.size3() )
+  
   shape = Vec(*shape)
 
   create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)

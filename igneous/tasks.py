@@ -778,7 +778,7 @@ class ContrastNormalizationTask(RegisteredTask):
 
     levelfilenames = [
       'levels/{}/{}'.format(self.mip, z) \
-      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)
+      for z in range(bounds.minpt.z, bounds.maxpt.z)
     ]
     
     with Storage(self.levels_path) as stor:

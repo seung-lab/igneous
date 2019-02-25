@@ -13,15 +13,6 @@ from igneous import logger
 
 from igneous.secrets import QUEUE_NAME, QUEUE_TYPE, SQS_URL, LEASE_SECONDS
 
-LOOP = True
-
-def handler(signum, frame):
-  global LOOP
-  print("Interrupted. Exiting.")  
-  LOOP = False
-
-signal.signal(signal.SIGINT, handler)
-
 @click.command()
 @click.option('--tag', default='',  help='kind of task to execute')
 @click.option('-m', default=False,  help='Run in parallel.', is_flag=True)

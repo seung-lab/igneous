@@ -12,7 +12,7 @@ from taskqueue import MockTaskQueue
 from igneous import (
     DownsampleTask, MeshTask, MeshManifestTask, 
     QuantizeTask, HyperSquareConsensusTask,
-    DeleteTask
+    DeleteTask, BlackoutTask
 )
 from igneous import downsample
 import igneous.task_creation as tc
@@ -234,6 +234,46 @@ def test_delete():
     assert '1_1_1/0-64_0-64_0-64' not in fnames
     assert '1_1_1/64-128_0-64_0-64' not in fnames
 
+def test_blackout_tasks():
+    delete_layer()
+    storage, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="image")
+    cv = CloudVolume(storage.layer_path)
+
+    BlackoutTask(
+        cloudpath=storage.layer_path,
+        mip=0,
+        offset=(0,0,0),
+        shape=(128, 64, 64),
+        value=11,
+        non_aligned_writes=False
+    ).execute()
+
+    img = cv[:,:,:]
+    assert np.all(img == 11)
+
+    BlackoutTask(
+        cloudpath=storage.layer_path,
+        mip=0,
+        offset=(0,0,0),
+        shape=(37, 64, 64),
+        value=23,
+        non_aligned_writes=True
+    ).execute()
+
+    img = cv[:37,:,:]
+    assert np.all(img == 23)
+
+    img = cv[:]
+    items, counts = np.unique(img, return_counts=True)
+    counts = {
+        items[0]: counts[0],
+        items[1]: counts[1]
+    }
+
+    twenty_threes = 37 * 64 * 64
+    assert counts[23] == twenty_threes
+    assert counts[11] == (128 * 64 * 64) - twenty_threes
+    
 
 def test_mesh():
     delete_layer()

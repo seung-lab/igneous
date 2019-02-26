@@ -152,12 +152,38 @@ class DeleteTask(RegisteredTask):
 
       vol.delete(bbox)
 
+class BlackoutTask(RegisteredTask):
+  def __init__(
+    self, cloudpath, mip, shape, offset, 
+    value=0, non_aligned_writes=False
+  ):
+    super(BlackoutTask, self).__init__(
+      cloudpath, mip, shape, 
+      offset, value, non_aligned_writes
+    )
+  def execute(self):
+    vol = CloudVolume(self.cloudpath, self.mip, non_aligned_writes=self.non_aligned_writes)
+    bounds = Bbox(self.offset, self.shape + self.offset)
+    bounds = Bbox.clamp(bounds, vol.bounds)
+    img = np.zeros(bounds.size3(), dtype=vol.dtype) + self.value
+    vol[bounds] = img
+
+class TouchTask(RegisteredTask):
+  def __init__(self, cloudpath, mip, shape, offset):
+    super(TouchTask, self).__init__(cloudpath, mip, shape, offset)
+  
+  def execute(self):
+    # This could be made more sophisticated using exists
+    vol = CloudVolume(self.cloudpath, self.mip, fill_missing=False)
+    bounds = Bbox(self.offset, self.shape + self.offset)
+    bounds = Bbox.clamp(bounds, vol.bounds)
+    image = vol[bounds]
 
 class DownsampleTask(RegisteredTask):
-  def __init__(self, 
-    layer_path, mip, shape, offset, 
-    fill_missing=False, axis='z', sparse=False):
-
+  def __init__(
+    self, layer_path, mip, shape, offset, 
+    fill_missing=False, axis='z', sparse=False
+  ):
     super(DownsampleTask, self).__init__(
       layer_path, mip, shape, offset, 
       fill_missing, axis, sparse

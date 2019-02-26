@@ -22,6 +22,7 @@ from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_diviso
 from taskqueue import TaskQueue, MockTaskQueue 
 
 from igneous import downsample_scales, chunks
+import igneous.tasks
 from igneous.tasks import (
   IngestTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
@@ -187,6 +188,100 @@ def create_downsample_scales(
     vol.scales[i]['chunk_sizes'] = chunk_size
 
   return vol.commit_info()
+
+def create_blackout_tasks(
+    cloudpath, bounds, 
+    mip=0, shape=(2048, 2048, 64), 
+    value=0, non_aligned_writes=False
+  ):
+
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  shape = Vec(*shape)
+  bounds = Bbox.create(bounds)
+  bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+  bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
+
+  class BlackoutTaskIterator():
+    def __len__(self):
+      return num_tasks(bounds, shape)
+    def __iter__(self):
+      for startpt in xyzrange(bounds.minpt, bounds.maxpt, shape):
+        bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
+        yield igneous.tasks.BlackoutTask(
+          cloudpath=cloudpath, 
+          mip=mip, 
+          shape=shape.clone(), 
+          offset=startpt.clone(),
+          value=value, 
+          non_aligned_writes=non_aligned_writes,
+        )
+
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'BlackoutTask',
+          'cloudpath': cloudpath,
+          'mip': mip,
+          'non_aligned_writes': non_aligned_writes,
+          'value': value,
+          'shape': shape.tolist(),
+          'bounds': [
+            bounds.minpt.tolist(),
+            bounds.maxpt.tolist(),
+          ],
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+
+  return BlackoutTaskIterator()
+  
+def create_touch_tasks(
+    self, cloudpath, 
+    mip=0, shape=(2048, 2048, 64),
+    bounds=None
+  ):
+
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  shape = Vec(*shape)
+
+  if bounds is None:
+    bounds = vol.bounds.clone()
+
+  bounds = Bbox.create(bounds)
+  bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+  bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
+
+  class TouchTaskIterator():
+    def __len__(self):
+      return num_tasks(bounds, shape)
+    def __iter__(self):
+      for startpt in xyzrange(bounds.minpt, bounds.maxpt, shape):
+        bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
+        yield igneous.tasks.TouchTask(
+          cloudpath=cloudpath,
+          shape=bounded_shape.clone(),
+          offset=startpt.clone(),
+          mip=mip,
+        )
+
+      vol.provenance.processing.append({
+        'method': {
+            'task': 'TouchTask',
+            'mip': mip,
+            'shape': shape.tolist(),
+            'bounds': [
+              bounds.minpt.tolist(),
+              bounds.maxpt.tolist(),
+            ],
+          },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      vol.commit_provenance()
+
+  return TouchTaskIterator()
 
 def create_downsampling_tasks(
     layer_path, mip=0, fill_missing=False, 

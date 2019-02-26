@@ -1,9 +1,9 @@
 click>=6.7
-cloud-volume>=0.38.0
+cloud-volume>=0.47.2
 google-cloud-logging
 numpy>=1.14.2
 Pillow>=4.2.1
 pytest>=3.3.1
-task-queue>=0.14.1
+task-queue>=0.14.2
 -e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
 oauth2client==3.0.0

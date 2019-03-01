@@ -447,7 +447,8 @@ def create_transfer_tasks(
     src_layer_path, dest_layer_path, 
     chunk_size=None, shape=Vec(2048, 2048, 64), 
     fill_missing=False, translate=(0,0,0), 
-    bounds=None, mip=0, preserve_chunk_size=True
+    bounds=None, mip=0, preserve_chunk_size=True,
+    encoding=None
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -470,13 +471,18 @@ def create_transfer_tasks(
     dvol = CloudVolume(dest_layer_path, info=info)
     dvol.commit_info()
 
+  if encoding is not None:
+    dvol.info['scales'][mip]['encoding'] = encoding
   dvol.info['scales'] = dvol.info['scales'][:mip+1]
   dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
   dvol.commit_info()
 
   create_downsample_scales(dest_layer_path, 
-    mip=mip, ds_shape=shape, preserve_chunk_size=preserve_chunk_size)
-  
+    mip=mip, ds_shape=shape, 
+    preserve_chunk_size=preserve_chunk_size,
+    encoding=encoding
+  )
+
   if bounds is None:
     bounds = vol.bounds.clone()
   else:

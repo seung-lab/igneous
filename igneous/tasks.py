@@ -28,7 +28,6 @@ from taskqueue import RegisteredTask
 from igneous import chunks, downsample, downsample_scales
 from igneous import Mesher  # broken out for ease of commenting out
 
-
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
@@ -939,7 +938,6 @@ class TransferTask(RegisteredTask):
     destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing, mip=self.mip)
 
     bounds = Bbox(self.offset, self.shape + self.offset)
-    bounds = Bbox.clamp(bounds, srccv.bounds)
     image = srccv[bounds.to_slices()]
     bounds += self.translate
     downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)

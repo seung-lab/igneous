@@ -487,17 +487,18 @@ def create_transfer_tasks(
     bounds = vol.bounds.clone()
   else:
     bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
-    bounds = Bbox.clamp(bounds, vol.bounds)
+    bounds = Bbox.clamp(bounds, dvol.bounds)
 
   class TransferTaskIterator(object):
     def __len__(self):
       return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
     def __iter__(self):
       for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
+        task_shape = min2(shape.clone(), dvol.bounds.maxpt - startpt)
         yield TransferTask(
           src_path=src_layer_path,
           dest_path=dest_layer_path,
-          shape=shape.clone(),
+          shape=task_shape,
           offset=startpt.clone(),
           fill_missing=fill_missing,
           translate=translate,

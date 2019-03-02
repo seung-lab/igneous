@@ -62,6 +62,47 @@ def get_bounds(vol, bounds, shape, mip, chunk_size=None):
 
   return bounds
 
+def num_tasks(bounds, shape):
+  return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
+
+class AbstractTaskIterator():
+  def __init__(self, bounds, shape):
+    self.bounds = bounds 
+    self.shape = Vec(*shape)
+    self.start = 0
+    self.end = num_tasks(bounds, shape)
+  def __len__(self):
+    return self.end - self.start
+  def __getitem__(self, slc):
+    itr = copy.deepcopy(self)
+    itr.start = self.start + slc.start 
+    itr.end = self.start + slc.stop
+    return itr
+  def to_coord(self, index):
+    sx, sy, sz = np.ceil(self.bounds.size3() / self.shape).astype(int)
+    # print(sx, sy, sz)
+    sxy = sx * sy
+    z = index // sxy;
+    y = (index - (z * sxy)) // sx;
+    x = index - sx * (y + z * sy);
+    return Vec(x,y,z)
+  def __iter__(self):
+    startpt = self.to_coord(self.start)
+    endpt = self.to_coord(self.end - 1)
+
+    # print(startpt, endpt, self.start, self.end)
+
+    for z in range(startpt.z, endpt.z):
+      for y in range(startpt.y, endpt.y):
+        for x in range(startpt.x, endpt.x):
+          yield self.task(Vec(x,y,z))
+
+    self.on_finish()
+  def task(self, startpt):
+    raise NotImplementedError()
+  def on_finish(self):
+    pass
+
 def create_ingest_tasks(cloudpath):
   """
   Creates one task for each ingest chunk present in the build folder.
@@ -491,22 +532,19 @@ def create_transfer_tasks(
 
   dvol_bounds = dvol.bounds.clone()
 
-  class TransferTaskIterator(object):
-    def __len__(self):
-      return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
-    def __iter__(self):
-      for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
-        task_shape = min2(shape.clone(), dvol_bounds.maxpt - startpt)
-        yield TransferTask(
-          src_path=src_layer_path,
-          dest_path=dest_layer_path,
-          shape=task_shape,
-          offset=startpt.clone(),
-          fill_missing=fill_missing,
-          translate=translate,
-          mip=mip,
-        )
-
+  class TransferTaskIterator(AbstractTaskIterator):
+    def task(self, startpt):
+      task_shape = min2(shape.clone(), dvol_bounds.maxpt - startpt)
+      return TransferTask(
+        src_path=src_layer_path,
+        dest_path=dest_layer_path,
+        shape=task_shape,
+        offset=startpt.clone(),
+        fill_missing=fill_missing,
+        translate=translate,
+        mip=mip,
+      )
+    def on_finish(self):
       job_details = {
         'method': {
           'task': 'TransferTask',
@@ -534,7 +572,7 @@ def create_transfer_tasks(
         vol.provenance.processing.append(job_details)
         vol.commit_provenance()
 
-  return TransferTaskIterator()
+  return TransferTaskIterator(bounds, shape)
 
 def create_contrast_normalization_tasks(
     src_path, dest_path, levels_path=None,

@@ -12,7 +12,7 @@ https://hub.docker.com/r/seunglab/igneous/
 
 ## Installation
 
-You'll need Python 2 or 3, pip, a C++ compiler (g++ or clang), and virtualenv. Igneous appears to have higher performance using Python 3. It's tested under Ubuntu 14.04 and Mac OS High Sierra.
+You'll need Python 2 or 3, pip, a C++ compiler (g++ or clang), and virtualenv. Igneous appears to have higher performance using Python 3. It's tested under Ubuntu 14.04, Ubuntu 16.04 and Mac OS High Sierra.
 
 ```bash
 git clone git@github.com:seung-lab/igneous.git
@@ -39,8 +39,10 @@ import igneous.task_creation as tc
 # Mesh on 8 cores, use True to use all cores
 cloudpath = 'gs://bucket/dataset/labels'
 with LocalTaskQueue(parallel=8) as tq:
-	tc.create_meshing_tasks(tq, cloudpath, mip=3, shape=(256, 256, 256))
-	tc.create_mesh_manifest_tasks(tq, cloudpath)
+  tasks = tc.create_meshing_tasks(cloudpath, mip=3, shape=(256, 256, 256))
+  tq.insert_all(tasks)
+  tasks = tc.create_mesh_manifest_tasks(cloudpath)
+  tq.insert_all(tasks)
 print("Done!")
 
 ```
@@ -55,6 +57,8 @@ You'll need to create an Amazon SQS queue to store the tasks you generate. Googl
 
 ### Populating the SQS Queue
 
+There's a bit of an art to achieving high performance on SQS. You can read more about it [here](https://github.com/seung-lab/python-task-queue#how-to-achieve-high-performance).
+
 ```python3
 import sys
 from taskqueue import TaskQueue
@@ -64,7 +68,11 @@ cloudpath = sys.argv[1]
 
 # Get qurl from the SQS queue metadata, visible on the web dashboard when you click on it.
 with TaskQueue(queue_server='sqs', qurl="$URL") as tq:
-	tc.create_downsampling_tasks(tq, cloudpath, mip=0, fill_missing=True, preserve_chunk_size=True)
+  tasks = tc.create_downsampling_tasks(
+    cloudpath, mip=0, 
+    fill_missing=True, preserve_chunk_size=True
+  )
+  tq.insert_all(tasks)
 print("Done!")
 ```
 
@@ -138,8 +146,7 @@ that mip 1 segmentation labels are exact mode computations, but subsequent ones 
 Whether image or segmentation type downsampling will be used is determined from the neuroglancer info file's "type" attribute.
 
 ```python3
-# Signature
-create_downsampling_tasks(task_queue, 
+tasks = create_downsampling_tasks(
     layer_path, 
     mip=0, # Start downsampling from this mip level (writes to next level up)
     fill_missing=False, # Ignore missing chunks and fill them with black
@@ -150,7 +157,7 @@ create_downsampling_tasks(task_queue,
     sparse=False, # for sparse segmentation, allow inflation of pixels against background
     bounds=None, # mip 0 bounding box to downsample 
     encoding=None # e.g. 'raw', 'compressed_segmentation', etc
-  ):
+  )
 ```
 
 1. layer_path 
@@ -182,7 +189,7 @@ Another use case is to transfer a neuroglancer dataset from one cloud bucket to 
 provider's transfer service will suffice, even across providers. 
 
 ```python3
-create_transfer_tasks(task_queue, src_layer_path, dest_layer_path, 
+tasks = create_transfer_tasks(src_layer_path, dest_layer_path, 
 	shape=Vec(2048, 2048, 64), fill_missing=False, translate=(0,0,0))
 ```
 
@@ -193,7 +200,7 @@ horizontally scale out deleting using these tasks. Note that the tasks assume th
 is chunk aligned and named appropriately.
 
 ```python3
-create_deletion_tasks(task_queue, layer_path)
+tasks = create_deletion_tasks(layer_path)
 ```
 
 ### Meshing (MeshTask & MeshManifestTask)
@@ -210,9 +217,8 @@ The second stage is running the `MeshManifestTask` which generates files named `
 looks like `{ "fragments": [ "1052:0:0-512_0-512_0-512" ] }`. This file tells neuroglancer which mesh files to download.  
 
 ```python3
-# Signature
-create_meshing_tasks(task_queue, layer_path, mip, shape=Vec(512, 512, 512)) # First Pass
-create_mesh_manifest_tasks(task_queue, layer_path, magnitude=3) # Second Pass
+tasks = create_meshing_tasks(layer_path, mip, shape=Vec(512, 512, 512)) # First Pass
+tasks = create_mesh_manifest_tasks(layer_path, magnitude=3) # Second Pass
 ```
 
 The parameters above are mostly self explainatory, but the magnitude parameter of create_mesh_manifest_tasks is a bit odd. What a MeshManifestTask does is iterate through a proportion of the files defined by a filename prefix. `magnitude` splits up the work by 
@@ -233,9 +239,9 @@ determines how much of the ends of the distribution to lop off, perhaps 1% on ea
 
 ```python3
 # First Pass: Generate $layer_path/levels/$mip/
-create_luminance_levels_tasks(task_queue, layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0) 
+tasks = create_luminance_levels_tasks(layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0) 
 # Second Pass: Read Levels to stretch value distribution to full coverage
-create_contrast_normalization_tasks(task_queue, src_path, dest_path, shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0))
+tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0))
 ```
 
 ## Conclusion

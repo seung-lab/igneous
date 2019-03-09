@@ -305,14 +305,18 @@ def create_downsampling_tasks(
       instead. The bounding box will be expanded to the nearest chunk. Bbox is specifed in mip 0
       coordinates.
     """
-    def ds_shape(mip):
-      shape = vol.mip_underlying(mip)[:3]
+    def ds_shape(mip, chunk_size=None):
+      if chunk_size:
+        shape = Vec(*chunk_size)
+      else:
+        shape = vol.mip_underlying(mip)[:3]
       shape.x *= 2 ** num_mips
       shape.y *= 2 ** num_mips
       return shape
 
     vol = CloudVolume(layer_path, mip=mip)
-    shape = ds_shape(vol.mip)
+    shape = ds_shape(mip, chunk_size)
+
     vol = create_downsample_scales(
       layer_path, mip, shape, 
       preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
@@ -320,7 +324,7 @@ def create_downsampling_tasks(
     )
 
     if not preserve_chunk_size or chunk_size:
-      shape = ds_shape(vol.mip + 1)
+      shape = ds_shape(mip + 1, chunk_size)
 
     bounds = get_bounds(vol, bounds, shape, mip, vol.chunk_size)
     

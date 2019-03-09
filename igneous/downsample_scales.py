@@ -21,6 +21,13 @@ DEFAULT_MAX_DOWNSAMPLING = 64 # maximum factor to downsample by
 DEFAULT_MAX_DOWNSAMPLED_SIZE = 128 # minimum length of a side after downsampling
 DEFAULT_MAX_DOWNSAMPLING_SCALES = float('inf')
 
+def scale_series_to_downsample_factors(scales):
+  fullscales = [ np.array(scale) for scale in scales ] 
+  factors = []
+  for i in range(1, len(fullscales)):
+    factors.append( fullscales[i] / fullscales[i - 1]  )
+  return [ factor.astype(int) for factor in factors ]
+
 
 def compute_near_isotropic_downsampling_scales(size,
                                                voxel_size,

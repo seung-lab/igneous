@@ -25,8 +25,10 @@ from cloudvolume import CloudVolume, Storage
 from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
-from igneous import chunks, downsample, downsample_scales
+from igneous import chunks, downsample_scales
 from igneous import Mesher  # broken out for ease of commenting out
+
+import tinybrain
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -50,28 +52,41 @@ def downsample_and_upload(
       preserve_axis=axis,
       max_downsampled_size=int(min(*underlying_shape)),
     )
-    factors = downsample.scale_series_to_downsample_factors(fullscales)
+    factors = downsample_scales.scale_series_to_downsample_factors(fullscales)
 
     if len(factors) == 0:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
           image.shape, ds_shape, vol.volume_size, bounds)
       )
 
-    downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
-
     vol.mip = mip
     if not skip_first:
       vol[bounds.to_slices()] = image
 
-    new_bounds = bounds.clone()
+    if len(factors) == 0:
+      return
 
+    num_mips = len(factors)
+
+    mips = []
+    if vol.layer_type == 'image':
+      mips = tinybrain.downsample_with_averaging(image, factors[0], num_mips=num_mips)
+    elif vol.layer_type == 'segmentation':
+      mips = tinybrain.downsample_segmentation(
+        image, factors[0], 
+        num_mips=num_mips, sparse=sparse
+      )
+    else:
+      mips = tinybrain.downsample_with_striding(image, factors[0], num_mips=num_mips)
+
+    new_bounds = bounds.clone()
+   
     for factor3 in factors:
       vol.mip += 1
-      image = downsamplefn(image, factor3)
       new_bounds //= factor3
-      new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
-      vol[new_bounds.to_slices()] = image
-
+      mipped = mips.pop(0)
+      new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
+      vol[new_bounds] = mipped
 
 def cache(task, cloudpath):
   layer_path, filename = os.path.split(cloudpath)

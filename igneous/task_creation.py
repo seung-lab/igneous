@@ -493,7 +493,7 @@ def create_transfer_tasks(
     bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
     bounds = Bbox.clamp(bounds, dvol.bounds)
 
-  dvol_bounds = dvol.bounds.clone()
+  dvol_bounds = dvol.mip_bounds(mip).clone()
 
   class TransferTaskIterator(object):
     def __len__(self):

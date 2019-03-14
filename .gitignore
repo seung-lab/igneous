@@ -7,6 +7,7 @@ igneous.egg-info
 __pycache__
 .cache
 test.py
+test2.py
 pipeline.py
 .pytest_cache
 projects

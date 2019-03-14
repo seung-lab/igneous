@@ -953,8 +953,10 @@ class TransferTask(RegisteredTask):
     destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing, mip=self.mip)
 
     bounds = Bbox(self.offset, self.shape + self.offset)
+    bounds = Bbox.clamp(bounds, srccv.bounds)
     image = srccv[bounds.to_slices()]
     bounds += self.translate
+    bounds = Bbox.clamp(bounds, destcv.bounds)
     downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
 

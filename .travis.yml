@@ -11,6 +11,8 @@ before_install:
 - sudo mkdir -p $HOME/.cloudvolume
 - sudo ln -s /secrets $HOME/.cloudvolume/secrets
 - $(python igneous_version.py)
+install:
+- echo "Prevent default travis behavior (pip install -r requirements.txt). This will happen in the docker container."
 script:
 - docker build --tag seunglab/igneous:$APPVERSION . || travis_terminate 1
 - docker run -it -v /secrets:/secrets seunglab/igneous:$APPVERSION /bin/sh -c "cd /igneous

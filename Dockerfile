@@ -3,7 +3,6 @@ LABEL maintainer="William Silversmith, Nico Kemnitz"
 
 ADD ./ /igneous
 RUN touch projects && rm -r projects
-RUN pip --version
 RUN apt-get update \
     # Build dependencies
     && apt-get install -y -qq --no-install-recommends \

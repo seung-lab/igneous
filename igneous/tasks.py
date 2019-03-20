@@ -29,6 +29,7 @@ from igneous import chunks, downsample_scales
 from igneous import Mesher  # broken out for ease of commenting out
 
 import tinybrain
+import DracoPy
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -264,7 +265,15 @@ class MeshTask(RegisteredTask):
         'low_padding': kwargs.get('low_padding', 0),
         'high_padding': kwargs.get('high_padding', 1),
         'parallel_download': kwargs.get('parallel_download', 1),
-        'cache_control': kwargs.get('cache_control', None)
+        'cache_control': kwargs.get('cache_control', None),
+        'use_draco_encoding': kwargs.get('use_draco_encoding', False),
+    }
+    self.draco_encoding_settings = {
+      'quantization_bits': kwargs.get('draco_quantization_bits', 14),
+      'compression_level': kwargs.get('draco_compression_level', 1),
+      'quantization_origin': kwargs.get('draco_quantization_origin', None),
+      'quantization_range': kwargs.get('draco_quantization_range', 0),
+      'encode_custom_options': kwargs.get('draco_encode_encoding_options', False)
     }
 
   def execute(self):
@@ -325,7 +334,7 @@ class MeshTask(RegisteredTask):
                 self._bounds.to_filename()
             ),
             content=self._create_mesh(obj_id),
-            compress=True,
+            compress=not self.options['use_draco_encoding'],
             cache_control=self.options['cache_control']
         )
 
@@ -348,14 +357,17 @@ class MeshTask(RegisteredTask):
         simplification_factor=self.options['simplification_factor'],
         max_simplification_error=self.options['max_simplification_error']
     )
-    vertices = self._update_vertices(
-        np.array(mesh['points'], dtype=np.float32))
-    vertex_index_format = [
-        np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
-        vertices,
-        np.array(mesh['faces'], dtype=np.uint32)
-    ]
-    return b''.join([array.tobytes() for array in vertex_index_format])
+    vertices = self._update_vertices(np.array(mesh['points'], dtype=np.float32))
+    faces = np.array(mesh['faces'], dtype=np.uint32)
+    if self.options['use_draco_encoding']:
+      return DracoPy.encode_mesh_to_buffer(vertices, faces, **self.draco_encoding_settings)
+    else:
+      vertex_index_format = [
+          np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
+          vertices,
+          faces
+      ]
+      return b''.join([array.tobytes() for array in vertex_index_format])
 
   def _update_vertices(self, points):
     # zi_lib meshing multiplies vertices by 2.0 to avoid working with floats,

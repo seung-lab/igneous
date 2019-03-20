@@ -11,3 +11,4 @@ test2.py
 pipeline.py
 .pytest_cache
 projects
+.vscode

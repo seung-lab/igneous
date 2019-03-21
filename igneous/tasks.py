@@ -271,9 +271,8 @@ class MeshTask(RegisteredTask):
     self.draco_encoding_settings = {
       'quantization_bits': kwargs.get('draco_quantization_bits', 14),
       'compression_level': kwargs.get('draco_compression_level', 1),
-      'quantization_origin': kwargs.get('draco_quantization_origin', None),
-      'quantization_range': kwargs.get('draco_quantization_range', 0),
-      'encode_custom_options': kwargs.get('draco_encode_encoding_options', False)
+      'quantization_range': kwargs.get('draco_quantization_range', -1),
+      'quantization_origin': kwargs.get('draco_quantization_origin', None)
     }
 
   def execute(self):

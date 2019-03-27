@@ -12,3 +12,4 @@ pipeline.py
 .pytest_cache
 projects
 .vscode
+*secret.json

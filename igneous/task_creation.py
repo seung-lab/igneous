@@ -890,7 +890,7 @@ def create_graphene_hybrid_mesh_manifest_tasks(
       return len(prefixes)
     def __iter__(self):
       for prefix in prefixes:
-        yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix) + ':')
+        yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix))
 
   return GrapheneHybridMeshManifestTaskIterator()
 

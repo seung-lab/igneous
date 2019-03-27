@@ -850,6 +850,50 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3):
 
   return MeshManifestTaskIterator()
 
+def create_graphene_hybrid_mesh_manifest_tasks(
+  cloudpath, mip, mip_bits, x_bits, y_bits, 
+  x_range=None, y_range=None
+):
+  """
+  Graphene structures segids as decimal numbers following
+  the below format:
+
+  mip x y z segid
+
+  Typical parameter values are 
+  mip_bits=4 or 8, x_bits=8 or 10, y_bits=8 or 10
+  """
+
+  mip_shift = 64 - mip_bits
+  x_shift = mip_shift - x_bits 
+  y_shift = x_shift - y_bits
+
+  if mip == 0:
+    stable_prefixes = (x_bits + y_bits) // 4
+  else:
+    stable_prefixes = (math.log2(mip + 1) + x_bits + y_bits) // 4
+
+  stable_prefixes = int(max(stable_prefixes, 1))
+
+  x_range = 2 ** x_bits if x_range is None else x_range
+  y_range = 2 ** y_bits if y_range is None else y_range
+
+  prefixes = set()
+  for x in range(x_range):
+    for y in range(y_range):
+      num = (mip << mip_shift) + (x << x_shift) + (y << y_shift)
+      num = str(num)[:stable_prefixes]
+      prefixes.add(num)
+
+  class GrapheneHybridMeshManifestTaskIterator(object):
+    def __len__(self):
+      return len(prefixes)
+    def __iter__(self):
+      for prefix in prefixes:
+        yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix) + ':')
+
+  return GrapheneHybridMeshManifestTaskIterator()
+
 def create_hypersquare_ingest_tasks(
     hypersquare_bucket_name, dataset_name, 
     hypersquare_chunk_size, resolution, 

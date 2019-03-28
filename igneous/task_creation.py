@@ -402,7 +402,7 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5):
 
 def create_meshing_tasks(
     layer_path, mip, 
-    shape=Vec(512, 512, 64), max_simplification_error=40,
+    shape=(256, 256, 256), max_simplification_error=40,
     mesh_dir=None, cdn_cache=False 
   ):
   shape = Vec(*shape)

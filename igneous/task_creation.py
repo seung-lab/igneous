@@ -420,7 +420,7 @@ def create_meshing_tasks(
     def __len__(self):
       return reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
     def __iter__(self):
-      for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Mesh Tasks"):
+      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
         yield MeshTask(
           shape.clone(),
           startpt.clone(),

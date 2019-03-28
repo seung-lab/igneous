@@ -354,6 +354,7 @@ def create_downsampling_tasks(
             'bounds': str(bounds),
             'chunk_size': (list(chunk_size) if chunk_size else None),
             'preserve_chunk_size': preserve_chunk_size,
+            'encoding': encoding,
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),

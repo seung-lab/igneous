@@ -266,13 +266,20 @@ class MeshTask(RegisteredTask):
         'high_padding': kwargs.get('high_padding', 1),
         'parallel_download': kwargs.get('parallel_download', 1),
         'cache_control': kwargs.get('cache_control', None),
-        'use_draco_encoding': kwargs.get('use_draco_encoding', False),
+        'encoding_type': kwargs.get('encoding_type', 'precomputed'),
     }
     self.draco_encoding_settings = {
       'quantization_bits': kwargs.get('draco_quantization_bits', 14),
       'compression_level': kwargs.get('draco_compression_level', 1),
       'quantization_range': kwargs.get('draco_quantization_range', -1),
       'quantization_origin': kwargs.get('draco_quantization_origin', None)
+    }
+    supported_encodings = ['precomputed', 'draco']
+    if not self.options['encoding_type'] in supported_encodings:
+      raise ValueError('Encoding type specified is not supported')
+    self._encoding_to_compression_dict = {
+      'precomputed': True,
+      'draco': False
     }
 
   def execute(self):
@@ -333,7 +340,7 @@ class MeshTask(RegisteredTask):
                 self._bounds.to_filename()
             ),
             content=self._create_mesh(obj_id),
-            compress=not self.options['use_draco_encoding'],
+            compress=self._encoding_to_compression_dict[self.options['encoding_type']],
             cache_control=self.options['cache_control']
         )
 
@@ -358,9 +365,9 @@ class MeshTask(RegisteredTask):
     )
     vertices = self._update_vertices(np.array(mesh['points'], dtype=np.float32))
     faces = np.array(mesh['faces'], dtype=np.uint32)
-    if self.options['use_draco_encoding']:
+    if self.options['encoding_type'] == 'draco':
       return DracoPy.encode_mesh_to_buffer(vertices, faces, **self.draco_encoding_settings)
-    else:
+    elif self.options['encoding_type'] == 'precomputed':
       vertex_index_format = [
           np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
           vertices,

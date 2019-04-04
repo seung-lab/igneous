@@ -15,23 +15,28 @@ Adapted to include passing of multidimensional arrays
 #include "cMesher.h"
 
 //////////////////////////////////
-CMesher::CMesher(const std::vector<uint32_t> &voxelresolution) {
+template <typename T>
+CMesher<T>::CMesher(const std::vector<uint32_t> &voxelresolution) {
   voxelresolution_ = voxelresolution;
 }
 
-CMesher::~CMesher() {}
+template <typename T>
+CMesher<T>::~CMesher() {}
 
-void CMesher::mesh(const std::vector<uint64_t> &data, unsigned int sx,
-                  unsigned int sy, unsigned int sz) {
+template <typename T>
+void CMesher<T>::mesh(
+  const std::vector<T> &data, 
+  const std::size_t sx, const std::size_t sy, const std::size_t sz) {
   // Create Marching Cubes class for type T volume
 
-  const uint64_t *a = &data[0];
+  const T *dataptr = &data[0];
   // Run global marching cubes, a mesh is generated for each segment ID group
-  marchingcubes_.marche(a, sx, sy, sz);
+  marchingcubes_.marche(dataptr, sx, sy, sz);
 }
 
-std::vector<uint64_t> CMesher::ids() {
-  std::vector<uint64_t> keys;
+template <typename T>
+std::vector<T> CMesher<T>::ids() {
+  std::vector<T> keys;
   for (auto it = marchingcubes_.meshes().begin();
        it != marchingcubes_.meshes().end(); ++it) {
     keys.push_back(it->first);
@@ -40,14 +45,17 @@ std::vector<uint64_t> CMesher::ids() {
   return keys;
 }
 
-MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
-                            int simplification_factor,
-                            int max_simplification_error) {
+template <typename T>
+MeshObject CMesher<T>::get_mesh(
+    T id, bool generate_normals,
+    const int simplification_factor,
+    const int max_simplification_error
+  ) {
+
   MeshObject obj;
 
   if (marchingcubes_.count(id) == 0) {  // MC produces no triangles if either
-                                        // none or all voxels were labeled!
-    return obj;
+    return obj;                         // none or all voxels were labeled!
   }
 
   zi::mesh::int_mesh im;

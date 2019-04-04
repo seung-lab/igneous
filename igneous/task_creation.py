@@ -372,7 +372,7 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5):
 
   class DeleteTaskIterator():
     def __len__(self):
-      return reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+      return int(reduce(operator.mul, np.ceil(vol.bounds.size3() / shape)))
     def __iter__(self):
       for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
         bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
@@ -418,7 +418,7 @@ def create_meshing_tasks(
 
   class MeshTaskIterator():
     def __len__(self):
-      return reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+      return int(reduce(operator.mul, np.ceil(vol.bounds.size3() / shape)))
     def __iter__(self):
       for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
         yield MeshTask(

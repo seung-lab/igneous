@@ -933,18 +933,16 @@ class TransferTask(RegisteredTask):
   def __init__(
     self, src_path, dest_path, 
     shape, offset, fill_missing, 
-    translate, mip=0
+    translate, mip=0, skip_downsamples=False
   ):
     super(TransferTask, self).__init__(
         src_path, dest_path, shape, 
         offset, fill_missing, translate, 
-        mip
+        mip, skip_downsamples
     )
-    self.src_path = src_path
-    self.dest_path = dest_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
-    self.fill_missing = fill_missing
+    self.fill_missing = bool(fill_missing)
     self.translate = Vec(*translate)
     self.mip = int(mip)
 
@@ -957,7 +955,11 @@ class TransferTask(RegisteredTask):
     image = srccv[bounds.to_slices()]
     bounds += self.translate
     bounds = Bbox.clamp(bounds, destcv.bounds)
-    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
+
+    if self.skip_downsamples:
+      destcv[bounds] = image
+    else:
+      downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
 
 class WatershedRemapTask(RegisteredTask):

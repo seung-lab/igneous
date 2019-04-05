@@ -254,17 +254,18 @@ class MeshTask(RegisteredTask):
     self.offset = Vec(*offset)
     self.layer_path = layer_path
     self.options = {
-        'lod': kwargs.get('lod', 0),
-        'mip': kwargs.get('mip', 0),
-        'simplification_factor': kwargs.get('simplification_factor', 100),
-        'max_simplification_error': kwargs.get('max_simplification_error', 40),
-        'mesh_dir': kwargs.get('mesh_dir', None),
-        'remap_table': kwargs.get('remap_table', None),
-        'generate_manifests': kwargs.get('generate_manifests', False),
-        'low_padding': kwargs.get('low_padding', 0),
-        'high_padding': kwargs.get('high_padding', 1),
-        'parallel_download': kwargs.get('parallel_download', 1),
-        'cache_control': kwargs.get('cache_control', None)
+      'lod': kwargs.get('lod', 0),
+      'mip': kwargs.get('mip', 0),
+      'simplification_factor': kwargs.get('simplification_factor', 100),
+      'max_simplification_error': kwargs.get('max_simplification_error', 40),
+      'mesh_dir': kwargs.get('mesh_dir', None),
+      'remap_table': kwargs.get('remap_table', None),
+      'generate_manifests': kwargs.get('generate_manifests', False),
+      'low_padding': kwargs.get('low_padding', 0),
+      'high_padding': kwargs.get('high_padding', 1),
+      'parallel_download': kwargs.get('parallel_download', 1),
+      'cache_control': kwargs.get('cache_control', None),
+      'dust_threshold': kwargs.get('dust_threshold', None),
     }
 
   def execute(self):
@@ -293,26 +294,38 @@ class MeshTask(RegisteredTask):
       raise ValueError("The mesh destination is not present in the info file.")
 
     # chunk_position includes the overlap specified by low_padding/high_padding
-    self._data = self._volume[data_bounds.to_slices()]
-    self._remap()
-    self._compute_meshes()
+    data = self._volume[data_bounds]
+    data = self._remove_dust(data, self.options['dust_threshold'])
+    data = self._remap(data)
+    self._compute_meshes(data)
 
-  def _remap(self):
-    if self.options['remap_table'] is not None:
-      actual_remap = {
-          int(k): int(v) for k, v in self.options['remap_table'].items()
-      }
+  def _remove_dust(self, data, dust_threshold):
+    if dust_threshold:
+      segids, pxct = np.unique(data, return_counts=True)
+      dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct < int(dust_threshold) ]
+      data[~np.isin(data, segids)] = 0
 
-      self._remap_list = [0] + list(actual_remap.values())
-      enumerated_remap = {int(v): i for i, v in enumerate(self._remap_list)}
+    return data
 
-      do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
-      self._data = np.vectorize(do_remap)(self._data)
+  def _remap(self, data):
+    if self.options['remap_table'] is None:
+      return data 
 
-  def _compute_meshes(self):
+    actual_remap = {
+      int(k): int(v) for k, v in self.options['remap_table'].items()
+    }
+
+    self._remap_list = [0] + list(actual_remap.values())
+    enumerated_remap = {int(v): i for i, v in enumerate(self._remap_list)}
+    do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
+    return np.vectorize(do_remap)(data)
+
+  def _compute_meshes(self, data):
+    data = data[:, :, :, 0].T
+    self._mesher.mesh(data)
+    del data
+
     with Storage(self.layer_path) as storage:
-      data = self._data[:, :, :, 0].T
-      self._mesher.mesh(data)
       for obj_id in self._mesher.ids():
         if self.options['remap_table'] is None:
           remapped_id = obj_id
@@ -320,13 +333,13 @@ class MeshTask(RegisteredTask):
           remapped_id = self._remap_list[obj_id]
 
         storage.put_file(
-            file_path='{}/{}:{}:{}'.format(
-                self._mesh_dir, remapped_id, self.options['lod'],
-                self._bounds.to_filename()
-            ),
-            content=self._create_mesh(obj_id),
-            compress=True,
-            cache_control=self.options['cache_control']
+          file_path='{}/{}:{}:{}'.format(
+            self._mesh_dir, remapped_id, self.options['lod'],
+            self._bounds.to_filename()
+          ),
+          content=self._create_mesh(obj_id),
+          compress=True,
+          cache_control=self.options['cache_control']
         )
 
         if self.options['generate_manifests']:
@@ -335,25 +348,26 @@ class MeshTask(RegisteredTask):
                                              self._bounds.to_filename()))
 
           storage.put_file(
-              file_path='{}/{}:{}'.format(
-                  self._mesh_dir, remapped_id, self.options['lod']),
-              content=json.dumps({"fragments": fragments}),
-              content_type='application/json',
-              cache_control=self.options['cache_control']
+            file_path='{}/{}:{}'.format(
+              self._mesh_dir, remapped_id, self.options['lod']),
+            content=json.dumps({"fragments": fragments}),
+            content_type='application/json',
+            cache_control=self.options['cache_control']
           )
 
   def _create_mesh(self, obj_id):
     mesh = self._mesher.get_mesh(
-        obj_id,
-        simplification_factor=self.options['simplification_factor'],
-        max_simplification_error=self.options['max_simplification_error']
+      obj_id,
+      simplification_factor=self.options['simplification_factor'],
+      max_simplification_error=self.options['max_simplification_error']
     )
     vertices = self._update_vertices(
-        np.array(mesh['points'], dtype=np.float32))
+      np.array(mesh['points'], dtype=np.float32)
+    )
     vertex_index_format = [
-        np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
-        vertices,
-        np.array(mesh['faces'], dtype=np.uint32)
+      np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
+      vertices,
+      np.array(mesh['faces'], dtype=np.uint32)
     ]
     return b''.join([array.tobytes() for array in vertex_index_format])
 

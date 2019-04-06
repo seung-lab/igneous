@@ -116,20 +116,24 @@ gcloud container clusters resize $CLUSTER_NAME --size=0
 kubectl delete deployment igneous
 ```
 
-## Tasks
+## Capabilities
 
-You can find the following tasks in `igneous/tasks.py` and can use them via editing or importing functions from `igneous/task_creation.py`. 
+You can find the following tasks in `igneous/tasks/tasks.py` and can use them via editing or importing functions from `igneous/task_creation.py`. 
 
-* ingest
-* hypersquare ingest
-* downsample
-* deletion 
-* meshing
-* transfer
-* wastershed remap
-* quantized affinity
-* luminance levels
-* contrast correction
+Capability               |Tasks                                          |Description                                                          
+:-----:|:-----:|:-----:
+Downsampling             |DownsampleTask                                 |Generate image hierarchies.                                          
+Meshing                  |MeshTask, MeshManifestTask                     |Create object meshes viewable in Neuroglancer.                       
+Skeletonize              |SkeletonTask, SkeletonMergeTask                |Create Neuroglancer viewable skeletons using TESAR algorithm.        
+Transfer                 |TransferTask                                   |Copy data, supports rechunking and coordinate translation.           
+Deletion                 |DeleteTask                                     |Delete a data layer.                                                 
+Contrast Normalization   |LuminanceLevelsTask, ContrastNormalizationTask |Spread out slice histograms to fill value range.                     
+Quantization             |QuantizeAffinitiesTask                         |Rescale values into 8-bit to make them easier to visualize.          
+Remapping                |WatershedRemapTask                             |Remap segmentations to create agglomerated labels.                   
+Eyewire Consensus Import |HyperSquareConsensusTask                       |Map Eyewire consensus into Neuroglancer.                             
+Ingest                   |IngestTask                                     |(deprecated) Convert HDF5 into Precomputed format.                   
+HyperSquare Ingest       |HyperSquareTask                                |(deprecated) Convert Eyewire's HyperSquare format into Precomputed.  
+
 
 ### Downsampling (DownsampleTask)
 
@@ -227,6 +231,47 @@ an additional 10^magnitude. A high magnitude (3-5+) is appropriate for horizonta
 
 In the future, a third stage might be introduced that fuses all the small fragments into a single file.
 
+### Skeletonization (SkeletonTask, SkeletonMergeTask)
+
+Skeletonization, producing wireframes of dataset objects, is a multi-stage process that ultimately produces wireframes using the [TEASAR algorithm (Sato et al., 2000)](https://ieeexplore.ieee.org/document/883951/). 
+
+1. Produce chunked point clouds 
+2. Merge chunks into a single point cloud per object
+3. Produce chunked skeletons using TEASAR algorithm.
+4. Merge chunks into a single skeleton.
+5. Post-process to connect broken pieces and trim short dust pieces.
+
+We break this process into two tasks.
+
+1. **SkeletonTask** Steps 1, 2, 3
+2. **SkeletonMergeTask** Steps 4, 5
+
+Each skeleton contains a list of vertices and a list of edges. For analysis, it is also helpful to have
+a radius attribute that describes how far each vertex is from the hull. Neuroglancer doesn't currently
+support skeletons that have the radius attribute, so we produce a binary visualization file and a pickled
+file that has additional information.
+
+#### Neuroglancer Skeleton Format
+
+Filename: `$CLOUDPATH/skeletons/$SEGID`  
+
+| Vertex Count (Nv) |  Edges Count (Ne)  |  Vertices           |  Edges         | 
+|-------------------|--------------------|---------------------|----------------| 
+| uint32            |  uint32            |  Nv x XYZ float32s  |  Ne x 2 uint32 | 
+
+#### Pickled Skeleton Format
+
+Filename: `$CLOUDPATH/skeletons/$SEGID.pkl`
+
+```python3
+{
+	"vertices": numpy array
+	"edges": numpy array
+	"radii": numpy array
+}
+```
+
+
 ### Contrast Normalization (LuminanceLevelsTask & ContrastNormalizationTask)
 
 Sometimes a dataset's luminance values cluster into a tight band and make the image unnecessarily bright or dark and above all
@@ -246,7 +291,7 @@ tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip
 
 ## Conclusion
 
-It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks.py` for the most current information.  
+It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks/tasks.py` for the most current information.  
 
 Please post an issue or PR if you think something needs to be addressed.  
 

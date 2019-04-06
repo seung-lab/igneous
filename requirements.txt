@@ -1,6 +1,8 @@
 click>=6.7
 cloud-volume>=0.47.2
 google-cloud-logging
+kimimaro
+networkx==2.1
 numpy>=1.14.2
 Pillow>=4.2.1
 pytest>=3.3.1

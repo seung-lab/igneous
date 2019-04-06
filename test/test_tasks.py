@@ -5,16 +5,16 @@ import os.path
 import shutil
 
 import numpy as np
-from cloudvolume import Storage, CloudVolume, EmptyVolumeException
+from cloudvolume import Storage, CloudVolume, EmptyVolumeException, view
 import cloudvolume.lib as lib
 from taskqueue import MockTaskQueue
+import tinybrain
 
 from igneous import (
     DownsampleTask, MeshTask, MeshManifestTask, 
     QuantizeTask, HyperSquareConsensusTask,
-    DeleteTask
+    DeleteTask, BlackoutTask
 )
-from igneous import downsample
 import igneous.task_creation as tc
 from igneous.task_creation import create_downsample_scales, create_downsampling_tasks, create_quantized_affinity_info
 from .layer_harness import delete_layer, create_layer
@@ -41,11 +41,11 @@ def test_ingest_image():
     cv.mip = 0
     assert np.all(cv[slice64] == data[slice64])
 
-    data_ds1 = downsample.downsample_with_averaging(data, factor=[2, 2, 1, 1])
+    data_ds1, = tinybrain.downsample_with_averaging(data, factor=[2, 2, 1, 1])
     cv.mip = 1
     assert np.all(cv[slice64] == data_ds1[slice64])
 
-    data_ds2 = downsample.downsample_with_averaging(data_ds1, factor=[2, 2, 1, 1])
+    data_ds2, = tinybrain.downsample_with_averaging(data, factor=[4, 4, 1, 1])
     cv.mip = 2
     assert np.all(cv[slice64] == data_ds2[slice64])
 
@@ -72,11 +72,11 @@ def test_ingest_segmentation():
     cv.mip = 0
     assert np.all(cv[slice64] == data[slice64])
 
-    data_ds1 = downsample.downsample_segmentation(data, factor=[2, 2, 1, 1])
+    data_ds1, = tinybrain.downsample_segmentation(data, factor=[2, 2, 1, 1])
     cv.mip = 1
     assert np.all(cv[slice64] == data_ds1[slice64])
 
-    data_ds2 = downsample.downsample_segmentation(data_ds1, factor=[2, 2, 1, 1])
+    data_ds2, = tinybrain.downsample_segmentation(data, factor=[4, 4, 1])
     cv.mip = 2
     assert np.all(cv[slice64] == data_ds2[slice64])
 
@@ -89,7 +89,9 @@ def test_downsample_no_offset():
 
     cv.commit_info()
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=4)
+    tq = MockTaskQueue()
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=4)
+    tq.insert_all(tasks)
 
     cv.refresh_info()
 
@@ -105,19 +107,19 @@ def test_downsample_no_offset():
     cv.mip = 0
     assert np.all(cv[slice64] == data[slice64])
 
-    data_ds1 = downsample.downsample_with_averaging(data, factor=[2, 2, 1, 1])
+    data_ds1, = tinybrain.downsample_with_averaging(data, factor=[2, 2, 1, 1])
     cv.mip = 1
     assert np.all(cv[slice64] == data_ds1[slice64])
 
-    data_ds2 = downsample.downsample_with_averaging(data_ds1, factor=[2, 2, 1, 1])
+    data_ds2, = tinybrain.downsample_with_averaging(data, factor=[4, 4, 1, 1])
     cv.mip = 2
     assert np.all(cv[slice64] == data_ds2[slice64])
 
-    data_ds3 = downsample.downsample_with_averaging(data_ds2, factor=[2, 2, 1, 1])
+    data_ds3, = tinybrain.downsample_with_averaging(data, factor=[8, 8, 1, 1])
     cv.mip = 3
     assert np.all(cv[slice64] == data_ds3[slice64])
 
-    data_ds4 = downsample.downsample_with_averaging(data_ds3, factor=[2, 2, 1, 1])
+    data_ds4, = tinybrain.downsample_with_averaging(data, factor=[16, 16, 1, 1])
     cv.mip = 4
     assert np.all(cv[slice64] == data_ds4[slice64])
 
@@ -130,7 +132,9 @@ def test_downsample_with_offset():
 
     cv.commit_info()
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=3)
+    tq = MockTaskQueue()
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3)
+    tq.insert_all(tasks)
 
     cv.refresh_info()
 
@@ -145,15 +149,15 @@ def test_downsample_with_offset():
     cv.mip = 0
     assert np.all(cv[3:67, 7:71, 11:75] == data[0:64, 0:64, 0:64])
 
-    data_ds1 = downsample.downsample_with_averaging(data, factor=[2, 2, 1, 1])
+    data_ds1, = tinybrain.downsample_with_averaging(data, factor=[2, 2, 1, 1])
     cv.mip = 1
     assert np.all(cv[1:33, 3:35, 11:75] == data_ds1[0:32, 0:32, 0:64])
 
-    data_ds2 = downsample.downsample_with_averaging(data_ds1, factor=[2, 2, 1, 1])
+    data_ds2, = tinybrain.downsample_with_averaging(data, factor=[4, 4, 1, 1])
     cv.mip = 2
     assert np.all(cv[0:16, 1:17, 11:75] == data_ds2[0:16, 0:16, 0:64])
 
-    data_ds3 = downsample.downsample_with_averaging(data_ds2, factor=[2, 2, 1, 1])
+    data_ds3, = tinybrain.downsample_with_averaging(data, factor=[8, 8, 1, 1])
     cv.mip = 3
     assert np.all(cv[0:8, 0:8, 11:75] == data_ds3[0:8,0:8,0:64])
 
@@ -167,12 +171,16 @@ def test_downsample_w_missing():
 
     cv.commit_info()
 
+    tq = MockTaskQueue()
+
     try:
-        create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=3, fill_missing=False)
+        tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3, fill_missing=False)
+        tq.insert_all(tasks)
     except EmptyVolumeException:
         pass
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=3, fill_missing=True)
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3, fill_missing=True)
+    tq.insert_all(tasks)
 
     cv.refresh_info()
 
@@ -194,12 +202,16 @@ def test_downsample_higher_mip():
     cv = CloudVolume(storage.layer_path)
     cv.info['scales'] = cv.info['scales'][:1]
     
+    tq = MockTaskQueue()
+
     cv.commit_info()
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=0, num_mips=2)
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=2)
+    tq.insert_all(tasks)
     cv.refresh_info()
     assert len(cv.available_mips) == 3
 
-    create_downsampling_tasks(MockTaskQueue(), storage.layer_path, mip=1, num_mips=2)
+    tasks = create_downsampling_tasks(storage.layer_path, mip=1, num_mips=2)
+    tq.insert_all(tasks)
     cv.refresh_info()
     assert len(cv.available_mips) == 4
 
@@ -222,6 +234,46 @@ def test_delete():
     assert '1_1_1/0-64_0-64_0-64' not in fnames
     assert '1_1_1/64-128_0-64_0-64' not in fnames
 
+def test_blackout_tasks():
+    delete_layer()
+    storage, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="image")
+    cv = CloudVolume(storage.layer_path)
+
+    BlackoutTask(
+        cloudpath=storage.layer_path,
+        mip=0,
+        offset=(0,0,0),
+        shape=(128, 64, 64),
+        value=11,
+        non_aligned_writes=False
+    ).execute()
+
+    img = cv[:,:,:]
+    assert np.all(img == 11)
+
+    BlackoutTask(
+        cloudpath=storage.layer_path,
+        mip=0,
+        offset=(0,0,0),
+        shape=(37, 64, 64),
+        value=23,
+        non_aligned_writes=True
+    ).execute()
+
+    img = cv[:37,:,:]
+    assert np.all(img == 23)
+
+    img = cv[:]
+    items, counts = np.unique(img, return_counts=True)
+    counts = {
+        items[0]: counts[0],
+        items[1]: counts[1]
+    }
+
+    twenty_threes = 37 * 64 * 64
+    assert counts[23] == twenty_threes
+    assert counts[11] == (128 * 64 * 64) - twenty_threes
+    
 
 def test_mesh():
     delete_layer()
@@ -350,20 +402,19 @@ def test_luminance_levels_task():
         layer_type="image", layer_name='luminance_levels'
     )
 
-    with MockTaskQueue() as tq:
-        tc.create_luminance_levels_tasks(tq, 
-            layer_path=layer_path,
-            coverage_factor=0.01, 
-            shape=None, 
-            offset=(0,0,0), 
-            mip=0
-        )
-
+    tq = MockTaskQueue()
+    tasks = tc.create_luminance_levels_tasks( 
+        layer_path=layer_path,
+        coverage_factor=0.01, 
+        shape=None, 
+        offset=(0,0,0), 
+        mip=0
+    )
+    tq.insert_all(tasks)
 
     gt = [ 0 ] * 256
     for x,y,z in lib.xyzrange( (0,0,0), list(imgd.shape[:2]) + [1] ):
         gt[ imgd[x,y,0,0] ] += 1
-
 
     with open('/tmp/removeme/luminance_levels/levels/0/0', 'rt') as f:
         levels = f.read()

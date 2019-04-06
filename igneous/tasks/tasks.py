@@ -25,9 +25,10 @@ from cloudvolume import CloudVolume, Storage
 from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
-from igneous import chunks, downsample, downsample_scales
+from igneous import chunks, downsample_scales
 from igneous import Mesher  # broken out for ease of commenting out
 
+import tinybrain
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -51,28 +52,41 @@ def downsample_and_upload(
       preserve_axis=axis,
       max_downsampled_size=int(min(*underlying_shape)),
     )
-    factors = downsample.scale_series_to_downsample_factors(fullscales)
+    factors = downsample_scales.scale_series_to_downsample_factors(fullscales)
 
     if len(factors) == 0:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
           image.shape, ds_shape, vol.volume_size, bounds)
       )
 
-    downsamplefn = downsample.method(vol.layer_type, sparse=sparse)
-
     vol.mip = mip
     if not skip_first:
       vol[bounds.to_slices()] = image
 
-    new_bounds = bounds.clone()
+    if len(factors) == 0:
+      return
 
+    num_mips = len(factors)
+
+    mips = []
+    if vol.layer_type == 'image':
+      mips = tinybrain.downsample_with_averaging(image, factors[0], num_mips=num_mips)
+    elif vol.layer_type == 'segmentation':
+      mips = tinybrain.downsample_segmentation(
+        image, factors[0], 
+        num_mips=num_mips, sparse=sparse
+      )
+    else:
+      mips = tinybrain.downsample_with_striding(image, factors[0], num_mips=num_mips)
+
+    new_bounds = bounds.clone()
+   
     for factor3 in factors:
       vol.mip += 1
-      image = downsamplefn(image, factor3)
       new_bounds //= factor3
-      new_bounds.maxpt = new_bounds.minpt + Vec(*image.shape[:3])
-      vol[new_bounds.to_slices()] = image
-
+      mipped = mips.pop(0)
+      new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
+      vol[new_bounds] = mipped
 
 def cache(task, cloudpath):
   layer_path, filename = os.path.split(cloudpath)
@@ -92,18 +106,6 @@ def cache(task, cloudpath):
       f.write(filestr)
 
   return filestr
-
-
-class PrintTask(RegisteredTask):
-  """For testing the task_execution.py script."""
-
-  def __init__(self, index):
-    super(PrintTask, self).__init__(index)
-    self.index = index
-
-  def execute(self):
-    print(self.index)
-
 
 class IngestTask(RegisteredTask):
   """Ingests and does downsampling.
@@ -164,12 +166,38 @@ class DeleteTask(RegisteredTask):
 
       vol.delete(bbox)
 
+class BlackoutTask(RegisteredTask):
+  def __init__(
+    self, cloudpath, mip, shape, offset, 
+    value=0, non_aligned_writes=False
+  ):
+    super(BlackoutTask, self).__init__(
+      cloudpath, mip, shape, 
+      offset, value, non_aligned_writes
+    )
+  def execute(self):
+    vol = CloudVolume(self.cloudpath, self.mip, non_aligned_writes=self.non_aligned_writes)
+    bounds = Bbox(self.offset, self.shape + self.offset)
+    bounds = Bbox.clamp(bounds, vol.bounds)
+    img = np.zeros(bounds.size3(), dtype=vol.dtype) + self.value
+    vol[bounds] = img
+
+class TouchTask(RegisteredTask):
+  def __init__(self, cloudpath, mip, shape, offset):
+    super(TouchTask, self).__init__(cloudpath, mip, shape, offset)
+  
+  def execute(self):
+    # This could be made more sophisticated using exists
+    vol = CloudVolume(self.cloudpath, self.mip, fill_missing=False)
+    bounds = Bbox(self.offset, self.shape + self.offset)
+    bounds = Bbox.clamp(bounds, vol.bounds)
+    image = vol[bounds]
 
 class DownsampleTask(RegisteredTask):
-  def __init__(self, 
-    layer_path, mip, shape, offset, 
-    fill_missing=False, axis='z', sparse=False):
-
+  def __init__(
+    self, layer_path, mip, shape, offset, 
+    fill_missing=False, axis='z', sparse=False
+  ):
     super(DownsampleTask, self).__init__(
       layer_path, mip, shape, offset, 
       fill_missing, axis, sparse
@@ -226,17 +254,18 @@ class MeshTask(RegisteredTask):
     self.offset = Vec(*offset)
     self.layer_path = layer_path
     self.options = {
-        'lod': kwargs.get('lod', 0),
-        'mip': kwargs.get('mip', 0),
-        'simplification_factor': kwargs.get('simplification_factor', 100),
-        'max_simplification_error': kwargs.get('max_simplification_error', 40),
-        'mesh_dir': kwargs.get('mesh_dir', None),
-        'remap_table': kwargs.get('remap_table', None),
-        'generate_manifests': kwargs.get('generate_manifests', False),
-        'low_padding': kwargs.get('low_padding', 0),
-        'high_padding': kwargs.get('high_padding', 1),
-        'parallel_download': kwargs.get('parallel_download', 1),
-        'cache_control': kwargs.get('cache_control', None)
+      'lod': kwargs.get('lod', 0),
+      'mip': kwargs.get('mip', 0),
+      'simplification_factor': kwargs.get('simplification_factor', 100),
+      'max_simplification_error': kwargs.get('max_simplification_error', 40),
+      'mesh_dir': kwargs.get('mesh_dir', None),
+      'remap_table': kwargs.get('remap_table', None),
+      'generate_manifests': kwargs.get('generate_manifests', False),
+      'low_padding': kwargs.get('low_padding', 0),
+      'high_padding': kwargs.get('high_padding', 1),
+      'parallel_download': kwargs.get('parallel_download', 1),
+      'cache_control': kwargs.get('cache_control', None),
+      'dust_threshold': kwargs.get('dust_threshold', None),
     }
 
   def execute(self):
@@ -265,26 +294,38 @@ class MeshTask(RegisteredTask):
       raise ValueError("The mesh destination is not present in the info file.")
 
     # chunk_position includes the overlap specified by low_padding/high_padding
-    self._data = self._volume[data_bounds.to_slices()]
-    self._remap()
-    self._compute_meshes()
+    data = self._volume[data_bounds]
+    data = self._remove_dust(data, self.options['dust_threshold'])
+    data = self._remap(data)
+    self._compute_meshes(data)
 
-  def _remap(self):
-    if self.options['remap_table'] is not None:
-      actual_remap = {
-          int(k): int(v) for k, v in self.options['remap_table'].items()
-      }
+  def _remove_dust(self, data, dust_threshold):
+    if dust_threshold:
+      segids, pxct = np.unique(data, return_counts=True)
+      dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct < int(dust_threshold) ]
+      data[~np.isin(data, segids)] = 0
 
-      self._remap_list = [0] + list(actual_remap.values())
-      enumerated_remap = {int(v): i for i, v in enumerate(self._remap_list)}
+    return data
 
-      do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
-      self._data = np.vectorize(do_remap)(self._data)
+  def _remap(self, data):
+    if self.options['remap_table'] is None:
+      return data 
 
-  def _compute_meshes(self):
+    actual_remap = {
+      int(k): int(v) for k, v in self.options['remap_table'].items()
+    }
+
+    self._remap_list = [0] + list(actual_remap.values())
+    enumerated_remap = {int(v): i for i, v in enumerate(self._remap_list)}
+    do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
+    return np.vectorize(do_remap)(data)
+
+  def _compute_meshes(self, data):
+    data = data[:, :, :, 0].T
+    self._mesher.mesh(data)
+    del data
+
     with Storage(self.layer_path) as storage:
-      data = self._data[:, :, :, 0].T
-      self._mesher.mesh(data)
       for obj_id in self._mesher.ids():
         if self.options['remap_table'] is None:
           remapped_id = obj_id
@@ -292,13 +333,13 @@ class MeshTask(RegisteredTask):
           remapped_id = self._remap_list[obj_id]
 
         storage.put_file(
-            file_path='{}/{}:{}:{}'.format(
-                self._mesh_dir, remapped_id, self.options['lod'],
-                self._bounds.to_filename()
-            ),
-            content=self._create_mesh(obj_id),
-            compress=True,
-            cache_control=self.options['cache_control']
+          file_path='{}/{}:{}:{}'.format(
+            self._mesh_dir, remapped_id, self.options['lod'],
+            self._bounds.to_filename()
+          ),
+          content=self._create_mesh(obj_id),
+          compress=True,
+          cache_control=self.options['cache_control']
         )
 
         if self.options['generate_manifests']:
@@ -307,25 +348,26 @@ class MeshTask(RegisteredTask):
                                              self._bounds.to_filename()))
 
           storage.put_file(
-              file_path='{}/{}:{}'.format(
-                  self._mesh_dir, remapped_id, self.options['lod']),
-              content=json.dumps({"fragments": fragments}),
-              content_type='application/json',
-              cache_control=self.options['cache_control']
+            file_path='{}/{}:{}'.format(
+              self._mesh_dir, remapped_id, self.options['lod']),
+            content=json.dumps({"fragments": fragments}),
+            content_type='application/json',
+            cache_control=self.options['cache_control']
           )
 
   def _create_mesh(self, obj_id):
     mesh = self._mesher.get_mesh(
-        obj_id,
-        simplification_factor=self.options['simplification_factor'],
-        max_simplification_error=self.options['max_simplification_error']
+      obj_id,
+      simplification_factor=self.options['simplification_factor'],
+      max_simplification_error=self.options['max_simplification_error']
     )
     vertices = self._update_vertices(
-        np.array(mesh['points'], dtype=np.float32))
+      np.array(mesh['points'], dtype=np.float32)
+    )
     vertex_index_format = [
-        np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
-        vertices,
-        np.array(mesh['faces'], dtype=np.uint32)
+      np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
+      vertices,
+      np.array(mesh['faces'], dtype=np.uint32)
     ]
     return b''.join([array.tobytes() for array in vertex_index_format])
 
@@ -395,7 +437,7 @@ class MeshManifestTask(RegisteredTask):
 
   def _generate_manifests(self, storage):
     segids = self._get_mesh_filenames_subset(storage)
-    for segid, frags in tqdm(segids.items()):
+    for segid, frags in segids.items():
       storage.put_file(
           file_path='{}/{}:{}'.format(self.mesh_dir, segid, self.lod),
           content=json.dumps({"fragments": frags}),
@@ -790,7 +832,7 @@ class ContrastNormalizationTask(RegisteredTask):
 
     levelfilenames = [
       'levels/{}/{}'.format(self.mip, z) \
-      for z in range(bounds.minpt.z, bounds.maxpt.z + 1)
+      for z in range(bounds.minpt.z, bounds.maxpt.z)
     ]
     
     with Storage(self.levels_path) as stor:
@@ -905,18 +947,16 @@ class TransferTask(RegisteredTask):
   def __init__(
     self, src_path, dest_path, 
     shape, offset, fill_missing, 
-    translate, mip=0
+    translate, mip=0, skip_downsamples=False
   ):
     super(TransferTask, self).__init__(
         src_path, dest_path, shape, 
         offset, fill_missing, translate, 
-        mip
+        mip, skip_downsamples
     )
-    self.src_path = src_path
-    self.dest_path = dest_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
-    self.fill_missing = fill_missing
+    self.fill_missing = bool(fill_missing)
     self.translate = Vec(*translate)
     self.mip = int(mip)
 
@@ -928,7 +968,12 @@ class TransferTask(RegisteredTask):
     bounds = Bbox.clamp(bounds, srccv.bounds)
     image = srccv[bounds.to_slices()]
     bounds += self.translate
-    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
+    bounds = Bbox.clamp(bounds, destcv.bounds)
+
+    if self.skip_downsamples:
+      destcv[bounds] = image
+    else:
+      downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
 
 
 class WatershedRemapTask(RegisteredTask):

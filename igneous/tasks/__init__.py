@@ -4,5 +4,5 @@ from .tasks import (
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
-  MaskAffinitymapTask, InferenceTask
+  MaskAffinitymapTask, InferenceTask, BlackoutTask
 )

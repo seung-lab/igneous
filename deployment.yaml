@@ -9,6 +9,7 @@ spec:
       labels:
         app: igneous
     spec:
+      dnsPolicy: Default
       containers:
         - name: igneous
           image: seunglab/igneous:master

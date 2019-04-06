@@ -5,17 +5,13 @@ from subprocess import call
 import os
 import shutil
 import setuptools
-
 import numpy as np
 
 # NOTE: If _mesher.cpp does not exist, you must run
 # cython --cplus -I./ext/third_party/zi_lib/ ./ext/third_party/mc/_mesher.pyx
 
-# NOTE: If dijkstra.cpp does not exist:
-# cython -3 --fast-fail -v --cplus ./ext/dijkstra3d/dijkstra.pyx
-
 # NOTE: If fastremap.cpp does not exist, you must run
-# cython --cplus ./ext/remap/fastremap.pyx
+# cython --cplus ./ext/skeletontricks/skeletontricks.pyx
 
 third_party_dir = './ext/third_party'
 

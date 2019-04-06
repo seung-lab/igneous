@@ -3,6 +3,7 @@ import six
 from functools import reduce
 import json
 import pickle
+import os
 import re
 from collections import defaultdict
 

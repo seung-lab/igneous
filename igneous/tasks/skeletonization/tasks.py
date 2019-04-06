@@ -3,29 +3,23 @@ import six
 from functools import reduce
 import json
 import pickle
-import os
 import re
 from collections import defaultdict
 
 import numpy as np
-import scipy.ndimage
 from tqdm import tqdm
+
+import igneous.skeletontricks
 
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
 
-import cc3d # connected components
-import edt # euclidean distance transform
-import fastremap
-from taskqueue import RegisteredTask
-
-import igneous.skeletontricks
-
-from .postprocess import trim_skeleton
-
 import kimimaro
+
+from taskqueue import RegisteredTask
+from .postprocess import trim_skeleton
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
 
@@ -135,7 +129,7 @@ class SkeletonMergeTask(RegisteredTask):
     skels = self.get_skeletons_by_segid(fragment_filenames)
 
     skeletons = []
-    for segid, frags in tqdm(skels.items(), desc='segid'):
+    for segid, frags in skels.items():
       skeleton = self.fuse_skeletons(frags)
       skeleton = trim_skeleton(skeleton, self.dust_threshold, self.tick_threshold)
       skeleton.id = segid

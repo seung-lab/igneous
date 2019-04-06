@@ -961,13 +961,6 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3):
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
 
-  # For a prefix like 100, tasks 1-99 will be missed. Account for them by
-  # enumerating them individually with a suffixed ':' to limit matches to
-  # only those small numbers
-  for prefix in range(1, start):
-    task = MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':')
-    task_queue.insert(task)
-
   class MeshManifestTaskIterator(object):
     def __len__(self):
       return 10 ** magnitude

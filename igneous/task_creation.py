@@ -401,7 +401,7 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5):
   return DeleteTaskIterator()
 
 def create_skeletonizing_tasks(
-    task_queue, cloudpath, mip, 
+    cloudpath, mip, 
     shape=Vec(512, 512, 512),
     teasar_params={'scale':10, 'const': 10}, 
     info=None, object_ids=None, fix_branching=True
@@ -424,49 +424,51 @@ def create_skeletonizing_tasks(
     incr = vol.bounds.size3()
     will_postprocess = False
 
-  total = int(math.ceil(reduce(operator.mul, vol.bounds.size3().astype(np.float32) / incr)))
-  # 50% overlap
-  for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ), desc="Inserting Skeleton Tasks", total=total):
-    
-    # eliminate double coverage on right edges during 50% overlap
-    if np.any(startpt - incr + shape > vol.bounds.maxpt):
-      continue
-    
-    task = SkeletonTask(
-      cloudpath=cloudpath,
-      shape=shape.clone(),
-      offset=startpt.clone(),
-      mip=mip,
-      teasar_params=teasar_params,
-      will_postprocess=will_postprocess,
-      info=info,
-      object_ids=object_ids,
-      fix_branching=fix_branching
-    )
-    task_queue.insert(task)
-  task_queue.wait('Uploading SkeletonTasks')
+  class SkeletonTaskIterator():
+    def __len__(self):
+      return int(math.ceil(reduce(operator.mul, vol.bounds.size3().astype(np.float32) / incr)))
+    def __iter__(self):
+      # 50% overlap
+      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ):
+        # eliminate double coverage on right edges during 50% overlap
+        if np.any(startpt - incr + shape > vol.bounds.maxpt):
+          continue
+        
+        yield SkeletonTask(
+          cloudpath=cloudpath,
+          shape=shape.clone(),
+          offset=startpt.clone(),
+          mip=mip,
+          teasar_params=teasar_params,
+          will_postprocess=will_postprocess,
+          info=info,
+          object_ids=object_ids,
+          fix_branching=fix_branching
+        )
 
-  vol.provenance.processing.append({
-    'method': {
-      'task': 'SkeletonTask',
-      'cloudpath': cloudpath,
-      'mip': vol.mip,
-      'shape': shape.tolist(),
-      'teasar_params': teasar_params,
-      'object_ids': object_ids,
-      'info': info,
-      'will_postprocess': will_postprocess,
-      'incr': incr.tolist(),
-      'fix_branching': fix_branching,
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  vol.commit_provenance()
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'SkeletonTask',
+          'cloudpath': cloudpath,
+          'mip': vol.mip,
+          'shape': shape.tolist(),
+          'teasar_params': teasar_params,
+          'object_ids': object_ids,
+          'info': info,
+          'will_postprocess': will_postprocess,
+          'incr': incr.tolist(),
+          'fix_branching': fix_branching,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
+
+  return SkeletonTaskIterator()
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_skeleton_merge_tasks(
-    task_queue, layer_path, mip, crop=0,
+    layer_path, mip, crop=0,
     magnitude=3, dust_threshold=4000, 
     tick_threshold=6000, delete_fragments=False
   ):
@@ -475,51 +477,53 @@ def create_skeleton_merge_tasks(
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
 
-  # For a prefix like 100, tasks 1-99 will be missed. Account for them by
-  # enumerating them individually with a suffixed ':' to limit matches to
-  # only those small numbers
-  for prefix in range(1, start):
-    task = SkeletonMergeTask(
-      cloudpath=layer_path, 
-      prefix=str(prefix) + ':',
-      crop=crop,
-      mip=mip,
-      dust_threshold=dust_threshold,
-      tick_threshold=tick_threshold,
-      delete_fragments=delete_fragments,
-    )
-    task_queue.insert(task)
+  class SkeletonMergeTaskIterator():
+    def __len__(self):
+      return 10 ** magnitude
+    def __iter__(self):
+      # For a prefix like 100, tasks 1-99 will be missed. Account for them by
+      # enumerating them individually with a suffixed ':' to limit matches to
+      # only those small numbers
+      for prefix in range(1, start):
+        yield SkeletonMergeTask(
+          cloudpath=layer_path, 
+          prefix=str(prefix) + ':',
+          crop=crop,
+          mip=mip,
+          dust_threshold=dust_threshold,
+          tick_threshold=tick_threshold,
+          delete_fragments=delete_fragments,
+        )
 
-  # enumerate from e.g. 100 to 999
-  for prefix in range(start, end):
-    task = SkeletonMergeTask(
-      cloudpath=layer_path, 
-      prefix=prefix, 
-      crop=crop,
-      mip=mip, 
-      dust_threshold=dust_threshold, 
-      tick_threshold=tick_threshold,
-      delete_fragments=delete_fragments,
-    )
-    task_queue.insert(task)
+      # enumerate from e.g. 100 to 999
+      for prefix in range(start, end):
+        yield SkeletonMergeTask(
+          cloudpath=layer_path, 
+          prefix=prefix, 
+          crop=crop,
+          mip=mip, 
+          dust_threshold=dust_threshold, 
+          tick_threshold=tick_threshold,
+          delete_fragments=delete_fragments,
+        )
 
-  task_queue.wait('Uploading Skeleton Merge Tasks')
+      vol = CloudVolume(layer_path)
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'SkeletonMergeTask',
+          'cloudpath': layer_path,
+          'mip': mip,
+          'crop': crop,
+          'dust_threshold': dust_threshold,
+          'tick_threshold': tick_threshold,
+          'delete_fragments': delete_fragments,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
 
-  vol = CloudVolume(layer_path)
-  vol.provenance.processing.append({
-    'method': {
-      'task': 'SkeletonMergeTask',
-      'cloudpath': layer_path,
-      'mip': mip,
-      'crop': crop,
-      'dust_threshold': dust_threshold,
-      'tick_threshold': tick_threshold,
-      'delete_fragments': delete_fragments,
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  vol.commit_provenance()
+  return SkeletonMergeTaskIterator()
 
 def create_meshing_tasks(
     layer_path, mip, 

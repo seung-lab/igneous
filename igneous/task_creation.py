@@ -66,19 +66,29 @@ def get_bounds(vol, bounds, shape, mip, chunk_size=None):
 def num_tasks(bounds, shape):
   return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
 
-class FineIndexTaskIterator():
+class FinelyDividedTaskIterator():
+  """
+  Parallelizes tasks that do not have overlap.
+
+  Evenly splits tasks between processes without 
+  regards to whether the dividing line lands in
+  the middle of a slice. 
+  """
   def __init__(self, bounds, shape):
     self.bounds = bounds 
     self.shape = Vec(*shape)
     self.start = 0
     self.end = num_tasks(bounds, shape)
+
   def __len__(self):
     return self.end - self.start
+  
   def __getitem__(self, slc):
     itr = copy.deepcopy(self)
     itr.start = max(self.start + slc.start, self.start)
     itr.end = min(self.start + slc.stop, self.end)
     return itr
+  
   def to_coord(self, index):
     """Convert an index into a grid coordinate defined by the task shape."""
     sx, sy, sz = np.ceil(self.bounds.size3() / self.shape).astype(int)
@@ -368,7 +378,7 @@ def create_downsampling_tasks(
 
     bounds = get_bounds(vol, bounds, shape, mip, vol.chunk_size)
     
-    class DownsampleTaskIterator(FineIndexTaskIterator):
+    class DownsampleTaskIterator(FinelyDividedTaskIterator):
       def task(self, shape, offset):
         return DownsampleTask(
           layer_path=layer_path,

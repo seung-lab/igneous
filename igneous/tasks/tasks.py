@@ -267,7 +267,7 @@ class MeshTask(RegisteredTask):
       'parallel_download': kwargs.get('parallel_download', 1),
       'cache_control': kwargs.get('cache_control', None),
       'dust_threshold': kwargs.get('dust_threshold', None),
-      'encoding_type': kwargs.get('encoding_type', 'precomputed'),
+      'encoding': kwargs.get('encoding', 'precomputed'),
     }
     self.draco_encoding_settings = {
       'quantization_bits': kwargs.get('draco_quantization_bits', 14),
@@ -276,8 +276,10 @@ class MeshTask(RegisteredTask):
       'quantization_origin': kwargs.get('draco_quantization_origin', None)
     }
     supported_encodings = ['precomputed', 'draco']
-    if not self.options['encoding_type'] in supported_encodings:
-      raise ValueError('Encoding type specified is not supported')
+    if not self.options['encoding'] in supported_encodings:
+      raise ValueError('Encoding {} is not supported. Options: {}'.format(
+        self.options['encoding'], ', '.join(supported_encodings)
+      ))
     self._encoding_to_compression_dict = {
       'precomputed': True,
       'draco': False
@@ -340,8 +342,6 @@ class MeshTask(RegisteredTask):
     del data
 
     with Storage(self.layer_path) as storage:
-      data = self._data[:, :, :, 0].T
-      self._mesher.mesh(data)
       for obj_id in self._mesher.ids():
         if self.options['remap_table'] is None:
           remapped_id = obj_id
@@ -349,39 +349,41 @@ class MeshTask(RegisteredTask):
           remapped_id = self._remap_list[obj_id]
 
         storage.put_file(
-            file_path='{}/{}:{}:{}'.format(
-                self._mesh_dir, remapped_id, self.options['lod'],
-                self._bounds.to_filename()
-            ),
-            content=self._create_mesh(obj_id),
-            compress=self._encoding_to_compression_dict[self.options['encoding_type']],
-            cache_control=self.options['cache_control']
+          file_path='{}/{}:{}:{}'.format(
+            self._mesh_dir, remapped_id, self.options['lod'],
+            self._bounds.to_filename()
+          ),
+          content=self._create_mesh(obj_id),
+          compress=self._encoding_to_compression_dict[self.options['encoding']],
+          cache_control=self.options['cache_control']
         )
 
         if self.options['generate_manifests']:
           fragments = []
-          fragments.append('{}:{}:{}'.format(remapped_id, self.options['lod'],
-                                             self._bounds.to_filename()))
+          fragments.append('{}:{}:{}'.format(
+            remapped_id, self.options['lod'],
+            self._bounds.to_filename())
+          )
 
           storage.put_file(
-              file_path='{}/{}:{}'.format(
-                  self._mesh_dir, remapped_id, self.options['lod']),
-              content=json.dumps({"fragments": fragments}),
-              content_type='application/json',
-              cache_control=self.options['cache_control']
+            file_path='{}/{}:{}'.format(
+                self._mesh_dir, remapped_id, self.options['lod']),
+            content=json.dumps({"fragments": fragments}),
+            content_type='application/json',
+            cache_control=self.options['cache_control']
           )
 
   def _create_mesh(self, obj_id):
     mesh = self._mesher.get_mesh(
-        obj_id,
-        simplification_factor=self.options['simplification_factor'],
-        max_simplification_error=self.options['max_simplification_error']
+      obj_id,
+      simplification_factor=self.options['simplification_factor'],
+      max_simplification_error=self.options['max_simplification_error']
     )
     vertices = self._update_vertices(np.array(mesh['points'], dtype=np.float32))
     faces = np.array(mesh['faces'], dtype=np.uint32)
-    if self.options['encoding_type'] == 'draco':
+    if self.options['encoding'] == 'draco':
       return DracoPy.encode_mesh_to_buffer(vertices, faces, **self.draco_encoding_settings)
-    elif self.options['encoding_type'] == 'precomputed':
+    elif self.options['encoding'] == 'precomputed':
       vertex_index_format = [
           np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
           vertices,

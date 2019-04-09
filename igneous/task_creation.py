@@ -588,21 +588,19 @@ def create_meshing_tasks(
     vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
-  class MeshTaskIterator():
-    def __len__(self):
-      return int(reduce(operator.mul, np.ceil(vol.bounds.size3() / shape)))
-    def __iter__(self):
-      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
-        yield MeshTask(
-          shape.clone(),
-          startpt.clone(),
-          layer_path,
-          mip=vol.mip,
-          max_simplification_error=max_simplification_error,
-          mesh_dir=mesh_dir, 
-          cache_control=('' if cdn_cache else 'no-cache'),
-        )
+  class MeshTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return MeshTask(
+        shape=shape.clone(),
+        offset=offset.clone(),
+        layer_path=layer_path,
+        mip=vol.mip,
+        max_simplification_error=max_simplification_error,
+        mesh_dir=mesh_dir, 
+        cache_control=('' if cdn_cache else 'no-cache'),
+      )
 
+    def on_finish(self):
       vol.provenance.processing.append({
         'method': {
           'task': 'MeshTask',
@@ -668,23 +666,21 @@ def create_transfer_tasks(
 
   dvol_bounds = dvol.mip_bounds(mip).clone()
 
-  class TransferTaskIterator(object):
-    def __len__(self):
-      return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
-    def __iter__(self):
-      for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
-        task_shape = min2(shape.clone(), dvol_bounds.maxpt - startpt)
-        yield TransferTask(
-          src_path=src_layer_path,
-          dest_path=dest_layer_path,
-          shape=task_shape,
-          offset=startpt.clone(),
-          fill_missing=fill_missing,
-          translate=translate,
-          mip=mip,
-          skip_downsamples=skip_downsamples,
-        )
+  class TransferTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):  
+      task_shape = min2(shape.clone(), dvol_bounds.maxpt - offset)
+      yield TransferTask(
+        src_path=src_layer_path,
+        dest_path=dest_layer_path,
+        shape=task_shape,
+        offset=offset.clone(),
+        fill_missing=fill_missing,
+        translate=translate,
+        mip=mip,
+        skip_downsamples=skip_downsamples,
+      )
 
+    def on_finish(self):
       job_details = {
         'method': {
           'task': 'TransferTask',

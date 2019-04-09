@@ -407,12 +407,15 @@ def create_downsampling_tasks(
 
     return DownsampleTaskIterator(bounds, shape)
 
-def create_deletion_tasks(layer_path, mip=0, num_mips=5):
+def create_deletion_tasks(layer_path, mip=0, num_mips=5, shape=None):
   vol = CloudVolume(layer_path)
   
-  shape = vol.mip_underlying(mip)[:3]
-  shape.x *= 2 ** num_mips
-  shape.y *= 2 ** num_mips
+  if shape is None:
+    shape = vol.mip_underlying(mip)[:3]
+    shape.x *= 2 ** num_mips
+    shape.y *= 2 ** num_mips
+  else:
+    shape = Vec(*shape)
 
   class DeleteTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):

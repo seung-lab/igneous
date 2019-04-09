@@ -88,15 +88,6 @@ class FinelyDividedTaskIterator():
     itr.start = max(self.start + slc.start, self.start)
     itr.end = min(self.start + slc.stop, self.end)
     return itr
-  
-  def to_coord(self, index):
-    """Convert an index into a grid coordinate defined by the task shape."""
-    sx, sy, sz = np.ceil(self.bounds.size3() / self.shape).astype(int)
-    sxy = sx * sy
-    z = index // sxy
-    y = (index - (z * sxy)) // sx
-    x = index - sx * (y + z * sy)
-    return Vec(x,y,z)
 
   def __iter__(self):
     for i in range(self.start, self.end):
@@ -105,6 +96,15 @@ class FinelyDividedTaskIterator():
       yield self.task(self.shape, offset)
 
     self.on_finish()
+
+  def to_coord(self, index):
+    """Convert an index into a grid coordinate defined by the task shape."""
+    sx, sy, sz = np.ceil(self.bounds.size3() / self.shape).astype(int)
+    sxy = sx * sy
+    z = index // sxy
+    y = (index - (z * sxy)) // sx
+    x = index - sx * (y + z * sy)
+    return Vec(x,y,z)
 
   def task(self, shape, offset):
     raise NotImplementedError()

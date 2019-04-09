@@ -442,7 +442,7 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5, shape=None):
       })
       vol.commit_provenance()
 
-  return DeleteTaskIterator(vol.bounds, shape)
+  return DeleteTaskIterator(vol.mip_bounds(mip), shape)
 
 def create_skeletonizing_tasks(
     cloudpath, mip, 
@@ -615,7 +615,7 @@ def create_meshing_tasks(
       }) 
       vol.commit_provenance()
 
-  return MeshTaskIterator(vol.bounds, shape)
+  return MeshTaskIterator(vol.mip_bounds(mip), shape)
 
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 
@@ -708,7 +708,7 @@ def create_transfer_tasks(
         vol.provenance.processing.append(job_details)
         vol.commit_provenance()
 
-  return TransferTaskIterator()
+  return TransferTaskIterator(bounds, shape)
 
 def create_contrast_normalization_tasks(
     src_path, dest_path, levels_path=None,
@@ -778,7 +778,7 @@ def create_contrast_normalization_tasks(
       }) 
       dvol.commit_provenance()
 
-  return ContrastNormalizationTaskIterator()
+  return ContrastNormalizationTaskIterator(bounds, shape)
 
 def create_luminance_levels_tasks(
     layer_path, levels_path=None, coverage_factor=0.01, 
@@ -896,7 +896,7 @@ def create_watershed_remap_tasks(
       }) 
       dvol.commit_provenance()
 
-  return WatershedRemapTaskIterator(bounds, shape)
+  return WatershedRemapTaskIterator(vol.bounds, shape)
 
 def compute_fixup_offsets(vol, points, shape):
   pts = map(np.array, points)
@@ -989,7 +989,7 @@ def create_quantize_tasks(
       }) 
       destvol.commit_provenance()
 
-  return QuantizeTasksIterator(destvol.bounds, shape)
+  return QuantizeTasksIterator(destvol.mip_bounds(mip), shape)
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_mesh_manifest_tasks(layer_path, magnitude=3):

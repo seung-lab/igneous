@@ -302,8 +302,8 @@ class MeshTask(RegisteredTask):
   def _remove_dust(self, data, dust_threshold):
     if dust_threshold:
       segids, pxct = np.unique(data, return_counts=True)
-      dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct > int(dust_threshold) ]
-      data[~np.isin(data, segids)] = 0
+      dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct < int(dust_threshold) ]
+      data[np.isin(data, dust_segids)] = 0
 
     return data
 

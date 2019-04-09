@@ -252,21 +252,19 @@ def create_blackout_tasks(
   bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
   bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
 
-  class BlackoutTaskIterator():
-    def __len__(self):
-      return num_tasks(bounds, shape)
-    def __iter__(self):
-      for startpt in xyzrange(bounds.minpt, bounds.maxpt, shape):
-        bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
-        yield igneous.tasks.BlackoutTask(
-          cloudpath=cloudpath, 
-          mip=mip, 
-          shape=shape.clone(), 
-          offset=startpt.clone(),
-          value=value, 
-          non_aligned_writes=non_aligned_writes,
-        )
+  class BlackoutTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, bounded):
+      bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
+      return igneous.tasks.BlackoutTask(
+        cloudpath=cloudpath, 
+        mip=mip, 
+        shape=shape.clone(), 
+        offset=startpt.clone(),
+        value=value, 
+        non_aligned_writes=non_aligned_writes,
+      )
 
+    def on_finish(self):
       vol.provenance.processing.append({
         'method': {
           'task': 'BlackoutTask',
@@ -284,7 +282,7 @@ def create_blackout_tasks(
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       })
 
-  return BlackoutTaskIterator()
+  return BlackoutTaskIterator(bounds, shape)
   
 def create_touch_tasks(
     self, cloudpath, 
@@ -303,19 +301,17 @@ def create_touch_tasks(
   bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
   bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
 
-  class TouchTaskIterator():
-    def __len__(self):
-      return num_tasks(bounds, shape)
-    def __iter__(self):
-      for startpt in xyzrange(bounds.minpt, bounds.maxpt, shape):
-        bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
-        yield igneous.tasks.TouchTask(
-          cloudpath=cloudpath,
-          shape=bounded_shape.clone(),
-          offset=startpt.clone(),
-          mip=mip,
-        )
+  class TouchTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
+      return igneous.tasks.TouchTask(
+        cloudpath=cloudpath,
+        shape=bounded_shape.clone(),
+        offset=offset.clone(),
+        mip=mip,
+      )
 
+    def on_finish(self):
       vol.provenance.processing.append({
         'method': {
             'task': 'TouchTask',
@@ -331,7 +327,7 @@ def create_touch_tasks(
       })
       vol.commit_provenance()
 
-  return TouchTaskIterator()
+  return TouchTaskIterator(bounds, shape)
 
 def create_downsampling_tasks(
     layer_path, mip=0, fill_missing=False, 
@@ -418,20 +414,18 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5):
   shape.x *= 2 ** num_mips
   shape.y *= 2 ** num_mips
 
-  class DeleteTaskIterator():
-    def __len__(self):
-      return int(reduce(operator.mul, np.ceil(vol.bounds.size3() / shape)))
-    def __iter__(self):
-      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
-        bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
-        yield DeleteTask(
-          layer_path=layer_path,
-          shape=bounded_shape.clone(),
-          offset=startpt.clone(),
-          mip=mip,
-          num_mips=num_mips,
-        )
+  class DeleteTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
+      return DeleteTask(
+        layer_path=layer_path,
+        shape=bounded_shape.clone(),
+        offset=offset.clone(),
+        mip=mip,
+        num_mips=num_mips,
+      )
 
+    def on_finish(self):
       vol = CloudVolume(layer_path)
       vol.provenance.processing.append({
         'method': {
@@ -445,7 +439,7 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5):
       })
       vol.commit_provenance()
 
-  return DeleteTaskIterator()
+  return DeleteTaskIterator(vol.bounds, shape)
 
 def create_skeletonizing_tasks(
     cloudpath, mip, 
@@ -740,26 +734,24 @@ def create_contrast_normalization_tasks(
 
   bounds = get_bounds(srcvol, bounds, shape, mip)
 
-  class ContrastNormalizationTaskIterator(object):
-    def __len__(self):
-      return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
-    def __iter__(self):
-      for startpt in xyzrange( bounds.minpt, bounds.maxpt, shape ):
-        task_shape = min2(shape.clone(), srcvol.bounds.maxpt - startpt)
-        yield ContrastNormalizationTask( 
-          src_path=src_path, 
-          dest_path=dest_path,
-          levels_path=levels_path,
-          shape=task_shape, 
-          offset=startpt.clone(), 
-          clip_fraction=clip_fraction,
-          mip=mip,
-          fill_missing=fill_missing,
-          translate=translate,
-          minval=minval,
-          maxval=maxval,
-        )
-        
+  class ContrastNormalizationTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      task_shape = min2(shape.clone(), srcvol.bounds.maxpt - offset)
+      return ContrastNormalizationTask( 
+        src_path=src_path, 
+        dest_path=dest_path,
+        levels_path=levels_path,
+        shape=task_shape, 
+        offset=offset.clone(), 
+        clip_fraction=clip_fraction,
+        mip=mip,
+        fill_missing=fill_missing,
+        translate=translate,
+        minval=minval,
+        maxval=maxval,
+      )
+    
+    def on_finish(self):
       dvol.provenance.processing.append({
         'method': {
           'task': 'ContrastNormalizationTask',
@@ -874,19 +866,17 @@ def create_watershed_remap_tasks(
 
   create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape)
 
-  class WatershedRemapTaskIterator():
-    def __len__(self):
-      return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
-    def __iter__(self):
-      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
-        yield WatershedRemapTask(
-          map_path=map_path,
-          src_path=src_layer_path,
-          dest_path=dest_layer_path,
-          shape=shape.clone(),
-          offset=startpt.clone(),
-        )
+  class WatershedRemapTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return WatershedRemapTask(
+        map_path=map_path,
+        src_path=src_layer_path,
+        dest_path=dest_layer_path,
+        shape=shape.clone(),
+        offset=offset.clone(),
+      )
     
+    def on_finish(self):
       dvol = CloudVolume(dest_layer_path)
       dvol.provenance.processing.append({
         'method': {
@@ -901,7 +891,7 @@ def create_watershed_remap_tasks(
       }) 
       dvol.commit_provenance()
 
-  return WatershedRemapTaskIterator()
+  return WatershedRemapTaskIterator(bounds, shape)
 
 def compute_fixup_offsets(vol, points, shape):
   pts = map(np.array, points)
@@ -966,20 +956,19 @@ def create_quantize_tasks(
 
   create_downsample_scales(dest_layer, mip=mip, ds_shape=shape)
 
-  class QuantizeTasksIterator():
-    def __len__(self):
-      return  int(reduce(operator.mul, np.ceil(destvol.bounds.size3() / shape)))
-    def __iter__(self):
-      for startpt in xyzrange( destvol.bounds.minpt, destvol.bounds.maxpt, shape ):
-        yield QuantizeTask(
-          source_layer_path=src_layer,
-          dest_layer_path=dest_layer,
-          shape=shape.tolist(),
-          offset=startpt.tolist(),
-          fill_missing=fill_missing,
-          mip=mip,
-        )
+  class QuantizeTasksIterator(FinelyDividedTaskIterator):
+    
+    def task(self, shape, offset):
+      return QuantizeTask(
+        source_layer_path=src_layer,
+        dest_layer_path=dest_layer,
+        shape=shape.tolist(),
+        offset=offset.tolist(),
+        fill_missing=fill_missing,
+        mip=mip,
+      )
 
+    def on_finish(self):
       destvol.provenance.sources = [ src_layer ]
       destvol.provenance.processing.append({
         'method': {
@@ -995,7 +984,7 @@ def create_quantize_tasks(
       }) 
       destvol.commit_provenance()
 
-  return QuantizeTasksIterator()
+  return QuantizeTasksIterator(destvol.bounds, shape)
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_mesh_manifest_tasks(layer_path, magnitude=3):

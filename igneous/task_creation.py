@@ -91,7 +91,7 @@ class FineIndexTaskIterator():
   def __iter__(self):
     for i in range(self.start, self.end):
       pt = self.to_coord(i)
-      offset = pt * self.shape
+      offset = pt * self.shape + self.bounds.minpt
       yield self.task(self.shape, offset)
 
     self.on_finish()

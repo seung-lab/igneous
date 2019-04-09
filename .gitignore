@@ -6,10 +6,16 @@ igneous.egg-info
 *.pyc
 __pycache__
 .cache
+create.py
+create2.py
+create3.py
 test.py
 test2.py
+skeletonize.py
+saved_images
 pipeline.py
 .pytest_cache
 projects
-.vscode
 *secret.json
+.vscode
+data/

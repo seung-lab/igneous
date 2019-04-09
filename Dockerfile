@@ -11,6 +11,7 @@ RUN apt-get update \
         build-essential \
     # igneous + runtime dependencies
     && cd igneous \
+    && pip install --no-cache-dir numpy \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir -e . \
     \

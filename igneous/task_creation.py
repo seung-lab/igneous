@@ -27,8 +27,8 @@ from igneous.tasks import (
   IngestTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
-  LuminanceLevelsTask, ContrastNormalizationTask, MaskAffinitymapTask, 
-  InferenceTask
+  LuminanceLevelsTask, ContrastNormalizationTask,
+  SkeletonTask, SkeletonMergeTask, MaskAffinitymapTask, InferenceTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -56,6 +56,7 @@ def get_bounds(vol, bounds, shape, mip, chunk_size=None):
     if chunk_size is not None:
       bounds = bounds.expand_to_chunk_size(chunk_size, vol.mip_voxel_offset(mip))
     bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
+  
 
   print("Volume Bounds: ", vol.mip_bounds(mip))
   print("Selected ROI:  ", bounds)
@@ -354,6 +355,7 @@ def create_downsampling_tasks(
             'bounds': str(bounds),
             'chunk_size': (list(chunk_size) if chunk_size else None),
             'preserve_chunk_size': preserve_chunk_size,
+            'encoding': encoding,
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -371,7 +373,7 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5):
 
   class DeleteTaskIterator():
     def __len__(self):
-      return reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+      return int(reduce(operator.mul, np.ceil(vol.bounds.size3() / shape)))
     def __iter__(self):
       for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
         bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
@@ -398,11 +400,135 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5):
 
   return DeleteTaskIterator()
 
+def create_skeletonizing_tasks(
+    cloudpath, mip, 
+    shape=Vec(512, 512, 512),
+    teasar_params={'scale':10, 'const': 10}, 
+    info=None, object_ids=None, fix_branching=True
+  ):
+  shape = Vec(*shape)
+  vol = CloudVolume(cloudpath, mip=mip, info=info)
+
+  if not 'skeletons' in vol.info:
+    vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
+    vol.commit_info()
+
+  incr = shape.clone()
+  for i in range(3):
+    if incr[i] < vol.bounds.size3()[i]:
+      incr[i] //= 2
+
+  will_postprocess = True
+
+  if np.all(vol.bounds.size3() <= shape):
+    incr = vol.bounds.size3()
+    will_postprocess = False
+
+  class SkeletonTaskIterator():
+    def __len__(self):
+      return int(math.ceil(reduce(operator.mul, vol.bounds.size3().astype(np.float32) / incr)))
+    def __iter__(self):
+      # 50% overlap
+      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ):
+        # eliminate double coverage on right edges during 50% overlap
+        if np.any(startpt - incr + shape > vol.bounds.maxpt):
+          continue
+        
+        yield SkeletonTask(
+          cloudpath=cloudpath,
+          shape=shape.clone(),
+          offset=startpt.clone(),
+          mip=mip,
+          teasar_params=teasar_params,
+          will_postprocess=will_postprocess,
+          info=info,
+          object_ids=object_ids,
+          fix_branching=fix_branching
+        )
+
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'SkeletonTask',
+          'cloudpath': cloudpath,
+          'mip': vol.mip,
+          'shape': shape.tolist(),
+          'teasar_params': teasar_params,
+          'object_ids': object_ids,
+          'info': info,
+          'will_postprocess': will_postprocess,
+          'incr': incr.tolist(),
+          'fix_branching': fix_branching,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
+
+  return SkeletonTaskIterator()
+
+# split the work up into ~1000 tasks (magnitude 3)
+def create_skeleton_merge_tasks(
+    layer_path, mip, crop=0,
+    magnitude=3, dust_threshold=4000, 
+    tick_threshold=6000, delete_fragments=False
+  ):
+  assert int(magnitude) == magnitude
+
+  start = 10 ** (magnitude - 1)
+  end = 10 ** magnitude
+
+  class SkeletonMergeTaskIterator():
+    def __len__(self):
+      return 10 ** magnitude
+    def __iter__(self):
+      # For a prefix like 100, tasks 1-99 will be missed. Account for them by
+      # enumerating them individually with a suffixed ':' to limit matches to
+      # only those small numbers
+      for prefix in range(1, start):
+        yield SkeletonMergeTask(
+          cloudpath=layer_path, 
+          prefix=str(prefix) + ':',
+          crop=crop,
+          mip=mip,
+          dust_threshold=dust_threshold,
+          tick_threshold=tick_threshold,
+          delete_fragments=delete_fragments,
+        )
+
+      # enumerate from e.g. 100 to 999
+      for prefix in range(start, end):
+        yield SkeletonMergeTask(
+          cloudpath=layer_path, 
+          prefix=prefix, 
+          crop=crop,
+          mip=mip, 
+          dust_threshold=dust_threshold, 
+          tick_threshold=tick_threshold,
+          delete_fragments=delete_fragments,
+        )
+
+      vol = CloudVolume(layer_path)
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'SkeletonMergeTask',
+          'cloudpath': layer_path,
+          'mip': mip,
+          'crop': crop,
+          'dust_threshold': dust_threshold,
+          'tick_threshold': tick_threshold,
+          'delete_fragments': delete_fragments,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
+
+  return SkeletonMergeTaskIterator()
 
 def create_meshing_tasks(
     layer_path, mip, 
-    shape=Vec(512, 512, 64), max_simplification_error=40,
-    mesh_dir=None, cdn_cache=False 
+    shape=(256, 256, 256), max_simplification_error=40,
+    mesh_dir=None, cdn_cache=False, dust_threshold=None
   ):
   shape = Vec(*shape)
 
@@ -417,9 +543,9 @@ def create_meshing_tasks(
 
   class MeshTaskIterator():
     def __len__(self):
-      return reduce(operator.mul, np.ceil(vol.bounds.size3() / shape))
+      return int(reduce(operator.mul, np.ceil(vol.bounds.size3() / shape)))
     def __iter__(self):
-      for startpt in tqdm(xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ), desc="Inserting Mesh Tasks"):
+      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, shape ):
         yield MeshTask(
           shape.clone(),
           startpt.clone(),
@@ -428,6 +554,7 @@ def create_meshing_tasks(
           max_simplification_error=max_simplification_error,
           mesh_dir=mesh_dir, 
           cache_control=('' if cdn_cache else 'no-cache'),
+          dust_threshold=dust_threshold,
         )
 
       vol.provenance.processing.append({
@@ -452,7 +579,7 @@ def create_transfer_tasks(
     chunk_size=None, shape=Vec(2048, 2048, 64), 
     fill_missing=False, translate=(0,0,0), 
     bounds=None, mip=0, preserve_chunk_size=True,
-    encoding=None
+    encoding=None, skip_downsamples=False
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -509,6 +636,7 @@ def create_transfer_tasks(
           fill_missing=fill_missing,
           translate=translate,
           mip=mip,
+          skip_downsamples=skip_downsamples,
         )
 
       job_details = {
@@ -519,6 +647,7 @@ def create_transfer_tasks(
           'shape': list(map(int, shape)),
           'fill_missing': fill_missing,
           'translate': list(map(int, translate)),
+          'skip_downsamples': skip_downsamples,
           'bounds': [
             bounds.minpt.tolist(),
             bounds.maxpt.tolist()
@@ -833,10 +962,6 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3):
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
 
-  # For a prefix like 100, tasks 1-99 will be missed. Account for them by
-  # enumerating them individually with a suffixed ':' to limit matches to
-  # only those small numbers
-
   class MeshManifestTaskIterator(object):
     def __len__(self):
       return 10 ** magnitude
@@ -849,6 +974,50 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3):
         yield MeshManifestTask(layer_path=layer_path, prefix=prefix)
 
   return MeshManifestTaskIterator()
+
+def create_graphene_hybrid_mesh_manifest_tasks(
+  cloudpath, mip, mip_bits, x_bits, y_bits, 
+  x_range=None, y_range=None
+):
+  """
+  Graphene structures segids as decimal numbers following
+  the below format:
+
+  mip x y z segid
+
+  Typical parameter values are 
+  mip_bits=4 or 8, x_bits=8 or 10, y_bits=8 or 10
+  """
+
+  mip_shift = 64 - mip_bits
+  x_shift = mip_shift - x_bits 
+  y_shift = x_shift - y_bits
+
+  if mip == 0:
+    stable_prefixes = (x_bits + y_bits) // 4
+  else:
+    stable_prefixes = (math.log2(mip + 1) + x_bits + y_bits) // 4
+
+  stable_prefixes = int(max(stable_prefixes, 1))
+
+  x_range = 2 ** x_bits if x_range is None else x_range
+  y_range = 2 ** y_bits if y_range is None else y_range
+
+  prefixes = set()
+  for x in range(x_range):
+    for y in range(y_range):
+      num = (mip << mip_shift) + (x << x_shift) + (y << y_shift)
+      num = str(num)[:stable_prefixes]
+      prefixes.add(num)
+
+  class GrapheneHybridMeshManifestTaskIterator(object):
+    def __len__(self):
+      return len(prefixes)
+    def __iter__(self):
+      for prefix in prefixes:
+        yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix))
+
+  return GrapheneHybridMeshManifestTaskIterator()
 
 def create_hypersquare_ingest_tasks(
     hypersquare_bucket_name, dataset_name, 

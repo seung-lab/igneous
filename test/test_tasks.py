@@ -324,7 +324,7 @@ def test_quantize():
 
     info = create_quantized_affinity_info(
         storage.layer_path, qpath, shape, 
-        mip=0, chunk_size=[64,64,64]
+        mip=0, chunk_size=[64,64,64], encoding='raw'
     )
     qcv = CloudVolume(qpath, info=info)
     qcv.commit_info()

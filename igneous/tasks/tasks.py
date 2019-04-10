@@ -176,6 +176,9 @@ class BlackoutTask(RegisteredTask):
       cloudpath, mip, shape, 
       offset, value, non_aligned_writes
     )
+    self.shape = Vec(*self.shape)
+    self.offset = Vec(*self.offset)
+
   def execute(self):
     vol = CloudVolume(self.cloudpath, self.mip, non_aligned_writes=self.non_aligned_writes)
     bounds = Bbox(self.offset, self.shape + self.offset)

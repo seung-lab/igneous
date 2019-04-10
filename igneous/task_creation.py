@@ -250,16 +250,20 @@ def create_blackout_tasks(
   shape = Vec(*shape)
   bounds = Bbox.create(bounds)
   bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+
+  if not non_aligned_writes:
+    bounds = bounds.expand_to_chunk_size(vol.chunk_size, vol.voxel_offset)
+    
   bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
 
   class BlackoutTaskIterator(FinelyDividedTaskIterator):
-    def task(self, shape, bounded):
-      bounded_shape = min2(shape, vol.bounds.maxpt - startpt)
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
       return igneous.tasks.BlackoutTask(
         cloudpath=cloudpath, 
         mip=mip, 
         shape=shape.clone(), 
-        offset=startpt.clone(),
+        offset=offset.clone(),
         value=value, 
         non_aligned_writes=non_aligned_writes,
       )
@@ -954,7 +958,7 @@ def create_quantize_tasks(
     src_layer, dest_layer, shape, 
     mip=0, fill_missing=False, 
     chunk_size=(128, 128, 64), 
-    encoding='raw'
+    encoding='raw', bounds=None
   ):
 
   shape = Vec(*shape)
@@ -970,6 +974,9 @@ def create_quantize_tasks(
     dest_layer, mip=mip, ds_shape=shape, 
     chunk_size=chunk_size, encoding=encoding
   )
+
+  if bounds is None:
+    bounds = destvol.mip_bounds(mip)
 
   class QuantizeTasksIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -998,7 +1005,7 @@ def create_quantize_tasks(
       }) 
       destvol.commit_provenance()
 
-  return QuantizeTasksIterator(destvol.mip_bounds(mip), shape)
+  return QuantizeTasksIterator(bounds, shape)
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_mesh_manifest_tasks(layer_path, magnitude=3):

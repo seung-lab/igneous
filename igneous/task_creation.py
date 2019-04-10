@@ -672,7 +672,7 @@ def create_transfer_tasks(
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  
       task_shape = min2(shape.clone(), dvol_bounds.maxpt - offset)
-      yield TransferTask(
+      return TransferTask(
         src_path=src_layer_path,
         dest_path=dest_layer_path,
         shape=task_shape,

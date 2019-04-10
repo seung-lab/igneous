@@ -934,7 +934,10 @@ def create_fixup_downsample_tasks(
 
   return FixupDownsampleTasksIterator()
 
-def create_quantized_affinity_info(src_layer, dest_layer, shape, mip, chunk_size):
+def create_quantized_affinity_info(
+    src_layer, dest_layer, shape, mip, 
+    chunk_size, encoding
+  ):
   srcvol = CloudVolume(src_layer)
   
   info = copy.deepcopy(srcvol.info)
@@ -943,26 +946,32 @@ def create_quantized_affinity_info(src_layer, dest_layer, shape, mip, chunk_size
   info['type'] = 'image'
   info['scales'] = info['scales'][:mip+1]
   for i in range(mip+1):
+    info['scales'][i]['encoding'] = encoding
     info['scales'][i]['chunk_sizes'] = [ chunk_size ]
   return info
 
 def create_quantize_tasks(
     src_layer, dest_layer, shape, 
-    mip=0, fill_missing=False, chunk_size=[64,64,64]
+    mip=0, fill_missing=False, 
+    chunk_size=(128, 128, 64), 
+    encoding='raw'
   ):
 
   shape = Vec(*shape)
 
   info = create_quantized_affinity_info(
-    src_layer, dest_layer, shape, mip, chunk_size
+    src_layer, dest_layer, shape, 
+    mip, chunk_size, encoding
   )
   destvol = CloudVolume(dest_layer, info=info, mip=mip)
   destvol.commit_info()
 
-  create_downsample_scales(dest_layer, mip=mip, ds_shape=shape)
+  create_downsample_scales(
+    dest_layer, mip=mip, ds_shape=shape, 
+    chunk_size=chunk_size, encoding=encoding
+  )
 
   class QuantizeTasksIterator(FinelyDividedTaskIterator):
-    
     def task(self, shape, offset):
       return QuantizeTask(
         source_layer_path=src_layer,

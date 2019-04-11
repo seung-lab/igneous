@@ -977,6 +977,11 @@ def create_quantize_tasks(
 
   if bounds is None:
     bounds = destvol.mip_bounds(mip)
+  else:
+    bounds = destvol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = bounds.expand_to_chunk_size(
+      destvol.mip_chunk_size(mip), destvol.mip_voxel_offset(mip)
+    )
 
   class QuantizeTasksIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):

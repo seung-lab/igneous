@@ -364,6 +364,9 @@ class MeshTask(RegisteredTask):
       simplification_factor=self.options['simplification_factor'],
       max_simplification_error=self.options['max_simplification_error']
     )
+
+    self._mesher.erase(obj_id)
+
     vertices = self._update_vertices(
       np.array(mesh['points'], dtype=np.float32)
     )

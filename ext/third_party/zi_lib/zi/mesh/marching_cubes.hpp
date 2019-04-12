@@ -160,6 +160,19 @@ public:
         num_faces_ = 0;
     }
 
+    bool erase(const Type& t) 
+    {
+        try {
+            std::vector< triangle > &tri = meshes_.at(t);
+            std::size_t num_erased = meshes_.erase(t);
+            num_faces_ -= tri.size();
+            return num_erased > 0;
+        }
+        catch (const std::out_of_range& oor) {
+            return false;
+        }        
+    }
+
     std::size_t face_count() const
     {
         return num_faces_;

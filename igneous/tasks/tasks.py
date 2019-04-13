@@ -298,6 +298,10 @@ class MeshTask(RegisteredTask):
 
     # chunk_position includes the overlap specified by low_padding/high_padding
     data = self._volume[data_bounds]
+
+    if not np.any(data):
+      return
+
     data = self._remove_dust(data, self.options['dust_threshold'])
     data = self._remap(data)
     self._compute_meshes(data)

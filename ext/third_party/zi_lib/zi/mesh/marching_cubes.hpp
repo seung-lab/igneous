@@ -163,14 +163,14 @@ public:
     bool erase(const Type& t) 
     {
         try {
-            std::vector< triangle > &tri = meshes_.at(t);
+            std::size_t face_delta = meshes_.at(t).size();
             std::size_t num_erased = meshes_.erase(t);
-            num_faces_ -= tri.size();
+            num_faces_ -= face_delta;
             return num_erased > 0;
         }
         catch (const std::out_of_range& oor) {
             return false;
-        }        
+        }
     }
 
     std::size_t face_count() const

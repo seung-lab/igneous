@@ -29,4 +29,6 @@ class CMesher {
             unsigned int sz);
   std::vector<uint64_t> ids();
   MeshObject get_mesh(uint64_t id, bool generate_normals, int simplification_factor, int max_error);
+  void clear();
+  bool erase(uint64_t id);
 };

@@ -97,3 +97,12 @@ MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
 
   return obj;
 }
+
+void CMesher::clear() {
+  marchingcubes_.clear();
+  simplifier_.clear();
+}
+
+bool CMesher::erase(uint64_t id) {
+  return marchingcubes_.erase(id);
+}

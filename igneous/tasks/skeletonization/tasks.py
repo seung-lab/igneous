@@ -74,7 +74,7 @@ class SkeletonTask(RegisteredTask):
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, anisotropy=vol.resolution,
       dust_threshold=1000, cc_safety_factor=0.25,
-      progress=True, fix_branching=self.fix_branching
+      progress=False, fix_branching=self.fix_branching
     )
 
     for segid, skel in six.iteritems(skeletons):

@@ -15,23 +15,29 @@ Adapted to include passing of multidimensional arrays
 #include "cMesher.h"
 
 //////////////////////////////////
-CMesher::CMesher(const std::vector<uint32_t> &voxelresolution) {
+template <typename PositionType, typename LabelType>
+CMesher<PositionType, LabelType>::CMesher(const std::vector<uint32_t> &voxelresolution) {
   voxelresolution_ = voxelresolution;
 }
 
-CMesher::~CMesher() {}
+template <typename PositionType, typename LabelType>
+CMesher<PositionType, LabelType>::~CMesher() {}
 
-void CMesher::mesh(const std::vector<uint64_t> &data, unsigned int sx,
-                  unsigned int sy, unsigned int sz) {
+template <typename PositionType, typename LabelType>
+void CMesher<PositionType, LabelType>::mesh(
+    const std::vector<LabelType> &data, 
+    unsigned int sx, unsigned int sy, unsigned int sz
+  ) {
   // Create Marching Cubes class for type T volume
 
-  const uint64_t *a = &data[0];
+  const LabelType *a = &data[0];
   // Run global marching cubes, a mesh is generated for each segment ID group
   marchingcubes_.marche(a, sx, sy, sz);
 }
 
-std::vector<uint64_t> CMesher::ids() {
-  std::vector<uint64_t> keys;
+template <typename PositionType, typename LabelType>
+std::vector<LabelType> CMesher<PositionType, LabelType>::ids() {
+  std::vector<LabelType> keys;
   for (auto it = marchingcubes_.meshes().begin();
        it != marchingcubes_.meshes().end(); ++it) {
     keys.push_back(it->first);
@@ -40,9 +46,13 @@ std::vector<uint64_t> CMesher::ids() {
   return keys;
 }
 
-MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
-                            int simplification_factor,
-                            int max_simplification_error) {
+template <typename PositionType, typename LabelType>
+MeshObject CMesher<PositionType, LabelType>::get_mesh(
+    LabelType id, bool generate_normals,
+    int simplification_factor,
+    int max_simplification_error
+  ) {
+
   MeshObject obj;
 
   if (marchingcubes_.count(id) == 0) {  // MC produces no triangles if either
@@ -50,17 +60,20 @@ MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
     return obj;
   }
 
-  zi::mesh::int_mesh im;
+  zi::mesh::int_mesh<PositionType> im;
   im.add(marchingcubes_.get_triangles(id));
-  im.fill_simplifier<double>(simplifier_, 0, 0, 0, voxelresolution_[2],
-      voxelresolution_[1], voxelresolution_[0]);
+  im.fill_simplifier<double>(
+    simplifier_, 0, 0, 0, voxelresolution_[2],
+    voxelresolution_[1], voxelresolution_[0]
+  );
   simplifier_.prepare(generate_normals);
 
   if (simplification_factor > 0) {
     // This is the most cpu intensive line
     simplifier_.optimize(
         simplifier_.face_count() / simplification_factor,
-        max_simplification_error);
+        max_simplification_error
+    );
   }
 
   std::vector<zi::vl::vec3d> points;
@@ -98,11 +111,13 @@ MeshObject CMesher::get_mesh(uint64_t id, bool generate_normals,
   return obj;
 }
 
-void CMesher::clear() {
+template <typename PositionType, typename LabelType>
+void CMesher<PositionType, LabelType>::clear() {
   marchingcubes_.clear();
   simplifier_.clear();
 }
 
-bool CMesher::erase(uint64_t id) {
+template <typename PositionType, typename LabelType>
+bool CMesher<PositionType, LabelType>::erase(LabelType id) {
   return marchingcubes_.erase(id);
 }

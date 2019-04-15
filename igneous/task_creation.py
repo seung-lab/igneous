@@ -411,7 +411,10 @@ def create_downsampling_tasks(
 
     return DownsampleTaskIterator(bounds, shape)
 
-def create_deletion_tasks(layer_path, mip=0, num_mips=5, shape=None):
+def create_deletion_tasks(
+    layer_path, mip=0, num_mips=5, 
+    shape=None, bounds=None
+  ):
   vol = CloudVolume(layer_path)
   
   if shape is None:
@@ -421,9 +424,12 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5, shape=None):
   else:
     shape = Vec(*shape)
 
+  if not bounds:
+    bounds = vol.mip_bounds(mip).clone()
+
   class DeleteTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
+      bounded_shape = min2(shape, bounds.maxpt - offset)
       return DeleteTask(
         layer_path=layer_path,
         shape=bounded_shape.clone(),
@@ -446,7 +452,7 @@ def create_deletion_tasks(layer_path, mip=0, num_mips=5, shape=None):
       })
       vol.commit_provenance()
 
-  return DeleteTaskIterator(vol.mip_bounds(mip), shape)
+  return DeleteTaskIterator(bounds, shape)
 
 def create_skeletonizing_tasks(
     cloudpath, mip, 

@@ -25,13 +25,14 @@
 namespace zi {
 namespace mesh {
 
+template <typename Type>
 class int_mesh
 {
 private:
     typedef marching_cubes<int>  marcher_t ;
 
 public:
-    typedef vl::vec<uint64_t, 3> triangle_t;
+    typedef vl::vec<Type, 3> triangle_t;
 
 private:
     std::vector< triangle_t > v_;
@@ -111,7 +112,7 @@ public:
                      const T& zscale = T( 1 ) ) const
     {
         uint32_t idx = 0;
-        unordered_map< uint64_t, uint32_t > pts;
+        unordered_map< Type, uint32_t > pts;
 
         const std::vector< triangle_t >& data = v_;
 

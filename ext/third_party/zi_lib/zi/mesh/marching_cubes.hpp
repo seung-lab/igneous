@@ -16,6 +16,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+// Extended with uint32_t support in 2019 by William Silversmith
+
 #ifndef ZI_MESH_MARCHING_CUBES_HPP
 #define ZI_MESH_MARCHING_CUBES_HPP 1
 
@@ -43,66 +45,98 @@
 namespace zi {
 namespace mesh {
 
-template< class Type >
-class marching_cubes: non_copyable
-{
-private:
-    typedef marching_cubes< Type > this_type;
-
-    ZI_STATIC_ASSERT( is_integral< Type >::value, non_integral_type_for_marching_cubes );
-
-    static const std::size_t tri_table_end = 0xffffffff;
-    static const std::size_t edge_table[ 256 ];
-    static const std::size_t tri_table[ 256 ][ 16 ];
+template <typename T> struct mc_masks<T> {
+    static const std:size_t bits_per_field = 21;
+    static const std:size_t zshift = 0;
+    static const std:size_t yshift = 21;
+    static const std:size_t xshift = 42;
 
     static const std::size_t z_mask = 0x1FFFFF;
-    static const std::size_t y_mask = z_mask << 21;
-    static const std::size_t x_mask = y_mask << 21;
+    static const std::size_t y_mask = z_mask << bits_per_field;
+    static const std::size_t x_mask = y_mask << bits_per_field;
 
     static const std::size_t xy_mask = x_mask | y_mask;
     static const std::size_t xz_mask = x_mask | z_mask;
     static const std::size_t yz_mask = y_mask | z_mask;
 
     static const std::size_t delta_z = 1;
-    static const std::size_t delta_y = delta_z << 21;
-    static const std::size_t delta_x = delta_y << 21;
+    static const std::size_t delta_y = delta_z << bits_per_field;
+    static const std::size_t delta_x = delta_y << bits_per_field;
 
     static const std::size_t delta_2z = 2;
-    static const std::size_t delta_2y = delta_2z << 21;
-    static const std::size_t delta_2x = delta_2y << 21;
+    static const std::size_t delta_2y = delta_2z << bits_per_field;
+    static const std::size_t delta_2x = delta_2y << bits_per_field;
+};
+
+template <> struct mc_masks<uint32_t> {
+    static const std:size_t bits_per_field = 10;
+    static const std:size_t zshift = 0;
+    static const std:size_t yshift = 10;
+    static const std:size_t xshift = 20;
+
+    static const std::size_t z_mask = 0x3FF;
+    static const std::size_t y_mask = z_mask << bits_per_field;
+    static const std::size_t x_mask = y_mask << bits_per_field;
+
+    static const std::size_t xy_mask = x_mask | y_mask;
+    static const std::size_t xz_mask = x_mask | z_mask;
+    static const std::size_t yz_mask = y_mask | z_mask;
+
+    static const std::size_t delta_z = 1;
+    static const std::size_t delta_y = delta_z << bits_per_field;
+    static const std::size_t delta_x = delta_y << bits_per_field;
+
+    static const std::size_t delta_2z = 2;
+    static const std::size_t delta_2y = delta_2z << bits_per_field;
+    static const std::size_t delta_2x = delta_2y << bits_per_field;  
+};
+
+template< class PositionType, LabelType >
+class marching_cubes: non_copyable
+{
+private:
+    typedef marching_cubes< PositionType, LabelType > this_type;
+
+    ZI_STATIC_ASSERT( is_integral< Type >::value, non_integral_type_for_marching_cubes );
+
+    static const std::size_t tri_table_end = 0xffffffff;
+    static const std::size_t edge_table[ 256 ];
+    static const std::size_t tri_table[ 256 ][ 16 ];
+    static const mc_masks<PositionType> masks;
 
 public:
-    static inline uint64_t pack_coords( uint64_t x, uint64_t y, uint64_t z )
+    // 32-bit (10 bits per field, max dim 1024, 2 wasted bits)
+    static inline PositionType pack_coords( PositionType x, PositionType y, PositionType z )
     {
-        return ( x << 42 ) | ( y << 21 ) | z;
+        return ( x << masks.xshift ) | ( y << masks.yshift ) | z;
     }
 
     template< class T >
-    static inline T unpack_x( uint64_t packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
+    static inline T unpack_x( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> 42 ) & z_mask ) );
+        return factor * ( offset + ( ( packed >> masks.xshift ) & masks.z_mask ) );
     }
 
     template< class T >
-    static inline T unpack_y( uint64_t packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
+    static inline T unpack_y( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> 21 ) & z_mask ) );
+        return factor * ( offset + ( ( packed >> masks.yshift ) & masks.z_mask ) );
     }
 
     template< class T >
-    static inline T unpack_z( uint64_t packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
+    static inline T unpack_z( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( packed & z_mask ) );
-    }
+        return factor * ( offset + ( packed & masks.z_mask ) );
+    }    
 
 public:
     struct packed_printer: non_copyable
     {
     private:
-        const uint64_t coor_;
+        const PositionType coor_;
 
     public:
-        packed_printer( const uint64_t c ): coor_( c )
+        packed_printer( const PositionType c ): coor_( c )
         {
         }
 
@@ -110,9 +144,9 @@ public:
         std::ostream& operator<<( std::ostream& os, const packed_printer& p )
         {
             os << "[ "
-               << marching_cubes< Type >::template unpack_x< Type >( p.coor_ ) << ", "
-               << marching_cubes< Type >::template unpack_y< Type >( p.coor_ ) << ", "
-               << marching_cubes< Type >::template unpack_z< Type >( p.coor_ ) << " ]";
+               << marching_cubes< PositionType >::template unpack_x< PositionType >( p.coor_ ) << ", "
+               << marching_cubes< PositionType >::template unpack_y< PositionType >( p.coor_ ) << ", "
+               << marching_cubes< PositionType >::template unpack_z< PositionType >( p.coor_ ) << " ]";
             return os;
         }
     };
@@ -120,18 +154,18 @@ public:
 
 public:
 
-    typedef vl::vec<uint64_t, 3> triangle;
+    typedef vl::vec<PositionType, 3> triangle;
 
     struct trianglex
     {
-        uint64_t a_, b_, c_;
+        PositionType a_, b_, c_;
 
         inline trianglex()
             : a_(0), b_(0), c_(0)
         {
         }
 
-        inline trianglex( uint64_t a, uint64_t b, uint64_t c )
+        inline trianglex( PositionType a, PositionType b, PositionType c )
             : a_( a ), b_( b ), c_( c )
         {
         }
@@ -139,11 +173,11 @@ public:
     };
 
     std::size_t                                    num_faces_;
-    unordered_map< Type, std::vector< triangle > > meshes_   ;
+    unordered_map< LabelType, std::vector< triangle > > meshes_   ;
 
 public:
 
-    const unordered_map< Type, std::vector< triangle > >& meshes() const
+    const unordered_map< LabelType, std::vector< triangle > >& meshes() const
     {
         return meshes_;
     }
@@ -160,7 +194,7 @@ public:
         num_faces_ = 0;
     }
 
-    bool erase(const Type& t) 
+    bool erase(const LabelType& t) 
     {
         try {
             std::size_t face_delta = meshes_.at(t).size();
@@ -178,7 +212,7 @@ public:
         return num_faces_;
     }
 
-    std::size_t count( const Type& t ) const
+    std::size_t count( const LabelType& t ) const
     {
         return meshes_.count( t );
     }
@@ -188,14 +222,14 @@ public:
         return meshes_.size();
     }
 
-    void marche( const Type* data, std::size_t x_dim, std::size_t y_dim, std::size_t z_dim )
+    void marche( const LabelType* data, std::size_t x_dim, std::size_t y_dim, std::size_t z_dim )
     {
 
         unordered_set< Type > local;
 
         uint64_t ptrs_[ 12 ];
 
-        uint64_t vert[ 8 ] =
+        PositionType vert[ 8 ] =
         {
             pack_coords( 0, 0, 0 ),
             pack_coords( 2, 0, 0 ),
@@ -305,11 +339,11 @@ public:
 
                 for ( std::size_t i = 0; i < 8 ; ++i )
                 {
-                    vert[ i ] += delta_2y;
+                    vert[ i ] += masks.delta_2y;
                 }
                 for ( std::size_t i = 0; i < 8 ; ++i )
                 {
-                    vert[ i ]  = ( vert[ i ] & xy_mask ) | ( i & 2 );
+                    vert[ i ]  = ( vert[ i ] & masks.xy_mask ) | ( i & 2 );
                 }
 
                 y_off += z_dim;
@@ -317,11 +351,11 @@ public:
 
             for ( std::size_t i = 0; i < 8 ; ++i )
             {
-                vert[ i ] += delta_2x;
+                vert[ i ] += masks.delta_2x;
             }
             for ( std::size_t i = 0; i < 8 ; ++i )
             {
-                vert[ i ]  = ( vert[ i ] & xz_mask ) | ( ( i & 4 ) << 20 );
+                vert[ i ]  = ( vert[ i ] & masks.xz_mask ) | ( ( i & 4 ) << (masks.yshift - 1) );
             }
 
             y_off = 0;
@@ -331,7 +365,7 @@ public:
     }
 
     template< class T > std::size_t
-    fill_tri_mesh( const Type& id,
+    fill_tri_mesh( const LabelType& id,
                    tri_mesh& ret,
                    std::vector< vl::vec< T, 3 > >& points,
                    const T& xtrans = T( 0 ),
@@ -389,14 +423,14 @@ public:
 
     }
 
-    const std::vector< triangle >& get_triangles( const Type& id ) const
+    const std::vector< triangle >& get_triangles( const LabelType& id ) const
     {
         return meshes_.find(id)->second;
     }
 
     template< class T > std::size_t
     fill_simplifier( ::zi::mesh::simplifier< T >& ret,
-                     const Type& id,
+                     const LabelType& id,
                      const T& xtrans = T( 0 ),
                      const T& ytrans = T( 0 ),
                      const T& ztrans = T( 0 ),

@@ -26,7 +26,7 @@ from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales
-from igneous import Mesher  # broken out for ease of commenting out
+from igneous._mesher import Mesher32 as Mesher  # broken out for ease of commenting out
 
 import tinybrain
 

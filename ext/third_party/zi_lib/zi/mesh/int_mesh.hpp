@@ -19,20 +19,21 @@
 #ifndef ZI_MESH_INT_MESH_HPP
 #define ZI_MESH_INT_MESH_HPP 1
 
+#include <vector>
 #include <zi/mesh/marching_cubes.hpp>
 #include <boost/shared_ptr.hpp>
 
 namespace zi {
 namespace mesh {
 
-template <typename Type>
+template <typename PositionType>
 class int_mesh
 {
 private:
     typedef marching_cubes<int, int>  marcher_t ;
 
 public:
-    typedef vl::vec<Type, 3> triangle_t;
+    typedef vl::vec<PositionType, 3> triangle_t;
 
 private:
     std::vector< triangle_t > v_;
@@ -55,16 +56,16 @@ public:
 
     void add(const std::vector< triangle_t >& v, uint64_t x=0, uint64_t y=0, uint64_t z=0)
     {
-        uint64_t off = marcher_t::pack_coords(x*2,y*2,z*2);
+        PositionType off = static_cast<PositionType>(marcher_t::pack_coords(x*2,y*2,z*2));
         for ( std::size_t i = 0; i < v.size(); ++i )
         {
-            v_.push_back(v[i]+off);
+            v_.push_back(v[i] + off);
         }
     }
 
     void add( const triangle_t * v, std::size_t size, uint64_t x=0, uint64_t y=0, uint64_t z=0)
     {
-        uint64_t off = marcher_t::pack_coords(x*2,y*2,z*2);
+        PositionType off = static_cast<PositionType>(marcher_t::pack_coords(x*2,y*2,z*2));
         for ( std::size_t i = 0; i < size; ++i )
         {
             v_.push_back(v[i]+off);
@@ -112,7 +113,7 @@ public:
                      const T& zscale = T( 1 ) ) const
     {
         uint32_t idx = 0;
-        unordered_map< Type, uint32_t > pts;
+        unordered_map< uint64_t, uint32_t > pts;
 
         const std::vector< triangle_t >& data = v_;
 

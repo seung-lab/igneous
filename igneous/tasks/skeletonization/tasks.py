@@ -10,8 +10,6 @@ from collections import defaultdict
 import numpy as np
 from tqdm import tqdm
 
-import igneous.skeletontricks
-
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton
 from cloudvolume.storage import Storage, SimpleStorage

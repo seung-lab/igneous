@@ -29,7 +29,7 @@ template <typename Type>
 class int_mesh
 {
 private:
-    typedef marching_cubes<int>  marcher_t ;
+    typedef marching_cubes<int, int>  marcher_t ;
 
 public:
     typedef vl::vec<Type, 3> triangle_t;
@@ -137,9 +137,9 @@ public:
         FOR_EACH( it, pts )
         {
             ret.point( it->second ) = vl::vec< T, 3 >
-                ( marching_cubes<int>::template unpack_x< T >( it->first, xtrans, xscale ),
-                  marching_cubes<int>::template unpack_y< T >( it->first, ytrans, yscale ),
-                  marching_cubes<int>::template unpack_z< T >( it->first, ztrans, zscale ) );
+                ( marching_cubes<int, int>::template unpack_x< T >( it->first, xtrans, xscale ),
+                  marching_cubes<int, int>::template unpack_y< T >( it->first, ytrans, yscale ),
+                  marching_cubes<int, int>::template unpack_z< T >( it->first, ztrans, zscale ) );
         }
 
         FOR_EACH( it, data )

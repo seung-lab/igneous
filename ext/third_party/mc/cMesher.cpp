@@ -62,7 +62,7 @@ MeshObject CMesher<PositionType, LabelType>::get_mesh(
 
   zi::mesh::int_mesh<PositionType> im;
   im.add(marchingcubes_.get_triangles(id));
-  im.fill_simplifier<double>(
+  im.template fill_simplifier<double>(
     simplifier_, 0, 0, 0, voxelresolution_[2],
     voxelresolution_[1], voxelresolution_[0]
   );

@@ -45,11 +45,11 @@
 namespace zi {
 namespace mesh {
 
-template <typename T> struct mc_masks<T> {
-    static const std:size_t bits_per_field = 21;
-    static const std:size_t zshift = 0;
-    static const std:size_t yshift = 21;
-    static const std:size_t xshift = 42;
+template <typename T> struct mc_masks {
+    static const std::size_t bits_per_field = 21;
+    static const std::size_t zshift = 0;
+    static const std::size_t yshift = 21;
+    static const std::size_t xshift = 42;
 
     static const std::size_t z_mask = 0x1FFFFF;
     static const std::size_t y_mask = z_mask << bits_per_field;
@@ -69,10 +69,10 @@ template <typename T> struct mc_masks<T> {
 };
 
 template <> struct mc_masks<uint32_t> {
-    static const std:size_t bits_per_field = 10;
-    static const std:size_t zshift = 0;
-    static const std:size_t yshift = 10;
-    static const std:size_t xshift = 20;
+    static const std::size_t bits_per_field = 10;
+    static const std::size_t zshift = 0;
+    static const std::size_t yshift = 10;
+    static const std::size_t xshift = 20;
 
     static const std::size_t z_mask = 0x3FF;
     static const std::size_t y_mask = z_mask << bits_per_field;
@@ -91,13 +91,13 @@ template <> struct mc_masks<uint32_t> {
     static const std::size_t delta_2x = delta_2y << bits_per_field;  
 };
 
-template< class PositionType, LabelType >
+template< typename PositionType, typename LabelType >
 class marching_cubes: non_copyable
 {
 private:
     typedef marching_cubes< PositionType, LabelType > this_type;
 
-    ZI_STATIC_ASSERT( is_integral< Type >::value, non_integral_type_for_marching_cubes );
+    ZI_STATIC_ASSERT( is_integral< PositionType >::value, non_integral_type_for_marching_cubes );
 
     static const std::size_t tri_table_end = 0xffffffff;
     static const std::size_t edge_table[ 256 ];
@@ -144,9 +144,9 @@ public:
         std::ostream& operator<<( std::ostream& os, const packed_printer& p )
         {
             os << "[ "
-               << marching_cubes< PositionType >::template unpack_x< PositionType >( p.coor_ ) << ", "
-               << marching_cubes< PositionType >::template unpack_y< PositionType >( p.coor_ ) << ", "
-               << marching_cubes< PositionType >::template unpack_z< PositionType >( p.coor_ ) << " ]";
+               << marching_cubes< PositionType, LabelType >::template unpack_x< PositionType >( p.coor_ ) << ", "
+               << marching_cubes< PositionType, LabelType >::template unpack_y< PositionType >( p.coor_ ) << ", "
+               << marching_cubes< PositionType, LabelType >::template unpack_z< PositionType >( p.coor_ ) << " ]";
             return os;
         }
     };
@@ -225,7 +225,7 @@ public:
     void marche( const LabelType* data, std::size_t x_dim, std::size_t y_dim, std::size_t z_dim )
     {
 
-        unordered_set< Type > local;
+        unordered_set< LabelType > local;
 
         uint64_t ptrs_[ 12 ];
 
@@ -266,7 +266,7 @@ public:
                 {
                     const std::size_t ind = x_off + y_off + z;
 
-                    const Type vals[ 8 ] =
+                    const LabelType vals[ 8 ] =
                         {
                             data[ ind ],
                             data[ ind + off1 ],
@@ -490,7 +490,7 @@ public:
 
 #  define ZI_MESH_MARCHING_CUBES_HPP_INLUDING_TABLES 1
 #  define ZI_MESH_MARCHING_CUBES_TYPE( var, ext )                       \
-    template< class Type > const std::size_t marching_cubes< Type >::var ext
+    template< typename PositionType, typename LabelType > const std::size_t marching_cubes< PositionType, LabelType >::var ext
 #
 #  include <zi/mesh/detail/marching_cubes_tables.hpp>
 #

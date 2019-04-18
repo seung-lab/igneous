@@ -15,6 +15,7 @@ RUN apt-get update \
         git \
         libboost-dev \
         build-essential \
+        python3-dev \
     # igneous + runtime dependencies
     && cd igneous \
     && pip3 install --no-cache-dir -r requirements.txt \
@@ -29,12 +30,13 @@ RUN apt-get update \
     && apt-get remove --purge -y \
         libboost-dev \
         build-essential \
+        python3-dev \
     && apt-get autoremove --purge -y \
     # Cleanup apt
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     # Cleanup temporary python files
-    && find /opt/conda/bin/python3.6 -depth \
+    && find /usr/local/lib/python3.5 -depth \
       \( \
         \( -type d -a \( -name __pycache__ \) \) \
         -o \

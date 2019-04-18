@@ -282,7 +282,8 @@ def create_deletion_tasks(task_queue, layer_path, mip=0, num_mips=5):
 def create_meshing_tasks(
     task_queue, layer_path, mip, 
     shape=Vec(512, 512, 64), max_simplification_error=40,
-    mesh_dir=None, cdn_cache=False 
+    mesh_dir=None, cdn_cache=False, 
+    remap_table=None
   ):
   shape = Vec(*shape)
 
@@ -303,6 +304,7 @@ def create_meshing_tasks(
       mip=vol.mip,
       max_simplification_error=max_simplification_error,
       mesh_dir=mesh_dir, 
+      remap_table=remap_table,
       cache_control=('' if cdn_cache else 'no-cache'),
     )
     task_queue.insert(task)

@@ -30,7 +30,7 @@ template <typename PositionType>
 class int_mesh
 {
 private:
-    typedef marching_cubes<int, int>  marcher_t ;
+    typedef marching_cubes<int, uint64_t>  marcher_t ;
 
 public:
     typedef vl::vec<PositionType, 3> triangle_t;
@@ -113,7 +113,7 @@ public:
                      const T& zscale = T( 1 ) ) const
     {
         uint32_t idx = 0;
-        unordered_map< uint64_t, uint32_t > pts;
+        unordered_map< PositionType, uint32_t > pts;
 
         const std::vector< triangle_t >& data = v_;
 

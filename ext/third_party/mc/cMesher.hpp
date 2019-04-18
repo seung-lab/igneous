@@ -50,23 +50,24 @@ class CMesher {
   }
 
   MeshObject get_mesh(
-      LabelType id, bool generate_normals,
+      LabelType segid, bool generate_normals,
       int simplification_factor,
       int max_simplification_error
     ) {
 
     MeshObject obj;
 
-    if (marchingcubes_.count(id) == 0) {  // MC produces no triangles if either
+    if (marchingcubes_.count(segid) == 0) {  // MC produces no triangles if either
                                           // none or all voxels were labeled!
       return obj;
     }
 
     zi::mesh::int_mesh<PositionType> im;
-    im.add(marchingcubes_.get_triangles(id));
+    im.add(marchingcubes_.get_triangles(segid));
     im.template fill_simplifier<double>(
-      simplifier_, 0, 0, 0, voxelresolution_[2],
-      voxelresolution_[1], voxelresolution_[0]
+      simplifier_, 
+      0, 0, 0, 
+      voxelresolution_[2], voxelresolution_[1], voxelresolution_[0]
     );
     simplifier_.prepare(generate_normals);
 
@@ -118,8 +119,8 @@ class CMesher {
     simplifier_.clear();
   }
 
-  bool erase(LabelType id) {
-    return marchingcubes_.erase(id);
+  bool erase(LabelType segid) {
+    return marchingcubes_.erase(segid);
   }
 };
 

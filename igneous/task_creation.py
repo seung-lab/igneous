@@ -602,6 +602,7 @@ def create_meshing_tasks(
         offset=offset.clone(),
         layer_path=layer_path,
         mip=vol.mip,
+        simplification_factor=0,
         max_simplification_error=max_simplification_error,
         mesh_dir=mesh_dir, 
         cache_control=('' if cdn_cache else 'no-cache'),

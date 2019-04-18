@@ -358,7 +358,6 @@ class MeshTask(RegisteredTask):
     with Storage(self.layer_path) as storage:
       data = self._data[:, :, :, 0].T
       self._mesher.mesh(data)
-      import pdb; pdb.set_trace()
       for obj_id in self._mesher.ids():
         if self.options['remap_table'] is None:
           remapped_id = obj_id

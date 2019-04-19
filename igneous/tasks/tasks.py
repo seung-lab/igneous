@@ -306,6 +306,7 @@ class MeshTask(RegisteredTask):
     data = self._remove_dust(data, self.options['dust_threshold'])
     data = self._remap(data)
     data, renumbermap = fastremap.renumber(data, in_place=True)
+    renumbermap = { v:k for k,v in renumbermap.items() }
     self._compute_meshes(data, renumbermap)
 
   def _remove_dust(self, data, dust_threshold):

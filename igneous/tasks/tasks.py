@@ -26,9 +26,10 @@ from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales
-from igneous._mesher import Mesher64 as Mesher  # broken out for ease of commenting out
+from igneous._mesher import Mesher  # broken out for ease of commenting out
 
 import tinybrain
+import fastremap
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -304,7 +305,8 @@ class MeshTask(RegisteredTask):
 
     data = self._remove_dust(data, self.options['dust_threshold'])
     data = self._remap(data)
-    self._compute_meshes(data)
+    data, renumbermap = fastremap.renumber(data, in_place=True)
+    self._compute_meshes(data, renumbermap)
 
   def _remove_dust(self, data, dust_threshold):
     if dust_threshold:
@@ -327,7 +329,7 @@ class MeshTask(RegisteredTask):
     do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
     return np.vectorize(do_remap)(data)
 
-  def _compute_meshes(self, data):
+  def _compute_meshes(self, data, renumbermap):
     data = data[:, :, :, 0].T
     self._mesher.mesh(data)
     del data
@@ -335,9 +337,9 @@ class MeshTask(RegisteredTask):
     with Storage(self.layer_path) as storage:
       for obj_id in self._mesher.ids():
         if self.options['remap_table'] is None:
-          remapped_id = obj_id
+          remapped_id = renumbermap[obj_id]
         else:
-          remapped_id = self._remap_list[obj_id]
+          remapped_id = self._remap_list[renumbermap[obj_id]]
 
         storage.put_file(
           file_path='{}/{}:{}:{}'.format(

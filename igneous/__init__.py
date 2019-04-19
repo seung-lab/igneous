@@ -1,4 +1,4 @@
-from igneous._mesher import Mesher32
+from igneous._mesher import Mesher
 from taskqueue import MockTaskQueue, TaskQueue, RegisteredTask
 from .tasks import *
 from cloudvolume import CloudVolume, Storage, EmptyVolumeException

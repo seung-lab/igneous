@@ -458,7 +458,8 @@ def create_skeletonizing_tasks(
     cloudpath, mip, 
     shape=Vec(512, 512, 512),
     teasar_params={'scale':10, 'const': 10}, 
-    info=None, object_ids=None, fix_branching=True
+    info=None, object_ids=None, 
+    fix_branching=True, fix_borders=True
   ):
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -497,7 +498,8 @@ def create_skeletonizing_tasks(
           will_postprocess=will_postprocess,
           info=info,
           object_ids=object_ids,
-          fix_branching=fix_branching
+          fix_branching=fix_branching,
+          fix_borders=fix_borders,
         )
 
       vol.provenance.processing.append({
@@ -512,6 +514,7 @@ def create_skeletonizing_tasks(
           'will_postprocess': will_postprocess,
           'incr': incr.tolist(),
           'fix_branching': fix_branching,
+          'fix_borders': fix_borders,
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

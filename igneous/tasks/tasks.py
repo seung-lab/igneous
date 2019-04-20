@@ -271,6 +271,7 @@ class MeshTask(RegisteredTask):
       'cache_control': kwargs.get('cache_control', None),
       'dust_threshold': kwargs.get('dust_threshold', None),
       'rounds': kwargs.get('rounds', 1),
+      'progress': kwargs.get('progress', False),
     }
 
   def execute(self):
@@ -281,6 +282,7 @@ class MeshTask(RegisteredTask):
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 
     self._mesher = Mesher(self._volume.resolution)
+    self.progress = bool(self.options['progress'])
 
     # Marching cubes loves its 1vx overlaps.
     # This avoids lines appearing between
@@ -350,8 +352,19 @@ class MeshTask(RegisteredTask):
       return 
 
     segids = np.unique(data)
-    for segid_subset in tqdm(scatter(segids, rounds), desc="round"):
-      round_data = np.copy(data, order='F')
+    iterator = enumerate(scatter(segids, rounds))
+    pbariter = tqdm(iterator, disable=(not self.progress), desc="Round", total=rounds)
+
+    round_data = None
+    for i, segid_subset in pbariter:
+      del round_data
+      self._mesher = Mesher(self._volume.resolution)
+      
+      if i < rounds - 1:
+        round_data = np.copy(data, order='F')
+      else:
+        round_data = data
+
       round_data = fastremap.mask(round_data, segid_subset, in_place=True) 
       self._compute_meshes(round_data)
 
@@ -361,7 +374,7 @@ class MeshTask(RegisteredTask):
     del data
 
     with Storage(self.layer_path) as storage:
-      for obj_id in tqdm(self._mesher.ids(), desc="meshid"):
+      for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
         if self.options['remap_table'] is None:
           remapped_id = obj_id
         else:

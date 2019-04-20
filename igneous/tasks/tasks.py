@@ -22,13 +22,14 @@ import numpy as np
 from tqdm import tqdm
 
 from cloudvolume import CloudVolume, Storage
-from cloudvolume.lib import min2, Vec, Bbox, mkdir
+from cloudvolume.lib import min2, Vec, Bbox, mkdir, scatter
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales
 from igneous import Mesher  # broken out for ease of commenting out
 
 import tinybrain
+import fastremap
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -269,6 +270,7 @@ class MeshTask(RegisteredTask):
       'parallel_download': kwargs.get('parallel_download', 1),
       'cache_control': kwargs.get('cache_control', None),
       'dust_threshold': kwargs.get('dust_threshold', None),
+      'rounds': kwargs.get('rounds', 1),
     }
 
   def execute(self):
@@ -304,7 +306,8 @@ class MeshTask(RegisteredTask):
 
     data = self._remove_dust(data, self.options['dust_threshold'])
     data = self._remap(data)
-    self._compute_meshes(data)
+
+    self._process_execution_rounds(data, int(self.options['rounds']))
 
   def _remove_dust(self, data, dust_threshold):
     if dust_threshold:
@@ -327,13 +330,38 @@ class MeshTask(RegisteredTask):
     do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
     return np.vectorize(do_remap)(data)
 
+  def _process_execution_rounds(self, data, rounds):
+    """
+    We can save significant memory by doing half or a third 
+    of the array a a time. This allows us to use bigger chunks
+    which can help save money. Mesh computation cost is
+    (April 2019) dominated by Class A file creation requests.
+
+    Each round consists of erasing part of the array and meshing.
+    E.g. for two rounds, each round would erase half the objects
+    in the array and mesh. For three rounds, each pass would erase
+    two thirds of the array and mesh, etc. For one round, no erasing
+    occurs and meshing proceeds in typical fashion.
+
+    rounds: number of times to perform a meshing pass
+    """
+    if rounds == 1:
+      self._compute_meshes(data)
+      return 
+
+    segids = np.unique(data)
+    for segid_subset in tqdm(scatter(segids, rounds), desc="round"):
+      round_data = np.copy(data, order='F')
+      round_data = fastremap.mask(round_data, segid_subset, in_place=True) 
+      self._compute_meshes(round_data)
+
   def _compute_meshes(self, data):
     data = data[:, :, :, 0].T
     self._mesher.mesh(data)
     del data
 
     with Storage(self.layer_path) as storage:
-      for obj_id in self._mesher.ids():
+      for obj_id in tqdm(self._mesher.ids(), desc="meshid"):
         if self.options['remap_table'] is None:
           remapped_id = obj_id
         else:

@@ -458,7 +458,8 @@ def create_skeletonizing_tasks(
     cloudpath, mip, 
     shape=Vec(512, 512, 512),
     teasar_params={'scale':10, 'const': 10}, 
-    info=None, object_ids=None, fix_branching=True
+    info=None, object_ids=None, 
+    fix_branching=True, fix_borders=True
   ):
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -467,58 +468,46 @@ def create_skeletonizing_tasks(
     vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
     vol.commit_info()
 
-  incr = shape.clone()
-  for i in range(3):
-    if incr[i] < vol.bounds.size3()[i]:
-      incr[i] //= 2
+  will_postprocess = np.any(vol.bounds.size3() > shape)
+  bounds = vol.bounds.clone()
 
-  will_postprocess = True
+  class SkeletonTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      print(offset)
+      shape += 1 # 1px overlap on the right hand side
+      bounded_shape = min2(shape, bounds.maxpt - offset)
+      return SkeletonTask(
+        cloudpath=cloudpath,
+        shape=shape.clone(),
+        offset=offset.clone(),
+        mip=mip,
+        teasar_params=teasar_params,
+        will_postprocess=will_postprocess,
+        info=info,
+        object_ids=object_ids,
+        fix_branching=fix_branching,
+        fix_borders=fix_borders,
+      )
 
-  if np.all(vol.bounds.size3() <= shape):
-    incr = vol.bounds.size3()
-    will_postprocess = False
+    # def on_finish(self):
+    #   vol.provenance.processing.append({
+    #     'method': {
+    #       'task': 'SkeletonTask',
+    #       'cloudpath': cloudpath,
+    #       'mip': vol.mip,
+    #       'shape': shape.tolist(),
+    #       'teasar_params': teasar_params,
+    #       'object_ids': object_ids,
+    #       'will_postprocess': will_postprocess,
+    #       'fix_branching': fix_branching,
+    #       'fix_borders': fix_borders,
+    #     },
+    #     'by': OPERATOR_CONTACT,
+    #     'date': strftime('%Y-%m-%d %H:%M %Z'),
+    #   }) 
+    #   vol.commit_provenance()
 
-  class SkeletonTaskIterator():
-    def __len__(self):
-      return int(math.ceil(reduce(operator.mul, vol.bounds.size3().astype(np.float32) / incr)))
-    def __iter__(self):
-      # 50% overlap
-      for startpt in xyzrange( vol.bounds.minpt, vol.bounds.maxpt, incr ):
-        # eliminate double coverage on right edges during 50% overlap
-        if np.any(startpt - incr + shape > vol.bounds.maxpt):
-          continue
-        
-        yield SkeletonTask(
-          cloudpath=cloudpath,
-          shape=shape.clone(),
-          offset=startpt.clone(),
-          mip=mip,
-          teasar_params=teasar_params,
-          will_postprocess=will_postprocess,
-          info=info,
-          object_ids=object_ids,
-          fix_branching=fix_branching
-        )
-
-      vol.provenance.processing.append({
-        'method': {
-          'task': 'SkeletonTask',
-          'cloudpath': cloudpath,
-          'mip': vol.mip,
-          'shape': shape.tolist(),
-          'teasar_params': teasar_params,
-          'object_ids': object_ids,
-          'info': info,
-          'will_postprocess': will_postprocess,
-          'incr': incr.tolist(),
-          'fix_branching': fix_branching,
-        },
-        'by': OPERATOR_CONTACT,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-      }) 
-      vol.commit_provenance()
-
-  return SkeletonTaskIterator()
+  return SkeletonTaskIterator(bounds, shape)
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_skeleton_merge_tasks(

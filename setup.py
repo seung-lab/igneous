@@ -10,9 +10,6 @@ import numpy as np
 # NOTE: If _mesher.cpp does not exist, you must run
 # cython --cplus -I./ext/third_party/zi_lib/ ./ext/third_party/mc/_mesher.pyx
 
-# NOTE: If fastremap.cpp does not exist, you must run
-# cython --cplus ./ext/skeletontricks/skeletontricks.pyx
-
 third_party_dir = './ext/third_party'
 
 setuptools.setup(

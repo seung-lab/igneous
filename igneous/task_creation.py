@@ -468,7 +468,7 @@ def create_skeletonizing_tasks(
     vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
     vol.commit_info()
 
-  will_postprocess = np.any(vol.bounds.size3() > shape)
+  will_postprocess = bool(np.any(vol.bounds.size3() > shape))
   bounds = vol.bounds.clone()
 
   class SkeletonTaskIterator(FinelyDividedTaskIterator):
@@ -493,7 +493,7 @@ def create_skeletonizing_tasks(
         'method': {
           'task': 'SkeletonTask',
           'cloudpath': cloudpath,
-          'mip': vol.mip,
+          'mip': mip,
           'shape': shape.tolist(),
           'teasar_params': teasar_params,
           'object_ids': object_ids,

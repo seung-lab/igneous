@@ -473,7 +473,6 @@ def create_skeletonizing_tasks(
 
   class SkeletonTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      print(offset)
       shape += 1 # 1px overlap on the right hand side
       bounded_shape = min2(shape, bounds.maxpt - offset)
       return SkeletonTask(
@@ -489,23 +488,23 @@ def create_skeletonizing_tasks(
         fix_borders=fix_borders,
       )
 
-    # def on_finish(self):
-    #   vol.provenance.processing.append({
-    #     'method': {
-    #       'task': 'SkeletonTask',
-    #       'cloudpath': cloudpath,
-    #       'mip': vol.mip,
-    #       'shape': shape.tolist(),
-    #       'teasar_params': teasar_params,
-    #       'object_ids': object_ids,
-    #       'will_postprocess': will_postprocess,
-    #       'fix_branching': fix_branching,
-    #       'fix_borders': fix_borders,
-    #     },
-    #     'by': OPERATOR_CONTACT,
-    #     'date': strftime('%Y-%m-%d %H:%M %Z'),
-    #   }) 
-    #   vol.commit_provenance()
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'SkeletonTask',
+          'cloudpath': cloudpath,
+          'mip': vol.mip,
+          'shape': shape.tolist(),
+          'teasar_params': teasar_params,
+          'object_ids': object_ids,
+          'will_postprocess': will_postprocess,
+          'fix_branching': fix_branching,
+          'fix_borders': fix_borders,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
 
   return SkeletonTaskIterator(bounds, shape)
 

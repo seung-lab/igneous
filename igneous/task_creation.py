@@ -570,7 +570,8 @@ def create_skeleton_merge_tasks(
 def create_meshing_tasks(
     layer_path, mip, 
     shape=(256, 256, 256), max_simplification_error=40,
-    mesh_dir=None, cdn_cache=False, dust_threshold=None
+    mesh_dir=None, cdn_cache=False, dust_threshold=None,
+    rounds=1, progress=False
   ):
   shape = Vec(*shape)
 
@@ -593,7 +594,9 @@ def create_meshing_tasks(
         max_simplification_error=max_simplification_error,
         mesh_dir=mesh_dir, 
         cache_control=('' if cdn_cache else 'no-cache'),
-        dust_threshold=dust_threshold,
+        dust_threshold=int(dust_threshold),
+        rounds=int(rounds),
+        progress=bool(progress),
       )
 
     def on_finish(self):

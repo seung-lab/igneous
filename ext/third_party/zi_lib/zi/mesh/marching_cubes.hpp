@@ -76,8 +76,8 @@ struct mc_masks<uint32_t> {
     static const std::size_t xshift = 21;
 
     static const std::size_t z_mask = 0x3FF;
-    static const std::size_t y_mask = 0x7FF << 10;
-    static const std::size_t x_mask = 0x7FF << 21;
+    static const std::size_t y_mask = 0x7FF << yshift;
+    static const std::size_t x_mask = 0x7FF << xshift;
 
     static const std::size_t xy_mask = x_mask | y_mask;
     static const std::size_t xz_mask = x_mask | z_mask;
@@ -106,7 +106,6 @@ private:
     static const mc_masks<PositionType> masks;
 
 public:
-    // 32-bit (10 bits per field, max dim 1024, 2 wasted bits)
     static inline PositionType pack_coords( PositionType x, PositionType y, PositionType z )
     {
         return ( x << masks.xshift ) | ( y << masks.yshift ) | z;
@@ -115,13 +114,13 @@ public:
     template< class T >
     static inline T unpack_x( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> masks.xshift ) & masks.z_mask ) );
+        return factor * ( offset + ( ( packed >> masks.xshift ) & masks.x_mask ) );
     }
 
     template< class T >
     static inline T unpack_y( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> masks.yshift ) & masks.z_mask ) );
+        return factor * ( offset + ( ( packed >> masks.yshift ) & masks.y_mask ) );
     }
 
     template< class T >

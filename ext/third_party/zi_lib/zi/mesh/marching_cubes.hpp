@@ -53,6 +53,7 @@ struct mc_masks {
     static const std::size_t xshift = 42;
 
     static const std::size_t z_mask = 0x1FFFFF;
+    static const std::size_t non_z_mask = z_mask;
     static const std::size_t y_mask = z_mask << bits_per_field;
     static const std::size_t x_mask = y_mask << bits_per_field;
 
@@ -76,6 +77,7 @@ struct mc_masks<uint32_t> {
     static const std::size_t xshift = 21;
 
     static const std::size_t z_mask = 0x3FF;
+    static const std::size_t non_z_mask = 0x7FF;
     static const std::size_t y_mask = 0x7FF << yshift;
     static const std::size_t x_mask = 0x7FF << xshift;
 
@@ -114,13 +116,13 @@ public:
     template< class T >
     static inline T unpack_x( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> masks.xshift ) & masks.x_mask ) );
+        return factor * ( offset + ( ( packed >> masks.xshift ) & masks.non_z_mask ) );
     }
 
     template< class T >
     static inline T unpack_y( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> masks.yshift ) & masks.y_mask ) );
+        return factor * ( offset + ( ( packed >> masks.yshift ) & masks.non_z_mask ) );
     }
 
     template< class T >

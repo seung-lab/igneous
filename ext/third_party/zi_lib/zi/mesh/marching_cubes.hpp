@@ -39,7 +39,7 @@
 
 #define ZI_MC_QUICK_INTERP( p1, p2, val )                               \
     ((( vals[ p1 ] == val ) ^ ( vals[ p2 ] == val )) ?                  \
-     (( vert[ p1 ] + vert[ p2 ] ) >> 1 ) : vert[ p1 ] )
+     (( (vert[ p1 ] >> 1) + (vert[ p2 ] >> 1) ) ) : vert[ p1 ] )
 
 
 namespace zi {
@@ -71,30 +71,6 @@ struct mc_masks {
 
 template <> 
 struct mc_masks<uint32_t> {
-    static const std::size_t zshift = 0;
-    static const std::size_t yshift = 11;
-    static const std::size_t xshift = 22;
-
-    static const std::size_t z_mask = 0x3FF;
-    static const std::size_t y_mask = 0x7FF << 11;
-    static const std::size_t x_mask = 0x7FF << 22;
-
-    static const std::size_t xy_mask = x_mask | y_mask;
-    static const std::size_t xz_mask = x_mask | z_mask;
-    static const std::size_t yz_mask = y_mask | z_mask;
-
-    static const std::size_t delta_z = 1;
-    static const std::size_t delta_y = delta_z << yshift;
-    static const std::size_t delta_x = delta_z << xshift;
-
-    static const std::size_t delta_2z = 2;
-    static const std::size_t delta_2y = delta_2z << yshift;
-    static const std::size_t delta_2x = delta_2z << xshift;  
-};
-
-
-template <> 
-struct mc_masks<int32_t> {
     static const std::size_t zshift = 0;
     static const std::size_t yshift = 11;
     static const std::size_t xshift = 22;

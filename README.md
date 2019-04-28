@@ -124,7 +124,7 @@ Capability               |Tasks                                          |Descri
 :-----:|:-----:|:-----:
 Downsampling             |DownsampleTask                                 |Generate image hierarchies.                                          
 Meshing                  |MeshTask, MeshManifestTask                     |Create object meshes viewable in Neuroglancer.                       
-Skeletonize              |SkeletonTask, SkeletonMergeTask                |Create Neuroglancer viewable skeletons using TESAR algorithm.        
+Skeletonize              |SkeletonTask, SkeletonMergeTask                |Create Neuroglancer viewable skeletons using a modified TEASAR algorithm.        
 Transfer                 |TransferTask                                   |Copy data, supports rechunking and coordinate translation.           
 Deletion                 |DeleteTask                                     |Delete a data layer.                                                 
 Contrast Normalization   |LuminanceLevelsTask, ContrastNormalizationTask |Spread out slice histograms to fill value range.                     

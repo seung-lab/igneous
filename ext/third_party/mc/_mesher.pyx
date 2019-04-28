@@ -39,11 +39,11 @@ class Mesher:
         nbytes = np.dtype(data.dtype).itemsize
 
         # 1024 = 10 bits each allocated to X, Y, Z fields
-        if np.any(shape >= 1024):
+        if shape[0] > 1024 or shape[1] > 1024 or shape[2] > 512:
             MesherClass = Mesher6432 if nbytes <= 4 else Mesher6464
         else:
             MesherClass = Mesher3232 if nbytes <= 4 else Mesher3264
-
+        
         self._mesher = MesherClass(self.voxel_res)
 
         return self._mesher.mesh(data)
@@ -52,6 +52,11 @@ class Mesher:
         return self._mesher.ids()
 
     def get_mesh(self, mesh_id, normals=False, simplification_factor=0, max_simplification_error=8):
+        """
+        get_mesh(self, mesh_id, normals=False, simplification_factor=0, max_simplification_error=8)
+
+        Returns: MeshObject
+        """
         return self._mesher.get_mesh(
             mesh_id, normals, simplification_factor, max_simplification_error
         )

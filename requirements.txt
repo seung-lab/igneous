@@ -1,6 +1,6 @@
 click>=6.7
 cloud-volume>=0.47.2
-fastremap>=1.5.1
+fastremap>=1.5.2
 google-cloud-logging
 kimimaro
 networkx==2.1

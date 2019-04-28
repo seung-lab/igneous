@@ -62,7 +62,7 @@ class CMesher {
       return obj;
     }
 
-    zi::mesh::int_mesh<PositionType> im;
+    zi::mesh::int_mesh<PositionType, LabelType> im;
     im.add(marchingcubes_.get_triangles(segid));
     im.template fill_simplifier<double>(
       simplifier_, 

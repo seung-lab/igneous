@@ -71,51 +71,49 @@ struct mc_masks {
 
 template <> 
 struct mc_masks<uint32_t> {
-    static const std::size_t bits_per_field = 10;
     static const std::size_t zshift = 0;
-    static const std::size_t yshift = 10;
-    static const std::size_t xshift = 20;
+    static const std::size_t yshift = 11;
+    static const std::size_t xshift = 22;
 
     static const std::size_t z_mask = 0x3FF;
-    static const std::size_t y_mask = z_mask << bits_per_field;
-    static const std::size_t x_mask = y_mask << bits_per_field;
+    static const std::size_t y_mask = 0x7FF << 11;
+    static const std::size_t x_mask = 0x7FF << 22;
 
     static const std::size_t xy_mask = x_mask | y_mask;
     static const std::size_t xz_mask = x_mask | z_mask;
     static const std::size_t yz_mask = y_mask | z_mask;
 
     static const std::size_t delta_z = 1;
-    static const std::size_t delta_y = delta_z << bits_per_field;
-    static const std::size_t delta_x = delta_y << bits_per_field;
+    static const std::size_t delta_y = delta_z << yshift;
+    static const std::size_t delta_x = delta_z << xshift;
 
     static const std::size_t delta_2z = 2;
-    static const std::size_t delta_2y = delta_2z << bits_per_field;
-    static const std::size_t delta_2x = delta_2y << bits_per_field;  
+    static const std::size_t delta_2y = delta_2z << yshift;
+    static const std::size_t delta_2x = delta_2z << xshift;  
 };
 
 
 template <> 
 struct mc_masks<int32_t> {
-    static const std::size_t bits_per_field = 10;
     static const std::size_t zshift = 0;
-    static const std::size_t yshift = 10;
-    static const std::size_t xshift = 20;
+    static const std::size_t yshift = 11;
+    static const std::size_t xshift = 22;
 
     static const std::size_t z_mask = 0x3FF;
-    static const std::size_t y_mask = z_mask << bits_per_field;
-    static const std::size_t x_mask = y_mask << bits_per_field;
+    static const std::size_t y_mask = 0x7FF << 11;
+    static const std::size_t x_mask = 0x7FF << 22;
 
     static const std::size_t xy_mask = x_mask | y_mask;
     static const std::size_t xz_mask = x_mask | z_mask;
     static const std::size_t yz_mask = y_mask | z_mask;
 
     static const std::size_t delta_z = 1;
-    static const std::size_t delta_y = delta_z << bits_per_field;
-    static const std::size_t delta_x = delta_y << bits_per_field;
+    static const std::size_t delta_y = delta_z << yshift;
+    static const std::size_t delta_x = delta_z << xshift;
 
     static const std::size_t delta_2z = 2;
-    static const std::size_t delta_2y = delta_2z << bits_per_field;
-    static const std::size_t delta_2x = delta_2y << bits_per_field;  
+    static const std::size_t delta_2y = delta_2z << yshift;
+    static const std::size_t delta_2x = delta_2z << xshift;  
 };
 
 template< typename PositionType, typename LabelType >
@@ -249,147 +247,6 @@ public:
         return meshes_.size();
     }
 
-    // void marche( const LabelType* data, std::size_t x_dim, std::size_t y_dim, std::size_t z_dim )
-    // {
-
-    //     unordered_set< LabelType > local;
-
-    //     uint64_t ptrs_[ 12 ];
-
-    //     uint64_t vert[ 8 ] =
-    //     {
-    //         pack_coords( 0, 0, 0 ),
-    //         pack_coords( 2, 0, 0 ),
-    //         pack_coords( 2, 0, 2 ),
-    //         pack_coords( 0, 0, 2 ),
-    //         pack_coords( 0, 2, 0 ),
-    //         pack_coords( 2, 2, 0 ),
-    //         pack_coords( 2, 2, 2 ),
-    //         pack_coords( 0, 2, 2 )
-    //     };
-
-    //     const std::size_t off1 = y_dim * z_dim;
-    //     const std::size_t off2 = y_dim * z_dim + 1;
-    //     const std::size_t off3 = 1;
-    //     const std::size_t off4 = z_dim;
-    //     const std::size_t off5 = y_dim * z_dim + z_dim;
-    //     const std::size_t off6 = y_dim * z_dim + z_dim + 1;
-    //     const std::size_t off7 = z_dim + 1;
-
-    //     const std::size_t x_max = x_dim - 1;
-    //     const std::size_t y_max = y_dim - 1;
-    //     const std::size_t z_max = z_dim - 1;
-
-    //     const std::size_t yz_dim = y_dim * z_dim;
-
-    //     std::size_t x_off = 0;
-    //     std::size_t y_off = 0;
-
-    //     for ( std::size_t x = 0; x < x_max; ++x )
-    //     {
-    //         for ( std::size_t y = 0; y < y_max; ++y )
-    //         {
-    //             for ( std::size_t z = 0; z < z_max; ++z )
-    //             {
-    //                 const std::size_t ind = x_off + y_off + z;
-
-    //                 const LabelType vals[ 8 ] =
-    //                     {
-    //                         data[ ind ],
-    //                         data[ ind + off1 ],
-    //                         data[ ind + off2 ],
-    //                         data[ ind + off3 ],
-    //                         data[ ind + off4 ],
-    //                         data[ ind + off5 ],
-    //                         data[ ind + off6 ],
-    //                         data[ ind + off7 ]
-    //                     };
-
-    //                 local.clear();
-
-    //                 for ( std::size_t i = 0; i < 8; ++i )
-    //                 {
-    //                     if ( vals[ i ] )
-    //                     {
-    //                         local.insert( vals[ i ] );
-    //                     }
-    //                 }
-
-    //                 FOR_EACH( it, local )
-    //                 {
-    //                     std::size_t c = 0;
-
-    //                     for ( std::size_t n = 0; n < 8; ++n )
-    //                     {
-    //                         if ( vals[ n ] != *it )
-    //                         {
-    //                             c |= ( 1 << n );
-    //                         }
-    //                     }
-
-    //                     if ( edge_table[ c ] )
-    //                     {
-
-    //                         if ( edge_table[ c ] & 1   ) ptrs_[  0 ] = ZI_MC_QUICK_INTERP( 0, 1, *it );
-    //                         if ( edge_table[ c ] & 2   ) ptrs_[  1 ] = ZI_MC_QUICK_INTERP( 1, 2, *it );
-    //                         if ( edge_table[ c ] & 4   ) ptrs_[  2 ] = ZI_MC_QUICK_INTERP( 2, 3, *it );
-    //                         if ( edge_table[ c ] & 8   ) ptrs_[  3 ] = ZI_MC_QUICK_INTERP( 3, 0, *it );
-    //                         if ( edge_table[ c ] & 16  ) ptrs_[  4 ] = ZI_MC_QUICK_INTERP( 4, 5, *it );
-    //                         if ( edge_table[ c ] & 32  ) ptrs_[  5 ] = ZI_MC_QUICK_INTERP( 5, 6, *it );
-    //                         if ( edge_table[ c ] & 64  ) ptrs_[  6 ] = ZI_MC_QUICK_INTERP( 6, 7, *it );
-    //                         if ( edge_table[ c ] & 128 ) ptrs_[  7 ] = ZI_MC_QUICK_INTERP( 7, 4, *it );
-    //                         if ( edge_table[ c ] & 256 ) ptrs_[  8 ] = ZI_MC_QUICK_INTERP( 0, 4, *it );
-    //                         if ( edge_table[ c ] & 512 ) ptrs_[  9 ] = ZI_MC_QUICK_INTERP( 1, 5, *it );
-    //                         if ( edge_table[ c ] & 1024) ptrs_[ 10 ] = ZI_MC_QUICK_INTERP( 2, 6, *it );
-    //                         if ( edge_table[ c ] & 2048) ptrs_[ 11 ] = ZI_MC_QUICK_INTERP( 3, 7, *it );
-
-
-    //                         for ( std::size_t n = 0; tri_table[ c ][ n ] != tri_table_end; n += 3)
-    //                         {
-    //                             ++num_faces_;
-    //                             meshes_[ *it ].push_back
-    //                                 ( triangle( ptrs_[ tri_table[ c ][ n + 2 ] ],
-    //                                             ptrs_[ tri_table[ c ][ n + 1 ] ],
-    //                                             ptrs_[ tri_table[ c ][ n ] ] ) );
-    //                         }
-
-    //                     }
-
-    //                 }
-
-
-    //                 for ( std::size_t i = 0; i < 8 ; ++i )
-    //                 {
-    //                     vert[ i ] += 2;
-    //                 }
-    //             }
-
-    //             for ( std::size_t i = 0; i < 8 ; ++i )
-    //             {
-    //                 vert[ i ] += masks.delta_2y;
-    //             }
-    //             for ( std::size_t i = 0; i < 8 ; ++i )
-    //             {
-    //                 vert[ i ]  = ( vert[ i ] & masks.xy_mask ) | ( i & 2 );
-    //             }
-
-    //             y_off += z_dim;
-    //         }
-
-    //         for ( std::size_t i = 0; i < 8 ; ++i )
-    //         {
-    //             vert[ i ] += masks.delta_2x;
-    //         }
-    //         for ( std::size_t i = 0; i < 8 ; ++i )
-    //         {
-    //             vert[ i ]  = ( vert[ i ] & masks.xz_mask ) | ( ( i & 4 ) << 20 );
-    //         }
-
-    //         y_off = 0;
-    //         x_off += yz_dim;
-    //     }
-
-    // }
     void marche( const LabelType* data, std::size_t x_dim, std::size_t y_dim, std::size_t z_dim )
     {
 
@@ -498,29 +355,35 @@ public:
 
                     }
 
-
+                    // move 2 units z
                     for ( std::size_t i = 0; i < 8 ; ++i )
                     {
                         vert[ i ] += 2;
                     }
                 }
 
+                // move 2 units y
                 for ( std::size_t i = 0; i < 8 ; ++i )
                 {
                     vert[ i ] += masks.delta_2y;
                 }
+
+                // set every other vertex to z = 0, 2
                 for ( std::size_t i = 0; i < 8 ; ++i )
-                {
+                {   
                     vert[ i ]  = ( vert[ i ] & masks.xy_mask ) | ( i & 2 );
                 }
 
                 y_off += z_dim;
             }
 
+            // move 2 units x
             for ( std::size_t i = 0; i < 8 ; ++i )
             {
                 vert[ i ] += masks.delta_2x;
             }
+
+            // set y to to 0,0,0,0, 2,2,2,2
             for ( std::size_t i = 0; i < 8 ; ++i )
             {
                 vert[ i ]  = ( vert[ i ] & masks.xz_mask ) | ( ( i & 4 ) << (masks.yshift - 1) );
@@ -549,7 +412,7 @@ public:
         }
 
         uint32_t idx = 0;
-        unordered_map< uint64_t, uint32_t > pts;
+        unordered_map< PositionType, uint32_t > pts;
 
         const std::vector< triangle >& data = meshes_.find( id )->second;
 
@@ -612,7 +475,7 @@ public:
         }
 
         uint32_t idx = 0;
-        unordered_map< uint64_t, uint32_t > pts;
+        unordered_map< PositionType, uint32_t > pts;
 
         const std::vector< triangle >& data = meshes_.find( id )->second;
 

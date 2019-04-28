@@ -26,11 +26,11 @@
 namespace zi {
 namespace mesh {
 
-template <typename PositionType>
+template <typename PositionType, typename LabelType>
 class int_mesh
 {
 private:
-    typedef marching_cubes<PositionType, uint64_t>  marcher_t ;
+    typedef marching_cubes<PositionType, LabelType>  marcher_t ;
 
 public:
     typedef vl::vec<PositionType, 3> triangle_t;
@@ -54,7 +54,7 @@ public:
         v_.clear();
     }
 
-    void add(const std::vector< triangle_t >& v, uint64_t x=0, uint64_t y=0, uint64_t z=0)
+    void add(const std::vector< triangle_t >& v, PositionType x=0, PositionType y=0, PositionType z=0)
     {
         PositionType off = static_cast<PositionType>(marcher_t::pack_coords(x*2,y*2,z*2));
         for ( std::size_t i = 0; i < v.size(); ++i )
@@ -63,7 +63,7 @@ public:
         }
     }
 
-    void add( const triangle_t * v, std::size_t size, uint64_t x=0, uint64_t y=0, uint64_t z=0)
+    void add( const triangle_t * v, std::size_t size, PositionType x=0, PositionType y=0, PositionType z=0)
     {
         PositionType off = static_cast<PositionType>(marcher_t::pack_coords(x*2,y*2,z*2));
         for ( std::size_t i = 0; i < size; ++i )
@@ -72,12 +72,12 @@ public:
         }
     }
 
-    void add( const int_mesh& v, uint64_t x=0, uint64_t y=0, uint64_t z=0)
+    void add( const int_mesh& v, PositionType x=0, PositionType y=0, PositionType z=0)
     {
         add(v.data(), x, y, z);
     }
 
-    void add( boost::shared_ptr<int_mesh> v, uint64_t x=0, uint64_t y=0, uint64_t z=0)
+    void add( boost::shared_ptr<int_mesh> v, PositionType x=0, PositionType y=0, PositionType z=0)
     {
         if ( v )
         {
@@ -138,9 +138,9 @@ public:
         FOR_EACH( it, pts )
         {
             ret.point( it->second ) = vl::vec< T, 3 >
-                ( marching_cubes<PositionType, uint32_t>::template unpack_x< T >( it->first, xtrans, xscale ),
-                  marching_cubes<PositionType, uint32_t>::template unpack_y< T >( it->first, ytrans, yscale ),
-                  marching_cubes<PositionType, uint32_t>::template unpack_z< T >( it->first, ztrans, zscale ) );
+                ( marching_cubes<PositionType, LabelType>::template unpack_x< T >( it->first, xtrans, xscale ),
+                  marching_cubes<PositionType, LabelType>::template unpack_y< T >( it->first, ytrans, yscale ),
+                  marching_cubes<PositionType, LabelType>::template unpack_z< T >( it->first, ztrans, zscale ) );
         }
 
         FOR_EACH( it, data )

@@ -72,12 +72,12 @@ struct mc_masks {
 template <> 
 struct mc_masks<uint32_t> {
     static const std::size_t zshift = 0;
-    static const std::size_t yshift = 11;
-    static const std::size_t xshift = 22;
+    static const std::size_t yshift = 10;
+    static const std::size_t xshift = 21;
 
     static const std::size_t z_mask = 0x3FF;
-    static const std::size_t y_mask = 0x7FF << 11;
-    static const std::size_t x_mask = 0x7FF << 22;
+    static const std::size_t y_mask = 0x7FF << 10;
+    static const std::size_t x_mask = 0x7FF << 21;
 
     static const std::size_t xy_mask = x_mask | y_mask;
     static const std::size_t xz_mask = x_mask | z_mask;

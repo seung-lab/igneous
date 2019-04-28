@@ -355,6 +355,8 @@ class MeshTask(RegisteredTask):
     iterator = enumerate(scatter(segids, rounds))
     pbariter = tqdm(iterator, disable=(not self.progress), desc="Round", total=rounds)
 
+    segids = set(segids)
+
     round_data = None
     for i, segid_subset in pbariter:
       del round_data
@@ -365,7 +367,8 @@ class MeshTask(RegisteredTask):
       else:
         round_data = data
 
-      round_data = fastremap.mask(round_data, segid_subset, in_place=True) 
+      segidmask = segids - set(segid_subset)
+      round_data = fastremap.mask(round_data, segidmask, in_place=True) 
       self._compute_meshes(round_data)
 
   def _compute_meshes(self, data):

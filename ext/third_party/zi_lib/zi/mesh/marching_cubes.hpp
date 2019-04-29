@@ -48,8 +48,8 @@
 // which reads 0 initially. By shifting down first before adding
 // we ensure that the fields never overflow.
 
-#define ZI_MC_QUICK_INTERP( p1, p2, val )                               \
-    (((( vals[ p1 ] == val ) ^ ( vals[ p2 ] == val )) ?                  \
+#define ZI_MC_QUICK_INTERP( p1, p2, val )                      \
+    (((( vals[ p1 ] == val ) ^ ( vals[ p2 ] == val )) ?        \
      ((vert[ p1 ] >> 1) + (vert[ p2 ] >> 1)) : vert[ p1 ] ))
 
 
@@ -58,12 +58,11 @@ namespace mesh {
 
 template <typename T> 
 struct mc_masks {
-    static const std::size_t zshift = 0;
-    static const std::size_t yshift = 21;
-    static const std::size_t xshift = 42;
+    static const std::size_t zshift = 0;   // z = 21 bits (2^20 - 1) + .5
+    static const std::size_t yshift = 21;  // y = 21 bits (2^20 - 1) + .5
+    static const std::size_t xshift = 42;  // x = 21 bits (2^20 - 1) + .5
 
     static const std::size_t z_mask = 0x1FFFFF;
-    static const std::size_t non_z_mask = z_mask;
     static const std::size_t y_mask = z_mask << yshift;
     static const std::size_t x_mask = z_mask << xshift;
 
@@ -82,12 +81,11 @@ struct mc_masks {
 
 template <> 
 struct mc_masks<uint32_t> {
-    static const std::size_t zshift = 0;
-    static const std::size_t yshift = 10;
-    static const std::size_t xshift = 21;
+    static const std::size_t zshift = 0;   // z = 10 bits (511.5)
+    static const std::size_t yshift = 10;  // y = 11 bits (1023.5)
+    static const std::size_t xshift = 21;  // x = 11 bits (1023.5) (in theory...)
 
     static const std::size_t z_mask = 0x3FF;
-    static const std::size_t non_z_mask = 0x7FF;
     static const std::size_t y_mask = 0x7FF << yshift;
     static const std::size_t x_mask = 0x7FF << xshift;
 
@@ -126,13 +124,13 @@ public:
     template< class T >
     static inline T unpack_x( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> masks.xshift ) & masks.non_z_mask ) );
+        return factor * ( offset + ((packed & masks.x_mask) >> masks.xshift) );
     }
 
     template< class T >
     static inline T unpack_y( PositionType packed, const T& offset = T( 0 ), const T& factor = T( 1 ) )
     {
-        return factor * ( offset + ( ( packed >> masks.yshift ) & masks.non_z_mask ) );
+        return factor * ( offset + ((packed & masks.y_mask) >> masks.yshift) );
     }
 
     template< class T >
@@ -166,25 +164,8 @@ public:
 
 public:
 
-    typedef vl::vec<PositionType, 3> triangle;
-
-    struct trianglex
-    {
-        PositionType a_, b_, c_;
-
-        inline trianglex()
-            : a_(0), b_(0), c_(0)
-        {
-        }
-
-        inline trianglex( PositionType a, PositionType b, PositionType c )
-            : a_( a ), b_( b ), c_( c )
-        {
-        }
-
-    };
-
-    std::size_t                                    num_faces_;
+    typedef vl::vec<PositionType, 3>                    triangle;
+    std::size_t                                         num_faces_;
     unordered_map< LabelType, std::vector< triangle > > meshes_   ;
 
 public:
@@ -270,7 +251,7 @@ public:
         std::size_t x_off = 0;
         std::size_t y_off = 0;
 
-        PositionType vertex = 0;
+        LabelType label = 0;
 
         for ( std::size_t x = 0; x < x_max; ++x )
         {
@@ -316,20 +297,20 @@ public:
 
                         if ( edge_table[ c ] )
                         {
-                            vertex = static_cast<PositionType>(*it); 
+                            label = *it;
 
-                            if ( edge_table[ c ] & 1   ) ptrs_[  0 ] = ZI_MC_QUICK_INTERP( 0, 1, vertex );
-                            if ( edge_table[ c ] & 2   ) ptrs_[  1 ] = ZI_MC_QUICK_INTERP( 1, 2, vertex );
-                            if ( edge_table[ c ] & 4   ) ptrs_[  2 ] = ZI_MC_QUICK_INTERP( 2, 3, vertex );
-                            if ( edge_table[ c ] & 8   ) ptrs_[  3 ] = ZI_MC_QUICK_INTERP( 3, 0, vertex );
-                            if ( edge_table[ c ] & 16  ) ptrs_[  4 ] = ZI_MC_QUICK_INTERP( 4, 5, vertex );
-                            if ( edge_table[ c ] & 32  ) ptrs_[  5 ] = ZI_MC_QUICK_INTERP( 5, 6, vertex );
-                            if ( edge_table[ c ] & 64  ) ptrs_[  6 ] = ZI_MC_QUICK_INTERP( 6, 7, vertex );
-                            if ( edge_table[ c ] & 128 ) ptrs_[  7 ] = ZI_MC_QUICK_INTERP( 7, 4, vertex );
-                            if ( edge_table[ c ] & 256 ) ptrs_[  8 ] = ZI_MC_QUICK_INTERP( 0, 4, vertex );
-                            if ( edge_table[ c ] & 512 ) ptrs_[  9 ] = ZI_MC_QUICK_INTERP( 1, 5, vertex );
-                            if ( edge_table[ c ] & 1024) ptrs_[ 10 ] = ZI_MC_QUICK_INTERP( 2, 6, vertex );
-                            if ( edge_table[ c ] & 2048) ptrs_[ 11 ] = ZI_MC_QUICK_INTERP( 3, 7, vertex );
+                            if ( edge_table[ c ] & 1   ) ptrs_[  0 ] = ZI_MC_QUICK_INTERP( 0, 1, label );
+                            if ( edge_table[ c ] & 2   ) ptrs_[  1 ] = ZI_MC_QUICK_INTERP( 1, 2, label );
+                            if ( edge_table[ c ] & 4   ) ptrs_[  2 ] = ZI_MC_QUICK_INTERP( 2, 3, label );
+                            if ( edge_table[ c ] & 8   ) ptrs_[  3 ] = ZI_MC_QUICK_INTERP( 3, 0, label );
+                            if ( edge_table[ c ] & 16  ) ptrs_[  4 ] = ZI_MC_QUICK_INTERP( 4, 5, label );
+                            if ( edge_table[ c ] & 32  ) ptrs_[  5 ] = ZI_MC_QUICK_INTERP( 5, 6, label );
+                            if ( edge_table[ c ] & 64  ) ptrs_[  6 ] = ZI_MC_QUICK_INTERP( 6, 7, label );
+                            if ( edge_table[ c ] & 128 ) ptrs_[  7 ] = ZI_MC_QUICK_INTERP( 7, 4, label );
+                            if ( edge_table[ c ] & 256 ) ptrs_[  8 ] = ZI_MC_QUICK_INTERP( 0, 4, label );
+                            if ( edge_table[ c ] & 512 ) ptrs_[  9 ] = ZI_MC_QUICK_INTERP( 1, 5, label );
+                            if ( edge_table[ c ] & 1024) ptrs_[ 10 ] = ZI_MC_QUICK_INTERP( 2, 6, label );
+                            if ( edge_table[ c ] & 2048) ptrs_[ 11 ] = ZI_MC_QUICK_INTERP( 3, 7, label );
 
                             for ( std::size_t n = 0; tri_table[ c ][ n ] != tri_table_end; n += 3)
                             {

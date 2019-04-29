@@ -7,7 +7,6 @@ RUN apt-get update \
     # Build dependencies
     && apt-get install -y -qq --no-install-recommends \
         git \
-        libboost-dev \
         build-essential \
     # igneous + runtime dependencies
     && cd igneous \
@@ -17,7 +16,6 @@ RUN apt-get update \
     \
     # Cleanup build dependencies
     && apt-get remove --purge -y \
-        libboost-dev \
         build-essential \
     && apt-get autoremove --purge -y \
     # Cleanup apt

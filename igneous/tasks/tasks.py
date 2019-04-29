@@ -26,8 +26,8 @@ from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales
-from igneous._mesher import Mesher  # broken out for ease of commenting out
 
+import zmesh
 import tinybrain
 import fastremap
 
@@ -283,7 +283,7 @@ class MeshTask(RegisteredTask):
 
     self.progress = bool(self.options['progress'])
 
-    self._mesher = Mesher(self._volume.resolution)
+    self._mesher = zmesh.Mesher(self._volume.resolution)
 
     # Marching cubes loves its 1vx overlaps.
     # This avoids lines appearing between

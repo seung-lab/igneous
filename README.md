@@ -288,6 +288,7 @@ Please post an issue or PR if you think something needs to be addressed.
 
 - [tinybrain](https://github.com/seung-lab/tinybrain) - Downsampling code for images and segmentations.
 - [kimimaro](https://github.com/seung-lab/kimimaro) - Skeletonization of dense volumetric labels.
+- [zmesh](https://github.com/seung-lab/zmesh) - Mesh generation and simplification for dense volumetric labels.
 - [CloudVolume](https://github.com/seung-lab/cloud-volume) - IO for images, meshes, and skeletons.
 - [python-task-queue](https://github.com/seung-lab/python-task-queue) - Parallelized dependency-free cloud task management.
 

@@ -568,9 +568,10 @@ def create_skeleton_merge_tasks(
   return SkeletonMergeTaskIterator()
 
 def create_meshing_tasks(
-    layer_path, mip, 
-    shape=(256, 256, 256), max_simplification_error=40,
-    mesh_dir=None, cdn_cache=False, dust_threshold=None
+    layer_path, mip, shape=(448, 448, 448), 
+    simplification=True, max_simplification_error=40,
+    mesh_dir=None, cdn_cache=False, dust_threshold=None,
+    object_ids=None, progress=False
   ):
   shape = Vec(*shape)
 
@@ -590,10 +591,13 @@ def create_meshing_tasks(
         offset=offset.clone(),
         layer_path=layer_path,
         mip=vol.mip,
+        simplification_factor=(0 if not simplification else 100),
         max_simplification_error=max_simplification_error,
         mesh_dir=mesh_dir, 
         cache_control=('' if cdn_cache else 'no-cache'),
         dust_threshold=dust_threshold,
+        progress=progress,
+        object_ids=object_ids,
       )
 
     def on_finish(self):

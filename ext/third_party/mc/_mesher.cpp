@@ -833,12 +833,12 @@ struct __pyx_obj_7_mesher_Mesher3232;
  * 
  * # creating a cython wrapper class
  * cdef class Mesher6464:             # <<<<<<<<<<<<<<
- *     cdef CMesher[uint64_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint64_t, uint64_t, double] *ptr      # hold a C++ instance which we're wrapping
  * 
  */
 struct __pyx_obj_7_mesher_Mesher6464 {
   PyObject_HEAD
-  CMesher<uint64_t,uint64_t>  *ptr;
+  CMesher<uint64_t,uint64_t,double>  *ptr;
 };
 
 
@@ -846,12 +846,12 @@ struct __pyx_obj_7_mesher_Mesher6464 {
  *         return self.ptr.erase(mesh_id)
  * 
  * cdef class Mesher6432:             # <<<<<<<<<<<<<<
- *     cdef CMesher[uint64_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint64_t, uint32_t, double] *ptr      # hold a C++ instance which we're wrapping
  * 
  */
 struct __pyx_obj_7_mesher_Mesher6432 {
   PyObject_HEAD
-  CMesher<uint64_t,uint32_t>  *ptr;
+  CMesher<uint64_t,uint32_t,double>  *ptr;
 };
 
 
@@ -859,12 +859,12 @@ struct __pyx_obj_7_mesher_Mesher6432 {
  *         return self.ptr.erase(mesh_id)
  * 
  * cdef class Mesher3264:             # <<<<<<<<<<<<<<
- *     cdef CMesher[uint32_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint32_t, uint64_t, float] *ptr      # hold a C++ instance which we're wrapping
  * 
  */
 struct __pyx_obj_7_mesher_Mesher3264 {
   PyObject_HEAD
-  CMesher<uint32_t,uint64_t>  *ptr;
+  CMesher<uint32_t,uint64_t,float>  *ptr;
 };
 
 
@@ -872,12 +872,12 @@ struct __pyx_obj_7_mesher_Mesher3264 {
  *         return self.ptr.erase(mesh_id)
  * 
  * cdef class Mesher3232:             # <<<<<<<<<<<<<<
- *     cdef CMesher[uint32_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint32_t, uint32_t, float] *ptr      # hold a C++ instance which we're wrapping
  * 
  */
 struct __pyx_obj_7_mesher_Mesher3232 {
   PyObject_HEAD
-  CMesher<uint32_t,uint32_t>  *ptr;
+  CMesher<uint32_t,uint32_t,float>  *ptr;
 };
 
 
@@ -1570,6 +1570,7 @@ static PyObject *__pyx_int_0;
 static PyObject *__pyx_int_4;
 static PyObject *__pyx_int_8;
 static PyObject *__pyx_int_511;
+static PyObject *__pyx_int_1023;
 static PyObject *__pyx_tuple_;
 static PyObject *__pyx_tuple__2;
 static PyObject *__pyx_tuple__3;
@@ -1842,7 +1843,7 @@ static PyObject *__pyx_pf_7_mesher_6Mesher_2mesh(CYTHON_UNUSED PyObject *__pyx_s
  *         shape = np.array(data.shape)
  *         nbytes = np.dtype(data.dtype).itemsize             # <<<<<<<<<<<<<<
  * 
- *         if shape[0] > 511 or shape[1] > 511 or shape[2] > 511:
+ *         if shape[0] > 511 or shape[1] > 1023 or shape[2] > 511:
  */
   __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 39, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
@@ -1876,7 +1877,7 @@ static PyObject *__pyx_pf_7_mesher_6Mesher_2mesh(CYTHON_UNUSED PyObject *__pyx_s
   /* "_mesher.pyx":41
  *         nbytes = np.dtype(data.dtype).itemsize
  * 
- *         if shape[0] > 511 or shape[1] > 511 or shape[2] > 511:             # <<<<<<<<<<<<<<
+ *         if shape[0] > 511 or shape[1] > 1023 or shape[2] > 511:             # <<<<<<<<<<<<<<
  *             MesherClass = Mesher6432 if nbytes <= 4 else Mesher6464
  *         else:
  */
@@ -1893,7 +1894,7 @@ static PyObject *__pyx_pf_7_mesher_6Mesher_2mesh(CYTHON_UNUSED PyObject *__pyx_s
   }
   __pyx_t_1 = __Pyx_GetItemInt(__pyx_v_shape, 1, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(1, 41, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = PyObject_RichCompare(__pyx_t_1, __pyx_int_511, Py_GT); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 41, __pyx_L1_error)
+  __pyx_t_2 = PyObject_RichCompare(__pyx_t_1, __pyx_int_1023, Py_GT); __Pyx_XGOTREF(__pyx_t_2); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 41, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_t_6 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely(__pyx_t_6 < 0)) __PYX_ERR(1, 41, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
@@ -1914,7 +1915,7 @@ static PyObject *__pyx_pf_7_mesher_6Mesher_2mesh(CYTHON_UNUSED PyObject *__pyx_s
 
     /* "_mesher.pyx":42
  * 
- *         if shape[0] > 511 or shape[1] > 511 or shape[2] > 511:
+ *         if shape[0] > 511 or shape[1] > 1023 or shape[2] > 511:
  *             MesherClass = Mesher6432 if nbytes <= 4 else Mesher6464             # <<<<<<<<<<<<<<
  *         else:
  *             MesherClass = Mesher3232 if nbytes <= 4 else Mesher3264
@@ -1935,7 +1936,7 @@ static PyObject *__pyx_pf_7_mesher_6Mesher_2mesh(CYTHON_UNUSED PyObject *__pyx_s
     /* "_mesher.pyx":41
  *         nbytes = np.dtype(data.dtype).itemsize
  * 
- *         if shape[0] > 511 or shape[1] > 511 or shape[2] > 511:             # <<<<<<<<<<<<<<
+ *         if shape[0] > 511 or shape[1] > 1023 or shape[2] > 511:             # <<<<<<<<<<<<<<
  *             MesherClass = Mesher6432 if nbytes <= 4 else Mesher6464
  *         else:
  */
@@ -2554,10 +2555,10 @@ static PyObject *__pyx_pf_7_mesher_6Mesher_10erase(CYTHON_UNUSED PyObject *__pyx
 }
 
 /* "_mesher.pyx":74
- *     cdef CMesher[uint64_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint64_t, uint64_t, double] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint64_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint64_t, double](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -2619,13 +2620,13 @@ static int __pyx_pf_7_mesher_10Mesher6464___cinit__(struct __pyx_obj_7_mesher_Me
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   std::vector<uint32_t>  __pyx_t_5;
-  CMesher<uint64_t,uint64_t>  *__pyx_t_6;
+  CMesher<uint64_t,uint64_t,double>  *__pyx_t_6;
   __Pyx_RefNannySetupContext("__cinit__", 0);
 
   /* "_mesher.pyx":75
  * 
  *     def __cinit__(self, voxel_res):
- *         self.ptr = new CMesher[uint64_t, uint64_t](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
+ *         self.ptr = new CMesher[uint64_t, uint64_t, double](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
  * 
  *     def __dealloc__(self):
  */
@@ -2655,7 +2656,7 @@ static int __pyx_pf_7_mesher_10Mesher6464___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_t_5 = __pyx_convert_vector_from_py_uint32_t(__pyx_t_1); if (unlikely(PyErr_Occurred())) __PYX_ERR(1, 75, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   try {
-    __pyx_t_6 = new CMesher<uint64_t,uint64_t> (__pyx_t_5);
+    __pyx_t_6 = new CMesher<uint64_t,uint64_t,double> (__pyx_t_5);
   } catch(...) {
     __Pyx_CppExn2PyErr();
     __PYX_ERR(1, 75, __pyx_L1_error)
@@ -2663,10 +2664,10 @@ static int __pyx_pf_7_mesher_10Mesher6464___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_v_self->ptr = __pyx_t_6;
 
   /* "_mesher.pyx":74
- *     cdef CMesher[uint64_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint64_t, uint64_t, double] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint64_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint64_t, double](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -2686,7 +2687,7 @@ static int __pyx_pf_7_mesher_10Mesher6464___cinit__(struct __pyx_obj_7_mesher_Me
 }
 
 /* "_mesher.pyx":77
- *         self.ptr = new CMesher[uint64_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint64_t, double](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -2718,7 +2719,7 @@ static void __pyx_pf_7_mesher_10Mesher6464_2__dealloc__(struct __pyx_obj_7_meshe
   delete __pyx_v_self->ptr;
 
   /* "_mesher.pyx":77
- *         self.ptr = new CMesher[uint64_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint64_t, double](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -3304,10 +3305,10 @@ static PyObject *__pyx_pf_7_mesher_10Mesher6464_16__setstate_cython__(CYTHON_UNU
 }
 
 /* "_mesher.pyx":101
- *     cdef CMesher[uint64_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint64_t, uint32_t, double] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint64_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint32_t, double](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -3369,13 +3370,13 @@ static int __pyx_pf_7_mesher_10Mesher6432___cinit__(struct __pyx_obj_7_mesher_Me
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   std::vector<uint32_t>  __pyx_t_5;
-  CMesher<uint64_t,uint32_t>  *__pyx_t_6;
+  CMesher<uint64_t,uint32_t,double>  *__pyx_t_6;
   __Pyx_RefNannySetupContext("__cinit__", 0);
 
   /* "_mesher.pyx":102
  * 
  *     def __cinit__(self, voxel_res):
- *         self.ptr = new CMesher[uint64_t, uint32_t](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
+ *         self.ptr = new CMesher[uint64_t, uint32_t, double](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
  * 
  *     def __dealloc__(self):
  */
@@ -3405,7 +3406,7 @@ static int __pyx_pf_7_mesher_10Mesher6432___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_t_5 = __pyx_convert_vector_from_py_uint32_t(__pyx_t_1); if (unlikely(PyErr_Occurred())) __PYX_ERR(1, 102, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   try {
-    __pyx_t_6 = new CMesher<uint64_t,uint32_t> (__pyx_t_5);
+    __pyx_t_6 = new CMesher<uint64_t,uint32_t,double> (__pyx_t_5);
   } catch(...) {
     __Pyx_CppExn2PyErr();
     __PYX_ERR(1, 102, __pyx_L1_error)
@@ -3413,10 +3414,10 @@ static int __pyx_pf_7_mesher_10Mesher6432___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_v_self->ptr = __pyx_t_6;
 
   /* "_mesher.pyx":101
- *     cdef CMesher[uint64_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint64_t, uint32_t, double] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint64_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint32_t, double](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -3436,7 +3437,7 @@ static int __pyx_pf_7_mesher_10Mesher6432___cinit__(struct __pyx_obj_7_mesher_Me
 }
 
 /* "_mesher.pyx":104
- *         self.ptr = new CMesher[uint64_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint32_t, double](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -3468,7 +3469,7 @@ static void __pyx_pf_7_mesher_10Mesher6432_2__dealloc__(struct __pyx_obj_7_meshe
   delete __pyx_v_self->ptr;
 
   /* "_mesher.pyx":104
- *         self.ptr = new CMesher[uint64_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint64_t, uint32_t, double](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -4054,10 +4055,10 @@ static PyObject *__pyx_pf_7_mesher_10Mesher6432_16__setstate_cython__(CYTHON_UNU
 }
 
 /* "_mesher.pyx":128
- *     cdef CMesher[uint32_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint32_t, uint64_t, float] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint32_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint64_t, float](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -4119,13 +4120,13 @@ static int __pyx_pf_7_mesher_10Mesher3264___cinit__(struct __pyx_obj_7_mesher_Me
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   std::vector<uint32_t>  __pyx_t_5;
-  CMesher<uint32_t,uint64_t>  *__pyx_t_6;
+  CMesher<uint32_t,uint64_t,float>  *__pyx_t_6;
   __Pyx_RefNannySetupContext("__cinit__", 0);
 
   /* "_mesher.pyx":129
  * 
  *     def __cinit__(self, voxel_res):
- *         self.ptr = new CMesher[uint32_t, uint64_t](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
+ *         self.ptr = new CMesher[uint32_t, uint64_t, float](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
  * 
  *     def __dealloc__(self):
  */
@@ -4155,7 +4156,7 @@ static int __pyx_pf_7_mesher_10Mesher3264___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_t_5 = __pyx_convert_vector_from_py_uint32_t(__pyx_t_1); if (unlikely(PyErr_Occurred())) __PYX_ERR(1, 129, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   try {
-    __pyx_t_6 = new CMesher<uint32_t,uint64_t> (__pyx_t_5);
+    __pyx_t_6 = new CMesher<uint32_t,uint64_t,float> (__pyx_t_5);
   } catch(...) {
     __Pyx_CppExn2PyErr();
     __PYX_ERR(1, 129, __pyx_L1_error)
@@ -4163,10 +4164,10 @@ static int __pyx_pf_7_mesher_10Mesher3264___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_v_self->ptr = __pyx_t_6;
 
   /* "_mesher.pyx":128
- *     cdef CMesher[uint32_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint32_t, uint64_t, float] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint32_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint64_t, float](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -4186,7 +4187,7 @@ static int __pyx_pf_7_mesher_10Mesher3264___cinit__(struct __pyx_obj_7_mesher_Me
 }
 
 /* "_mesher.pyx":131
- *         self.ptr = new CMesher[uint32_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint64_t, float](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -4218,7 +4219,7 @@ static void __pyx_pf_7_mesher_10Mesher3264_2__dealloc__(struct __pyx_obj_7_meshe
   delete __pyx_v_self->ptr;
 
   /* "_mesher.pyx":131
- *         self.ptr = new CMesher[uint32_t, uint64_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint64_t, float](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -4804,10 +4805,10 @@ static PyObject *__pyx_pf_7_mesher_10Mesher3264_16__setstate_cython__(CYTHON_UNU
 }
 
 /* "_mesher.pyx":155
- *     cdef CMesher[uint32_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint32_t, uint32_t, float] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint32_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint32_t, float](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -4869,13 +4870,13 @@ static int __pyx_pf_7_mesher_10Mesher3232___cinit__(struct __pyx_obj_7_mesher_Me
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   std::vector<uint32_t>  __pyx_t_5;
-  CMesher<uint32_t,uint32_t>  *__pyx_t_6;
+  CMesher<uint32_t,uint32_t,float>  *__pyx_t_6;
   __Pyx_RefNannySetupContext("__cinit__", 0);
 
   /* "_mesher.pyx":156
  * 
  *     def __cinit__(self, voxel_res):
- *         self.ptr = new CMesher[uint32_t, uint32_t](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
+ *         self.ptr = new CMesher[uint32_t, uint32_t, float](voxel_res.astype(np.uint32))             # <<<<<<<<<<<<<<
  * 
  *     def __dealloc__(self):
  */
@@ -4905,7 +4906,7 @@ static int __pyx_pf_7_mesher_10Mesher3232___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_t_5 = __pyx_convert_vector_from_py_uint32_t(__pyx_t_1); if (unlikely(PyErr_Occurred())) __PYX_ERR(1, 156, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   try {
-    __pyx_t_6 = new CMesher<uint32_t,uint32_t> (__pyx_t_5);
+    __pyx_t_6 = new CMesher<uint32_t,uint32_t,float> (__pyx_t_5);
   } catch(...) {
     __Pyx_CppExn2PyErr();
     __PYX_ERR(1, 156, __pyx_L1_error)
@@ -4913,10 +4914,10 @@ static int __pyx_pf_7_mesher_10Mesher3232___cinit__(struct __pyx_obj_7_mesher_Me
   __pyx_v_self->ptr = __pyx_t_6;
 
   /* "_mesher.pyx":155
- *     cdef CMesher[uint32_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+ *     cdef CMesher[uint32_t, uint32_t, float] *ptr      # hold a C++ instance which we're wrapping
  * 
  *     def __cinit__(self, voxel_res):             # <<<<<<<<<<<<<<
- *         self.ptr = new CMesher[uint32_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint32_t, float](voxel_res.astype(np.uint32))
  * 
  */
 
@@ -4936,7 +4937,7 @@ static int __pyx_pf_7_mesher_10Mesher3232___cinit__(struct __pyx_obj_7_mesher_Me
 }
 
 /* "_mesher.pyx":158
- *         self.ptr = new CMesher[uint32_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint32_t, float](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -4968,7 +4969,7 @@ static void __pyx_pf_7_mesher_10Mesher3232_2__dealloc__(struct __pyx_obj_7_meshe
   delete __pyx_v_self->ptr;
 
   /* "_mesher.pyx":158
- *         self.ptr = new CMesher[uint32_t, uint32_t](voxel_res.astype(np.uint32))
+ *         self.ptr = new CMesher[uint32_t, uint32_t, float](voxel_res.astype(np.uint32))
  * 
  *     def __dealloc__(self):             # <<<<<<<<<<<<<<
  *         del self.ptr
@@ -6694,6 +6695,7 @@ static CYTHON_SMALL_CODE int __Pyx_InitGlobals(void) {
   __pyx_int_4 = PyInt_FromLong(4); if (unlikely(!__pyx_int_4)) __PYX_ERR(1, 1, __pyx_L1_error)
   __pyx_int_8 = PyInt_FromLong(8); if (unlikely(!__pyx_int_8)) __PYX_ERR(1, 1, __pyx_L1_error)
   __pyx_int_511 = PyInt_FromLong(511); if (unlikely(!__pyx_int_511)) __PYX_ERR(1, 1, __pyx_L1_error)
+  __pyx_int_1023 = PyInt_FromLong(1023); if (unlikely(!__pyx_int_1023)) __PYX_ERR(1, 1, __pyx_L1_error)
   return 0;
   __pyx_L1_error:;
   return -1;

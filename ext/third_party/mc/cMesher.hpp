@@ -13,16 +13,14 @@ struct MeshObject {
   std::vector<unsigned int> faces;
 };
 
-template <typename PositionType, typename LabelType>
+template <typename PositionType, typename LabelType, typename SimplifierType>
 class CMesher {
  private:
   zi::mesh::marching_cubes<PositionType, LabelType> marchingcubes_;
-  zi::mesh::simplifier<double> simplifier_;
+  zi::mesh::simplifier<SimplifierType> simplifier_;
   std::vector<uint32_t> voxelresolution_;
 
  public:
-  // CMesher(int i) {};
-  // CMesher(const std::vector<uint32_t> &voxelresolution);
   CMesher(const std::vector<uint32_t> &voxelresolution) {
     voxelresolution_ = voxelresolution;
   }
@@ -64,7 +62,7 @@ class CMesher {
 
     zi::mesh::int_mesh<PositionType, LabelType> im;
     im.add(marchingcubes_.get_triangles(segid));
-    im.template fill_simplifier<double>(
+    im.template fill_simplifier<SimplifierType>(
       simplifier_, 
       0, 0, 0, 
       voxelresolution_[2], voxelresolution_[1], voxelresolution_[0]
@@ -79,8 +77,8 @@ class CMesher {
       );
     }
 
-    std::vector<zi::vl::vec3d> points;
-    std::vector<zi::vl::vec3d> normals;
+    std::vector<zi::vl::vec<SimplifierType, 3> > points;
+    std::vector<zi::vl::vec<SimplifierType, 3> > normals;
     std::vector<zi::vl::vec<unsigned, 3> > faces;
 
     simplifier_.get_faces(points, normals, faces);

@@ -19,7 +19,7 @@ cdef extern from "cMesher.hpp":
         vector[float] normals
         vector[unsigned int] faces
 
-    cdef cppclass CMesher[P,L]:
+    cdef cppclass CMesher[P,L,S]:
         CMesher(vector[uint32_t] voxel_res) except +
         void mesh(vector[L], unsigned int, unsigned int, unsigned int)
         vector[L] ids()
@@ -38,7 +38,7 @@ class Mesher:
         shape = np.array(data.shape)
         nbytes = np.dtype(data.dtype).itemsize
 
-        if shape[0] > 511 or shape[1] > 511 or shape[2] > 511:
+        if shape[0] > 511 or shape[1] > 1023 or shape[2] > 511:
             MesherClass = Mesher6432 if nbytes <= 4 else Mesher6464
         else:
             MesherClass = Mesher3232 if nbytes <= 4 else Mesher3264
@@ -69,10 +69,10 @@ class Mesher:
 
 # creating a cython wrapper class
 cdef class Mesher6464:
-    cdef CMesher[uint64_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+    cdef CMesher[uint64_t, uint64_t, double] *ptr      # hold a C++ instance which we're wrapping
 
     def __cinit__(self, voxel_res):
-        self.ptr = new CMesher[uint64_t, uint64_t](voxel_res.astype(np.uint32))
+        self.ptr = new CMesher[uint64_t, uint64_t, double](voxel_res.astype(np.uint32))
 
     def __dealloc__(self):
         del self.ptr
@@ -96,10 +96,10 @@ cdef class Mesher6464:
         return self.ptr.erase(mesh_id)
 
 cdef class Mesher6432:
-    cdef CMesher[uint64_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+    cdef CMesher[uint64_t, uint32_t, double] *ptr      # hold a C++ instance which we're wrapping
 
     def __cinit__(self, voxel_res):
-        self.ptr = new CMesher[uint64_t, uint32_t](voxel_res.astype(np.uint32))
+        self.ptr = new CMesher[uint64_t, uint32_t, double](voxel_res.astype(np.uint32))
 
     def __dealloc__(self):
         del self.ptr
@@ -123,10 +123,10 @@ cdef class Mesher6432:
         return self.ptr.erase(mesh_id)
 
 cdef class Mesher3264:
-    cdef CMesher[uint32_t, uint64_t] *ptr      # hold a C++ instance which we're wrapping
+    cdef CMesher[uint32_t, uint64_t, float] *ptr      # hold a C++ instance which we're wrapping
 
     def __cinit__(self, voxel_res):
-        self.ptr = new CMesher[uint32_t, uint64_t](voxel_res.astype(np.uint32))
+        self.ptr = new CMesher[uint32_t, uint64_t, float](voxel_res.astype(np.uint32))
 
     def __dealloc__(self):
         del self.ptr
@@ -150,10 +150,10 @@ cdef class Mesher3264:
         return self.ptr.erase(mesh_id)
 
 cdef class Mesher3232:
-    cdef CMesher[uint32_t, uint32_t] *ptr      # hold a C++ instance which we're wrapping
+    cdef CMesher[uint32_t, uint32_t, float] *ptr      # hold a C++ instance which we're wrapping
 
     def __cinit__(self, voxel_res):
-        self.ptr = new CMesher[uint32_t, uint32_t](voxel_res.astype(np.uint32))
+        self.ptr = new CMesher[uint32_t, uint32_t, float](voxel_res.astype(np.uint32))
 
     def __dealloc__(self):
         del self.ptr

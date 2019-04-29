@@ -270,6 +270,8 @@ class MeshTask(RegisteredTask):
       'parallel_download': kwargs.get('parallel_download', 1),
       'cache_control': kwargs.get('cache_control', None),
       'dust_threshold': kwargs.get('dust_threshold', None),
+      'progress': kwargs.get('progress', False),
+      'object_ids': kwargs.get('object_ids', None),
     }
 
   def execute(self):
@@ -278,6 +280,8 @@ class MeshTask(RegisteredTask):
         parallel=self.options['parallel_download'])
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
+
+    self.progress = bool(self.options['progress'])
 
     self._mesher = Mesher(self._volume.resolution)
 
@@ -305,6 +309,10 @@ class MeshTask(RegisteredTask):
 
     data = self._remove_dust(data, self.options['dust_threshold'])
     data = self._remap(data)
+
+    if self.options['object_ids']:
+      data[~np.isin(data, self.options['object_ids'])] = 0
+
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
     self._compute_meshes(data, renumbermap)
@@ -313,7 +321,7 @@ class MeshTask(RegisteredTask):
     if dust_threshold:
       segids, pxct = np.unique(data, return_counts=True)
       dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct < int(dust_threshold) ]
-      data[np.isin(data, dust_segids)] = 0
+      data = fastremap.mask(data, dust_segids, in_place=True)
 
     return data
 
@@ -336,7 +344,7 @@ class MeshTask(RegisteredTask):
     del data
 
     with Storage(self.layer_path) as storage:
-      for obj_id in self._mesher.ids():
+      for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
         if self.options['remap_table'] is None:
           remapped_id = renumbermap[obj_id]
         else:

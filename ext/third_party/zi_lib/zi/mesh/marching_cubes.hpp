@@ -37,9 +37,20 @@
 #include <vector>
 #include <ostream>
 
+// Logic: If two adjacent labels match, return their avg position. 
+//        Else, return the first vertex position.
+// 
+// The code used to read: (vert[p1]+vert[p2]) >> 1 
+// However, this can cause overflow in uint32 vertex types
+// when the carry bit reaches from Z to Y or Y to X. 
+//
+// Each vertex has a bit at the beginning representing 2^-1
+// which reads 0 initially. By shifting down first before adding
+// we ensure that the fields never overflow.
+
 #define ZI_MC_QUICK_INTERP( p1, p2, val )                               \
-    ((( vals[ p1 ] == val ) ^ ( vals[ p2 ] == val )) ?                  \
-     (( (vert[ p1 ] >> 1) + (vert[ p2 ] >> 1) ) ) : vert[ p1 ] )
+    (((( vals[ p1 ] == val ) ^ ( vals[ p2 ] == val )) ?                  \
+     ((vert[ p1 ] >> 1) + (vert[ p2 ] >> 1)) : vert[ p1 ] ))
 
 
 namespace zi {
@@ -47,27 +58,26 @@ namespace mesh {
 
 template <typename T> 
 struct mc_masks {
-    static const std::size_t bits_per_field = 21;
     static const std::size_t zshift = 0;
     static const std::size_t yshift = 21;
     static const std::size_t xshift = 42;
 
     static const std::size_t z_mask = 0x1FFFFF;
     static const std::size_t non_z_mask = z_mask;
-    static const std::size_t y_mask = z_mask << bits_per_field;
-    static const std::size_t x_mask = y_mask << bits_per_field;
+    static const std::size_t y_mask = z_mask << yshift;
+    static const std::size_t x_mask = z_mask << xshift;
 
     static const std::size_t xy_mask = x_mask | y_mask;
     static const std::size_t xz_mask = x_mask | z_mask;
     static const std::size_t yz_mask = y_mask | z_mask;
 
     static const std::size_t delta_z = 1;
-    static const std::size_t delta_y = delta_z << bits_per_field;
-    static const std::size_t delta_x = delta_y << bits_per_field;
+    static const std::size_t delta_y = delta_z << yshift;
+    static const std::size_t delta_x = delta_z << xshift;
 
     static const std::size_t delta_2z = 2;
-    static const std::size_t delta_2y = delta_2z << bits_per_field;
-    static const std::size_t delta_2x = delta_2y << bits_per_field;
+    static const std::size_t delta_2y = delta_2z << yshift;
+    static const std::size_t delta_2x = delta_2z << xshift;
 };
 
 template <> 
@@ -260,6 +270,8 @@ public:
         std::size_t x_off = 0;
         std::size_t y_off = 0;
 
+        PositionType vertex = 0;
+
         for ( std::size_t x = 0; x < x_max; ++x )
         {
             for ( std::size_t y = 0; y < y_max; ++y )
@@ -304,20 +316,20 @@ public:
 
                         if ( edge_table[ c ] )
                         {
+                            vertex = static_cast<PositionType>(*it); 
 
-                            if ( edge_table[ c ] & 1   ) ptrs_[  0 ] = ZI_MC_QUICK_INTERP( 0, 1, *it );
-                            if ( edge_table[ c ] & 2   ) ptrs_[  1 ] = ZI_MC_QUICK_INTERP( 1, 2, *it );
-                            if ( edge_table[ c ] & 4   ) ptrs_[  2 ] = ZI_MC_QUICK_INTERP( 2, 3, *it );
-                            if ( edge_table[ c ] & 8   ) ptrs_[  3 ] = ZI_MC_QUICK_INTERP( 3, 0, *it );
-                            if ( edge_table[ c ] & 16  ) ptrs_[  4 ] = ZI_MC_QUICK_INTERP( 4, 5, *it );
-                            if ( edge_table[ c ] & 32  ) ptrs_[  5 ] = ZI_MC_QUICK_INTERP( 5, 6, *it );
-                            if ( edge_table[ c ] & 64  ) ptrs_[  6 ] = ZI_MC_QUICK_INTERP( 6, 7, *it );
-                            if ( edge_table[ c ] & 128 ) ptrs_[  7 ] = ZI_MC_QUICK_INTERP( 7, 4, *it );
-                            if ( edge_table[ c ] & 256 ) ptrs_[  8 ] = ZI_MC_QUICK_INTERP( 0, 4, *it );
-                            if ( edge_table[ c ] & 512 ) ptrs_[  9 ] = ZI_MC_QUICK_INTERP( 1, 5, *it );
-                            if ( edge_table[ c ] & 1024) ptrs_[ 10 ] = ZI_MC_QUICK_INTERP( 2, 6, *it );
-                            if ( edge_table[ c ] & 2048) ptrs_[ 11 ] = ZI_MC_QUICK_INTERP( 3, 7, *it );
-
+                            if ( edge_table[ c ] & 1   ) ptrs_[  0 ] = ZI_MC_QUICK_INTERP( 0, 1, vertex );
+                            if ( edge_table[ c ] & 2   ) ptrs_[  1 ] = ZI_MC_QUICK_INTERP( 1, 2, vertex );
+                            if ( edge_table[ c ] & 4   ) ptrs_[  2 ] = ZI_MC_QUICK_INTERP( 2, 3, vertex );
+                            if ( edge_table[ c ] & 8   ) ptrs_[  3 ] = ZI_MC_QUICK_INTERP( 3, 0, vertex );
+                            if ( edge_table[ c ] & 16  ) ptrs_[  4 ] = ZI_MC_QUICK_INTERP( 4, 5, vertex );
+                            if ( edge_table[ c ] & 32  ) ptrs_[  5 ] = ZI_MC_QUICK_INTERP( 5, 6, vertex );
+                            if ( edge_table[ c ] & 64  ) ptrs_[  6 ] = ZI_MC_QUICK_INTERP( 6, 7, vertex );
+                            if ( edge_table[ c ] & 128 ) ptrs_[  7 ] = ZI_MC_QUICK_INTERP( 7, 4, vertex );
+                            if ( edge_table[ c ] & 256 ) ptrs_[  8 ] = ZI_MC_QUICK_INTERP( 0, 4, vertex );
+                            if ( edge_table[ c ] & 512 ) ptrs_[  9 ] = ZI_MC_QUICK_INTERP( 1, 5, vertex );
+                            if ( edge_table[ c ] & 1024) ptrs_[ 10 ] = ZI_MC_QUICK_INTERP( 2, 6, vertex );
+                            if ( edge_table[ c ] & 2048) ptrs_[ 11 ] = ZI_MC_QUICK_INTERP( 3, 7, vertex );
 
                             for ( std::size_t n = 0; tri_table[ c ][ n ] != tri_table_end; n += 3)
                             {

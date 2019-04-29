@@ -580,7 +580,7 @@ def create_skeleton_merge_tasks(
   return SkeletonMergeTaskIterator()
 
 def create_meshing_tasks(
-    layer_path, mip, shape=(256, 256, 256), 
+    layer_path, mip, shape=(448, 448, 448), 
     simplification=True, max_simplification_error=40,
     mesh_dir=None, cdn_cache=False, dust_threshold=None,
     object_ids=None, progress=False

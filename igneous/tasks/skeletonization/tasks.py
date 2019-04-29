@@ -49,12 +49,14 @@ class SkeletonTask(RegisteredTask):
   def __init__(
     self, cloudpath, shape, offset, 
     mip, teasar_params, will_postprocess, 
-    info=None, object_ids=None, fix_branching=True
+    info=None, object_ids=None, 
+    fix_branching=True, fix_borders=True
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
       teasar_params, will_postprocess, 
-      info, object_ids, fix_branching
+      info, object_ids, 
+      fix_branching, fix_borders
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
 
@@ -72,7 +74,9 @@ class SkeletonTask(RegisteredTask):
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, anisotropy=vol.resolution,
       dust_threshold=1000, cc_safety_factor=0.25,
-      progress=False, fix_branching=self.fix_branching
+      progress=False, 
+      fix_branching=self.fix_branching,
+      fix_borders=self.fix_borders,
     )
 
     for segid, skel in six.iteritems(skeletons):

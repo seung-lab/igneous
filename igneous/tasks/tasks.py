@@ -272,12 +272,15 @@ class MeshTask(RegisteredTask):
       'dust_threshold': kwargs.get('dust_threshold', None),
       'progress': kwargs.get('progress', False),
       'object_ids': kwargs.get('object_ids', None),
+      'fill_missing': kwargs.get('fill_missing', False),
     }
 
   def execute(self):
     self._volume = CloudVolume(
-        self.layer_path, self.options['mip'], bounded=False,
-        parallel=self.options['parallel_download'])
+      self.layer_path, self.options['mip'], bounded=False,
+      parallel=self.options['parallel_download'], 
+      fill_missing=self.options['fill_missing']
+    )
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 

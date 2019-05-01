@@ -382,28 +382,11 @@ class MeshTask(RegisteredTask):
 
     self._mesher.erase(obj_id)
 
-    vertices = self._update_vertices(
-      np.array(mesh['points'], dtype=np.float32)
-    )
-    vertex_index_format = [
-      np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
-      vertices,
-      np.array(mesh['faces'], dtype=np.uint32)
-    ]
-    return b''.join([array.tobytes() for array in vertex_index_format])
-
-  def _update_vertices(self, points):
-    # zi_lib meshing multiplies vertices by 2.0 to avoid working with floats,
-    # but we need to recover the exact position for display
-    # Note: points are already multiplied by resolution, but missing the offset
-    points /= 2.0
     resolution = self._volume.resolution
-    xmin, ymin, zmin = self._bounds.minpt - self.options['low_padding']
-    points[0::3] = points[0::3] + xmin * resolution.x
-    points[1::3] = points[1::3] + ymin * resolution.y
-    points[2::3] = points[2::3] + zmin * resolution.z
-    return points
+    offset = self._bounds.minpt - self.options['low_padding']
+    mesh.vertices[:] += offset * resolution
 
+    return mesh.to_precomputed()
 
 class MeshManifestTask(RegisteredTask):
   """

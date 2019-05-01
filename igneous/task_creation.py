@@ -571,7 +571,7 @@ def create_meshing_tasks(
     layer_path, mip, shape=(448, 448, 448), 
     simplification=True, max_simplification_error=40,
     mesh_dir=None, cdn_cache=False, dust_threshold=None,
-    object_ids=None, progress=False
+    object_ids=None, progress=False, fill_missing=False
   ):
   shape = Vec(*shape)
 
@@ -598,6 +598,7 @@ def create_meshing_tasks(
         dust_threshold=dust_threshold,
         progress=progress,
         object_ids=object_ids,
+        fill_missing=fill_missing,
       )
 
     def on_finish(self):

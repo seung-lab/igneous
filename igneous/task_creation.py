@@ -459,7 +459,8 @@ def create_skeletonizing_tasks(
     shape=Vec(512, 512, 512),
     teasar_params={'scale':10, 'const': 10}, 
     info=None, object_ids=None, 
-    fix_branching=True, fix_borders=True
+    fix_branching=True, fix_borders=True,
+    dust_threshold=1000, progress=False
   ):
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -486,6 +487,8 @@ def create_skeletonizing_tasks(
         object_ids=object_ids,
         fix_branching=fix_branching,
         fix_borders=fix_borders,
+        dust_threshold=dust_threshold,
+        progress=progress,
       )
 
     def on_finish(self):
@@ -495,11 +498,13 @@ def create_skeletonizing_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
+          'dust_threshold': dust_threshold,
           'teasar_params': teasar_params,
           'object_ids': object_ids,
           'will_postprocess': will_postprocess,
           'fix_branching': fix_branching,
           'fix_borders': fix_borders,
+          'progress': progress,
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

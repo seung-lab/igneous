@@ -50,18 +50,25 @@ class SkeletonTask(RegisteredTask):
     self, cloudpath, shape, offset, 
     mip, teasar_params, will_postprocess, 
     info=None, object_ids=None, 
-    fix_branching=True, fix_borders=True
+    fix_branching=True, fix_borders=True,
+    dust_threshold=1000, progress=False,
+    parallel=1
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
       teasar_params, will_postprocess, 
       info, object_ids, 
-      fix_branching, fix_borders
+      fix_branching, fix_borders,
+      dust_threshold, progress, parallel
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
 
   def execute(self):
-    vol = CloudVolume(self.cloudpath, mip=self.mip, info=self.info, cdn_cache=False)
+    vol = CloudVolume(
+      self.cloudpath, mip=self.mip, 
+      info=self.info, cdn_cache=False,
+      parallel=parallel,
+    )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
     path = skeldir(self.cloudpath)
@@ -73,10 +80,11 @@ class SkeletonTask(RegisteredTask):
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, anisotropy=vol.resolution,
-      dust_threshold=1000, cc_safety_factor=0.25,
-      progress=False, 
+      dust_threshold=self.dust_threshold, cc_safety_factor=0.25,
+      progress=self.progress, 
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,
+      parallel=self.parallel,
     )
 
     for segid, skel in six.iteritems(skeletons):

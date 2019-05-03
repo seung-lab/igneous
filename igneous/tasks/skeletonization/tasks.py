@@ -67,7 +67,7 @@ class SkeletonTask(RegisteredTask):
     vol = CloudVolume(
       self.cloudpath, mip=self.mip, 
       info=self.info, cdn_cache=False,
-      parallel=parallel,
+      parallel=self.parallel,
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 

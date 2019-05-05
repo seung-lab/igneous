@@ -67,7 +67,7 @@ class SkeletonTask(RegisteredTask):
     vol = CloudVolume(
       self.cloudpath, mip=self.mip, 
       info=self.info, cdn_cache=False,
-      parallel=self.parallel,
+      parallel=self.parallel
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 
@@ -88,10 +88,8 @@ class SkeletonTask(RegisteredTask):
     )
 
     for segid, skel in six.iteritems(skeletons):
-      skel.vertices[:,0] += bbox.minpt.x * vol.resolution.x
-      skel.vertices[:,1] += bbox.minpt.y * vol.resolution.y
-      skel.vertices[:,2] += bbox.minpt.z * vol.resolution.z
-
+      skel.vertices[:] += bbox.minpt * vol.resolution
+      
     self.upload(vol, path, bbox, skeletons.values())
       
   def upload(self, vol, path, bbox, skeletons):

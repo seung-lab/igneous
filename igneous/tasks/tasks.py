@@ -27,10 +27,10 @@ from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales
 
-import zmesh
-import tinybrain
 import DracoPy
 import fastremap
+import tinybrain
+import zmesh
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -273,7 +273,10 @@ class MeshTask(RegisteredTask):
       'dust_threshold': kwargs.get('dust_threshold', None),
       'encoding': kwargs.get('encoding', 'precomputed'),
       'draco_compression_level': kwargs.get('draco_compression_level', 1),
-      'draco_create_metadata': kwargs.get('draco_create_metadata', False)
+      'draco_create_metadata': kwargs.get('draco_create_metadata', False),
+      'progress': kwargs.get('progress', False),
+      'object_ids': kwargs.get('object_ids', None),
+      'fill_missing': kwargs.get('fill_missing', False),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -282,11 +285,9 @@ class MeshTask(RegisteredTask):
       ))
     self._encoding_to_compression_dict = {
       'precomputed': True,
-      'draco': False
-      'progress': kwargs.get('progress', False),
-      'object_ids': kwargs.get('object_ids', None),
-      'fill_missing': kwargs.get('fill_missing', False),
+      'draco': False,
     }
+
   def execute(self):
     self._volume = CloudVolume(
       self.layer_path, self.options['mip'], bounded=False,
@@ -428,17 +429,6 @@ class MeshTask(RegisteredTask):
       simplification_factor=self.options['simplification_factor'],
       max_simplification_error=self.options['max_simplification_error']
     )
-    vertices = self._update_vertices(np.array(mesh['points'], dtype=np.float32))
-    faces = np.array(mesh['faces'], dtype=np.uint32)
-    if self.options['encoding'] == 'draco':
-      return DracoPy.encode_mesh_to_buffer(vertices, faces, **self.draco_encoding_settings)
-    elif self.options['encoding'] == 'precomputed':
-      vertex_index_format = [
-          np.uint32(len(vertices) / 3), # Number of vertices (3 coordinates)
-          vertices,
-          faces
-      ]
-      return b''.join([array.tobytes() for array in vertex_index_format])
 
     self._mesher.erase(obj_id)
 
@@ -446,7 +436,13 @@ class MeshTask(RegisteredTask):
     offset = self._bounds.minpt - self.options['low_padding']
     mesh.vertices[:] += offset * resolution
 
-    return mesh.to_precomputed()
+    if self.options['encoding'] == 'draco':
+      return DracoPy.encode_mesh_to_buffer(
+        mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
+        **self.draco_encoding_settings
+      )
+    elif self.options['encoding'] == 'precomputed':
+      return mesh.to_precomputed()
 
 class MeshManifestTask(RegisteredTask):
   """

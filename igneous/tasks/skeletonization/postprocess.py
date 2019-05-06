@@ -11,7 +11,7 @@ import scipy.sparse.csgraph as csgraph
 from cloudvolume.lib import Bbox
 from cloudvolume import PrecomputedSkeleton
 
-import igneous.skeletontricks
+import kimimaro.skeletontricks
 
 ## Public API of Module
 
@@ -326,7 +326,7 @@ def _remove_loops(skeleton):
 
   while True: # Loop until all cycles are removed
     edges = edges.astype(np.int32)
-    edges_cycle = igneous.skeletontricks.find_cycle(edges)
+    edges_cycle = kimimaro.skeletontricks.find_cycle(edges)
 
     if len(edges_cycle) == 0:
       break

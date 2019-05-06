@@ -26,10 +26,11 @@ from cloudvolume.lib import min2, Vec, Bbox, mkdir
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales
-from igneous import Mesher  # broken out for ease of commenting out
 
+import zmesh
 import tinybrain
 import DracoPy
+import fastremap
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -282,15 +283,22 @@ class MeshTask(RegisteredTask):
     self._encoding_to_compression_dict = {
       'precomputed': True,
       'draco': False
+      'progress': kwargs.get('progress', False),
+      'object_ids': kwargs.get('object_ids', None),
+      'fill_missing': kwargs.get('fill_missing', False),
     }
   def execute(self):
     self._volume = CloudVolume(
-        self.layer_path, self.options['mip'], bounded=False,
-        parallel=self.options['parallel_download'])
+      self.layer_path, self.options['mip'], bounded=False,
+      parallel=self.options['parallel_download'], 
+      fill_missing=self.options['fill_missing']
+    )
     self._bounds = Bbox(self.offset, self.shape + self.offset)
     self._bounds = Bbox.clamp(self._bounds, self._volume.bounds)
 
-    self._mesher = Mesher(self._volume.resolution)
+    self.progress = bool(self.options['progress'])
+
+    self._mesher = zmesh.Mesher(self._volume.resolution)
 
     # Marching cubes loves its 1vx overlaps.
     # This avoids lines appearing between
@@ -313,9 +321,19 @@ class MeshTask(RegisteredTask):
 
     # chunk_position includes the overlap specified by low_padding/high_padding
     data = self._volume[data_bounds]
+
+    if not np.any(data):
+      return
+
     data = self._remove_dust(data, self.options['dust_threshold'])
     data = self._remap(data)
-    self._compute_meshes(data)
+
+    if self.options['object_ids']:
+      data[~np.isin(data, self.options['object_ids'])] = 0
+
+    data, renumbermap = fastremap.renumber(data, in_place=True)
+    renumbermap = { v:k for k,v in renumbermap.items() }
+    self._compute_meshes(data, renumbermap)
 
   def _compute_draco_encoding_settings(self):
     def calculate_quantization_bits_and_range(min_quantization_range, max_draco_bin_size, draco_quantization_bits=None):
@@ -350,7 +368,7 @@ class MeshTask(RegisteredTask):
     if dust_threshold:
       segids, pxct = np.unique(data, return_counts=True)
       dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct < int(dust_threshold) ]
-      data[np.isin(data, dust_segids)] = 0
+      data = fastremap.mask(data, dust_segids, in_place=True)
 
     return data
 
@@ -367,17 +385,17 @@ class MeshTask(RegisteredTask):
     do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
     return np.vectorize(do_remap)(data)
 
-  def _compute_meshes(self, data):
+  def _compute_meshes(self, data, renumbermap):
     data = data[:, :, :, 0].T
     self._mesher.mesh(data)
     del data
 
     with Storage(self.layer_path) as storage:
-      for obj_id in self._mesher.ids():
+      for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
         if self.options['remap_table'] is None:
-          remapped_id = obj_id
+          remapped_id = renumbermap[obj_id]
         else:
-          remapped_id = self._remap_list[obj_id]
+          remapped_id = self._remap_list[renumbermap[obj_id]]
 
         storage.put_file(
           file_path='{}/{}:{}:{}'.format(
@@ -422,18 +440,13 @@ class MeshTask(RegisteredTask):
       ]
       return b''.join([array.tobytes() for array in vertex_index_format])
 
-  def _update_vertices(self, points):
-    # zi_lib meshing multiplies vertices by 2.0 to avoid working with floats,
-    # but we need to recover the exact position for display
-    # Note: points are already multiplied by resolution, but missing the offset
-    points /= 2.0
-    resolution = self._volume.resolution
-    xmin, ymin, zmin = self._bounds.minpt - self.options['low_padding']
-    points[0::3] = points[0::3] + xmin * resolution.x
-    points[1::3] = points[1::3] + ymin * resolution.y
-    points[2::3] = points[2::3] + zmin * resolution.z
-    return points
+    self._mesher.erase(obj_id)
 
+    resolution = self._volume.resolution
+    offset = self._bounds.minpt - self.options['low_padding']
+    mesh.vertices[:] += offset * resolution
+
+    return mesh.to_precomputed()
 
 class MeshManifestTask(RegisteredTask):
   """

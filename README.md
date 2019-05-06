@@ -124,7 +124,7 @@ Capability               |Tasks                                          |Descri
 :-----:|:-----:|:-----:
 Downsampling             |DownsampleTask                                 |Generate image hierarchies.                                          
 Meshing                  |MeshTask, MeshManifestTask                     |Create object meshes viewable in Neuroglancer.                       
-Skeletonize              |SkeletonTask, SkeletonMergeTask                |Create Neuroglancer viewable skeletons using TESAR algorithm.        
+Skeletonize              |SkeletonTask, SkeletonMergeTask                |Create Neuroglancer viewable skeletons using a modified TEASAR algorithm.        
 Transfer                 |TransferTask                                   |Copy data, supports rechunking and coordinate translation.           
 Deletion                 |DeleteTask                                     |Delete a data layer.                                                 
 Contrast Normalization   |LuminanceLevelsTask, ContrastNormalizationTask |Spread out slice histograms to fill value range.                     
@@ -233,44 +233,33 @@ In the future, a third stage might be introduced that fuses all the small fragme
 
 ### Skeletonization (SkeletonTask, SkeletonMergeTask)
 
-Skeletonization, producing wireframes of dataset objects, is a multi-stage process that ultimately produces wireframes using the [TEASAR algorithm (Sato et al., 2000)](https://ieeexplore.ieee.org/document/883951/). 
+Igneous provides the engine for performing out-of-core skeletonization of labeled images. 
+The in-core part of the algorithm is provided by the [Kimimaro](https://github.com/seung-lab/kimimaro) library.  
 
-1. Produce chunked point clouds 
-2. Merge chunks into a single point cloud per object
-3. Produce chunked skeletons using TEASAR algorithm.
-4. Merge chunks into a single skeleton.
-5. Post-process to connect broken pieces and trim short dust pieces.
-
-We break this process into two tasks.
-
-1. **SkeletonTask** Steps 1, 2, 3
-2. **SkeletonMergeTask** Steps 4, 5
-
-Each skeleton contains a list of vertices and a list of edges. For analysis, it is also helpful to have
-a radius attribute that describes how far each vertex is from the hull. Neuroglancer doesn't currently
-support skeletons that have the radius attribute, so we produce a binary visualization file and a pickled
-file that has additional information.
-
-#### Neuroglancer Skeleton Format
-
-Filename: `$CLOUDPATH/skeletons/$SEGID`  
-
-| Vertex Count (Nv) |  Edges Count (Ne)  |  Vertices           |  Edges         | 
-|-------------------|--------------------|---------------------|----------------| 
-| uint32            |  uint32            |  Nv x XYZ float32s  |  Ne x 2 uint32 | 
-
-#### Pickled Skeleton Format
-
-Filename: `$CLOUDPATH/skeletons/$SEGID.pkl`
+The strategy is to apply Kimimaro mass skeletonization to 50% overlapping chunks of the segmentation and then fuse them in a second pass. 
 
 ```python3
-{
-	"vertices": numpy array
-	"edges": numpy array
-	"radii": numpy array
-}
-```
+import igneous.task_creation as tc 
 
+# First Pass: Generate Skeletons
+tasks = tc.create_skeletonization_tasks(
+    cloudpath, mip, 
+    shape=(512, 512, 512), 
+    # see Kimimaro's documentation for the below parameters
+    teasar_params={ ... }, # controls skeletonization 
+    object_ids=None, # object id mask if applicable
+  )
+
+# Second Pass: Fuse Skeletons
+tasks = tc.create_skeleton_merge_tasks(
+  layer_path, mip, 
+  crop=0, # in voxels
+  magnitude=3, # same as mesh manifests
+  dust_threshold=4000, # in nm
+  tick_threshold=6000, # in nm
+  delete_fragments=False
+)
+```
 
 ### Contrast Normalization (LuminanceLevelsTask & ContrastNormalizationTask)
 
@@ -295,4 +284,11 @@ It's possible something has changed or is not covered in this documentation. Ple
 
 Please post an issue or PR if you think something needs to be addressed.  
 
+## Related Projects  
+
+- [tinybrain](https://github.com/seung-lab/tinybrain) - Downsampling code for images and segmentations.
+- [kimimaro](https://github.com/seung-lab/kimimaro) - Skeletonization of dense volumetric labels.
+- [zmesh](https://github.com/seung-lab/zmesh) - Mesh generation and simplification for dense volumetric labels.
+- [CloudVolume](https://github.com/seung-lab/cloud-volume) - IO for images, meshes, and skeletons.
+- [python-task-queue](https://github.com/seung-lab/python-task-queue) - Parallelized dependency-free cloud task management.
 

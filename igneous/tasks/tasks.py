@@ -27,9 +27,10 @@ from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales
 
-import zmesh
-import tinybrain
+import DracoPy
 import fastremap
+import tinybrain
+import zmesh
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -270,9 +271,21 @@ class MeshTask(RegisteredTask):
       'parallel_download': kwargs.get('parallel_download', 1),
       'cache_control': kwargs.get('cache_control', None),
       'dust_threshold': kwargs.get('dust_threshold', None),
+      'encoding': kwargs.get('encoding', 'precomputed'),
+      'draco_compression_level': kwargs.get('draco_compression_level', 1),
+      'draco_create_metadata': kwargs.get('draco_create_metadata', False),
       'progress': kwargs.get('progress', False),
       'object_ids': kwargs.get('object_ids', None),
       'fill_missing': kwargs.get('fill_missing', False),
+    }
+    supported_encodings = ['precomputed', 'draco']
+    if not self.options['encoding'] in supported_encodings:
+      raise ValueError('Encoding {} is not supported. Options: {}'.format(
+        self.options['encoding'], ', '.join(supported_encodings)
+      ))
+    self._encoding_to_compression_dict = {
+      'precomputed': True,
+      'draco': False,
     }
 
   def execute(self):
@@ -304,6 +317,9 @@ class MeshTask(RegisteredTask):
     if not self._mesh_dir:
       raise ValueError("The mesh destination is not present in the info file.")
 
+    if self.options['encoding'] == 'draco':
+      self.draco_encoding_settings = self._compute_draco_encoding_settings()
+
     # chunk_position includes the overlap specified by low_padding/high_padding
     data = self._volume[data_bounds]
 
@@ -319,6 +335,35 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
     self._compute_meshes(data, renumbermap)
+
+  def _compute_draco_encoding_settings(self):
+    def calculate_quantization_bits_and_range(min_quantization_range, max_draco_bin_size, draco_quantization_bits=None):
+        if draco_quantization_bits is None:
+            draco_quantization_bits = np.ceil(
+                np.log2(min_quantization_range / max_draco_bin_size + 1))
+        num_draco_bins = 2 ** draco_quantization_bits - 1
+        draco_bin_size = np.ceil(min_quantization_range / num_draco_bins)
+        draco_quantization_range = draco_bin_size * num_draco_bins
+        if draco_quantization_range < min_quantization_range + draco_bin_size:
+            if draco_bin_size == max_draco_bin_size:
+                return calculate_quantization_bits_and_range(min_quantization_range, max_draco_bin_size, draco_quantization_bits + 1)
+            else:
+                draco_bin_size = draco_bin_size + 1
+                draco_quantization_range = draco_quantization_range + num_draco_bins
+        return draco_quantization_bits, draco_quantization_range, draco_bin_size
+
+    min_quantization_range = max((self.shape + self.options['low_padding'] + self.options['high_padding']) * self._volume.resolution)
+    max_draco_bin_size = np.floor(min(self._volume.resolution) / np.sqrt(2))
+    draco_quantization_bits, draco_quantization_range, draco_bin_size = calculate_quantization_bits_and_range(
+        min_quantization_range, max_draco_bin_size)
+    draco_quantization_origin = self.offset - (self.offset % draco_bin_size)
+    return {
+        'quantization_bits': draco_quantization_bits,
+        'compression_level': self.options['draco_compression_level'],
+        'quantization_range': draco_quantization_range,
+        'quantization_origin': draco_quantization_origin,
+        'create_metadata': self.options['draco_create_metadata']
+    }
 
   def _remove_dust(self, data, dust_threshold):
     if dust_threshold:
@@ -359,18 +404,20 @@ class MeshTask(RegisteredTask):
             self._bounds.to_filename()
           ),
           content=self._create_mesh(obj_id),
-          compress=True,
+          compress=self._encoding_to_compression_dict[self.options['encoding']],
           cache_control=self.options['cache_control']
         )
 
         if self.options['generate_manifests']:
           fragments = []
-          fragments.append('{}:{}:{}'.format(remapped_id, self.options['lod'],
-                                             self._bounds.to_filename()))
+          fragments.append('{}:{}:{}'.format(
+            remapped_id, self.options['lod'],
+            self._bounds.to_filename())
+          )
 
           storage.put_file(
             file_path='{}/{}:{}'.format(
-              self._mesh_dir, remapped_id, self.options['lod']),
+                self._mesh_dir, remapped_id, self.options['lod']),
             content=json.dumps({"fragments": fragments}),
             content_type='application/json',
             cache_control=self.options['cache_control']
@@ -389,7 +436,13 @@ class MeshTask(RegisteredTask):
     offset = self._bounds.minpt - self.options['low_padding']
     mesh.vertices[:] += offset * resolution
 
-    return mesh.to_precomputed()
+    if self.options['encoding'] == 'draco':
+      return DracoPy.encode_mesh_to_buffer(
+        mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
+        **self.draco_encoding_settings
+      )
+    elif self.options['encoding'] == 'precomputed':
+      return mesh.to_precomputed()
 
 class MeshManifestTask(RegisteredTask):
   """
@@ -961,6 +1014,8 @@ class TransferTask(RegisteredTask):
         offset, fill_missing, translate, 
         mip, skip_downsamples
     )
+    self.src_path = src_path
+    self.dest_path = dest_path
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = bool(fill_missing)

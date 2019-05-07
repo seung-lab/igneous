@@ -93,7 +93,7 @@ class FinelyDividedTaskIterator():
     for i in range(self.start, self.end):
       pt = self.to_coord(i)
       offset = pt * self.shape + self.bounds.minpt
-      yield self.task(self.shape, offset)
+      yield self.task(self.shape.clone(), offset.clone())
 
     self.on_finish()
 

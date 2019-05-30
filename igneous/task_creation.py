@@ -516,6 +516,36 @@ def create_skeletonizing_tasks(
 
   return SkeletonTaskIterator(bounds, shape)
 
+def create_graphene_skeleton_merge_tasks(    
+    cloudpath, mip, crop=0,
+    dust_threshold=4000, 
+    tick_threshold=6000, 
+    delete_fragments=False
+  ):
+
+  prefixes = graphene_prefixes()
+
+  class SkeletonMergeTaskIterator():
+    def __len__(self):
+      return len(prefixes)
+    def __iter__(self):
+      # For a prefix like 100, tasks 1-99 will be missed. Account for them by
+      # enumerating them individually with a suffixed ':' to limit matches to
+      # only those small numbers
+      for prefix in prefixes:
+        yield SkeletonMergeTask(
+          cloudpath=cloudpath, 
+          prefix=str(prefix),
+          crop=crop,
+          mip=mip,
+          dust_threshold=dust_threshold,
+          tick_threshold=tick_threshold,
+          delete_fragments=delete_fragments,
+        )
+
+  return SkeletonMergeTaskIterator()
+    
+
 # split the work up into ~1000 tasks (magnitude 3)
 def create_skeleton_merge_tasks(
     layer_path, mip, crop=0,
@@ -1042,10 +1072,12 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3):
 
   return MeshManifestTaskIterator()
 
-def create_graphene_hybrid_mesh_manifest_tasks(
-  cloudpath, mip, mip_bits, x_bits, y_bits, 
-  x_range=None, y_range=None
-):
+
+def graphene_prefixes(
+    mip=1, mip_bits=8, 
+    coord_bits=(10, 10, 10), 
+    prefix_length=6
+  ):
   """
   Graphene structures segids as decimal numbers following
   the below format:
@@ -1055,20 +1087,16 @@ def create_graphene_hybrid_mesh_manifest_tasks(
   Typical parameter values are 
   mip_bits=4 or 8, x_bits=8 or 10, y_bits=8 or 10
   """
+  coord_bits = Vec(*coord_bits)
 
   mip_shift = 64 - mip_bits
-  x_shift = mip_shift - x_bits 
-  y_shift = x_shift - y_bits
+  x_shift = mip_shift - coord_bits.x
+  y_shift = x_shift - coord_bits.y
+  z_shift = y_shift - coord_bits.z
 
-  if mip == 0:
-    stable_prefixes = (x_bits + y_bits) // 4
-  else:
-    stable_prefixes = (math.log2(mip + 1) + x_bits + y_bits) // 4
-
-  stable_prefixes = int(max(stable_prefixes, 1))
-
-  x_range = 2 ** x_bits if x_range is None else x_range
-  y_range = 2 ** y_bits if y_range is None else y_range
+  x_range = 2 ** coord_bits.x 
+  y_range = 2 ** coord_bits.y
+  z_range = 2 ** coord_bits.z
 
   prefixes = set()
   for x in range(x_range):
@@ -1076,6 +1104,13 @@ def create_graphene_hybrid_mesh_manifest_tasks(
       num = (mip << mip_shift) + (x << x_shift) + (y << y_shift)
       num = str(num)[:stable_prefixes]
       prefixes.add(num)
+
+  return prefixes
+
+def create_graphene_hybrid_mesh_manifest_tasks(
+  cloudpath, mip, mip_bits, x_bits, y_bits
+):
+  prefixes = graphene_prefixes(mip, mip_bits, (x_bits, y_bits))
 
   class GrapheneHybridMeshManifestTaskIterator(object):
     def __len__(self):

@@ -20,6 +20,9 @@ spec:
           - name: tmp
             mountPath: "/tmp"
             readOnly: false
+          - mountPath: /dev/shm
+            name: dshm
+            readOnly: false
           imagePullPolicy: Always
           resources:
             requests:
@@ -39,3 +42,6 @@ spec:
           secretName: secrets
       - name: tmp
         emptyDir: { medium: "Memory" }
+      - name: dshm
+        emptyDir:
+          medium: Memory

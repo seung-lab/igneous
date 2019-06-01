@@ -15,6 +15,7 @@ from cloudvolume import CloudVolume, PrecomputedSkeleton
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
 
+import fastremap
 import kimimaro
 
 from taskqueue import RegisteredTask
@@ -49,7 +50,7 @@ class SkeletonTask(RegisteredTask):
   def __init__(
     self, cloudpath, shape, offset, 
     mip, teasar_params, will_postprocess, 
-    info=None, object_ids=None, 
+    info=None, object_ids=None, mask_ids=None,
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
     parallel=1
@@ -57,7 +58,7 @@ class SkeletonTask(RegisteredTask):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
       teasar_params, will_postprocess, 
-      info, object_ids, 
+      info, object_ids, mask_ids,
       fix_branching, fix_borders,
       dust_threshold, progress, parallel
     )
@@ -76,6 +77,9 @@ class SkeletonTask(RegisteredTask):
 
     all_labels = vol[ bbox.to_slices() ]
     all_labels = all_labels[:,:,:,0]
+
+    if self.mask_ids:
+      all_labels = fastremap.mask(all_labels, self.mask_ids)
 
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 

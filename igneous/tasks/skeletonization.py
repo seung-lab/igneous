@@ -8,10 +8,9 @@ import re
 from collections import defaultdict
 
 import numpy as np
-from tqdm import tqdm
 
 import cloudvolume
-from cloudvolume import CloudVolume, PrecomputedSkeleton
+from cloudvolume import CloudVolume, PrecomputedSkeleton, view
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
 
@@ -19,7 +18,6 @@ import fastremap
 import kimimaro
 
 from taskqueue import RegisteredTask
-from .postprocess import trim_skeleton
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
 
@@ -144,7 +142,9 @@ class SkeletonMergeTask(RegisteredTask):
     skeletons = []
     for segid, frags in skels.items():
       skeleton = self.fuse_skeletons(frags)
-      skeleton = trim_skeleton(skeleton, self.dust_threshold, self.tick_threshold)
+      skeleton = kimimaro.postprocess(
+        skeleton, self.dust_threshold, self.tick_threshold
+      )
       skeleton.id = segid
       skeletons.append(skeleton)
 

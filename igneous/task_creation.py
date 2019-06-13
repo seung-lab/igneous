@@ -1104,7 +1104,7 @@ def graphene_prefixes(
   for x in range(x_range):
     for y in range(y_range):
       num = (mip << mip_shift) + (x << x_shift) + (y << y_shift)
-      num = str(num)[:stable_prefixes]
+      num = str(num)[:prefix_length]
       prefixes.add(num)
 
   return prefixes

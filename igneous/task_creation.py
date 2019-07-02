@@ -237,7 +237,8 @@ def create_downsample_scales(
   for i in range(mip + 1, mip + len(scales) + 1):
     vol.scales[i]['chunk_sizes'] = chunk_size
 
-  return vol.commit_info()
+  vol.commit_info()
+  return vol
 
 def create_blackout_tasks(
     cloudpath, bounds, 
@@ -750,7 +751,7 @@ def create_transfer_tasks(
       dvol.provenance.processing.append(job_details) 
       dvol.commit_provenance()
 
-      if vol.path.protocol != 'boss':
+      if vol.meta.path.protocol != 'boss':
         vol.provenance.processing.append(job_details)
         vol.commit_provenance()
 
@@ -859,7 +860,7 @@ def create_luminance_levels_tasks(
   zoffset = offset.clone()
 
   bounds = get_bounds(vol, bounds, shape, mip)
-  protocol = vol.path.protocol
+  protocol = vol.meta.path.protocol
 
   class LuminanceLevelsTaskIterator(object):
     def __len__(self):

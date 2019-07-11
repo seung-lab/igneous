@@ -51,14 +51,15 @@ class SkeletonTask(RegisteredTask):
     info=None, object_ids=None, mask_ids=None,
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
-    parallel=1
+    parallel=1, fill_missing=False
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
       teasar_params, will_postprocess, 
       info, object_ids, mask_ids,
       fix_branching, fix_borders,
-      dust_threshold, progress, parallel
+      dust_threshold, progress, parallel,
+      fill_missing
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
 
@@ -66,7 +67,8 @@ class SkeletonTask(RegisteredTask):
     vol = CloudVolume(
       self.cloudpath, mip=self.mip, 
       info=self.info, cdn_cache=False,
-      parallel=self.parallel
+      parallel=self.parallel, 
+      fill_missing=self.fill_missing,
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
 

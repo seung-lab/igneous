@@ -330,7 +330,7 @@ class MeshTask(RegisteredTask):
     data = self._remap(data)
 
     if self.options['object_ids']:
-      data[~np.isin(data, self.options['object_ids'])] = 0
+      data = fastremap.mask_except(data, self.options['object_ids'], in_place=True)
 
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }

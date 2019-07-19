@@ -1007,12 +1007,13 @@ class TransferTask(RegisteredTask):
   def __init__(
     self, src_path, dest_path, 
     shape, offset, fill_missing, 
-    translate, mip=0, skip_downsamples=False
+    translate, mip=0, skip_downsamples=False,
+    delete_black_uploads=False
   ):
     super(TransferTask, self).__init__(
         src_path, dest_path, shape, 
         offset, fill_missing, translate, 
-        mip, skip_downsamples
+        mip, skip_downsamples, delete_black_uploads
     )
     self.src_path = src_path
     self.dest_path = dest_path
@@ -1021,10 +1022,17 @@ class TransferTask(RegisteredTask):
     self.fill_missing = bool(fill_missing)
     self.translate = Vec(*translate)
     self.mip = int(mip)
+    self.delete_black_uploads = bool(delete_black_uploads)
 
   def execute(self):
-    srccv = CloudVolume(self.src_path, fill_missing=self.fill_missing, mip=self.mip)
-    destcv = CloudVolume(self.dest_path, fill_missing=self.fill_missing, mip=self.mip)
+    srccv = CloudVolume(
+      self.src_path, fill_missing=self.fill_missing, 
+      mip=self.mip
+    )
+    destcv = CloudVolume(
+      self.dest_path, fill_missing=self.fill_missing, 
+      mip=self.mip, delete_black_uploads=self.delete_black_uploads
+    )
 
     bounds = Bbox(self.offset, self.shape + self.offset)
     bounds = Bbox.clamp(bounds, srccv.bounds)

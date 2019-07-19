@@ -671,7 +671,8 @@ def create_transfer_tasks(
     chunk_size=None, shape=Vec(2048, 2048, 64), 
     fill_missing=False, translate=(0,0,0), 
     bounds=None, mip=0, preserve_chunk_size=True,
-    encoding=None, skip_downsamples=False
+    encoding=None, skip_downsamples=False,
+    delete_black_uploads=False
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -726,6 +727,7 @@ def create_transfer_tasks(
         translate=translate,
         mip=mip,
         skip_downsamples=skip_downsamples,
+        delete_black_uploads=bool(delete_black_uploads),
       )
 
     def on_finish(self):
@@ -738,6 +740,7 @@ def create_transfer_tasks(
           'fill_missing': fill_missing,
           'translate': list(map(int, translate)),
           'skip_downsamples': skip_downsamples,
+          'delete_black_uploads': bool(delete_black_uploads),
           'bounds': [
             bounds.minpt.tolist(),
             bounds.maxpt.tolist()

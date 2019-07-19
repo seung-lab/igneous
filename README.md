@@ -193,8 +193,14 @@ Another use case is to transfer a neuroglancer dataset from one cloud bucket to 
 provider's transfer service will suffice, even across providers. 
 
 ```python3
-tasks = create_transfer_tasks(src_layer_path, dest_layer_path, 
-	shape=Vec(2048, 2048, 64), fill_missing=False, translate=(0,0,0))
+tasks = create_transfer_tasks(
+  src_layer_path, dest_layer_path, 
+  chunk_size=None, shape=Vec(2048, 2048, 64),
+  fill_missing=False, translate=(0,0,0), 
+  bounds=None, mip=0, preserve_chunk_size=True,
+  encoding=None, skip_downsamples=False,
+  delete_black_uploads=False
+)
 ```
 
 ### Deletion (DeleteTask)  
@@ -204,7 +210,10 @@ horizontally scale out deleting using these tasks. Note that the tasks assume th
 is chunk aligned and named appropriately.
 
 ```python3
-tasks = create_deletion_tasks(layer_path)
+tasks = create_deletion_tasks(
+  layer_path, mip=0, num_mips=5, 
+  shape=None, bounds=None
+)
 ```
 
 ### Meshing (MeshTask & MeshManifestTask)
@@ -221,7 +230,13 @@ The second stage is running the `MeshManifestTask` which generates files named `
 looks like `{ "fragments": [ "1052:0:0-512_0-512_0-512" ] }`. This file tells neuroglancer which mesh files to download.  
 
 ```python3
-tasks = create_meshing_tasks(layer_path, mip, shape=Vec(512, 512, 512)) # First Pass
+tasks = create_meshing_tasks(             # First Pass
+  layer_path, mip, shape=(448, 448, 448), 
+  simplification=True, max_simplification_error=40,
+  mesh_dir=None, cdn_cache=False, dust_threshold=None,
+  object_ids=None, progress=False, fill_missing=False,
+  encoding='precomputed'
+) 
 tasks = create_mesh_manifest_tasks(layer_path, magnitude=3) # Second Pass
 ```
 

@@ -404,6 +404,7 @@ def create_downsampling_tasks(
             'chunk_size': (list(chunk_size) if chunk_size else None),
             'preserve_chunk_size': preserve_chunk_size,
             'encoding': encoding,
+            'fill_missing': bool(fill_missing),
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),

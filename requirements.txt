@@ -8,7 +8,7 @@ Pillow>=4.2.1
 pytest>=3.3.1
 tinybrain
 task-queue>=0.14.2
--e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
+tqdm
 oauth2client==3.0.0
 DracoPy
 zmesh>=0.3.0

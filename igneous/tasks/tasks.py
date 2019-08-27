@@ -1008,12 +1008,14 @@ class TransferTask(RegisteredTask):
     self, src_path, dest_path, 
     shape, offset, fill_missing, 
     translate, mip=0, skip_downsamples=False,
-    delete_black_uploads=False
+    delete_black_uploads=False, 
+    background_color=0
   ):
     super(TransferTask, self).__init__(
         src_path, dest_path, shape, 
         offset, fill_missing, translate, 
-        mip, skip_downsamples, delete_black_uploads
+        mip, skip_downsamples, 
+        delete_black_uploads, background_color
     )
     self.src_path = src_path
     self.dest_path = dest_path
@@ -1031,7 +1033,8 @@ class TransferTask(RegisteredTask):
     )
     destcv = CloudVolume(
       self.dest_path, fill_missing=self.fill_missing, 
-      mip=self.mip, delete_black_uploads=self.delete_black_uploads
+      mip=self.mip, delete_black_uploads=self.delete_black_uploads,
+      background_color=self.background_color
     )
 
     bounds = Bbox(self.offset, self.shape + self.offset)

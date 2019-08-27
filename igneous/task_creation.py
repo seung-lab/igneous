@@ -673,7 +673,7 @@ def create_transfer_tasks(
     fill_missing=False, translate=(0,0,0), 
     bounds=None, mip=0, preserve_chunk_size=True,
     encoding=None, skip_downsamples=False,
-    delete_black_uploads=False
+    delete_black_uploads=False, background_color=0
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -729,6 +729,7 @@ def create_transfer_tasks(
         mip=mip,
         skip_downsamples=skip_downsamples,
         delete_black_uploads=bool(delete_black_uploads),
+        background_color=background_color,
       )
 
     def on_finish(self):
@@ -742,6 +743,7 @@ def create_transfer_tasks(
           'translate': list(map(int, translate)),
           'skip_downsamples': skip_downsamples,
           'delete_black_uploads': bool(delete_black_uploads),
+          'background_color': background_color,
           'bounds': [
             bounds.minpt.tolist(),
             bounds.maxpt.tolist()

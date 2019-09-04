@@ -201,11 +201,13 @@ class TouchTask(RegisteredTask):
 class DownsampleTask(RegisteredTask):
   def __init__(
     self, layer_path, mip, shape, offset, 
-    fill_missing=False, axis='z', sparse=False
+    fill_missing=False, axis='z', sparse=False,
+    delete_black_uploads=False, background_color=0
   ):
     super(DownsampleTask, self).__init__(
       layer_path, mip, shape, offset, 
-      fill_missing, axis, sparse
+      fill_missing, axis, sparse,
+      delete_black_uploads, background_color
     )
     self.layer_path = layer_path
     self.mip = mip
@@ -216,8 +218,12 @@ class DownsampleTask(RegisteredTask):
     self.sparse = sparse
 
   def execute(self):
-    vol = CloudVolume(self.layer_path, self.mip,
-                      fill_missing=self.fill_missing)
+    vol = CloudVolume(
+      self.layer_path, self.mip,
+      fill_missing=self.fill_missing,
+      delete_black_uploads=self.delete_black_uploads,
+      background_color=self.background_color
+    )
     bounds = Bbox(self.offset, self.shape + self.offset)
     bounds = Bbox.clamp(bounds, vol.bounds)
     image = vol[ bounds.to_slices() ]

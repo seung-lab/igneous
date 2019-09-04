@@ -338,7 +338,8 @@ def create_downsampling_tasks(
     layer_path, mip=0, fill_missing=False, 
     axis='z', num_mips=5, preserve_chunk_size=True,
     sparse=False, bounds=None, chunk_size=None,
-    encoding=None
+    encoding=None, delete_black_uploads=False, 
+    background_color=0
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -355,6 +356,9 @@ def create_downsampling_tasks(
     bounds: By default, downsample everything, but you can specify restricted bounding boxes
       instead. The bounding box will be expanded to the nearest chunk. Bbox is specifed in mip 0
       coordinates.
+    delete_black_uploads: issue delete commands instead of upload chunks
+      that are all background.
+    background_color: Designates which color should be considered background.
     """
     def ds_shape(mip, chunk_size=None):
       if chunk_size:
@@ -389,6 +393,8 @@ def create_downsampling_tasks(
           axis=axis,
           fill_missing=fill_missing,
           sparse=sparse,
+          delete_black_uploads=delete_black_uploads,
+          background_color=background_color,
         )
 
       def on_finish(self):
@@ -405,6 +411,8 @@ def create_downsampling_tasks(
             'preserve_chunk_size': preserve_chunk_size,
             'encoding': encoding,
             'fill_missing': bool(fill_missing),
+            'delete_black_uploads': bool(delete_black_uploads),
+            'background_color': background_color,
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),

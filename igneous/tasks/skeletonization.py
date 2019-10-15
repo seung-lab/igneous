@@ -51,7 +51,8 @@ class SkeletonTask(RegisteredTask):
     info=None, object_ids=None, mask_ids=None,
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
-    parallel=1, fill_missing=False
+    parallel=1, fill_missing=False, sharded=False,
+    spatial_index=True
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
@@ -59,7 +60,7 @@ class SkeletonTask(RegisteredTask):
       info, object_ids, mask_ids,
       fix_branching, fix_borders,
       dust_threshold, progress, parallel,
-      fill_missing
+      fill_missing, bool(sharded), bool(spatial_index)
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
 
@@ -94,10 +95,26 @@ class SkeletonTask(RegisteredTask):
     for segid, skel in six.iteritems(skeletons):
       skel.vertices[:] += bbox.minpt * vol.resolution
       
-    self.upload(vol, path, bbox, skeletons.values())
-      
-  def upload(self, vol, path, bbox, skeletons):
+    if self.sharded:
+      self.upload_batch(vol, path, bbox, skeletons.values())
+    else:
+      self.upload_individuals(vol, path, bbox, skeletons.values())
 
+    if self.spatial_index:
+      self.upload_spatial_index(vol, path, bbox, skeletons.values())
+  
+  def upload_batch(self, vol, path, bbox, skeletons):
+    with SimpleStorage(path, progress=vol.progress) as stor:
+      # Create skeleton batch for postprocessing later
+      stor.put_file(
+        file_path="{}.frags".format(bbox.to_filename()),
+        content=pickle.dumps(skeletons),
+        compress='gzip',
+        content_type="application/python-pickle",
+        cache_control=False,
+      )
+
+  def upload_individuals(self, vol, path, bbox, skeletons):
     if not self.will_postprocess:
       vol.skeleton.upload(skeletons)
       return 
@@ -112,7 +129,29 @@ class SkeletonTask(RegisteredTask):
           content_type="application/python-pickle",
           cache_control=False,
         )
-      
+
+  def upload_spatial_index(self, vol, path, bbox, skeletons):
+    spatial_index = {}
+    for segid, skel in tqdm(skeletons.items(), disable=(not vol.progress), desc="Extracting Bounding Boxes"):
+      xmin = np.min(skel.vertices[:,0])
+      xmax = np.max(skel.vertices[:,0])
+      ymin = np.min(skel.vertices[:,1])
+      ymax = np.max(skel.vertices[:,1])
+      zmin = np.min(skel.vertices[:,2])
+      zmax = np.max(skel.vertices[:,2])
+
+      segid_bbx = Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=np.int64)
+      spatial_index[segid] = segid_bbx.to_list()
+
+    bbox = bbox * vol.resolution
+    with SimpleStorage(path, progress=vol.progress) as stor:
+      stor.put_file(
+        file_path="{}.spatial".format(bbox.to_filename()),
+        content=json.dumps(spatial_index),
+        compress='gzip',
+        content_type="application/json",
+        cache_control=False,
+      )
 
 class SkeletonMergeTask(RegisteredTask):
   """

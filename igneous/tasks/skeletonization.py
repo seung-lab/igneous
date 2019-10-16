@@ -7,12 +7,14 @@ import os
 import re
 from collections import defaultdict
 
+from tqdm import tqdm
+
 import numpy as np
 
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton, view
 from cloudvolume.storage import Storage, SimpleStorage
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
+from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images, jsonify
 
 import fastremap
 import kimimaro
@@ -84,8 +86,10 @@ class SkeletonTask(RegisteredTask):
 
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
-      object_ids=self.object_ids, anisotropy=vol.resolution,
-      dust_threshold=self.dust_threshold, cc_safety_factor=0.25,
+      object_ids=self.object_ids, 
+      anisotropy=vol.resolution,
+      dust_threshold=self.dust_threshold, 
+      cc_safety_factor=0.25,
       progress=self.progress, 
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,
@@ -96,12 +100,12 @@ class SkeletonTask(RegisteredTask):
       skel.vertices[:] += bbox.minpt * vol.resolution
       
     if self.sharded:
-      self.upload_batch(vol, path, bbox, skeletons.values())
+      self.upload_batch(vol, path, bbox, skeletons)
     else:
-      self.upload_individuals(vol, path, bbox, skeletons.values())
+      self.upload_individuals(vol, path, bbox, skeletons)
 
     if self.spatial_index:
-      self.upload_spatial_index(vol, path, bbox, skeletons.values())
+      self.upload_spatial_index(vol, path, bbox, skeletons)
   
   def upload_batch(self, vol, path, bbox, skeletons):
     with SimpleStorage(path, progress=vol.progress) as stor:
@@ -115,6 +119,8 @@ class SkeletonTask(RegisteredTask):
       )
 
   def upload_individuals(self, vol, path, bbox, skeletons):
+    skeletons = skeletons.values()
+
     if not self.will_postprocess:
       vol.skeleton.upload(skeletons)
       return 
@@ -133,21 +139,14 @@ class SkeletonTask(RegisteredTask):
   def upload_spatial_index(self, vol, path, bbox, skeletons):
     spatial_index = {}
     for segid, skel in tqdm(skeletons.items(), disable=(not vol.progress), desc="Extracting Bounding Boxes"):
-      xmin = np.min(skel.vertices[:,0])
-      xmax = np.max(skel.vertices[:,0])
-      ymin = np.min(skel.vertices[:,1])
-      ymax = np.max(skel.vertices[:,1])
-      zmin = np.min(skel.vertices[:,2])
-      zmax = np.max(skel.vertices[:,2])
-
-      segid_bbx = Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=np.int64)
+      segid_bbx = Bbox.from_points( skel.vertices )
       spatial_index[segid] = segid_bbx.to_list()
 
     bbox = bbox * vol.resolution
     with SimpleStorage(path, progress=vol.progress) as stor:
       stor.put_file(
         file_path="{}.spatial".format(bbox.to_filename()),
-        content=json.dumps(spatial_index),
+        content=jsonify(spatial_index).encode('utf8'),
         compress='gzip',
         content_type="application/json",
         cache_control=False,

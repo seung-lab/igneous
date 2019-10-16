@@ -7,12 +7,14 @@ import os
 import re
 from collections import defaultdict
 
+from tqdm import tqdm
+
 import numpy as np
 
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton, view
 from cloudvolume.storage import Storage, SimpleStorage
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images
+from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images, jsonify
 
 import fastremap
 import kimimaro
@@ -51,7 +53,8 @@ class SkeletonTask(RegisteredTask):
     info=None, object_ids=None, mask_ids=None,
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
-    parallel=1, fill_missing=False
+    parallel=1, fill_missing=False, sharded=False,
+    spatial_index=True
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
@@ -59,7 +62,7 @@ class SkeletonTask(RegisteredTask):
       info, object_ids, mask_ids,
       fix_branching, fix_borders,
       dust_threshold, progress, parallel,
-      fill_missing
+      fill_missing, bool(sharded), bool(spatial_index)
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
 
@@ -83,8 +86,10 @@ class SkeletonTask(RegisteredTask):
 
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
-      object_ids=self.object_ids, anisotropy=vol.resolution,
-      dust_threshold=self.dust_threshold, cc_safety_factor=0.25,
+      object_ids=self.object_ids, 
+      anisotropy=vol.resolution,
+      dust_threshold=self.dust_threshold, 
+      cc_safety_factor=0.25,
       progress=self.progress, 
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,
@@ -94,9 +99,27 @@ class SkeletonTask(RegisteredTask):
     for segid, skel in six.iteritems(skeletons):
       skel.vertices[:] += bbox.minpt * vol.resolution
       
-    self.upload(vol, path, bbox, skeletons.values())
-      
-  def upload(self, vol, path, bbox, skeletons):
+    if self.sharded:
+      self.upload_batch(vol, path, bbox, skeletons)
+    else:
+      self.upload_individuals(vol, path, bbox, skeletons)
+
+    if self.spatial_index:
+      self.upload_spatial_index(vol, path, bbox, skeletons)
+  
+  def upload_batch(self, vol, path, bbox, skeletons):
+    with SimpleStorage(path, progress=vol.progress) as stor:
+      # Create skeleton batch for postprocessing later
+      stor.put_file(
+        file_path="{}.frags".format(bbox.to_filename()),
+        content=pickle.dumps(skeletons),
+        compress='gzip',
+        content_type="application/python-pickle",
+        cache_control=False,
+      )
+
+  def upload_individuals(self, vol, path, bbox, skeletons):
+    skeletons = skeletons.values()
 
     if not self.will_postprocess:
       vol.skeleton.upload(skeletons)
@@ -112,7 +135,22 @@ class SkeletonTask(RegisteredTask):
           content_type="application/python-pickle",
           cache_control=False,
         )
-      
+
+  def upload_spatial_index(self, vol, path, bbox, skeletons):
+    spatial_index = {}
+    for segid, skel in tqdm(skeletons.items(), disable=(not vol.progress), desc="Extracting Bounding Boxes"):
+      segid_bbx = Bbox.from_points( skel.vertices )
+      spatial_index[segid] = segid_bbx.to_list()
+
+    bbox = bbox * vol.resolution
+    with SimpleStorage(path, progress=vol.progress) as stor:
+      stor.put_file(
+        file_path="{}.spatial".format(bbox.to_filename()),
+        content=jsonify(spatial_index).encode('utf8'),
+        compress='gzip',
+        content_type="application/json",
+        cache_control=False,
+      )
 
 class SkeletonMergeTask(RegisteredTask):
   """

@@ -471,7 +471,8 @@ def create_skeletonizing_tasks(
     info=None, object_ids=None, mask_ids=None,
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
-    parallel=1, fill_missing=False
+    parallel=1, fill_missing=False, 
+    sharded=False, spatial_index=False
   ):
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -503,6 +504,8 @@ def create_skeletonizing_tasks(
         progress=progress,
         parallel=parallel,
         fill_missing=bool(fill_missing),
+        sharded=bool(sharded),
+        spatial_index=bool(spatial_index),
       )
 
     def on_finish(self):
@@ -522,6 +525,8 @@ def create_skeletonizing_tasks(
           'progress': progress,
           'parallel': parallel,
           'fill_missing': bool(fill_missing),
+          'sharded': bool(sharded),
+          'spatial_index': bool(spatial_index),
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

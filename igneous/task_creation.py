@@ -481,6 +481,12 @@ def create_skeletonizing_tasks(
     vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
     vol.commit_info()
 
+  if spatial_index:
+    if not vol.skeletons.meta.info['spatial_index']:
+      vol.skeletons.meta.info['spatial_index'] = {}
+    vol.skeletons.meta.info['spatial_index']['chunk_size'] = tuple(shape)
+    vol.skeletons.meta.commit_info()
+
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
   bounds = vol.bounds.clone()
 

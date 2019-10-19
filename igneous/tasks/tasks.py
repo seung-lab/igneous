@@ -198,41 +198,6 @@ class TouchTask(RegisteredTask):
     bounds = Bbox.clamp(bounds, vol.bounds)
     image = vol[bounds]
 
-class DownsampleTask(RegisteredTask):
-  def __init__(
-    self, layer_path, mip, shape, offset, 
-    fill_missing=False, axis='z', sparse=False,
-    delete_black_uploads=False, background_color=0
-  ):
-    super(DownsampleTask, self).__init__(
-      layer_path, mip, shape, offset, 
-      fill_missing, axis, sparse,
-      delete_black_uploads, background_color
-    )
-    self.layer_path = layer_path
-    self.mip = mip
-    self.shape = Vec(*shape)
-    self.offset = Vec(*offset)
-    self.fill_missing = fill_missing
-    self.axis = axis
-    self.sparse = sparse
-
-  def execute(self):
-    vol = CloudVolume(
-      self.layer_path, self.mip,
-      fill_missing=self.fill_missing,
-      delete_black_uploads=self.delete_black_uploads,
-      background_color=self.background_color
-    )
-    bounds = Bbox(self.offset, self.shape + self.offset)
-    bounds = Bbox.clamp(bounds, vol.bounds)
-    image = vol[ bounds.to_slices() ]
-    downsample_and_upload(
-      image, bounds, vol, 
-      self.shape, self.mip, self.axis, 
-      skip_first=True, sparse=self.sparse
-    )
-
 class QuantizeTask(RegisteredTask):
   def __init__(self, source_layer_path, dest_layer_path, shape, offset, mip, fill_missing=False):
     super(QuantizeTask, self).__init__(
@@ -1007,30 +972,42 @@ class LuminanceLevelsTask(RegisteredTask):
       bboxes.append(bbox)
     return bboxes
 
-
 class TransferTask(RegisteredTask):
   # translate = change of origin
   def __init__(
     self, src_path, dest_path, 
-    shape, offset, fill_missing, 
-    translate, mip=0, skip_downsamples=False,
+    mip, shape, offset, 
+    translate=(0,0,0),
+    fill_missing=False, 
+    skip_first=False, 
+    skip_downsamples=False,
     delete_black_uploads=False, 
-    background_color=0
+    background_color=0,
+    sparse=False,
+    axis='z'
   ):
     super(TransferTask, self).__init__(
-        src_path, dest_path, shape, 
-        offset, fill_missing, translate, 
-        mip, skip_downsamples, 
-        delete_black_uploads, background_color
+      src_path, dest_path, 
+      mip, shape, offset, 
+      translate, fill_missing, 
+      skip_first, skip_downsamples,
+      delete_black_uploads, background_color,
+      sparse, axis
     )
     self.src_path = src_path
     self.dest_path = dest_path
+    self.mip = mip
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.fill_missing = bool(fill_missing)
     self.translate = Vec(*translate)
-    self.mip = int(mip)
     self.delete_black_uploads = bool(delete_black_uploads)
+    self.sparse = bool(sparse)
+    self.skip_first = bool(skip_first)
+    self.skip_downsamples = bool(skip_downsamples)
+    self.background_color = background_color
+    self.axis = axis
+    self.sparse = sparse
 
   def execute(self):
     srccv = CloudVolume(
@@ -1052,7 +1029,38 @@ class TransferTask(RegisteredTask):
     if self.skip_downsamples:
       destcv[bounds] = image
     else:
-      downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
+      downsample_and_upload(
+        image, bounds, destcv, 
+        self.shape, mip=self.mip,
+        skip_first=self.skip_first, 
+        sparse=self.sparse, axis=self.axis
+      )
+
+class DownsampleTask(TransferTask):
+  def __init__(
+    self, layer_path, mip, shape, offset, 
+    fill_missing=False, axis='z', sparse=False,
+    delete_black_uploads=False, background_color=0,
+    dest_path=None
+  ):
+    self.layer_type = layer_path
+
+    if dest_path is None:
+      dest_path = layer_path
+
+    super(DownsampleTask, self).__init__(
+      layer_path, dest_path, 
+      mip, shape, offset, 
+      translate=(0,0,0),
+      fill_missing=fill_missing, 
+      skip_first=True, 
+      skip_downsamples=False,
+      delete_black_uploads=delete_black_uploads, 
+      background_color=background_color,
+      sparse=sparse,
+      axis=axis
+    )
+
 
 
 class WatershedRemapTask(RegisteredTask):

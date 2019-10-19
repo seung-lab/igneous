@@ -339,7 +339,7 @@ def create_downsampling_tasks(
     axis='z', num_mips=5, preserve_chunk_size=True,
     sparse=False, bounds=None, chunk_size=None,
     encoding=None, delete_black_uploads=False, 
-    background_color=0
+    background_color=0, dest_path=None
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -359,6 +359,9 @@ def create_downsampling_tasks(
     delete_black_uploads: issue delete commands instead of upload chunks
       that are all background.
     background_color: Designates which color should be considered background.
+    dest_path: (optional) instead of writing downsamples to the existing 
+      volume, write them somewhere else. This can be useful e.g. if someone 
+      doesn't want you to touch the existing info file.
     """
     def ds_shape(mip, chunk_size=None):
       if chunk_size:
@@ -395,6 +398,7 @@ def create_downsampling_tasks(
           sparse=sparse,
           delete_black_uploads=delete_black_uploads,
           background_color=background_color,
+          dest_path=dest_path
         )
 
       def on_finish(self):
@@ -413,6 +417,7 @@ def create_downsampling_tasks(
             'fill_missing': bool(fill_missing),
             'delete_black_uploads': bool(delete_black_uploads),
             'background_color': background_color,
+            'dest_path': dest_path,
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -25,9 +25,8 @@ import os
 
 from tqdm import tqdm
 
-from neuroglancer.lib import Bbox, max2
-from neuroglancer.pipeline import Storage
-from neuroglancer.pipeline.volumes import CloudVolume
+from cloudvolume.lib import max2
+from cloudvolume import CloudVolume, Storage, Bbox
 
 layer_path = sys.argv[1]
 

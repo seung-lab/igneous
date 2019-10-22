@@ -489,7 +489,7 @@ def create_skeletonizing_tasks(
   if spatial_index:
     if 'spatial_index' not in vol.skeleton.meta.info or not vol.skeleton.meta.info['spatial_index']:
       vol.skeleton.meta.info['spatial_index'] = {}
-    vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
+    vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple((shape + 1) * vol.resolution)
     vol.skeleton.meta.commit_info()
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))

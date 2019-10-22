@@ -489,7 +489,7 @@ def create_skeletonizing_tasks(
   if spatial_index:
     if 'spatial_index' not in vol.skeleton.meta.info or not vol.skeleton.meta.info['spatial_index']:
       vol.skeleton.meta.info['spatial_index'] = {}
-    vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple((shape + 1) * vol.resolution)
+    vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
     vol.skeleton.meta.commit_info()
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
@@ -497,11 +497,9 @@ def create_skeletonizing_tasks(
 
   class SkeletonTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      shape += 1 # 1px overlap on the right hand side
-      bounded_shape = min2(shape, bounds.maxpt - offset)
       return SkeletonTask(
         cloudpath=cloudpath,
-        shape=shape.clone(),
+        shape=(shape + 1).clone(), # 1px overlap on the right hand side
         offset=offset.clone(),
         mip=mip,
         teasar_params=teasar_params,
@@ -517,6 +515,7 @@ def create_skeletonizing_tasks(
         fill_missing=bool(fill_missing),
         sharded=bool(sharded),
         spatial_index=bool(spatial_index),
+        spatial_grid_shape=shape.clone(), # used for writing index filenames
       )
 
     def on_finish(self):

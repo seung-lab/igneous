@@ -54,7 +54,7 @@ class SkeletonTask(RegisteredTask):
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, sharded=False,
-    spatial_index=True
+    spatial_index=True, spatial_grid_shape=None,
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
@@ -62,9 +62,11 @@ class SkeletonTask(RegisteredTask):
       info, object_ids, mask_ids,
       fix_branching, fix_borders,
       dust_threshold, progress, parallel,
-      fill_missing, bool(sharded), bool(spatial_index)
+      fill_missing, bool(sharded), bool(spatial_index),
+      spatial_grid_shape
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
+    self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
 
   def execute(self):
     vol = CloudVolume(
@@ -74,6 +76,7 @@ class SkeletonTask(RegisteredTask):
       fill_missing=self.fill_missing,
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
+    index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
 
     path = skeldir(self.cloudpath)
     path = os.path.join(self.cloudpath, path)
@@ -100,12 +103,12 @@ class SkeletonTask(RegisteredTask):
       skel.vertices[:] += bbox.minpt * vol.resolution
       
     if self.sharded:
-      self.upload_batch(vol, path, bbox, skeletons)
+      self.upload_batch(vol, path, index_bbox, skeletons)
     else:
       self.upload_individuals(vol, path, bbox, skeletons)
 
     if self.spatial_index:
-      self.upload_spatial_index(vol, path, bbox, skeletons)
+      self.upload_spatial_index(vol, path, index_bbox, skeletons)
   
   def upload_batch(self, vol, path, bbox, skeletons):
     with SimpleStorage(path, progress=vol.progress) as stor:

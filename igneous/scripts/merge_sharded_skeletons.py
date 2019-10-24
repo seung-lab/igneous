@@ -12,7 +12,7 @@ import sys
 from tqdm import tqdm
 
 from cloudvolume import CloudVolume, Storage, PrecomputedSkeleton
-from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
+from cloudvolume.datasource.precomputed.sharding import ShardingSpecification, synthesize_shard_files
 import kimimaro
 
 cloudpath = sys.argv[1]
@@ -42,7 +42,7 @@ with Storage(cv.skeleton.meta.layerpath, progress=True) as stor:
   all_files = list(stor.list_files())
 
 all_files = [ 
-  fname for fname in all_files if os.path.splitext(fname)[1] == '.frag' 
+  fname for fname in all_files if os.path.splitext(fname)[1] == '.frags' 
 ]
 
 print("Downloading files...")
@@ -71,32 +71,10 @@ for label, skels in tqdm(skeletons.items(), desc='Merging'):
     tick_threshold=1300, # nm
   )
   skeleton.id = label
-  skeletons[label] = skeleton
+  skeletons[label] = skeleton.to_precomputed()
 
-shard_groupings = defaultdict(defaultdict(list))
-for label, skel in tqdm(skeletons.items(), desc='Creating Shard Groupings'):
-  loc = spec.compute_shard_location(label)
-  shard_groupings[loc.shard_number][loc.minishard_number].append(skel)
-
-# CHECKPOINT?
-print(shard_groupings)
-# CREATE THE SHARD FILES AND UPLOAD
-
-for shardno in shard_groupings.keys():
-  shardgrp = shard_groupings[shardno]
-  for minino in shardgrp.keys():
-    minigrp = shardgrp[minino]:
-    minishard_index = np.zeros( (3, len(minigrp)), dtype=np.uint64, order='C')
-    data = b''
-    for i, skel in enumerate(minigrp):
-      binary = skel.to_precomputed()
-      minishard_index[0, i] = skel.id
-      minishard_index[1, i] = 
-      minishard_index[2, i] = len(binary)
-
-
-
-
+shard_files = synthesize_shard_files(spec, skeletons, progress=True)
+print(shard_files.keys())
 
 
 

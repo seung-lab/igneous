@@ -74,7 +74,18 @@ for label, skels in tqdm(skeletons.items(), desc='Merging'):
   skeletons[label] = skeleton.to_precomputed()
 
 shard_files = synthesize_shard_files(spec, skeletons, progress=True)
-print(shard_files.keys())
+for fname, data in shard_files.items():
+  print(fname, ":", len(data) / 1e6)
+
+uploadable = [ (fname, data) for fname, data in shard_files.items() ]
+with Storage(cv.skeleton.meta.layerpath) as stor:
+  stor.put_files(
+    files=uploadable, 
+    compress=False,
+    content_type='application/octet-stream',
+    cache_control='no-cache',
+  )
+
 
 
 

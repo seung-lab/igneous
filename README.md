@@ -261,7 +261,7 @@ Of note: Meshing is a memory intensive operation. The underlying zmesh library h
 Igneous provides the engine for performing out-of-core skeletonization of labeled images. 
 The in-core part of the algorithm is provided by the [Kimimaro](https://github.com/seung-lab/kimimaro) library.  
 
-The strategy is to apply Kimimaro mass skeletonization to 50% overlapping chunks of the segmentation and then fuse them in a second pass. 
+The strategy is to apply Kimimaro mass skeletonization to 1 voxel overlapping chunks of the segmentation and then fuse them in a second pass. 
 
 ```python3
 import igneous.task_creation as tc 

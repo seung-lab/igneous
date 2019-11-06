@@ -10,7 +10,6 @@ test.py
 test2.py
 pipeline.py
 .pytest_cache
-test
 *.dat
 projects
 credentials.tar.enc

@@ -2,7 +2,7 @@ FROM python:3.7-slim
 LABEL maintainer="William Silversmith, Nico Kemnitz"
 
 ADD ./ /igneous
-RUN touch projects && rm -r projects
+
 RUN apt-get update \
     # Build dependencies
     && apt-get install -y -qq --no-install-recommends \
@@ -23,7 +23,7 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     # Cleanup temporary python files
-    && find /usr/local/lib/python3.6 -depth \
+    && find /usr/local/lib/python3.7 -depth \
       \( \
         \( -type d -a \( -name __pycache__ \) \) \
         -o \

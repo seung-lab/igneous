@@ -348,7 +348,10 @@ class MeshTask(RegisteredTask):
 
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
-    self._compute_meshes(data, renumbermap)
+    bounding_boxes = self._compute_meshes(data, renumbermap)
+
+    if self.options['spatial_index']:
+      self._upload_spatial_index(self._volume, self._bounds, bounding_boxes)
 
   def _compute_draco_encoding_settings(self):
     def calculate_quantization_bits_and_range(min_quantization_range, max_draco_bin_size, draco_quantization_bits=None):
@@ -405,6 +408,8 @@ class MeshTask(RegisteredTask):
     self._mesher.mesh(data)
     del data
 
+    bounding_boxes = {}
+
     with Storage(self.layer_path) as storage:
       for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
         if self.options['remap_table'] is None:
@@ -412,12 +417,16 @@ class MeshTask(RegisteredTask):
         else:
           remapped_id = self._remap_list[renumbermap[obj_id]]
 
+        mesh_binary, mesh_bounds = self._create_mesh(obj_id)
+
+        bounding_boxes[remapped_id] = mesh_bounds.to_list()
+
         storage.put_file(
           file_path='{}/{}:{}:{}'.format(
             self._mesh_dir, remapped_id, self.options['lod'],
             self._bounds.to_filename()
           ),
-          content=self._create_mesh(obj_id),
+          content=mesh_binary,
           compress=self._encoding_to_compression_dict[self.options['encoding']],
           cache_control=self.options['cache_control']
         )
@@ -437,6 +446,8 @@ class MeshTask(RegisteredTask):
             cache_control=self.options['cache_control']
           )
 
+    return bounding_boxes
+
   def _create_mesh(self, obj_id):
     mesh = self._mesher.get_mesh(
       obj_id,
@@ -450,13 +461,30 @@ class MeshTask(RegisteredTask):
     offset = self._bounds.minpt - self.options['low_padding']
     mesh.vertices[:] += offset * resolution
 
+    mesh_bounds = Bbox(
+      np.amin(mesh.vertices, axis=0), 
+      np.amax(mesh.vertices, axis=0)
+    )
+
     if self.options['encoding'] == 'draco':
-      return DracoPy.encode_mesh_to_buffer(
+      mesh_binary = DracoPy.encode_mesh_to_buffer(
         mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
         **self.draco_encoding_settings
       )
     elif self.options['encoding'] == 'precomputed':
-      return mesh.to_precomputed()
+      mesh_binary = mesh.to_precomputed()
+
+    return mesh_binary, mesh_bounds
+
+  def _upload_spatial_index(self, vol, bbox, mesh_bboxes):
+    with SimpleStorage(self.layer_path, progress=vol.progress) as stor:
+      stor.put_file(
+        file_path="{}/{}.spatial".format(self._mesh_dir, bbox.to_filename()),
+        content=jsonify(mesh_bboxes).encode('utf8'),
+        compress='gzip',
+        content_type="application/json",
+        cache_control=False,
+      )
 
 class MeshManifestTask(RegisteredTask):
   """

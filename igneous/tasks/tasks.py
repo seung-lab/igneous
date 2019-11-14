@@ -255,41 +255,43 @@ class MeshTask(RegisteredTask):
         high_padding: (uint) expand the bounding box by this many pixels adding
           this padding to the maximum point of the bounding box on all axes.
 
-      parallel_download: (uint) number of processes to use during the segmentation download
-      cache_control: (str) specify the cache-control header when uploading mesh files
-      dust_threshold: (uint) don't bother meshing labels strictly smaller than this number of voxels.
+      parallel_download: (uint: 1) number of processes to use during the segmentation download
+      cache_control: (str: None) specify the cache-control header when uploading mesh files
+      dust_threshold: (uint: None) don't bother meshing labels strictly smaller than this number of voxels.
       encoding: (str) 'precomputed' (default) or 'draco'
-      draco_compression_level: (uint) only applies to draco encoding
-      draco_create_metadata: (bool) only applies to draco encoding
-      progress: (bool) show progress bars for meshing 
+      draco_compression_level: (uint: 1) only applies to draco encoding
+      draco_create_metadata: (bool: False) only applies to draco encoding
+      progress: (bool: False) show progress bars for meshing 
       object_ids: (list of ints) if specified, only mesh these ids
-      fill_missing: (bool) replace missing segmentation files with zeros instead of erroring
-      spatial_index: (bool) generate a JSON spatial index of which meshes are available in
+      fill_missing: (bool: False) replace missing segmentation files with zeros instead of erroring
+      spatial_index: (bool: False) generate a JSON spatial index of which meshes are available in
         a given bounding box. 
+      sharded: (bool: False) If True, upload all meshes together as a single pickled 
+        fragment file. 
     """
     super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.layer_path = layer_path
     self.options = {
-      'lod': kwargs.get('lod', 0),
-      'mip': kwargs.get('mip', 0),
-      'simplification_factor': kwargs.get('simplification_factor', 100),
-      'max_simplification_error': kwargs.get('max_simplification_error', 40),
-      'mesh_dir': kwargs.get('mesh_dir', None),
-      'remap_table': kwargs.get('remap_table', None),
-      'generate_manifests': kwargs.get('generate_manifests', False),
-      'low_padding': kwargs.get('low_padding', 0),
-      'high_padding': kwargs.get('high_padding', 1),
-      'parallel_download': kwargs.get('parallel_download', 1),
       'cache_control': kwargs.get('cache_control', None),
-      'dust_threshold': kwargs.get('dust_threshold', None),
-      'encoding': kwargs.get('encoding', 'precomputed'),
       'draco_compression_level': kwargs.get('draco_compression_level', 1),
       'draco_create_metadata': kwargs.get('draco_create_metadata', False),
-      'progress': kwargs.get('progress', False),
-      'object_ids': kwargs.get('object_ids', None),
+      'dust_threshold': kwargs.get('dust_threshold', None),
+      'encoding': kwargs.get('encoding', 'precomputed'),
       'fill_missing': kwargs.get('fill_missing', False),
+      'generate_manifests': kwargs.get('generate_manifests', False),
+      'high_padding': kwargs.get('high_padding', 1),
+      'low_padding': kwargs.get('low_padding', 0),
+      'lod': kwargs.get('lod', 0),
+      'max_simplification_error': kwargs.get('max_simplification_error', 40),
+      'simplification_factor': kwargs.get('simplification_factor', 100),
+      'mesh_dir': kwargs.get('mesh_dir', None),
+      'mip': kwargs.get('mip', 0),
+      'object_ids': kwargs.get('object_ids', None),
+      'parallel_download': kwargs.get('parallel_download', 1),
+      'progress': kwargs.get('progress', False),
+      'remap_table': kwargs.get('remap_table', None),
       'spatial_index': kwargs.get('spatial_index', False),
     }
     supported_encodings = ['precomputed', 'draco']

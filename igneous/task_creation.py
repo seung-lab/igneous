@@ -652,6 +652,13 @@ def create_meshing_tasks(
     vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
+  if spatial_index:
+    stor = SimpleStorage(layer_path)
+    info_filename = '{}/info'.format(mesh_dir)
+    mesh_info = stor.get_json(info_filename) or {}
+    mesh_info['spatial_index'] = { 'chunk_size': list(shape * vol.resolution) }
+    stor.put_json(info_filename, mesh_info)
+
   class MeshTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       return MeshTask(

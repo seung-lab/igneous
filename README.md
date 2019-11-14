@@ -244,6 +244,8 @@ tasks = create_meshing_tasks(             # First Pass
   progress=False, # Display a progress bar (more useful locally than in the cloud)
   fill_missing=False, # If part of the data is missing, fill with zeros instead of raising an error 
   encoding='precomputed' # 'precomputed' or 'draco' (don't change this unless you know what you're doing)
+  spatial_index=True, # generate a spatial index for querying meshes by bounding box
+  sharded=False, # generate intermediate shard fragments for later processing into sharded format
 ) 
 tasks = create_mesh_manifest_tasks(layer_path, magnitude=3) # Second Pass
 ```
@@ -285,6 +287,8 @@ tasks = tc.create_skeletonization_tasks(
     dust_threshold=1000, # Don't skeletonize below this physical distance
     progress=False, # Show a progress bar
     parallel=1, # Number of parallel processes to use (more useful locally)
+    spatial_index=True, # generate a spatial index for querying skeletons by bounding box
+    sharded=False, # generate intermediate shard fragments for later processing into sharded format
   )
 
 # Second Pass: Fuse Skeletons

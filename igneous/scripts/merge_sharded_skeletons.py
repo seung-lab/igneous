@@ -9,6 +9,7 @@ import numpy as np
 import pickle
 import sys 
 
+import pathos.pools
 from tqdm import tqdm
 
 from cloudvolume import CloudVolume, Storage, PrecomputedSkeleton
@@ -16,6 +17,11 @@ from cloudvolume.datasource.precomputed.sharding import ShardingSpecification, s
 import kimimaro
 
 cloudpath = sys.argv[1]
+
+if len(sys.argv):
+  parallel = int(sys.argv[2])
+else:
+  parallel = 1
 
 cv = CloudVolume(cloudpath)
 
@@ -62,30 +68,44 @@ all_files = [
 # group by segid
 
 skeletons = defaultdict(list)
-
-for fragment in tqdm(all_files, desc='Aggregating Fragments'):
+for fragment in all_files:
   for label, skel_frag in fragment.items():
     skeletons[label].append(skel_frag)
 
+del all_files
+
 # CHECKPOINT? 
 
-for label, skels in tqdm(skeletons.items(), desc='Merging'):
-  skeleton = PrecomputedSkeleton.simple_merge(skels).consolidate()
-  skeleton = kimimaro.postprocess(
-    skeleton, 
-    dust_threshold=1000, # voxels 
-    tick_threshold=1300, # nm
-  )
+for label, skels in tqdm(skeletons.items(), desc='Simple Merging'):
+  skeleton = PrecomputedSkeleton.simple_merge(skels)
   skeleton.id = label
   skeleton.extra_attributes = [ 
     attr for attr in skeleton.extra_attributes \
     if attr['data_type'] == 'float32' 
   ] 
-  skeletons[label] = skeleton.to_precomputed()
+  skeletons[label] = skeleton 
 
-shard_files = synthesize_shard_files(spec, skeletons, progress=False)
-# for fname, data in shard_files.items():
-#   print(fname, ":", len(data) / 1e6)
+def complex_merge(label):
+  return kimimaro.postprocess(
+    skeletons[label], 
+    dust_threshold=1000, # voxels 
+    tick_threshold=1300, # nm
+  )
+
+merged_skeletons = {}
+
+pool = pathos.pools.ProcessPool(parallel)
+with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
+  for skel in pool.uimap(complex_merge, skeletons.keys()):
+    merged_skeletons[skel.id] = skel.to_precomputed()
+    pbar.update(1)
+pool.close()
+pool.join()
+pool.clear()
+
+del skeletons
+
+shard_files = synthesize_shard_files(spec, merged_skeletons, progress=True)
 
 uploadable = [ (fname, data) for fname, data in shard_files.items() ]
 with Storage(cv.skeleton.meta.layerpath) as stor:

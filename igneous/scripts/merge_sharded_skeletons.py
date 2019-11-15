@@ -32,6 +32,10 @@ spec = ShardingSpecification(
 )
 
 cv.skeleton.meta.info['sharding'] = spec.to_dict()
+cv.skeleton.meta.info['vertex_attributes'] = [ 
+  attr for attr in cv.skeleton.meta.info['vertex_attributes'] \
+  if attr['data_type'] == 'float32'
+] 
 cv.skeleton.meta.commit_info()
 
 # actually get data
@@ -51,14 +55,16 @@ with Storage(cv.skeleton.meta.layerpath, progress=True) as stor:
 
 # CHECKPOINT?
 
-all_files = [ pickle.loads(res['content']) for res in tqdm(all_files, desc='Unpickling') ]
+all_files = [ 
+  pickle.loads(res['content']) for res in tqdm(all_files, desc='Unpickling') 
+]
 
 # group by segid
 
 skeletons = defaultdict(list)
 
 for fragment in tqdm(all_files, desc='Aggregating Fragments'):
-  for label, skel_frag in tqdm(fragment.items()):
+  for label, skel_frag in fragment.items():
     skeletons[label].append(skel_frag)
 
 # CHECKPOINT? 
@@ -71,11 +77,15 @@ for label, skels in tqdm(skeletons.items(), desc='Merging'):
     tick_threshold=1300, # nm
   )
   skeleton.id = label
+  skeleton.extra_attributes = [ 
+    attr for attr in skeleton.extra_attributes \
+    if attr['data_type'] == 'float32' 
+  ] 
   skeletons[label] = skeleton.to_precomputed()
 
-shard_files = synthesize_shard_files(spec, skeletons, progress=True)
-for fname, data in shard_files.items():
-  print(fname, ":", len(data) / 1e6)
+shard_files = synthesize_shard_files(spec, skeletons, progress=False)
+# for fname, data in shard_files.items():
+#   print(fname, ":", len(data) / 1e6)
 
 uploadable = [ (fname, data) for fname, data in shard_files.items() ]
 with Storage(cv.skeleton.meta.layerpath) as stor:

@@ -33,7 +33,7 @@ spec = ShardingSpecification(
   hash='murmurhash3_x86_128', 
   minishard_bits=6, 
   shard_bits=6, 
-  minishard_index_encoding='raw', 
+  minishard_index_encoding='gzip', 
   data_encoding='gzip',
 )
 
@@ -61,9 +61,8 @@ with Storage(cv.skeleton.meta.layerpath, progress=True) as stor:
 
 # CHECKPOINT?
 
-all_files = [ 
-  pickle.loads(res['content']) for res in tqdm(all_files, desc='Unpickling') 
-]
+for i, res in enumerate(tqdm(all_files, desc='Unpickling')):
+  all_files[i] = pickle.loads(res['content'])
 
 # group by segid
 

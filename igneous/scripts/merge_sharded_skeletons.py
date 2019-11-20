@@ -93,14 +93,20 @@ def complex_merge(label):
 
 merged_skeletons = {}
 
-pool = pathos.pools.ProcessPool(parallel)
 with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
-  for skel in pool.uimap(complex_merge, skeletons.keys()):
-    merged_skeletons[skel.id] = skel.to_precomputed()
-    pbar.update(1)
-pool.close()
-pool.join()
-pool.clear()
+  if parallel == 1:
+    for label in skeletons.keys():
+      skel = complex_merge(label)
+      merged_skeletons[skel.id] = skel.to_precomputed()
+      pbar.update(1)
+  else:
+    pool = pathos.pools.ProcessPool(parallel)
+    for skel in pool.uimap(complex_merge, skeletons.keys()):
+      merged_skeletons[skel.id] = skel.to_precomputed()
+      pbar.update(1)
+    pool.close()
+    pool.join()
+    pool.clear()
 
 del skeletons
 

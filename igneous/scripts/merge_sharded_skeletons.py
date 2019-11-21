@@ -9,6 +9,7 @@ import numpy as np
 import pickle
 import sys 
 
+from multiprocessing import Manager
 import pathos.pools
 from tqdm import tqdm
 
@@ -66,9 +67,15 @@ for i, res in enumerate(tqdm(all_files, desc='Unpickling')):
 
 # group by segid
 
-skeletons = defaultdict(list)
-for fragment in all_files:
+manager = Manager()
+
+crt_dict = lambda: manager.dict() if parallel > 1 else {}
+
+skeletons = crt_dict()
+for fragment in tqdm(all_files, desc='Storing in Manager', disable=(parallel == 1)):
   for label, skel_frag in fragment.items():
+    if label not in skeletons:
+      skeletons[label] = []
     skeletons[label].append(skel_frag)
 
 del all_files
@@ -84,14 +91,14 @@ for label, skels in tqdm(skeletons.items(), desc='Simple Merging'):
   ] 
   skeletons[label] = skeleton 
 
-def complex_merge(label):
+def complex_merge(skel):
   return kimimaro.postprocess(
-    skeletons[label], 
+    skel, 
     dust_threshold=1000, # voxels 
     tick_threshold=1300, # nm
   )
 
-merged_skeletons = {}
+merged_skeletons = crt_dict()
 
 with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
   if parallel == 1:
@@ -101,7 +108,7 @@ with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
       pbar.update(1)
   else:
     pool = pathos.pools.ProcessPool(parallel)
-    for skel in pool.uimap(complex_merge, skeletons.keys()):
+    for skel in pool.uimap(complex_merge, skeletons.values()):
       merged_skeletons[skel.id] = skel.to_precomputed()
       pbar.update(1)
     pool.close()
@@ -120,11 +127,4 @@ with Storage(cv.skeleton.meta.layerpath) as stor:
     content_type='application/octet-stream',
     cache_control='no-cache',
   )
-
-
-
-
-
-
-
 

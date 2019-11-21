@@ -104,9 +104,9 @@ merged_skeletons = crt_dict()
 with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
   if parallel == 1:
     for label in labels:
-      skel = complex_merge(label)
+      skel = complex_merge(skeletons[label])
       merged_skeletons[skel.id] = skel.to_precomputed()
-      del skeleton[label]
+      del skeletons[label]
       pbar.update(1)
   else:
     pool = pathos.pools.ProcessPool(parallel)

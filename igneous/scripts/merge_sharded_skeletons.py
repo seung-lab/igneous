@@ -71,18 +71,18 @@ manager = Manager()
 
 crt_dict = lambda: manager.dict() if parallel > 1 else {}
 
-skeletons = crt_dict()
-for fragment in tqdm(all_files, desc='Storing in Manager', disable=(parallel == 1)):
+unfused_skeletons = defaultdict(list)
+while all_files:
+  fragment = all_files.pop()
   for label, skel_frag in fragment.items():
-    if label not in skeletons:
-      skeletons[label] = []
-    skeletons[label].append(skel_frag)
-
-del all_files
+    unfused_skeletons[label].append(skel_frag)  
 
 # CHECKPOINT? 
 
-for label, skels in tqdm(skeletons.items(), desc='Simple Merging'):
+skeletons = crt_dict()
+labels = list(unfused_skeletons.keys())
+for label in tqdm(labels, desc='Simple Merging'):
+  skels = unfused_skeletons[label]
   skeleton = PrecomputedSkeleton.simple_merge(skels)
   skeleton.id = label
   skeleton.extra_attributes = [ 
@@ -90,6 +90,7 @@ for label, skels in tqdm(skeletons.items(), desc='Simple Merging'):
     if attr['data_type'] == 'float32' 
   ] 
   skeletons[label] = skeleton 
+  del unfused_skeletons[label]
 
 def complex_merge(skel):
   return kimimaro.postprocess(

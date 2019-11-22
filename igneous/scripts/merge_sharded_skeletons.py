@@ -7,6 +7,7 @@ from collections import defaultdict
 import os 
 import numpy as np 
 import pickle
+import time
 import sys 
 
 from multiprocessing import Manager
@@ -24,6 +25,8 @@ if len(sys.argv):
 else:
   parallel = 1
 
+manager = Manager()
+crt_dict = lambda: manager.dict() if parallel > 1 else {}
 cv = CloudVolume(cloudpath)
 
 # setup sharded
@@ -45,52 +48,63 @@ cv.skeleton.meta.info['vertex_attributes'] = [
 ] 
 cv.skeleton.meta.commit_info()
 
-# actually get data
+def load_raw_skeletons():
+  print("Downloading list of files...")
+  print(cv.skeleton.meta.layerpath)
+  with Storage(cv.skeleton.meta.layerpath, progress=True) as stor:
+    all_files = list(stor.list_files())
 
-print("Downloading list of files...")
-print(cv.skeleton.meta.layerpath)
-with Storage(cv.skeleton.meta.layerpath, progress=True) as stor:
-  all_files = list(stor.list_files())
+  all_files = [ 
+    fname for fname in all_files if os.path.splitext(fname)[1] == '.frags' 
+  ]
 
-all_files = [ 
-  fname for fname in all_files if os.path.splitext(fname)[1] == '.frags' 
-]
+  print("Downloading files...")
+  with Storage(cv.skeleton.meta.layerpath, progress=True) as stor:
+    all_files = stor.get_files(all_files)
 
-print("Downloading files...")
-with Storage(cv.skeleton.meta.layerpath, progress=True) as stor:
-  all_files = stor.get_files(all_files)
+  # CHECKPOINT?
 
-# CHECKPOINT?
+  for i, res in enumerate(tqdm(all_files, desc='Unpickling')):
+    all_files[i] = pickle.loads(res['content'])
 
-for i, res in enumerate(tqdm(all_files, desc='Unpickling')):
-  all_files[i] = pickle.loads(res['content'])
+  # group by segid
 
-# group by segid
+  unfused_skeletons = defaultdict(list)
+  while all_files:
+    fragment = all_files.pop()
+    for label, skel_frag in fragment.items():
+      unfused_skeletons[label].append(skel_frag)  
 
-manager = Manager()
+  # CHECKPOINT? 
 
-crt_dict = lambda: manager.dict() if parallel > 1 else {}
+  skeletons = crt_dict()
+  labels = list(unfused_skeletons.keys())
+  for label in tqdm(labels, desc='Simple Merging'):
+    skels = unfused_skeletons[label]
+    skeleton = PrecomputedSkeleton.simple_merge(skels)
+    skeleton.id = label
+    skeleton.extra_attributes = [ 
+      attr for attr in skeleton.extra_attributes \
+      if attr['data_type'] == 'float32' 
+    ] 
+    skeletons[label] = skeleton 
+    del unfused_skeletons[label]
 
-unfused_skeletons = defaultdict(list)
-while all_files:
-  fragment = all_files.pop()
-  for label, skel_frag in fragment.items():
-    unfused_skeletons[label].append(skel_frag)  
+  return skeletons
 
-# CHECKPOINT? 
-
-skeletons = crt_dict()
-labels = list(unfused_skeletons.keys())
-for label in tqdm(labels, desc='Simple Merging'):
-  skels = unfused_skeletons[label]
-  skeleton = PrecomputedSkeleton.simple_merge(skels)
-  skeleton.id = label
-  skeleton.extra_attributes = [ 
-    attr for attr in skeleton.extra_attributes \
-    if attr['data_type'] == 'float32' 
-  ] 
-  skeletons[label] = skeleton 
-  del unfused_skeletons[label]
+if os.path.exists('checkpoint.pkl'):
+  print("Loading checkpoint...")
+  s = time.time()
+  with open("checkpoint.pkl", 'rb') as f:
+    skeletons = pickle.load(f)
+  print("Checkpoint loaded in " + str(time.time() - s) + " sec.")
+else:
+  skeletons = load_raw_skeletons()
+  print("Saving checkpoint...")
+  s = time.time()
+  with open("checkpoint.pkl", 'wb') as f:
+    pickle.dump(skeletons, f)
+  print("Checkpoint saved in " + str(time.time() - s) + " sec.")
 
 def complex_merge(skel):
   return kimimaro.postprocess(
@@ -100,6 +114,7 @@ def complex_merge(skel):
   )
 
 merged_skeletons = crt_dict()
+labels = list(skeletons.keys())
 
 with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
   if parallel == 1:

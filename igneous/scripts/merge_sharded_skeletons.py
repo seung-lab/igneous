@@ -2,6 +2,12 @@
 This script is used for collecting all sharded
 skeleton framents onto a single machine and 
 processing them into fully realized shards.
+
+A checkpoint file is saved as `checkpoint-DATASET-LAYER.pkl`
+right before the skeletons are postprocessed. Delete this 
+file if you'd like to start fresh.
+
+python $SCRIPTNAME $cloudpath $parallel
 """
 from collections import defaultdict
 import os 
@@ -36,7 +42,7 @@ spec = ShardingSpecification(
   preshift_bits=9, 
   hash='murmurhash3_x86_128', 
   minishard_bits=6, 
-  shard_bits=6, 
+  shard_bits=9, 
   minishard_index_encoding='gzip', 
   data_encoding='gzip',
 )

@@ -92,17 +92,19 @@ def load_raw_skeletons():
 
   return skeletons
 
-if os.path.exists('checkpoint.pkl'):
-  print("Loading checkpoint...")
+checkpoint_filename = 'checkpoint-{}-{}.pkl'.format(cv.meta.path.dataset, cv.meta.path.layer)
+
+if os.path.exists(checkpoint_filename):
+  print("Loading checkpoint {}...".format(checkpoint_filename))
   s = time.time()
-  with open("checkpoint.pkl", 'rb') as f:
+  with open(checkpoint_filename, 'rb') as f:
     skeletons = pickle.load(f)
   print("Checkpoint loaded in " + str(time.time() - s) + " sec.")
 else:
   skeletons = load_raw_skeletons()
-  print("Saving checkpoint...")
+  print("Saving checkpoint... ", checkpoint_filename)
   s = time.time()
-  with open("checkpoint.pkl", 'wb') as f:
+  with open(checkpoint_filename, 'wb') as f:
     pickle.dump(skeletons, f)
   print("Checkpoint saved in " + str(time.time() - s) + " sec.")
 

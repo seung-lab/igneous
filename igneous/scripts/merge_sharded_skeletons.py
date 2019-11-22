@@ -98,49 +98,73 @@ def load_raw_skeletons():
 
   return skeletons
 
-checkpoint_filename = 'checkpoint-{}-{}.pkl'.format(cv.meta.path.dataset, cv.meta.path.layer)
+def checkpoint_name(stage):
+  return 'checkpoint-{}-{}-{}.pkl'.format(stage, cv.meta.path.dataset, cv.meta.path.layer)  
 
-if os.path.exists(checkpoint_filename):
+def has_checkpoint(stage):
+  return os.path.exists(checkpoint_name(stage))
+
+def load_checkpoint(stage):
+  checkpoint_filename = checkpoint_name(stage)
   print("Loading checkpoint {}...".format(checkpoint_filename))
   s = time.time()
   with open(checkpoint_filename, 'rb') as f:
     skeletons = pickle.load(f)
-  print("Checkpoint loaded in " + str(time.time() - s) + " sec.")
-else:
-  skeletons = load_raw_skeletons()
-  print("Saving checkpoint... ", checkpoint_filename)
-  s = time.time()
-  with open(checkpoint_filename, 'wb') as f:
-    pickle.dump(skeletons, f)
-  print("Checkpoint saved in " + str(time.time() - s) + " sec.")
+  print("Checkpoint loaded in " + str(time.time() - s) + " sec.")  
+  return skeletons
 
-def complex_merge(skel):
-  return kimimaro.postprocess(
-    skel, 
-    dust_threshold=1000, # voxels 
-    tick_threshold=1300, # nm
-  )
+def checkpoint(stage, loadfn):
+  checkpoint_filename = 'checkpoint-{}-{}-{}.pkl'.format(stage, cv.meta.path.dataset, cv.meta.path.layer)
 
-merged_skeletons = crt_dict()
-labels = list(skeletons.keys())
-
-with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
-  if parallel == 1:
-    for label in labels:
-      skel = complex_merge(skeletons[label])
-      merged_skeletons[skel.id] = skel.to_precomputed()
-      del skeletons[label]
-      pbar.update(1)
+  if has_checkpoint(stage):
+    skeletons = load_checkpoint(stage)
   else:
-    pool = pathos.pools.ProcessPool(parallel)
-    for skel in pool.uimap(complex_merge, skeletons.values()):
-      merged_skeletons[skel.id] = skel.to_precomputed()
-      pbar.update(1)
-    pool.close()
-    pool.join()
-    pool.clear()
+    skeletons = loadfn()
+    print("Saving checkpoint... ", checkpoint_filename)
+    s = time.time()
+    with open(checkpoint_filename, 'wb') as f:
+      pickle.dump(skeletons, f)
+    print("Checkpoint saved in " + str(time.time() - s) + " sec.")
 
-del skeletons
+  return skeletons
+
+def postprocess(skeletons):
+  def complex_merge(skel):
+    return kimimaro.postprocess(
+      skel, 
+      dust_threshold=1000, # voxels 
+      tick_threshold=1300, # nm
+    )
+
+  merged_skeletons = crt_dict()
+  labels = list(skeletons.keys())
+
+  with tqdm(total=len(skeletons), disable=False, desc="Final Merging") as pbar:
+    if parallel == 1:
+      for label in labels:
+        skel = complex_merge(skeletons[label])
+        merged_skeletons[skel.id] = skel.to_precomputed()
+        del skeletons[label]
+        pbar.update(1)
+    else:
+      pool = pathos.pools.ProcessPool(parallel)
+      for skel in pool.uimap(complex_merge, skeletons.values()):
+        merged_skeletons[skel.id] = skel.to_precomputed()
+        pbar.update(1)
+      pool.close()
+      pool.join()
+      pool.clear()
+
+  return merged_skeletons
+
+if has_checkpoint('complex-merge'):
+  merged_skeletons = load_checkpoint('complex-merge')
+else:  
+  skeletons = checkpoint('simple-merge', load_raw_skeletons)
+  postprocessfn = lambda: postprocess(skeletons)
+  merged_skeletons = checkpoint('complex-merge', postprocessfn)
+  del skeletons
+  del postprocessfn
 
 shard_files = synthesize_shard_files(spec, merged_skeletons, progress=True)
 

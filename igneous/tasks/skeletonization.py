@@ -55,6 +55,7 @@ class SkeletonTask(RegisteredTask):
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, sharded=False,
     spatial_index=True, spatial_grid_shape=None,
+    synapses=None
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
@@ -63,7 +64,7 @@ class SkeletonTask(RegisteredTask):
       fix_branching, fix_borders,
       dust_threshold, progress, parallel,
       fill_missing, bool(sharded), bool(spatial_index),
-      spatial_grid_shape
+      spatial_grid_shape, synapses
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
@@ -87,6 +88,12 @@ class SkeletonTask(RegisteredTask):
     if self.mask_ids:
       all_labels = fastremap.mask(all_labels, self.mask_ids)
 
+    extra_targets_after = []
+    if synapses:
+      extra_targets_after = kimimaro.synapses_to_targets(
+        all_labels, synapses
+      )
+
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, 
@@ -96,6 +103,7 @@ class SkeletonTask(RegisteredTask):
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,
       parallel=self.parallel,
+      extra_targets_after=extra_targets_after,
     )
 
     for segid, skel in six.iteritems(skeletons):

@@ -16,6 +16,7 @@ from time import strftime
 
 import numpy as np
 from tqdm import tqdm
+
 import cloudvolume
 from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
@@ -478,10 +479,83 @@ def create_skeletonizing_tasks(
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, 
-    sharded=False, spatial_index=False
+    sharded=False, spatial_index=False,
+    synapses=None
   ):
+  """
+  Assign tasks with one voxel overlap in a regular grid 
+  to be densely skeletonized. The default shape (512,512,512)
+  was designed to work within 6 GB of RAM on average at parallel=1 
+  but can exceed this amount for certain objects such as glia. 
+  4 GB is usually OK.
+
+  When this run completes, you'll follow up with create_skeleton_merge_tasks
+  to postprocess the generated fragments into single skeletons. 
+
+  WARNING: If you are processing hundreds of millions of labels or more and
+  are using Cloud Storage this can get expensive ($8 per million labels typically
+  accounting for fragment generation and postprocessing)! This scale is when 
+  the experimental sharded format generator becomes crucial to use.
+
+  cloudpath: cloudvolume path
+  mip: which mip level to skeletonize 
+    For a 4x4x40 dataset, mip 3 is good. Mip 4 starts introducing 
+    artifacts like snaking skeletons along the edge of thin objects.
+
+  teasar_params: 
+    NOTE: see github.com/seung-lab/kimimaro for an updated list
+          see https://github.com/seung-lab/kimimaro/wiki/Intuition-for-Setting-Parameters-const-and-scale
+          for help with setting these parameters.
+    NOTE: DBF = Distance from Boundary Field (i.e. euclidean distance transform)
+
+    scale: float, multiply invalidation radius by distance from boundary
+    const: float, add this physical distance to the invalidation radius
+    soma_detection_threshold: if object has a DBF value larger than this, 
+        root will be placed at largest DBF value and special one time invalidation
+        will be run over that root location (see soma_invalidation scale)
+        expressed in chosen physical units (i.e. nm) 
+    pdrf_scale: scale factor in front of dbf, used to weight DBF over euclidean distance (higher to pay more attention to dbf) 
+    pdrf_exponent: exponent in dbf formula on distance from edge, faster if factor of 2 (default 16)
+    soma_invalidation_scale: the 'scale' factor used in the one time soma root invalidation (default .5)
+    soma_invalidation_const: the 'const' factor used in the one time soma root invalidation (default 0)
+                           (units in chosen physical units (i.e. nm))    
+
+  info: supply your own info file 
+  object_ids: mask out all but these ids if specified
+  mask_ids: mask out these ids if specified
+  fix_branching: Trades speed for quality of branching at forks. You'll
+    almost always want this set to True.
+  fix_borders: Allows trivial merging of single overlap tasks. You'll only
+    want to set this to false if you're working on single or non-overlapping
+    volumes.
+  dust_threshold: don't skeletonize labels smaller than this number of voxels
+    as seen by a single task.
+  progress: show a progress bar
+  parallel: number of processes to deploy against a single task. parallelizes
+    over labels, it won't speed up a single complex label. You can be slightly
+    more memory efficient using a single big task with parallel than with seperate
+    tasks that add up to the same volume. Unless you know what you're doing, stick
+    with parallel=1 for cloud deployments.
+  fill_missing: passthrough to CloudVolume, fill missing image tiles with zeros
+    instead of throwing an error if True.
+  sharded: (bool) if true, output a single pickled dict containing all skeletons
+    in a task, which will serve as input to a sharded format generator. You don't 
+    want this unless you know what you're doing. If False, generate a skeleton fragment
+    file per a label for later agglomeration using the SkeletonMergeTask.
+  spatial_index: (bool) Concurrently generate a json file that describes which
+    labels were skeletonized in a given task. This makes it possible to query for
+    skeletons by bounding box later on using CloudVolume.
+  synapses: If provided, after skeletonization of a label is complete, draw 
+    additional paths to one of the nearest voxels to synapse centroids.
+
+    Iterable yielding (x,y,z,segid)
+  """
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
+
+  kdtree, labelsmap = None, None
+  if synapses:
+    kdtree, labelsmap = synapses_in_space(synapses)
 
   if not 'skeletons' in vol.info:
     vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
@@ -498,6 +572,10 @@ def create_skeletonizing_tasks(
 
   class SkeletonTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
+      bbox_synapses = None
+      if synapses:
+        bbox_synapses = self.synapses_for_bbox(shape, offset)
+
       return SkeletonTask(
         cloudpath=cloudpath,
         shape=(shape + 1).clone(), # 1px overlap on the right hand side
@@ -517,7 +595,16 @@ def create_skeletonizing_tasks(
         sharded=bool(sharded),
         spatial_index=bool(spatial_index),
         spatial_grid_shape=shape.clone(), # used for writing index filenames
+        synapses=bbox_synapses,
       )
+
+    def synapses_for_bbox(self, shape, offset):
+      bbox = Bbox( offset, shape + offset )
+      center = bbox.center()
+      diagonal = Vec(*((bbox.maxpt - center) * SCALING_FACTOR))
+      pts = kdtree.query_ball_point(center, diagonal.length())
+      pts = [ tuple(pt) for pt in pts if bbox.contains(pt) ]
+      return { pt: labelsmap[pt] for pt in pts }
 
     def on_finish(self):
       vol.provenance.processing.append({
@@ -538,6 +625,7 @@ def create_skeletonizing_tasks(
           'fill_missing': bool(fill_missing),
           'sharded': bool(sharded),
           'spatial_index': bool(spatial_index),
+          'synapses': bool(synapses),
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -545,6 +633,28 @@ def create_skeletonizing_tasks(
       vol.commit_provenance()
 
   return SkeletonTaskIterator(bounds, shape)
+
+def synapses_in_space(synapse_itr, N=None):
+  """
+  Compute a kD tree of synapse locations and 
+  a dictionary mapping centroid => labels
+
+  Input: [ (x,y,z,label), ... ]
+  """
+  from scipy.spatial import cKDTree
+
+  if N is None:
+    N = len(synapse_itr)
+
+  centroids = np.zeros( (N,3), dtype=np.int32)
+  labels = defaultdict(list)
+
+  for idx, (x,y,z,label) in enumerate(synapse_itr):
+    centroid = tuple(x, y, z)
+    labels[centroid].append(label)
+    centroids[idx,:] = centroid
+
+  return cKDTree(centroids), labels
 
 def create_graphene_skeleton_merge_tasks(    
     cloudpath, mip, crop=0,

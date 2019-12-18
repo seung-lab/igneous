@@ -17,7 +17,8 @@ from time import strftime
 import numpy as np
 from tqdm import tqdm
 import cloudvolume
-from cloudvolume import CloudVolume, Storage
+from cloudvolume import CloudVolume
+from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow
 from taskqueue import TaskQueue, MockTaskQueue 
 

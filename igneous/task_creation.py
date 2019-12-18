@@ -17,7 +17,8 @@ from time import strftime
 import numpy as np
 from tqdm import tqdm
 import cloudvolume
-from cloudvolume import CloudVolume, Storage
+from cloudvolume import CloudVolume
+from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow
 from taskqueue import TaskQueue, MockTaskQueue 
 
@@ -652,14 +653,16 @@ def create_meshing_tasks(
     vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
-  stor = SimpleStorage(layer_path)
-  info_filename = '{}/info'.format(mesh_dir)
-  mesh_info = stor.get_json(info_filename) or {}
-  mesh_info['mip'] = int(vol.mip)
-  mesh_info['chunk_size'] = list(shape)
-  if spatial_index:
-    mesh_info['spatial_index'] = { 'chunk_size': list(shape * vol.resolution) }
-  stor.put_json(info_filename, mesh_info)
+  # stor = SimpleStorage(layer_path)
+  # info_filename = '{}/info'.format(mesh_dir)
+  # mesh_info = stor.get_json(info_filename) or {}
+  # mesh_info['mip'] = int(vol.mip)
+  # mesh_info['chunk_size'] = shape.tolist()
+  # if spatial_index:
+  #   mesh_info['spatial_index'] = {
+  #       'chunk_size': (shape*vol.resolution).tolist()
+  #   }
+  # stor.put_json(info_filename, mesh_info)
 
   class MeshTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -900,7 +903,7 @@ def create_luminance_levels_tasks(
   vol = CloudVolume(layer_path, mip=mip)
 
   if shape == None:
-    shape = vol.shape.clone()
+    shape = Vec(*vol.shape)
     shape.z = 1
 
   offset = Vec(*offset)

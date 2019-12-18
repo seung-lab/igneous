@@ -22,8 +22,9 @@ import pickle
 import numpy as np
 from tqdm import tqdm
 
-from cloudvolume import CloudVolume, Storage
-from cloudvolume.lib import min2, Vec, Bbox, mkdir
+from cloudvolume import CloudVolume
+from cloudvolume.storage import Storage, SimpleStorage
+from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
 from taskqueue import RegisteredTask
 
 from igneous import chunks, downsample_scales

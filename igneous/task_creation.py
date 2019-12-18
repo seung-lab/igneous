@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from collections import defaultdict
 from six.moves import range
 from itertools import product
 from functools import reduce
@@ -479,8 +480,8 @@ def create_skeletonizing_tasks(
     fix_branching=True, fix_borders=True,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, 
-    sharded=False, spatial_index=False,
-    synapses=None
+    sharded=False, spatial_index=True,
+    synapses=None, num_synapses=None
   ):
   """
   Assign tasks with one voxel overlap in a regular grid 
@@ -548,15 +549,16 @@ def create_skeletonizing_tasks(
   synapses: If provided, after skeletonization of a label is complete, draw 
     additional paths to one of the nearest voxels to synapse centroids.
 
-    Iterable yielding (x,y,z,segid)
+    Iterable yielding ((x,y,z),segid,swc_label)
+
+  num_synapses: If synapses is an iterator, you must provide the total number of synapses.
   """
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
 
   kdtree, labelsmap = None, None
   if synapses:
-    kdtree, labelsmap = synapses_in_space(synapses)
-
+    centroids, kdtree, labelsmap = synapses_in_space(synapses, N=num_synapses)
   if not 'skeletons' in vol.info:
     vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
     vol.commit_info()
@@ -599,12 +601,17 @@ def create_skeletonizing_tasks(
       )
 
     def synapses_for_bbox(self, shape, offset):
-      bbox = Bbox( offset, shape + offset )
+      bbox = Bbox( offset, shape + offset ) * vol.resolution
       center = bbox.center()
-      diagonal = Vec(*((bbox.maxpt - center) * SCALING_FACTOR))
-      pts = kdtree.query_ball_point(center, diagonal.length())
+      diagonal = Vec(*((bbox.maxpt - center)))
+      pts = [ centroids[i,:] for i in kdtree.query_ball_point(center, diagonal.length()) ]
       pts = [ tuple(pt) for pt in pts if bbox.contains(pt) ]
-      return { pt: labelsmap[pt] for pt in pts }
+      
+      synapses = defaultdict(list)
+      for pt in pts:
+        for label, swc_label in labelsmap[pt]:
+          synapses[label].append((pt,swc_label))
+      return synapses
 
     def on_finish(self):
       vol.provenance.processing.append({
@@ -639,22 +646,22 @@ def synapses_in_space(synapse_itr, N=None):
   Compute a kD tree of synapse locations and 
   a dictionary mapping centroid => labels
 
-  Input: [ (x,y,z,label), ... ]
+  Input: [ ((x,y,z),segid,swc_label), ... ]
   """
   from scipy.spatial import cKDTree
 
   if N is None:
     N = len(synapse_itr)
 
-  centroids = np.zeros( (N,3), dtype=np.int32)
+  centroids = np.zeros( (N+1,3), dtype=np.int32)
   labels = defaultdict(list)
 
-  for idx, (x,y,z,label) in enumerate(synapse_itr):
-    centroid = tuple(x, y, z)
-    labels[centroid].append(label)
+  for idx, (centroid,segid,swc_label) in enumerate(synapse_itr):
+    centroid = tuple(centroid)
+    labels[centroid].append((segid, swc_label))
     centroids[idx,:] = centroid
 
-  return cKDTree(centroids), labels
+  return centroids, cKDTree(centroids), labels
 
 def create_graphene_skeleton_merge_tasks(    
     cloudpath, mip, crop=0,

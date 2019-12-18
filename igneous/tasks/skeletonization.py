@@ -89,9 +89,10 @@ class SkeletonTask(RegisteredTask):
       all_labels = fastremap.mask(all_labels, self.mask_ids)
 
     extra_targets_after = []
-    if synapses:
+    if self.synapses:
+      print(self.synapses)
       extra_targets_after = kimimaro.synapses_to_targets(
-        all_labels, synapses
+        all_labels, self.synapses
       )
 
     skeletons = kimimaro.skeletonize(
@@ -103,11 +104,17 @@ class SkeletonTask(RegisteredTask):
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,
       parallel=self.parallel,
-      extra_targets_after=extra_targets_after,
-    )
+      extra_targets_after=extra_targets_after.keys(),
+    )    
 
     for segid, skel in six.iteritems(skeletons):
       skel.vertices[:] += bbox.minpt * vol.resolution
+      
+    if self.synapses:
+      for segid, skel in six.iteritems(skeletons):
+        for i, vert in enumerate(skel.vertices):
+          if vert in extra_targets_after:
+            skel.vertex_types[i] = extra_targets_after[vert]
       
     if self.sharded:
       self.upload_batch(vol, path, index_bbox, skeletons)

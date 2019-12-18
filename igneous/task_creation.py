@@ -903,7 +903,7 @@ def create_luminance_levels_tasks(
   vol = CloudVolume(layer_path, mip=mip)
 
   if shape == None:
-    shape = vol.shape.clone()
+    shape = Vec(*vol.shape)
     shape.z = 1
 
   offset = Vec(*offset)

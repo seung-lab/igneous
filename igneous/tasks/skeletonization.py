@@ -88,7 +88,7 @@ class SkeletonTask(RegisteredTask):
     if self.mask_ids:
       all_labels = fastremap.mask(all_labels, self.mask_ids)
 
-    extra_targets_after = []
+    extra_targets_after = {}
     if self.synapses:
       print(self.synapses)
       extra_targets_after = kimimaro.synapses_to_targets(
@@ -109,11 +109,12 @@ class SkeletonTask(RegisteredTask):
 
     for segid, skel in six.iteritems(skeletons):
       skel.vertices[:] += bbox.minpt * vol.resolution
-      
+
     if self.synapses:
       for segid, skel in six.iteritems(skeletons):
         for i, vert in enumerate(skel.vertices):
-          if vert in extra_targets_after:
+          vert = tuple(vert)
+          if vert in extra_targets_after.keys():
             skel.vertex_types[i] = extra_targets_after[vert]
       
     if self.sharded:

@@ -548,6 +548,7 @@ def create_skeletonizing_tasks(
     skeletons by bounding box later on using CloudVolume.
   synapses: If provided, after skeletonization of a label is complete, draw 
     additional paths to one of the nearest voxels to synapse centroids.
+    (x,y,z) centroid is specified in physical coordinates.
 
     Iterable yielding ((x,y,z),segid,swc_label)
 
@@ -601,16 +602,22 @@ def create_skeletonizing_tasks(
       )
 
     def synapses_for_bbox(self, shape, offset):
+      """
+      Returns { seigd: [ ((x,y,z), swc_label), ... ] 
+      where x,y,z are in voxel coordinates with the
+      origin set to the bottom left corner of this cutout.
+      """
       bbox = Bbox( offset, shape + offset ) * vol.resolution
       center = bbox.center()
       diagonal = Vec(*((bbox.maxpt - center)))
       pts = [ centroids[i,:] for i in kdtree.query_ball_point(center, diagonal.length()) ]
-      pts = [ tuple(pt) for pt in pts if bbox.contains(pt) ]
-      
+      pts = [ tuple(Vec(*pt, dtype=int)) for pt in pts if bbox.contains(pt) ]
+
       synapses = defaultdict(list)
       for pt in pts:
         for label, swc_label in labelsmap[pt]:
-          synapses[label].append((pt,swc_label))
+          voxel_pt = Vec(*pt, dtype=np.float32) / vol.resolution - offset
+          synapses[label].append(( tuple(voxel_pt.astype(int)), swc_label))
       return synapses
 
     def on_finish(self):
@@ -647,6 +654,7 @@ def synapses_in_space(synapse_itr, N=None):
   a dictionary mapping centroid => labels
 
   Input: [ ((x,y,z),segid,swc_label), ... ]
+  Output: centroids, kdtree, { centroid: (segid, swc_label) }
   """
   from scipy.spatial import cKDTree
 
@@ -657,7 +665,7 @@ def synapses_in_space(synapse_itr, N=None):
   labels = defaultdict(list)
 
   for idx, (centroid,segid,swc_label) in enumerate(synapse_itr):
-    centroid = tuple(centroid)
+    centroid = tuple(Vec(*centroid, dtype=int))
     labels[centroid].append((segid, swc_label))
     centroids[idx,:] = centroid
 

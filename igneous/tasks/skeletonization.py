@@ -90,7 +90,6 @@ class SkeletonTask(RegisteredTask):
 
     extra_targets_after = {}
     if self.synapses:
-      print(self.synapses)
       extra_targets_after = kimimaro.synapses_to_targets(
         all_labels, self.synapses
       )
@@ -113,10 +112,11 @@ class SkeletonTask(RegisteredTask):
     if self.synapses:
       for segid, skel in six.iteritems(skeletons):
         for i, vert in enumerate(skel.vertices):
-          vert = tuple(vert)
+          vert = vert / vol.resolution - self.bounds.minpt
+          vert = tuple(np.round(vert).astype(int))
           if vert in extra_targets_after.keys():
             skel.vertex_types[i] = extra_targets_after[vert]
-      
+    
     if self.sharded:
       self.upload_batch(vol, path, index_bbox, skeletons)
     else:

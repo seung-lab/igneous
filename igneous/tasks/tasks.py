@@ -1106,28 +1106,27 @@ class TransferTask(RegisteredTask):
 
   def execute(self):
     srccv = CloudVolume(
-      self.src_path, fill_missing=self.fill_missing, 
-      mip=self.mip
+      self.src_path, fill_missing=self.fill_missing,
+      mip=self.mip, bounded=False
     )
     destcv = CloudVolume(
-      self.dest_path, fill_missing=self.fill_missing, 
+      self.dest_path, fill_missing=self.fill_missing,
       mip=self.mip, delete_black_uploads=self.delete_black_uploads,
       background_color=self.background_color
     )
 
-    bounds = Bbox(self.offset, self.shape + self.offset)
-    bounds = Bbox.clamp(bounds, srccv.bounds)
-    image = srccv[bounds.to_slices()]
-    bounds += self.translate
-    bounds = Bbox.clamp(bounds, destcv.bounds)
+    dst_bounds = Bbox(self.offset, self.shape + self.offset)
+    dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
+    src_bounds = dst_bounds - self.translate
+    image = srccv[src_bounds.to_slices()]
 
     if self.skip_downsamples:
-      destcv[bounds] = image
+      destcv[dst_bounds] = image
     else:
       downsample_and_upload(
-        image, bounds, destcv, 
+        image, dst_bounds, destcv,
         self.shape, mip=self.mip,
-        skip_first=self.skip_first, 
+        skip_first=self.skip_first,
         sparse=self.sparse, axis=self.axis
       )
 

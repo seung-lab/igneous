@@ -567,6 +567,7 @@ def create_skeletonizing_tasks(
   if spatial_index:
     if 'spatial_index' not in vol.skeleton.meta.info or not vol.skeleton.meta.info['spatial_index']:
       vol.skeleton.meta.info['spatial_index'] = {}
+    vol.skeleton.meta.info['@type'] = 'neuroglancer_skeletons'
     vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
     vol.skeleton.meta.commit_info()
 

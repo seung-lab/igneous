@@ -111,7 +111,9 @@ class SkeletonTask(RegisteredTask):
 
     if self.synapses:
       for segid, skel in six.iteritems(skeletons):
-        for i, vert in enumerate(skel.vertices):
+        terminal_nodes = skel.vertices[ skel.terminals() ]
+
+        for i, vert in enumerate(terminal_nodes):
           vert = vert / vol.resolution - self.bounds.minpt
           vert = tuple(np.round(vert).astype(int))
           if vert in extra_targets_after.keys():

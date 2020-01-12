@@ -92,7 +92,6 @@ class SkeletonTask(RegisteredTask):
       object_ids=self.object_ids, 
       anisotropy=vol.resolution,
       dust_threshold=self.dust_threshold, 
-      cc_safety_factor=0.25,
       progress=self.progress, 
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,

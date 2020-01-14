@@ -1,16 +1,17 @@
 click>=6.7
-cloud-volume>=0.63.0
+cloud-volume>=1.3.0
+DracoPy
 fastremap>=1.5.2
 google-cloud-logging
 kimimaro>=0.5.0
 numpy>=1.14.2
+oauth2client==3.0.0
 pathos
 Pillow>=4.2.1
 pytest>=3.3.1
+scipy
 tinybrain
 task-queue>=0.14.2
 tqdm
-oauth2client==3.0.0
-DracoPy
 zmesh>=0.3.0
 

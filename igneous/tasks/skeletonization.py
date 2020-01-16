@@ -3,6 +3,7 @@ import six
 from functools import reduce
 import json
 import pickle
+import posixpath
 import os
 import re
 from collections import defaultdict
@@ -15,6 +16,7 @@ import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton, view
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images, jsonify
+from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
 import fastremap
 import kimimaro
@@ -22,6 +24,7 @@ import kimimaro
 from taskqueue import RegisteredTask
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
+SPATIAL_EXT = re.compile(r'\.spatial$')
 
 def filename_to_segid(filename):
   matches = SEGIDRE.search(filename)
@@ -274,3 +277,87 @@ class SkeletonMergeTask(RegisteredTask):
       cropped[i] = cropped[i].crop(bbx)
 
     return cropped
+
+class SkeletonShardedMergeTask(RegisteredTask):
+  def __init__(
+    self, cloudpath, shard_no, mip, 
+    dust_threshold=4000, tick_threshold=6000,
+  ):
+    super(SkeletonShardedMergeTask, self).__init__(
+      cloudpath, shard_no, mip, 
+      dust_threshold, tick_threshold
+    )
+
+  def execute(self):
+    labels = self.labels_for_shard()
+    locations = self.locations_for_labels(labels)
+    skeletons = self.process_skeletons(locations)
+
+    cv = CloudVolume(self.cloudpath, cache=True)
+    shard_files = synthesize_shard_files(cv.skeleton.reader.spec, skeletons)
+
+    if len(shard_files) != 1:
+      raise Exception("What? " + str(shard_files.keys()))
+
+    uploadable = [ (fname, data) for fname, data in shard_files.items() ]
+    with Storage(cv.skeleton.meta.layerpath) as stor:
+      stor.put_files(
+        files=uploadable, 
+        compress=False,
+        content_type='application/octet-stream',
+        cache_control='no-cache',
+      )
+
+  def process_skeletons(self, locations):
+    skeletons = {}
+    for label, locs in locations.items():
+      skel = PrecomputedSkeleton.simple_merge(
+        self.get_unfused(label, locs)
+      )
+      skel.id = label
+      skel.extra_attributes = [ 
+        attr for attr in skel.extra_attributes \
+        if attr['data_type'] == 'float32' 
+      ]      
+      skeletons[label] = kimimaro.postprocess(
+        skel, 
+        dust_threshold=self.dust_threshold, # voxels 
+        tick_threshold=self.tick_threshold, # nm
+      )
+    return skeletons
+
+  def get_unfused(self, label, locs):
+    cv = CloudVolume(self.cloudpath, cache=True)
+    
+    unfused_skeletons = []
+    with Storage(cv.skeleton.meta.layerpath) as stor:
+      all_files = stor.get_files(locs)
+
+    for i, res in enumerate(all_files):
+      all_files[i] = pickle.loads(res['content'])
+
+    while all_files:
+      fragment = all_files.pop()
+      if label in fragment:
+        unfused_skeletons.append(skel_frag)    
+
+    return unfused_skeletons
+
+  def locations_for_labels(self, labels):
+    cv = CloudVolume(self.cloudpath, cache=True)
+    index_filenames = cv.skeleton.spatial_index.file_locations_per_label(labels)
+    for label, locations in index_filenames.items():
+      for i, location in enumerate(locations):
+        bbx = Bbox.from_filename(re.sub(SPATIAL_EXT, '', location))
+        bbx /= cv.meta.resolution(self.mip)
+        index_filenames[label][i] = bbx.to_filename() + '.frags'
+    return index_filenames
+
+  def labels_for_shard(self):
+    cv = CloudVolume(self.cloudpath, cache=True)
+    labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
+    spec = cv.skeleton.reader.spec
+    return [ 
+      lbl for lbl in labels \
+      if spec.compute_shard_location(lbl).shard_number == self.shard_no 
+    ]

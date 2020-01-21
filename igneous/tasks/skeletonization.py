@@ -11,6 +11,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 import numpy as np
+import pylru
 
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton, view
@@ -25,6 +26,8 @@ from taskqueue import RegisteredTask
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
 SPATIAL_EXT = re.compile(r'\.spatial$')
+
+FRAG_CACHE = pylru.lrucache(100)
 
 def filename_to_segid(filename):
   matches = SEGIDRE.search(filename)
@@ -279,6 +282,14 @@ class SkeletonMergeTask(RegisteredTask):
     return cropped
 
 class SkeletonShardedMergeTask(RegisteredTask):
+  """
+  Note: unlike most other igneous tasks, this task 
+  has "side effects" in that it writes to disk
+  and has a persistent LRU cache in memory. 
+
+  You will need to redeploy your Kubernetes deployment
+  to clear these out.
+  """
   def __init__(
     self, cloudpath, shard_no, mip, 
     dust_threshold=4000, tick_threshold=6000,
@@ -297,7 +308,10 @@ class SkeletonShardedMergeTask(RegisteredTask):
     shard_files = synthesize_shard_files(cv.skeleton.reader.spec, skeletons)
 
     if len(shard_files) != 1:
-      raise Exception("What? " + str(shard_files.keys()))
+      raise ValueError(
+        "Only one shard file should be generated per task. Expected: {} Got: {} ".format(
+          str(self.shard_no), ", ".join(shard_files.keys())
+      ))
 
     uploadable = [ (fname, data) for fname, data in shard_files.items() ]
     with Storage(cv.skeleton.meta.layerpath) as stor:
@@ -323,23 +337,28 @@ class SkeletonShardedMergeTask(RegisteredTask):
         skel, 
         dust_threshold=self.dust_threshold, # voxels 
         tick_threshold=self.tick_threshold, # nm
-      )
+      ).to_precomputed()
+      
     return skeletons
 
   def get_unfused(self, label, locs):
     cv = CloudVolume(self.cloudpath, cache=True)
     
-    unfused_skeletons = []
-    with Storage(cv.skeleton.meta.layerpath) as stor:
-      all_files = stor.get_files(locs)
+    in_memory = [ FRAG_CACHE[loc] for loc in locs if loc in FRAG_CACHE ]
+    locs = [ loc for loc in locs if loc not in FRAG_CACHE ]
 
+    all_files = cv.skeleton.cache.download(locs)
     for i, res in enumerate(all_files):
       all_files[i] = pickle.loads(res['content'])
+      FRAG_CACHE[res['filename']] = all_files[i]
 
+    all_files += in_memory
+
+    unfused_skeletons = []
     while all_files:
       fragment = all_files.pop()
       if label in fragment:
-        unfused_skeletons.append(skel_frag)    
+        unfused_skeletons.append(fragment[label])
 
     return unfused_skeletons
 

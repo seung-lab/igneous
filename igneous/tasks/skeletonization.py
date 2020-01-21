@@ -291,11 +291,11 @@ class SkeletonShardedMergeTask(RegisteredTask):
   to clear these out.
   """
   def __init__(
-    self, cloudpath, shard_no, mip, 
+    self, cloudpath, shard_no, 
     dust_threshold=4000, tick_threshold=6000,
   ):
     super(SkeletonShardedMergeTask, self).__init__(
-      cloudpath, shard_no, mip, 
+      cloudpath, shard_no,  
       dust_threshold, tick_threshold
     )
 
@@ -338,7 +338,7 @@ class SkeletonShardedMergeTask(RegisteredTask):
         dust_threshold=self.dust_threshold, # voxels 
         tick_threshold=self.tick_threshold, # nm
       ).to_precomputed()
-      
+
     return skeletons
 
   def get_unfused(self, label, locs):
@@ -368,7 +368,7 @@ class SkeletonShardedMergeTask(RegisteredTask):
     for label, locations in index_filenames.items():
       for i, location in enumerate(locations):
         bbx = Bbox.from_filename(re.sub(SPATIAL_EXT, '', location))
-        bbx /= cv.meta.resolution(self.mip)
+        bbx /= cv.meta.resolution(cv.skeleton.meta.mip)
         index_filenames[label][i] = bbx.to_filename() + '.frags'
     return index_filenames
 

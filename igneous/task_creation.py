@@ -31,7 +31,8 @@ from igneous.tasks import (
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
-  SkeletonTask, SkeletonMergeTask, MaskAffinitymapTask, InferenceTask
+  SkeletonTask, SkeletonMergeTask, ShardedSkeletonMergeTask, 
+  MaskAffinitymapTask, InferenceTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -569,7 +570,9 @@ def create_skeletonizing_tasks(
       vol.skeleton.meta.info['spatial_index'] = {}
     vol.skeleton.meta.info['@type'] = 'neuroglancer_skeletons'
     vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
-    vol.skeleton.meta.commit_info()
+  
+  vol.skeleton.meta.info['mip'] = int(mip)
+  vol.skeleton.meta.commit_info()
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
   bounds = vol.bounds.clone()
@@ -701,9 +704,58 @@ def create_graphene_skeleton_merge_tasks(
 
   return SkeletonMergeTaskIterator()
     
+def create_skeleton_merge_tasks(
+    layer_path, mip, crop=0,
+    magnitude=3, dust_threshold=1000, 
+    tick_threshold=1000, delete_fragments=False,
+    sharded=False
+  ):
+
+  if sharded:
+    return create_sharded_skeleton_merge_tasks(layer_path, dust_threshold, tick_threshold)
+
+  return create_unsharded_skeleton_merge_tasks(
+    layer_path, mip, crop, magnitude, 
+    dust_threshold, tick_threshold, delete_fragments
+  )
+
+def create_sharded_skeleton_merge_tasks(
+    layer_path, dust_threshold, tick_threshold
+  ): 
+
+  cv = CloudVolume(layer_path)
+  all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
+  shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
+  shard_numbers = set(( shardfn(label) for label in all_labels ))
+
+  # This should always be a small number of tasks,
+  # no more than tens of thousands and usually much 
+  # less.
+  tasks = []
+  for shard_no in shard_numbers:
+    task = ShardedSkeletonMergeTask(
+      cloudpath, shard_no, 
+      dust_threshold, tick_threshold
+    )
+    tasks.append(task)
+
+  cv.provenance.processing.append({
+    'method': {
+      'task': 'ShardedSkeletonMergeTask',
+      'cloudpath': layer_path,
+      'mip': cv.skeleton.meta.mip,
+      'dust_threshold': dust_threshold,
+      'tick_threshold': tick_threshold,
+    },
+    'by': OPERATOR_CONTACT,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  cv.commit_provenance()
+
+  return tasks
 
 # split the work up into ~1000 tasks (magnitude 3)
-def create_skeleton_merge_tasks(
+def create_unsharded_skeleton_merge_tasks(    
     layer_path, mip, crop=0,
     magnitude=3, dust_threshold=4000, 
     tick_threshold=6000, delete_fragments=False

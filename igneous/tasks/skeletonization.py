@@ -281,7 +281,7 @@ class SkeletonMergeTask(RegisteredTask):
 
     return cropped
 
-class SkeletonShardedMergeTask(RegisteredTask):
+class ShardedSkeletonMergeTask(RegisteredTask):
   """
   Note: unlike most other igneous tasks, this task 
   has "side effects" in that it writes to disk

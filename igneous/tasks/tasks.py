@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from collections import defaultdict
+from collections.abc import Sequence
 
 try:
   from StringIO import cStringIO as BytesIO
@@ -878,13 +879,21 @@ class ContrastNormalizationTask(RegisteredTask):
     self.fill_missing = fill_missing
     self.translate = Vec(*translate)
     self.mip = int(mip)
-    self.clip_fraction = float(clip_fraction)
+    if isinstance(clip_fraction, Sequence):
+      assert len(clip_fraction) == 2
+      self.lower_clip_fraction = float(clip_fraction[0])
+      self.upper_clip_fraction = float(clip_fraction[1])
+    else:
+      self.lower_clip_fraction = self.upper_clip_fraction = float(clip_fraction)
+
     self.minval = minval 
     self.maxval = maxval
 
     self.levels_path = levels_path if levels_path else self.src_path
 
-    assert 0 <= self.clip_fraction <= 1
+    assert 0 <= self.lower_clip_fraction <= 1
+    assert 0 <= self.upper_clip_fraction <= 1
+    assert self.lower_clip_fraction + self.upper_clip_fraction <= 1
 
   def execute(self):
     srccv = CloudVolume(
@@ -905,7 +914,7 @@ class ContrastNormalizationTask(RegisteredTask):
       imagez = z - bounds.minpt.z
       zlevel = zlevels[imagez]
       (lower, upper) = self.find_section_clamping_values(
-          zlevel, self.clip_fraction, 1 - self.clip_fraction)
+          zlevel, self.lower_clip_fraction, 1 - self.upper_clip_fraction)
       if lower == upper:
         continue
       img = image[:, :, imagez]

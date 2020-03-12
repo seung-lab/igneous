@@ -341,7 +341,8 @@ class MeshTask(RegisteredTask):
       self.draco_encoding_settings = self._compute_draco_encoding_settings()
 
     # chunk_position includes the overlap specified by low_padding/high_padding
-    data = self._volume[data_bounds]
+    # agglomerate only applies to graphene volumes, no-op for precomputed
+    data = self._volume.download(data_bounds, agglomerate=True)
 
     if not np.any(data):
       return

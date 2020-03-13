@@ -271,6 +271,8 @@ class MeshTask(RegisteredTask):
         a given bounding box. 
       sharded: (bool: False) If True, upload all meshes together as a single pickled 
         fragment file. 
+      timestamp: (int: None) (graphene only) use the segmentation existing at this
+        UNIX timestamp.
     """
     super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
     self.shape = Vec(*shape)
@@ -297,6 +299,7 @@ class MeshTask(RegisteredTask):
       'remap_table': kwargs.get('remap_table', None),
       'spatial_index': kwargs.get('spatial_index', False),
       'sharded': kwargs.get('sharded', False),
+      'timestamp': kwargs.get('timestamp', None),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -342,7 +345,10 @@ class MeshTask(RegisteredTask):
 
     # chunk_position includes the overlap specified by low_padding/high_padding
     # agglomerate only applies to graphene volumes, no-op for precomputed
-    data = self._volume.download(data_bounds, agglomerate=True)
+    data = self._volume.download(
+      data_bounds, agglomerate=True, 
+      timestamp=self.options['timestamp']
+    )
 
     if not np.any(data):
       return

@@ -394,7 +394,7 @@ class MeshTask(RegisteredTask):
 
   def _remove_dust(self, data, dust_threshold):
     if dust_threshold:
-      segids, pxct = np.unique(data, return_counts=True)
+      segids, pxct = fastremap.unique(data, return_counts=True)
       dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct < int(dust_threshold) ]
       data = fastremap.mask(data, dust_segids, in_place=True)
 

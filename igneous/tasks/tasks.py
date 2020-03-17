@@ -1095,7 +1095,9 @@ class TransferTask(RegisteredTask):
     delete_black_uploads=False, 
     background_color=0,
     sparse=False,
-    axis='z'
+    axis='z',
+    agglomerate=False,
+    timestamp=None,
   ):
     super(TransferTask, self).__init__(
       src_path, dest_path, 
@@ -1103,7 +1105,7 @@ class TransferTask(RegisteredTask):
       translate, fill_missing, 
       skip_first, skip_downsamples,
       delete_black_uploads, background_color,
-      sparse, axis
+      sparse, axis, agglomerate, timestamp
     )
     self.src_path = src_path
     self.dest_path = dest_path
@@ -1119,6 +1121,8 @@ class TransferTask(RegisteredTask):
     self.background_color = background_color
     self.axis = axis
     self.sparse = sparse
+    self.agglomerate = agglomerate
+    self.timestamp = timestamp
 
   def execute(self):
     srccv = CloudVolume(
@@ -1134,7 +1138,9 @@ class TransferTask(RegisteredTask):
     dst_bounds = Bbox(self.offset, self.shape + self.offset)
     dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
     src_bounds = dst_bounds - self.translate
-    image = srccv[src_bounds.to_slices()]
+    image = srccv.download(
+      src_bounds, agglomerate=self.agglomerate, timestamp=self.timestamp
+    )
 
     if self.skip_downsamples:
       destcv[dst_bounds] = image

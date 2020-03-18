@@ -842,7 +842,8 @@ def create_transfer_tasks(
     fill_missing=False, translate=(0,0,0), 
     bounds=None, mip=0, preserve_chunk_size=True,
     encoding=None, skip_downsamples=False,
-    delete_black_uploads=False, background_color=0
+    delete_black_uploads=False, background_color=0,
+    agglomerate=False, timestamp=None
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -899,6 +900,8 @@ def create_transfer_tasks(
         skip_downsamples=skip_downsamples,
         delete_black_uploads=bool(delete_black_uploads),
         background_color=background_color,
+        agglomerate=agglomerate,
+        timestamp=timestamp,
       )
 
     def on_finish(self):
@@ -918,6 +921,8 @@ def create_transfer_tasks(
             bounds.maxpt.tolist()
           ],
           'mip': mip,
+          'agglomerate': bool(agglomerate),
+          'timestamp': timestamp,
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

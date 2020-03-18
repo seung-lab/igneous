@@ -311,6 +311,10 @@ class MeshTask(RegisteredTask):
       'draco': False,
     }
 
+    self.options['remap_table'] = {
+      int(k): int(v) for k, v in self.options['remap_table'].items()
+    }
+
   def execute(self):
     self._volume = CloudVolume(
       self.layer_path, self.options['mip'], bounded=False,
@@ -331,14 +335,7 @@ class MeshTask(RegisteredTask):
     data_bounds.minpt -= self.options['low_padding']
     data_bounds.maxpt += self.options['high_padding']
 
-    self._mesh_dir = None
-    if self.options['mesh_dir'] is not None:
-      self._mesh_dir = self.options['mesh_dir']
-    elif 'mesh' in self._volume.info:
-      self._mesh_dir = self._volume.info['mesh']
-
-    if not self._mesh_dir:
-      raise ValueError("The mesh destination is not present in the info file.")
+    self._mesh_dir = self.get_mesh_dir()
 
     if self.options['encoding'] == 'draco':
       self.draco_encoding_settings = self._compute_draco_encoding_settings()
@@ -362,6 +359,14 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
     self._compute_meshes(data, renumbermap)
+
+  def get_mesh_dir(self):
+    if self.options['mesh_dir'] is not None:
+      return self.options['mesh_dir']
+    elif 'mesh' in cv.info:
+      return cv.info['mesh']
+    else:
+      raise ValueError("The mesh destination is not present in the info file.")
 
   def _compute_draco_encoding_settings(self):
     def calculate_quantization_bits_and_range(min_quantization_range, max_draco_bin_size, draco_quantization_bits=None):
@@ -404,14 +409,9 @@ class MeshTask(RegisteredTask):
     if self.options['remap_table'] is None:
       return data 
 
-    actual_remap = {
-      int(k): int(v) for k, v in self.options['remap_table'].items()
-    }
-
-    self._remap_list = [0] + list(actual_remap.values())
-    enumerated_remap = {int(v): i for i, v in enumerate(self._remap_list)}
-    do_remap = lambda x: enumerated_remap[actual_remap.get(x, 0)]
-    return np.vectorize(do_remap)(data)
+    data = fastremap.mask_except(data, actual_remap.keys(), in_place=True)
+    data, self._remap_list = fastremap.remap(data, actual_remap, in_place=True)
+    return data
 
   def _compute_meshes(self, data, renumbermap):
     data = data[:, :, :, 0].T

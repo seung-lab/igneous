@@ -363,8 +363,8 @@ class MeshTask(RegisteredTask):
   def get_mesh_dir(self):
     if self.options['mesh_dir'] is not None:
       return self.options['mesh_dir']
-    elif 'mesh' in cv.info:
-      return cv.info['mesh']
+    elif 'mesh' in self._volume.info:
+      return self._volume.info['mesh']
     else:
       raise ValueError("The mesh destination is not present in the info file.")
 
@@ -409,8 +409,11 @@ class MeshTask(RegisteredTask):
     if self.options['remap_table'] is None:
       return data 
 
-    data = fastremap.mask_except(data, actual_remap.keys(), in_place=True)
-    data, self._remap_list = fastremap.remap(data, actual_remap, in_place=True)
+    remap = self.options['remap_table']
+    remap[0] = 0
+
+    data = fastremap.mask_except(data, list(remap.keys()), in_place=True)
+    data = fastremap.remap(data, remap, in_place=True)
     return data
 
   def _compute_meshes(self, data, renumbermap):
@@ -422,11 +425,7 @@ class MeshTask(RegisteredTask):
     meshes = {}
 
     for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
-      if self.options['remap_table'] is None:
-        remapped_id = renumbermap[obj_id]
-      else:
-        remapped_id = self._remap_list[renumbermap[obj_id]]
-
+      remapped_id = renumbermap[obj_id]
       mesh_binary, mesh_bounds = self._create_mesh(obj_id)
       bounding_boxes[remapped_id] = mesh_bounds.to_list()
       meshes[remapped_id] = mesh_binary

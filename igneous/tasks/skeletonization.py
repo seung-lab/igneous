@@ -178,7 +178,7 @@ class SkeletonTask(RegisteredTask):
         cache_control=False,
       )
 
-class SkeletonMergeTask(RegisteredTask):
+class UnshardedSkeletonMergeTask(RegisteredTask):
   """
   Stage 2 of skeletonization.
 
@@ -194,7 +194,7 @@ class SkeletonMergeTask(RegisteredTask):
       crop=0, mip=0, dust_threshold=4000, 
       tick_threshold=6000, delete_fragments=False
     ):
-    super(SkeletonMergeTask, self).__init__(
+    super(UnshardedSkeletonMergeTask, self).__init__(
       cloudpath, prefix, crop, mip, 
       dust_threshold, tick_threshold, delete_fragments
     )
@@ -294,7 +294,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     self, cloudpath, shard_no, 
     dust_threshold=4000, tick_threshold=6000,
   ):
-    super(SkeletonShardedMergeTask, self).__init__(
+    super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
       dust_threshold, tick_threshold
     )
@@ -324,7 +324,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
   def process_skeletons(self, locations):
     skeletons = {}
-    for label, locs in locations.items():
+    for label, locs in tqdm(locations.items()):
       skel = PrecomputedSkeleton.simple_merge(
         self.get_unfused(label, locs)
       )
@@ -344,15 +344,17 @@ class ShardedSkeletonMergeTask(RegisteredTask):
   def get_unfused(self, label, locs):
     cv = CloudVolume(self.cloudpath, cache=True)
     
-    in_memory = [ FRAG_CACHE[loc] for loc in locs if loc in FRAG_CACHE ]
-    locs = [ loc for loc in locs if loc not in FRAG_CACHE ]
+    skeldirfn = lambda loc: cv.meta.join(cv.skeleton.meta.skeleton_path, loc)
+
+    in_memory =  [ FRAG_CACHE[loc] for loc in locs if loc in FRAG_CACHE ]
+    locs = [ skeldirfn(loc) for loc in locs if loc not in FRAG_CACHE ]
 
     all_files = cv.skeleton.cache.download(locs)
-    for i, res in enumerate(all_files):
-      all_files[i] = pickle.loads(res['content'])
-      FRAG_CACHE[res['filename']] = all_files[i]
+    for filename, content in all_files.items():
+      all_files[filename] = pickle.loads(content)
+      FRAG_CACHE[filename] = all_files[filename]
 
-    all_files += in_memory
+    all_files = list(all_files.values()) + in_memory
 
     unfused_skeletons = []
     while all_files:

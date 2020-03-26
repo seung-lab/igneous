@@ -300,11 +300,11 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     )
 
   def execute(self):
-    labels = self.labels_for_shard()
-    locations = self.locations_for_labels(labels)
-    skeletons = self.process_skeletons(locations)
-
     cv = CloudVolume(self.cloudpath, cache=True)
+    labels = self.labels_for_shard(cv)
+    locations = self.locations_for_labels(labels, cv)
+    skeletons = self.process_skeletons(locations, cv)
+
     shard_files = synthesize_shard_files(cv.skeleton.reader.spec, skeletons)
 
     if len(shard_files) != 1:
@@ -322,11 +322,11 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         cache_control='no-cache',
       )
 
-  def process_skeletons(self, locations):
+  def process_skeletons(self, locations, cv):
     skeletons = {}
     for label, locs in tqdm(locations.items()):
       skel = PrecomputedSkeleton.simple_merge(
-        self.get_unfused(label, locs)
+        self.get_unfused(label, locs, cv)
       )
       skel.id = label
       skel.extra_attributes = [ 
@@ -341,13 +341,12 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
     return skeletons
 
-  def get_unfused(self, label, locs):
-    cv = CloudVolume(self.cloudpath, cache=True)
-    
+  def get_unfused(self, label, locs, cv):    
     skeldirfn = lambda loc: cv.meta.join(cv.skeleton.meta.skeleton_path, loc)
+    locs = [ skeldirfn(loc) for loc in locs ]
 
     in_memory =  [ FRAG_CACHE[loc] for loc in locs if loc in FRAG_CACHE ]
-    locs = [ skeldirfn(loc) for loc in locs if loc not in FRAG_CACHE ]
+    locs = [ loc for loc in locs if loc not in FRAG_CACHE ]
 
     all_files = cv.skeleton.cache.download(locs)
     for filename, content in all_files.items():
@@ -364,8 +363,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
     return unfused_skeletons
 
-  def locations_for_labels(self, labels):
-    cv = CloudVolume(self.cloudpath, cache=True)
+  def locations_for_labels(self, labels, cv):
     index_filenames = cv.skeleton.spatial_index.file_locations_per_label(labels)
     for label, locations in index_filenames.items():
       for i, location in enumerate(locations):
@@ -374,10 +372,10 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         index_filenames[label][i] = bbx.to_filename() + '.frags'
     return index_filenames
 
-  def labels_for_shard(self):
-    cv = CloudVolume(self.cloudpath, cache=True)
+  def labels_for_shard(self, cv):
     labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
     spec = cv.skeleton.reader.spec
+
     return [ 
       lbl for lbl in labels \
       if spec.compute_shard_location(lbl).shard_number == self.shard_no 

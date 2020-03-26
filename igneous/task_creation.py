@@ -738,7 +738,7 @@ def create_sharded_skeleton_merge_tasks(
   tasks = []
   for shard_no in shard_numbers:
     task = ShardedSkeletonMergeTask(
-      cloudpath, shard_no, 
+      layer_path, shard_no, 
       dust_threshold, tick_threshold
     )
     tasks.append(task)

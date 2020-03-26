@@ -324,7 +324,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
   def process_skeletons(self, locations, cv):
     skeletons = {}
-    for label, locs in tqdm(locations.items()):
+    for label, locs in locations.items():
       skel = PrecomputedSkeleton.simple_merge(
         self.get_unfused(label, locs, cv)
       )

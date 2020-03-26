@@ -291,14 +291,26 @@ tasks = tc.create_skeletonization_tasks(
     sharded=False, # generate intermediate shard fragments for later processing into sharded format
   )
 
-# Second Pass: Fuse Skeletons
-tasks = tc.create_skeleton_merge_tasks(
+# Second Pass: Fuse Skeletons (unsharded version)
+tasks = tc.create_unsharded_skeleton_merge_tasks(
   layer_path, mip, 
   crop=0, # in voxels
   magnitude=3, # same as mesh manifests
   dust_threshold=4000, # in nm
   tick_threshold=6000, # in nm
   delete_fragments=False # Delete scratch files from first stage 
+)
+
+# Second Pass: Fuse Skeletons (sharded version)
+tasks = tc.create_sharded_skeleton_merge_tasks(
+  layer_path, # mip is automatically derived from info file
+  dust_threshold=1000, 
+  tick_threshold=3500, 
+  preshift_bits=9,
+  minishard_bits=4, 
+  shard_bits=11, 
+  minishard_index_encoding='gzip', # or None 
+  data_encoding='gzip' # or None
 )
 ```
 

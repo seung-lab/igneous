@@ -22,6 +22,7 @@ import cloudvolume
 from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow
+from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from taskqueue import TaskQueue, MockTaskQueue 
 
 from igneous import downsample_scales, chunks
@@ -31,7 +32,8 @@ from igneous.tasks import (
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
-  SkeletonTask, SkeletonMergeTask, MaskAffinitymapTask, InferenceTask
+  SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask, 
+  MaskAffinitymapTask, InferenceTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -569,7 +571,9 @@ def create_skeletonizing_tasks(
       vol.skeleton.meta.info['spatial_index'] = {}
     vol.skeleton.meta.info['@type'] = 'neuroglancer_skeletons'
     vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
-    vol.skeleton.meta.commit_info()
+  
+  vol.skeleton.meta.info['mip'] = int(mip)
+  vol.skeleton.meta.commit_info()
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
   bounds = vol.bounds.clone()
@@ -672,7 +676,7 @@ def synapses_in_space(synapse_itr, N=None):
 
   return centroids, cKDTree(centroids), labels
 
-def create_graphene_skeleton_merge_tasks(    
+def create_flat_graphene_skeleton_merge_tasks(    
     cloudpath, mip, crop=0,
     dust_threshold=4000, 
     tick_threshold=6000, 
@@ -681,7 +685,7 @@ def create_graphene_skeleton_merge_tasks(
 
   prefixes = graphene_prefixes()
 
-  class SkeletonMergeTaskIterator():
+  class GrapheneSkeletonMergeTaskIterator():
     def __len__(self):
       return len(prefixes)
     def __iter__(self):
@@ -689,7 +693,7 @@ def create_graphene_skeleton_merge_tasks(
       # enumerating them individually with a suffixed ':' to limit matches to
       # only those small numbers
       for prefix in prefixes:
-        yield SkeletonMergeTask(
+        yield UnshardedSkeletonMergeTask(
           cloudpath=cloudpath, 
           prefix=str(prefix),
           crop=crop,
@@ -699,11 +703,63 @@ def create_graphene_skeleton_merge_tasks(
           delete_fragments=delete_fragments,
         )
 
-  return SkeletonMergeTaskIterator()
-    
+  return GrapheneSkeletonMergeTaskIterator()
+
+def create_sharded_skeleton_merge_tasks(
+    layer_path, dust_threshold, tick_threshold,
+    preshift_bits, minishard_bits, shard_bits,
+    minishard_index_encoding='gzip', data_encoding='gzip'
+  ): 
+  spec = ShardingSpecification(
+    type='neuroglancer_uint64_sharded_v1',
+    preshift_bits=preshift_bits,
+    hash='murmurhash3_x86_128',
+    minishard_bits=minishard_bits,
+    shard_bits=shard_bits,
+    minishard_index_encoding=minishard_index_encoding,
+    data_encoding=data_encoding,
+  )
+
+  cv = CloudVolume(layer_path)
+  cv.skeleton.meta.info['sharding'] = spec.to_dict()
+  cv.skeleton.meta.commit_info()
+
+  cv = CloudVolume(layer_path) # rebuild b/c sharding changes the skeleton object
+
+  # 17 sec to download for pinky100
+  all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
+  # perf: ~36k hashes/sec
+  shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
+  shard_numbers = set(( shardfn(label) for label in all_labels ))
+
+  # This should always be a small number of tasks,
+  # no more than tens of thousands and usually much 
+  # less.
+  tasks = []
+  for shard_no in shard_numbers:
+    task = ShardedSkeletonMergeTask(
+      layer_path, shard_no, 
+      dust_threshold, tick_threshold
+    )
+    tasks.append(task)
+
+  cv.provenance.processing.append({
+    'method': {
+      'task': 'ShardedSkeletonMergeTask',
+      'cloudpath': layer_path,
+      'mip': cv.skeleton.meta.mip,
+      'dust_threshold': dust_threshold,
+      'tick_threshold': tick_threshold,
+    },
+    'by': OPERATOR_CONTACT,
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  cv.commit_provenance()
+
+  return tasks
 
 # split the work up into ~1000 tasks (magnitude 3)
-def create_skeleton_merge_tasks(
+def create_unsharded_skeleton_merge_tasks(    
     layer_path, mip, crop=0,
     magnitude=3, dust_threshold=4000, 
     tick_threshold=6000, delete_fragments=False
@@ -713,7 +769,7 @@ def create_skeleton_merge_tasks(
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
 
-  class SkeletonMergeTaskIterator():
+  class UnshardedSkeletonMergeTaskIterator():
     def __len__(self):
       return 10 ** magnitude
     def __iter__(self):
@@ -721,7 +777,7 @@ def create_skeleton_merge_tasks(
       # enumerating them individually with a suffixed ':' to limit matches to
       # only those small numbers
       for prefix in range(1, start):
-        yield SkeletonMergeTask(
+        yield UnshardedSkeletonMergeTask(
           cloudpath=layer_path, 
           prefix=str(prefix) + ':',
           crop=crop,
@@ -733,7 +789,7 @@ def create_skeleton_merge_tasks(
 
       # enumerate from e.g. 100 to 999
       for prefix in range(start, end):
-        yield SkeletonMergeTask(
+        yield UnshardedSkeletonMergeTask(
           cloudpath=layer_path, 
           prefix=prefix, 
           crop=crop,
@@ -746,7 +802,7 @@ def create_skeleton_merge_tasks(
       vol = CloudVolume(layer_path)
       vol.provenance.processing.append({
         'method': {
-          'task': 'SkeletonMergeTask',
+          'task': 'UnshardedSkeletonMergeTask',
           'cloudpath': layer_path,
           'mip': mip,
           'crop': crop,
@@ -759,7 +815,7 @@ def create_skeleton_merge_tasks(
       }) 
       vol.commit_provenance()
 
-  return SkeletonMergeTaskIterator()
+  return UnshardedSkeletonMergeTaskIterator()
 
 def create_meshing_tasks(
     layer_path, mip, shape=(448, 448, 448), 

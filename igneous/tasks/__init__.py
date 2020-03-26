@@ -1,4 +1,4 @@
-from .skeletonization import SkeletonTask, SkeletonMergeTask
+from .skeletonization import SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask
 from .tasks import (
   IngestTask, HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 

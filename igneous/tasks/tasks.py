@@ -521,6 +521,32 @@ class MeshTask(RegisteredTask):
         cache_control=False,
       )
 
+class GrapheneTask(MeshTask):
+  def __init__(self, *args, **kwargs):
+    kwargs['encoding'] = 'draco'
+    kwargs['sharded'] = True
+    kwargs['spatial_index'] = False # use PyChunkGraph for this info instead
+    kwargs['draco_compression_level'] = 1
+    kwargs['draco_create_metadata'] = True
+    super(GrapheneTask, MeshTask).__init__(*args, **kwargs)
+
+  def upload_meshes(self, meshes, bounding_boxes):
+    layer_id = 2 # we will always mesh layer 2
+    reader = self.volume.mesh.readers[layer_id] 
+    spec = reader.spec 
+
+    shard_binary = spec.synthesize_shard(meshes)
+    shard_filename = reader.get_filename(list(meshes.keys())[0])
+
+    with SimpleStorage(self.volume.cloudpath) as stor:
+      stor.put_file(
+        file_path="{}/initial/{}/{}".format(self.mesh_dir, layer_id, shard_filename),
+        content=shard_binary,
+        compress=None,
+        content_type="application/octet-stream",
+        cache_control="no-cache",
+      )
+
 class MeshManifestTask(RegisteredTask):
   """
   Finalize mesh generation by post-processing chunk fragment

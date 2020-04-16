@@ -442,7 +442,7 @@ class MeshTask(RegisteredTask):
       # Create mesh batch for postprocessing later
       stor.put_file(
         file_path="{}/{}.frags".format(self._mesh_dir, bbox.to_filename()),
-        content=pickle.dumps(skeletons),
+        content=pickle.dumps(meshes),
         compress='gzip',
         content_type="application/python-pickle",
         cache_control=False,

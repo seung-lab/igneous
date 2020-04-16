@@ -300,6 +300,8 @@ class MeshTask(RegisteredTask):
       'spatial_index': kwargs.get('spatial_index', False),
       'sharded': kwargs.get('sharded', False),
       'timestamp': kwargs.get('timestamp', None),
+      'agglomerate': kwargs.get('agglomerate', True),
+      'stop_layer': kwargs.get('stop_layer', 2),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -337,10 +339,13 @@ class MeshTask(RegisteredTask):
       self.draco_encoding_settings = self._compute_draco_encoding_settings()
 
     # chunk_position includes the overlap specified by low_padding/high_padding
-    # agglomerate only applies to graphene volumes, no-op for precomputed
-    data = self._volume.download(
-      data_bounds, agglomerate=True, 
-      timestamp=self.options['timestamp']
+    # agglomerate, timestamp, stop_layer only applies to graphene volumes, 
+    # no-op for precomputed
+    data = self.volume.download(
+      data_bounds, 
+      agglomerate=self.options['agglomerate'], 
+      timestamp=self.options['timestamp'], 
+      stop_layer=self.options['stop_layer']
     )
 
     if not np.any(data):

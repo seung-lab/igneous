@@ -157,7 +157,7 @@ class MeshTask(RegisteredTask):
     # chunk_position includes the overlap specified by low_padding/high_padding
     # agglomerate, timestamp, stop_layer only applies to graphene volumes, 
     # no-op for precomputed
-    data = self.volume.download(
+    data = self._volume.download(
       data_bounds, 
       agglomerate=self.options['agglomerate'], 
       timestamp=self.options['timestamp'], 

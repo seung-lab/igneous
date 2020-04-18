@@ -1,7 +1,7 @@
 click>=6.7
 cloud-volume>=1.9.0
 DracoPy
-fastremap>=1.5.2
+fastremap>=1.10.0
 google-cloud-logging
 kimimaro>=0.5.0
 numpy>=1.14.2

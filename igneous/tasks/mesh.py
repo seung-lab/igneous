@@ -351,7 +351,7 @@ class GrapheneMeshTask(RegisteredTask):
       timestamp: (int: None) (graphene only) use the segmentation existing at this
         UNIX timestamp.
     """
-    super(GrapheneMeshTask, self).__init__(shape, offset, cloudpath, **kwargs)
+    super(GrapheneMeshTask, self).__init__(cloudpath, shape, offset, **kwargs)
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
     self.cloudpath = cloudpath
@@ -359,12 +359,10 @@ class GrapheneMeshTask(RegisteredTask):
     self.options = {
       'cache_control': kwargs.get('cache_control', None),
       'draco_compression_level': kwargs.get('draco_compression_level', 1),
-      'dust_threshold': kwargs.get('dust_threshold', None),
       'fill_missing': kwargs.get('fill_missing', False),
       'max_simplification_error': kwargs.get('max_simplification_error', 40),
       'simplification_factor': kwargs.get('simplification_factor', 100),
       'mesh_dir': kwargs.get('mesh_dir', None),
-      'parallel_download': kwargs.get('parallel_download', 1),
       'progress': kwargs.get('progress', False),
       'timestamp': kwargs.get('timestamp', None),
     }
@@ -372,10 +370,12 @@ class GrapheneMeshTask(RegisteredTask):
   def execute(self):
     self.cv = CloudVolume(
       self.cloudpath, bounded=False,
-      parallel=self.options['parallel_download'], 
       fill_missing=self.options['fill_missing']
     )
     self.cv.mip = self.cv.meta.watershed_mip
+
+    if self.cv.mesh.is_sharded() == False:
+      raise ValueError("The mesh sharding parameter must be defined.")
 
     self.bounds = Bbox(self.offset, self.shape + self.offset)
     self.bounds = Bbox.clamp(self.bounds, self.cv.bounds)
@@ -384,9 +384,8 @@ class GrapheneMeshTask(RegisteredTask):
 
     self.mesher = zmesh.Mesher(self.cv.resolution)
 
-    # Marching cubes loves its 1vx overlaps.
-    # This avoids lines appearing between
-    # adjacent chunks.
+    # Marching cubes needs 1 voxel overlap to properly 
+    # stitch adjacent meshes.
     data_bounds = self.bounds.clone()
     data_bounds.maxpt += 1
 

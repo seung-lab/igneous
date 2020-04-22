@@ -404,19 +404,18 @@ class GrapheneMeshTask(RegisteredTask):
 
     root_img = cc3d.connected_components(root_img[...,0])
 
-    root_img.view()
-
     l2img = self.cv.download(
       self.bounds, agglomerate=True, 
       timestamp=self.options['timestamp'], 
       stop_layer=self.layer_id,
     )[...,0]
 
-    l2img.view()
-
     component_map = fastremap.inverse_component_map(root_img[:-1, :-1, :-1], l2img)
     component_map = { k: min(lst) for k,lst in component_map.items() }
     del l2img
+
+    # avoid meshing supervoxels that exist only in the overlap region
+    root_img = fastremap.mask_except(root_img, list(component_map.keys()), in_place=True)
 
     self.upload_meshes(
       self.compute_meshes(root_img, component_map)
@@ -443,7 +442,7 @@ class GrapheneMeshTask(RegisteredTask):
     return meshes
 
   def upload_meshes(self, meshes):
-    reader = self._volume.mesh.readers[self.layer_id] 
+    reader = self.cv.mesh.readers[self.layer_id] 
     spec = reader.spec 
 
     shard_binary = spec.synthesize_shard(meshes)

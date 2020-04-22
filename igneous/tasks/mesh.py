@@ -356,6 +356,7 @@ class GrapheneMeshTask(RegisteredTask):
     self.offset = Vec(*offset)
     self.cloudpath = cloudpath
     self.layer_id = 2
+    self.overlap_vx = 1
     self.options = {
       'cache_control': kwargs.get('cache_control', None),
       'draco_compression_level': kwargs.get('draco_compression_level', 1),
@@ -370,11 +371,12 @@ class GrapheneMeshTask(RegisteredTask):
   def execute(self):
     self.cv = CloudVolume(
       self.cloudpath, bounded=False,
-      fill_missing=self.options['fill_missing']
+      fill_missing=self.options['fill_missing'],
+      mesh_dir=self.options['mesh_dir']
     )
     self.cv.mip = self.cv.meta.watershed_mip
 
-    if self.cv.mesh.is_sharded() == False:
+    if self.cv.mesh.meta.is_sharded() == False:
       raise ValueError("The mesh sharding parameter must be defined.")
 
     self.bounds = Bbox(self.offset, self.shape + self.offset)
@@ -387,18 +389,19 @@ class GrapheneMeshTask(RegisteredTask):
     # Marching cubes needs 1 voxel overlap to properly 
     # stitch adjacent meshes.
     data_bounds = self.bounds.clone()
-    data_bounds.maxpt += 1
+    data_bounds.maxpt += self.overlap_vx
 
     self.mesh_dir = self.get_mesh_dir()
     self.draco_encoding_settings = self.compute_draco_encoding_settings()
-
-    if not np.any(root_img):
-      return
 
     root_img = self.cv.download( 
       data_bounds, agglomerate=True, 
       timestamp=self.options['timestamp'], 
     )
+
+    if not np.any(root_img):
+      return
+
     root_img = cc3d.connected_components(root_img)
 
     l2img = self.cv.download(
@@ -470,37 +473,17 @@ class GrapheneMeshTask(RegisteredTask):
 
     return mesh_binary
 
-  def get_meshing_necessities_from_graph(self, chunk_x, chunk_y, chunk_z):
-    """ Given a chunkedgraph, chunk_id, and mip level, 
-    return the voxel dimensions of the chunk to be meshed (mesh_block_shape)
-    and the chunk origin in the dataset in nm.
-
-    :param chunk_x: np.uint64
-    :param chunk_y: np.uint64
-    :param chunk_z: np.uint64
-    """
-    chunk_id = self.cv.meta.encode_label(self.layer_id, chunk_x, chunk_y, chunk_z, 0)
-    mesh_block_shape = chunkedgraph_functions.get_mesh_block_shape_for_mip(
-      graphene_cv, self.layer_id, self.mip
-    )
-    chunk_offset = (
-      (chunk_x, chunk_y, chunk_z) * mesh_block_shape
-      + graphene_cv.mip_voxel_offset(mip)
-    ) * graphene_cv.mip_resolution(mip)
-    return layer, mesh_block_shape, chunk_offset
-
   def compute_draco_encoding_settings(self):
-    _, mesh_block_shape, chunk_offset = self.get_meshing_necessities_from_graph(
-      chunk_x, chunk_y, chunk_z, mip
-    )
-    segmentation_resolution = self.cv.meta.resolution(mip)
+    resolution = self.cv.resolution
+    chunk_offset_nm = self.offset * resolution
+    
     min_quantization_range = max(
-      (mesh_block_shape + overlap_vx) * segmentation_resolution
+      (self.shape + self.overlap_vx) * resolution
     )
-    if graphene_cv.meta.uses_new_draco_bin_size:
-      max_draco_bin_size = np.floor(min(segmentation_resolution) / 2)
+    if self.cv.meta.uses_new_draco_bin_size:
+      max_draco_bin_size = np.floor(min(resolution) / 2)
     else:
-      max_draco_bin_size = np.floor(min(segmentation_resolution) / np.sqrt(2))
+      max_draco_bin_size = np.floor(min(resolution) / np.sqrt(2))
 
     (
       draco_quantization_bits,
@@ -509,7 +492,7 @@ class GrapheneMeshTask(RegisteredTask):
     ) = calculate_draco_quantization_bits_and_range(
       min_quantization_range, max_draco_bin_size
     )
-    draco_quantization_origin = chunk_offset - (chunk_offset % draco_bin_size)
+    draco_quantization_origin = chunk_offset_nm - (chunk_offset_nm % draco_bin_size)
     return {
       "quantization_bits": draco_quantization_bits,
       "compression_level": 1,

@@ -898,7 +898,7 @@ def create_graphene_meshing_tasks(
   simplification=True, max_simplification_error=40,
   mesh_dir=None, cdn_cache=False, object_ids=None, 
   progress=False, fill_missing=False, sharding=None,
-  draco_compression_level=1
+  draco_compression_level=1, bounds=None
 ):
   cv = CloudVolume(cloudpath)
 
@@ -955,7 +955,17 @@ def create_graphene_meshing_tasks(
       }) 
       cv.commit_provenance()
 
-  return GrapheneMeshTaskIterator(cv.meta.bounds(mip), list(cv.meta.graph_chunk_size))
+  shape = Vec(*cv.meta.graph_chunk_size)
+
+  if bounds is None:
+    bounds = cv.meta.bounds(mip).clone()
+  else:
+    bounds = cv.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = Bbox.clamp(bounds, cv.bounds)
+
+  bounds = bounds.expand_to_chunk_size(shape, cv.voxel_offset)
+
+  return GrapheneMeshTaskIterator(bounds, shape)
 
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 

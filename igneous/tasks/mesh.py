@@ -402,13 +402,17 @@ class GrapheneMeshTask(RegisteredTask):
     if not np.any(root_img):
       return
 
-    root_img = cc3d.connected_components(root_img)
+    root_img = cc3d.connected_components(root_img[...,0])
+
+    root_img.view()
 
     l2img = self.cv.download(
       self.bounds, agglomerate=True, 
       timestamp=self.options['timestamp'], 
       stop_layer=self.layer_id,
-    )
+    )[...,0]
+
+    l2img.view()
 
     component_map = fastremap.inverse_component_map(root_img[:-1, :-1, :-1], l2img)
     component_map = { k: min(lst) for k,lst in component_map.items() }
@@ -427,12 +431,12 @@ class GrapheneMeshTask(RegisteredTask):
       raise ValueError("The mesh destination is not present in the info file.")
 
   def compute_meshes(self, data, component_map):
-    data = data[:, :, :, 0].T
-    self._mesher.mesh(data)
+    data = data.T
+    self.mesher.mesh(data)
     del data
 
     meshes = {}
-    for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
+    for obj_id in tqdm(self.mesher.ids(), disable=(not self.progress), desc="Mesh"):
       remapped_id = component_map[obj_id]
       meshes[remapped_id] = self.create_mesh(obj_id)
 
@@ -447,9 +451,9 @@ class GrapheneMeshTask(RegisteredTask):
     # so any label inside this L2 chunk will do
     shard_filename = reader.get_filename(list(meshes.keys())[0]) 
 
-    with SimpleStorage(self._volume.cloudpath) as stor:
+    with SimpleStorage(self.cv.cloudpath) as stor:
       stor.put_file(
-        file_path="{}/initial/{}/{}".format(self._mesh_dir, layer_id, shard_filename),
+        file_path="{}/initial/{}/{}".format(self.get_mesh_dir(), self.layer_id, shard_filename),
         content=shard_binary,
         compress=None,
         content_type="application/octet-stream",
@@ -457,13 +461,13 @@ class GrapheneMeshTask(RegisteredTask):
       )
 
   def create_mesh(self, obj_id):
-    mesh = self._mesher.get_mesh(
+    mesh = self.mesher.get_mesh(
       obj_id,
       simplification_factor=self.options['simplification_factor'],
       max_simplification_error=self.options['max_simplification_error']
     )
 
-    self._mesher.erase(obj_id)
+    self.mesher.erase(obj_id)
     mesh.vertices[:] += self.bounds.minpt * self.cv.resolution
 
     mesh_binary = DracoPy.encode_mesh_to_buffer(

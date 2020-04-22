@@ -923,7 +923,7 @@ def create_graphene_meshing_tasks(
   class GrapheneMeshTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       return GrapheneMeshTask(
-        cloudpath=cv.cloudpath,
+        cloudpath=cloudpath,
         shape=shape.clone(),
         offset=offset.clone(),
         simplification_factor=simplification,

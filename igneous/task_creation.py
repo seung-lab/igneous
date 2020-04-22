@@ -905,18 +905,18 @@ def create_graphene_meshing_tasks(
   if mesh_dir is None:
     mesh_dir = 'meshes'
 
-  if not 'mesh' in vol.info:
-    vol.info['mesh'] = mesh_dir
-    vol.commit_info()
+  cv.info['mesh'] = mesh_dir # necessary to set the mesh.commit_info() dir right
+  if not 'mesh' in cv.info:
+    cv.commit_info()
 
-  cv.mesh.info['@type'] = 'neuroglancer_legacy_mesh'
-  cv.mesh.info['mip'] = int(cv.watershed_mip)
-  cv.mesh.info['chunk_size'] = list(cv.meta.graph_chunk_size)
+  cv.mesh.meta.info['@type'] = 'neuroglancer_legacy_mesh'
+  cv.mesh.meta.info['mip'] = int(cv.meta.watershed_mip)
+  cv.mesh.meta.info['chunk_size'] = list(cv.meta.graph_chunk_size)
   if sharding:
-    cv.mesh.info['sharding'] = sharding
-  cv.mesh.commit_info()
+    cv.mesh.meta.info['sharding'] = sharding
+  cv.mesh.meta.commit_info()
 
-  mip = cv.watershed_mip
+  mip = cv.meta.watershed_mip
 
   simplification = (0 if not simplification else 100)
 
@@ -937,7 +937,7 @@ def create_graphene_meshing_tasks(
       )
 
     def on_finish(self):
-      vol.provenance.processing.append({
+      cv.provenance.processing.append({
         'method': {
           'task': 'GrapheneMeshTask',
           'cloudpath': cv.cloudpath,
@@ -953,9 +953,9 @@ def create_graphene_meshing_tasks(
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       }) 
-      vol.commit_provenance()
+      cv.commit_provenance()
 
-  return GrapheneMeshTaskIterator(vol.meta.bounds(mip), list(cv.meta.graph_chunk_size))
+  return GrapheneMeshTaskIterator(cv.meta.bounds(mip), list(cv.meta.graph_chunk_size))
 
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 

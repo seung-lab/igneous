@@ -93,9 +93,8 @@ def remap_segmentation(
     ws_cv.voxel_offset + ws_cv.volume_size,
   )
 
-  ws_seg = ws_cv[ Bbox(chunk_start, chunk_end) ][..., 0]
-
-  seg = fastremap.mask_except(ws_seg, list(sv_remapping.keys()), in_place=False)
+  seg = ws_cv[ Bbox(chunk_start, chunk_end) ][..., 0]
+  seg = fastremap.mask_except(seg, list(sv_remapping.keys()), in_place=True)
   fastremap.remap(seg, sv_remapping, preserve_missing_labels=True, in_place=True)
 
   for unsafe_root_id in tqdm(unsafe_dict.keys(), desc="Unsafe Relabel", disable=(not progress)):

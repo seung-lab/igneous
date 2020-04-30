@@ -64,7 +64,6 @@ import fastremap
 
 UTC = pytz.UTC
 
-@profile
 def remap_segmentation(
   cv, chunk_x, chunk_y, chunk_z, mip=2, 
   overlap_vx=1, time_stamp=None, progress=False
@@ -142,7 +141,6 @@ def remap_segmentation(
   return seg
 
 @lru_cache(maxsize=200)
-@profile
 def get_higher_to_lower_remapping(cv, chunk_id, time_stamp):
   """ 
   Retrieves lx node id to sv id mappping
@@ -165,7 +163,7 @@ def get_higher_to_lower_remapping(cv, chunk_id, time_stamp):
     if this_child_ids[0] in all_lower_ids:
       continue
 
-    all_lower_ids = all_lower_ids.union(set(list(this_child_ids)))
+    all_lower_ids.update(list(this_child_ids))
     lx_remapping[k] = this_child_ids
 
   return lx_remapping
@@ -193,7 +191,6 @@ def get_root_lx_remapping(cv, chunk_id, stop_layer, time_stamp):
 
 
 # @lru_cache(maxsize=None)
-@profile
 def get_lx_overlapping_remappings(
   cv, chunk_x, chunk_y, chunk_z, 
   time_stamp=None, progress=False

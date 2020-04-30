@@ -398,8 +398,7 @@ class GrapheneMeshTask(RegisteredTask):
     self.draco_encoding_settings = self.compute_draco_encoding_settings()
 
     chunk_pos = self.cv.meta.point_to_chunk_position(self.bounds.center(), mip=self.mip)
-
-    print("remapping segmentation")
+    
     img = mesh_graphene_remap.remap_segmentation(
       self.cv, 
       chunk_pos.x, chunk_pos.y, chunk_pos.z, 
@@ -408,30 +407,6 @@ class GrapheneMeshTask(RegisteredTask):
       time_stamp=self.timestamp,
       progress=self.progress,
     )
-    print("done.")
-
-    # root_img = self.cv.download( 
-    #   data_bounds, agglomerate=True, 
-    #   timestamp=self.options['timestamp'], 
-    # )
-
-    # if not np.any(root_img):
-    #   return
-
-    # root_img = cc3d.connected_components(root_img[...,0])
-
-    # l2img = self.cv.download(
-    #   self.bounds, agglomerate=True, 
-    #   timestamp=self.options['timestamp'], 
-    #   stop_layer=self.layer_id,
-    # )[...,0]
-
-    # component_map = fastremap.inverse_component_map(root_img[:-1, :-1, :-1], l2img)
-    # component_map = { k: min(lst) for k,lst in component_map.items() }
-    # del l2img
-
-    # # avoid meshing supervoxels that exist only in the overlap region
-    # root_img = fastremap.mask_except(root_img, list(component_map.keys()), in_place=True)
 
     self.upload_meshes(
       self.compute_meshes(img)

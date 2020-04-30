@@ -58,7 +58,7 @@ import cc3d
 from tqdm import tqdm
 
 import cloudvolume
-from cloudvolume.lib import Vec, xyzrange
+from cloudvolume.lib import Bbox, Vec, xyzrange
 from cloudvolume import CloudVolume
 import fastremap
 
@@ -74,7 +74,7 @@ def remap_segmentation(
     time_stamp=time_stamp, progress=progress
   )
 
-  ws_cv = CloudVolume(cv.meta.cloudpath, mip=mip, progress=progress, cache=True)
+  ws_cv = CloudVolume(cv.meta.cloudpath, mip=mip, progress=progress)
   mip_diff = mip - cv.meta.watershed_mip
 
   mip_chunk_size = np.array(
@@ -94,7 +94,7 @@ def remap_segmentation(
   )
 
   ws_seg = ws_cv[ Bbox(chunk_start, chunk_end) ][..., 0]
-  
+
   seg = fastremap.mask_except(ws_seg, list(sv_remapping.keys()), in_place=False)
   fastremap.remap(seg, sv_remapping, preserve_missing_labels=True, in_place=True)
 
@@ -118,8 +118,7 @@ def remap_segmentation(
       linked_l2_ids = overlaps[np.in1d(overlaps, unsafe_dict[unsafe_root_id])]
 
       if len(linked_l2_ids) == 0:
-        # seg[bin_cc_seg] = 0
-        fastremap.mask(seg, [ unsafe_root_id ], in_place=True)
+        seg[bin_cc_seg] = 0
       elif len(linked_l2_ids) == 1:
         seg[bin_cc_seg] = linked_l2_ids[0]
       else:

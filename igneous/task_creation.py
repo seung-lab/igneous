@@ -894,13 +894,18 @@ def create_meshing_tasks(
   return MeshTaskIterator(vol.mip_bounds(mip), shape)
 
 def create_graphene_meshing_tasks(
-  cloudpath, timestamp, 
+  cloudpath, timestamp, mip,
   simplification=True, max_simplification_error=40,
   mesh_dir=None, cdn_cache=False, object_ids=None, 
   progress=False, fill_missing=False, sharding=None,
   draco_compression_level=1, bounds=None
 ):
-  cv = CloudVolume(cloudpath)
+  cv = CloudVolume(cloudpath, mip=mip)
+
+  if mip < cv.meta.watershed_mip:
+    raise ValueError("Must mesh at or above the watershed mip level. Watershed MIP: {} Got: {}".format(
+      cv.meta.watershed_mip, mip
+    ))
 
   if mesh_dir is None:
     mesh_dir = 'meshes'
@@ -909,14 +914,15 @@ def create_graphene_meshing_tasks(
   if not 'mesh' in cv.info:
     cv.commit_info()
 
+  watershed_downsample_ratio = cv.resolution // cv.meta.resolution(cv.meta.watershed_mip)
+  shape = Vec(*cv.meta.graph_chunk_size) // watershed_downsample_ratio
+
   cv.mesh.meta.info['@type'] = 'neuroglancer_legacy_mesh'
-  cv.mesh.meta.info['mip'] = int(cv.meta.watershed_mip)
-  cv.mesh.meta.info['chunk_size'] = list(cv.meta.graph_chunk_size)
+  cv.mesh.meta.info['mip'] = cv.mip
+  cv.mesh.meta.info['chunk_size'] = list(shape)
   if sharding:
     cv.mesh.meta.info['sharding'] = sharding
   cv.mesh.meta.commit_info()
-
-  mip = cv.meta.watershed_mip
 
   simplification = (0 if not simplification else 100)
 
@@ -926,6 +932,7 @@ def create_graphene_meshing_tasks(
         cloudpath=cloudpath,
         shape=shape.clone(),
         offset=offset.clone(),
+        mip=int(mip),
         simplification_factor=simplification,
         max_simplification_error=max_simplification_error,
         draco_compression_level=draco_compression_level,
@@ -942,6 +949,7 @@ def create_graphene_meshing_tasks(
           'task': 'GrapheneMeshTask',
           'cloudpath': cv.cloudpath,
           'shape': cv.meta.graph_chunk_size,
+          'mip': int(mip),
           'simplification': simplification,
           'max_simplification_error': max_simplification_error,
           'mesh_dir': mesh_dir,
@@ -954,8 +962,6 @@ def create_graphene_meshing_tasks(
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       }) 
       cv.commit_provenance()
-
-  shape = Vec(*cv.meta.graph_chunk_size)
 
   if bounds is None:
     bounds = cv.meta.bounds(mip).clone()

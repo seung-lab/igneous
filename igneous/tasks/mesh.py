@@ -12,7 +12,7 @@ import re
 import numpy as np
 from tqdm import tqdm
 
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, view
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import Vec, Bbox, jsonify
 from taskqueue import RegisteredTask
@@ -21,6 +21,8 @@ import cc3d
 import DracoPy
 import fastremap
 import zmesh
+
+from . import mesh_graphene_remap
 
 def calculate_draco_quantization_bits_and_range(
   min_quantization_range, max_draco_bin_size, draco_quantization_bits=None
@@ -322,7 +324,7 @@ class MeshTask(RegisteredTask):
       )
 
 class GrapheneMeshTask(RegisteredTask):
-  def __init__(self, cloudpath, shape, offset, **kwargs):
+  def __init__(self, cloudpath, shape, offset, mip, **kwargs):
     """
     Convert all labels in the specified bounding box into meshes
     via marching cubes and quadratic edge collapse (github.com/seung-lab/zmesh).
@@ -351,9 +353,10 @@ class GrapheneMeshTask(RegisteredTask):
       timestamp: (int: None) (graphene only) use the segmentation existing at this
         UNIX timestamp.
     """
-    super(GrapheneMeshTask, self).__init__(cloudpath, shape, offset, **kwargs)
+    super(GrapheneMeshTask, self).__init__(cloudpath, shape, offset, mip, **kwargs)
     self.shape = Vec(*shape)
     self.offset = Vec(*offset)
+    self.mip = int(mip)
     self.cloudpath = cloudpath
     self.layer_id = 2
     self.overlap_vx = 1
@@ -370,11 +373,11 @@ class GrapheneMeshTask(RegisteredTask):
 
   def execute(self):
     self.cv = CloudVolume(
-      self.cloudpath, bounded=False,
+      self.cloudpath, mip=self.mip, bounded=False,
       fill_missing=self.options['fill_missing'],
-      mesh_dir=self.options['mesh_dir']
+      mesh_dir=self.options['mesh_dir'],
+      cache=True
     )
-    self.cv.mip = self.cv.meta.watershed_mip
 
     if self.cv.mesh.meta.is_sharded() == False:
       raise ValueError("The mesh sharding parameter must be defined.")
@@ -388,37 +391,50 @@ class GrapheneMeshTask(RegisteredTask):
 
     # Marching cubes needs 1 voxel overlap to properly 
     # stitch adjacent meshes.
-    data_bounds = self.bounds.clone()
-    data_bounds.maxpt += self.overlap_vx
+    # data_bounds = self.bounds.clone()
+    # data_bounds.maxpt += self.overlap_vx
 
     self.mesh_dir = self.get_mesh_dir()
     self.draco_encoding_settings = self.compute_draco_encoding_settings()
 
-    root_img = self.cv.download( 
-      data_bounds, agglomerate=True, 
-      timestamp=self.options['timestamp'], 
+    chunk_pos = self.cv.meta.point_to_chunk_position(self.bounds.center(), mip=self.mip)
+
+    print("remapping segmentation")
+    img = mesh_graphene_remap.remap_segmentation(
+      self.cv, 
+      chunk_pos.x, chunk_pos.y, chunk_pos.z, 
+      mip=self.mip, 
+      overlap_vx=self.overlap_vx, 
+      time_stamp=self.timestamp,
+      progress=self.progress,
     )
+    print("done.")
 
-    if not np.any(root_img):
-      return
+    # root_img = self.cv.download( 
+    #   data_bounds, agglomerate=True, 
+    #   timestamp=self.options['timestamp'], 
+    # )
 
-    root_img = cc3d.connected_components(root_img[...,0])
+    # if not np.any(root_img):
+    #   return
 
-    l2img = self.cv.download(
-      self.bounds, agglomerate=True, 
-      timestamp=self.options['timestamp'], 
-      stop_layer=self.layer_id,
-    )[...,0]
+    # root_img = cc3d.connected_components(root_img[...,0])
 
-    component_map = fastremap.inverse_component_map(root_img[:-1, :-1, :-1], l2img)
-    component_map = { k: min(lst) for k,lst in component_map.items() }
-    del l2img
+    # l2img = self.cv.download(
+    #   self.bounds, agglomerate=True, 
+    #   timestamp=self.options['timestamp'], 
+    #   stop_layer=self.layer_id,
+    # )[...,0]
 
-    # avoid meshing supervoxels that exist only in the overlap region
-    root_img = fastremap.mask_except(root_img, list(component_map.keys()), in_place=True)
+    # component_map = fastremap.inverse_component_map(root_img[:-1, :-1, :-1], l2img)
+    # component_map = { k: min(lst) for k,lst in component_map.items() }
+    # del l2img
+
+    # # avoid meshing supervoxels that exist only in the overlap region
+    # root_img = fastremap.mask_except(root_img, list(component_map.keys()), in_place=True)
 
     self.upload_meshes(
-      self.compute_meshes(root_img, component_map)
+      self.compute_meshes(img)
     )
 
   def get_mesh_dir(self):
@@ -429,23 +445,22 @@ class GrapheneMeshTask(RegisteredTask):
     else:
       raise ValueError("The mesh destination is not present in the info file.")
 
-  def compute_meshes(self, data, component_map):
+  def compute_meshes(self, data):
     data = data.T
     self.mesher.mesh(data)
     del data
 
     meshes = {}
     for obj_id in tqdm(self.mesher.ids(), disable=(not self.progress), desc="Mesh"):
-      remapped_id = component_map[obj_id]
-      meshes[remapped_id] = self.create_mesh(obj_id)
+      # remapped_id = component_map[obj_id]
+      meshes[obj_id] = self.create_mesh(obj_id)
 
     return meshes
 
   def upload_meshes(self, meshes):
     reader = self.cv.mesh.readers[self.layer_id] 
-    spec = reader.spec 
 
-    shard_binary = spec.synthesize_shard(meshes)
+    shard_binary = reader.spec.synthesize_shard(meshes)
     # the shard filename is derived from the chunk position,
     # so any label inside this L2 chunk will do
     shard_filename = reader.get_filename(list(meshes.keys())[0]) 

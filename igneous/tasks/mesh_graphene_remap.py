@@ -68,11 +68,6 @@ def remap_segmentation(
   cv, chunk_x, chunk_y, chunk_z, mip=2, 
   overlap_vx=1, time_stamp=None, progress=False
 ):
-  sv_remapping, unsafe_dict = get_lx_overlapping_remappings(
-    cv, chunk_x, chunk_y, chunk_z, 
-    time_stamp=time_stamp, progress=progress
-  )
-
   ws_cv = CloudVolume(cv.meta.cloudpath, mip=mip, progress=progress)
   mip_diff = mip - cv.meta.watershed_mip
 
@@ -93,6 +88,15 @@ def remap_segmentation(
   )
 
   seg = ws_cv[ Bbox(chunk_start, chunk_end) ][..., 0]
+
+  if not np.any(seg):
+    return seg
+
+  sv_remapping, unsafe_dict = get_lx_overlapping_remappings(
+    cv, chunk_x, chunk_y, chunk_z, 
+    time_stamp=time_stamp, progress=progress
+  )
+
   seg = fastremap.mask_except(seg, list(sv_remapping.keys()), in_place=True)
   fastremap.remap(seg, sv_remapping, preserve_missing_labels=True, in_place=True)
 

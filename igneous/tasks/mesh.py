@@ -376,7 +376,6 @@ class GrapheneMeshTask(RegisteredTask):
       self.cloudpath, mip=self.mip, bounded=False,
       fill_missing=self.options['fill_missing'],
       mesh_dir=self.options['mesh_dir'],
-      cache=True
     )
 
     if self.cv.mesh.meta.is_sharded() == False:
@@ -407,6 +406,9 @@ class GrapheneMeshTask(RegisteredTask):
       time_stamp=self.timestamp,
       progress=self.progress,
     )
+
+    if not np.any(img):
+      return
 
     self.upload_meshes(
       self.compute_meshes(img)

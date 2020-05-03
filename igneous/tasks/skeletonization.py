@@ -305,6 +305,9 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     locations = self.locations_for_labels(labels, cv)
     skeletons = self.process_skeletons(locations, cv)
 
+    if len(skeletons) == 0:
+      return
+
     shard_files = synthesize_shard_files(cv.skeleton.reader.spec, skeletons)
 
     if len(shard_files) != 1:

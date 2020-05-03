@@ -13,3 +13,5 @@ pipeline.py
 *.dat
 projects
 credentials.tar.enc
+*.df
+*.pkl

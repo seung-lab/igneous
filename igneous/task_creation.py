@@ -29,7 +29,8 @@ from igneous import downsample_scales, chunks
 import igneous.tasks
 from igneous.tasks import (
   IngestTask, HyperSquareConsensusTask, 
-  MeshTask, MeshManifestTask, DownsampleTask, QuantizeTask, 
+  MeshTask, MeshManifestTask, GrapheneMeshTask,
+  DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
   SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask, 
@@ -891,6 +892,86 @@ def create_meshing_tasks(
       vol.commit_provenance()
 
   return MeshTaskIterator(vol.mip_bounds(mip), shape)
+
+def create_graphene_meshing_tasks(
+  cloudpath, timestamp, mip,
+  simplification=True, max_simplification_error=40,
+  mesh_dir=None, cdn_cache=False, object_ids=None, 
+  progress=False, fill_missing=False, sharding=None,
+  draco_compression_level=1, bounds=None
+):
+  cv = CloudVolume(cloudpath, mip=mip)
+
+  if mip < cv.meta.watershed_mip:
+    raise ValueError("Must mesh at or above the watershed mip level. Watershed MIP: {} Got: {}".format(
+      cv.meta.watershed_mip, mip
+    ))
+
+  if mesh_dir is None:
+    mesh_dir = 'meshes'
+
+  cv.info['mesh'] = mesh_dir # necessary to set the mesh.commit_info() dir right
+  if not 'mesh' in cv.info:
+    cv.commit_info()
+
+  watershed_downsample_ratio = cv.resolution // cv.meta.resolution(cv.meta.watershed_mip)
+  shape = Vec(*cv.meta.graph_chunk_size) // watershed_downsample_ratio
+
+  cv.mesh.meta.info['@type'] = 'neuroglancer_legacy_mesh'
+  cv.mesh.meta.info['mip'] = cv.mip
+  cv.mesh.meta.info['chunk_size'] = list(shape)
+  if sharding:
+    cv.mesh.meta.info['sharding'] = sharding
+  cv.mesh.meta.commit_info()
+
+  simplification = (0 if not simplification else 100)
+
+  class GrapheneMeshTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return GrapheneMeshTask(
+        cloudpath=cloudpath,
+        shape=shape.clone(),
+        offset=offset.clone(),
+        mip=int(mip),
+        simplification_factor=simplification,
+        max_simplification_error=max_simplification_error,
+        draco_compression_level=draco_compression_level,
+        mesh_dir=mesh_dir, 
+        cache_control=('' if cdn_cache else 'no-cache'),
+        progress=progress,
+        fill_missing=fill_missing,
+        timestamp=timestamp,
+      )
+
+    def on_finish(self):
+      cv.provenance.processing.append({
+        'method': {
+          'task': 'GrapheneMeshTask',
+          'cloudpath': cv.cloudpath,
+          'shape': cv.meta.graph_chunk_size,
+          'mip': int(mip),
+          'simplification': simplification,
+          'max_simplification_error': max_simplification_error,
+          'mesh_dir': mesh_dir,
+          'fill_missing': fill_missing,
+          'cdn_cache': cdn_cache,
+          'timestamp': timestamp,
+          'draco_compression_level': draco_compression_level,
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      cv.commit_provenance()
+
+  if bounds is None:
+    bounds = cv.meta.bounds(mip).clone()
+  else:
+    bounds = cv.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = Bbox.clamp(bounds, cv.bounds)
+
+  bounds = bounds.expand_to_chunk_size(shape, cv.voxel_offset)
+
+  return GrapheneMeshTaskIterator(bounds, shape)
 
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 

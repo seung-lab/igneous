@@ -79,7 +79,7 @@ def remap_segmentation(
   offset = Vec(chunk_x, chunk_y, chunk_z) * mip_chunk_size
   bbx = Bbox(offset, offset + mip_chunk_size + overlap_vx)
   if cv.meta.chunks_start_at_voxel_offset:
-    bbx -= ws_cv.voxel_offset
+    bbx += ws_cv.voxel_offset
   bbx = Bbox.clamp(bbx, ws_cv.bounds)
 
   seg = ws_cv[bbx][..., 0]

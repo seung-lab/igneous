@@ -76,18 +76,13 @@ def remap_segmentation(
   ) / np.array([2 ** mip_diff, 2 ** mip_diff, 1])
   mip_chunk_size = mip_chunk_size.astype(np.int)
 
-  chunk_start = (
-    ws_cv.voxel_offset
-    + Vec(chunk_x, chunk_y, chunk_z) * mip_chunk_size
-  )
-  chunk_end = chunk_start + mip_chunk_size + overlap_vx
-  chunk_end = Vec.clamp(
-    chunk_end,
-    ws_cv.voxel_offset,
-    ws_cv.voxel_offset + ws_cv.volume_size,
-  )
+  offset = Vec(chunk_x, chunk_y, chunk_z) * mip_chunk_size
+  bbx = Bbox(offset, offset + mip_chunk_size + overlap_vx)
+  if cv.meta.chunks_start_at_voxel_offset:
+    bbx -= ws_cv.voxel_offset
+  bbx = Bbox.clamp(bbx, ws_cv.bounds)
 
-  seg = ws_cv[ Bbox(chunk_start, chunk_end) ][..., 0]
+  seg = ws_cv[bbx][..., 0]
 
   if not np.any(seg):
     return seg

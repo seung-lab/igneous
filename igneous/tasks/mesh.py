@@ -435,6 +435,9 @@ class GrapheneMeshTask(RegisteredTask):
     return meshes
 
   def upload_meshes(self, meshes):
+    if len(meshes) == 0:
+      return
+
     reader = self.cv.mesh.readers[self.layer_id] 
 
     shard_binary = reader.spec.synthesize_shard(meshes)

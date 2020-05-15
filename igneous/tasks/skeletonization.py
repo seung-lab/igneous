@@ -376,6 +376,14 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     return index_filenames
 
   def labels_for_shard(self, cv):
+    """
+    Try to fetch precalculated labels from `$shardno.labels` (faster) otherwise, 
+    compute which labels are applicable to this shard from the shard index (much slower).
+    """
+    labels = SimpleStorage(cv.skeleton.meta.layerpath).get_json(self.shard_no + '.labels')
+    if labels is not None:
+      return labels
+
     labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
     spec = cv.skeleton.reader.spec
 

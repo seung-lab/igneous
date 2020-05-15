@@ -12,7 +12,7 @@ spec:
       dnsPolicy: Default
       containers:
         - name: igneous
-          image: seunglab/igneous:master
+          image: seunglab/igneous
           volumeMounts:
           - name: secrets
             mountPath: "/secrets"

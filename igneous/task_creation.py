@@ -21,7 +21,7 @@ from tqdm import tqdm
 import cloudvolume
 from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
-from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow
+from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from taskqueue import TaskQueue, MockTaskQueue 
 
@@ -731,13 +731,28 @@ def create_sharded_skeleton_merge_tasks(
   all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
   # perf: ~36k hashes/sec
   shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
-  shard_numbers = set(( shardfn(label) for label in all_labels ))
+
+  shard_labels = defaultdict(list)
+  for label in all_labels:
+    shard_labels[shardfn(label)].append(label)
+
+  with Storage(cv.skeleton.meta.layerpath) as stor:
+    files = ( 
+      (str(shardno) + '.labels', jsonify(labels).encode('utf8')) 
+      for shardno, labels in shard_labels.items() 
+    )
+    stor.put_files(
+      files,
+      content_type='application/json', 
+      compress='gzip', 
+      cache_control='no-cache'
+    )
 
   # This should always be a small number of tasks,
   # no more than tens of thousands and usually much 
   # less.
   tasks = []
-  for shard_no in shard_numbers:
+  for shard_no in shard_labels.keys():
     task = ShardedSkeletonMergeTask(
       layer_path, shard_no, 
       dust_threshold, tick_threshold

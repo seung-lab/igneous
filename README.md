@@ -47,7 +47,7 @@ print("Done!")
 
 ## Sample Cloud Use
 
-Igneous is intended to be used with Kubernetes (k8s). A pre-built docker container is located on DockerHub as `seunglab/igneous:master`. A sample `deployment.yml` (used with `kubectl create -f deployment.yml`) is located in the root of the repository.  
+Igneous is intended to be used with Kubernetes (k8s). A pre-built docker container is located on DockerHub as `seunglab/igneous`. A sample `deployment.yml` (used with `kubectl create -f deployment.yml`) is located in the root of the repository.  
 
 As Igneous is based on [CloudVolume](https://github.com/seung-lab/cloud-volume), you'll need to create a `google-secret.json` or `aws-secret.json` to access buckets located on these services. 
 

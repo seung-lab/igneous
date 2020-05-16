@@ -1,6 +1,7 @@
 import six
 
 from functools import reduce
+import itertools
 import json
 import pickle
 import posixpath
@@ -16,7 +17,7 @@ import pylru
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton, view
 from cloudvolume.storage import Storage, SimpleStorage
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images, jsonify
+from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images, jsonify, scatter
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
 import fastremap
@@ -292,15 +293,16 @@ class ShardedSkeletonMergeTask(RegisteredTask):
   """
   def __init__(
     self, cloudpath, shard_no, 
-    dust_threshold=4000, tick_threshold=6000,
+    dust_threshold=4000, tick_threshold=6000
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
       dust_threshold, tick_threshold
     )
+    self.progress = False
 
   def execute(self):
-    cv = CloudVolume(self.cloudpath, cache=True)
+    cv = CloudVolume(self.cloudpath, cache=True, progress=self.progress)
     labels = self.labels_for_shard(cv)
     locations = self.locations_for_labels(labels, cv)
     skeletons = self.process_skeletons(locations, cv)
@@ -317,7 +319,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       ))
 
     uploadable = [ (fname, data) for fname, data in shard_files.items() ]
-    with Storage(cv.skeleton.meta.layerpath) as stor:
+    with Storage(cv.skeleton.meta.layerpath, progress=self.progress) as stor:
       stor.put_files(
         files=uploadable, 
         compress=False,
@@ -325,12 +327,14 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         cache_control='no-cache',
       )
 
-  def process_skeletons(self, locations, cv):
+  def process_skeletons(self, locations, cv):    
+    filenames = set(itertools.chain(*locations.values()))
+    labels = set(locations.keys())
+    unfused_skeletons = self.get_unfused(labels, filenames, cv)
+
     skeletons = {}
-    for label, locs in locations.items():
-      skel = PrecomputedSkeleton.simple_merge(
-        self.get_unfused(label, locs, cv)
-      )
+    for label, skels in tqdm(unfused_skeletons.items(), desc="Postprocessing", disable=(not self.progress)):
+      skel = PrecomputedSkeleton.simple_merge(skels)
       skel.id = label
       skel.extra_attributes = [ 
         attr for attr in skel.extra_attributes \
@@ -344,27 +348,25 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
     return skeletons
 
-  def get_unfused(self, label, locs, cv):    
+  def get_unfused(self, labels, filenames, cv):    
     skeldirfn = lambda loc: cv.meta.join(cv.skeleton.meta.skeleton_path, loc)
-    locs = [ skeldirfn(loc) for loc in locs ]
+    filenames = [ skeldirfn(loc) for loc in filenames ]
 
-    in_memory =  [ FRAG_CACHE[loc] for loc in locs if loc in FRAG_CACHE ]
-    locs = [ loc for loc in locs if loc not in FRAG_CACHE ]
+    block_size = 50
+    n_blocks = len(filenames) // block_size
+    blocks = scatter(filenames, n_blocks)
 
-    all_files = cv.skeleton.cache.download(locs)
-    for filename, content in all_files.items():
-      all_files[filename] = pickle.loads(content)
-      FRAG_CACHE[filename] = all_files[filename]
+    for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not self.progress)):
+      all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)
+      all_skels = defaultdict(list)
 
-    all_files = list(all_files.values()) + in_memory
+      for filename, content in tqdm(all_files.items(), desc="Unpickling Fragments", disable=(not self.progress)):
+        fragment = pickle.loads(content)
+        for label in labels:
+          if label in fragment:
+            all_skels[label].append(fragment[label])
 
-    unfused_skeletons = []
-    while all_files:
-      fragment = all_files.pop()
-      if label in fragment:
-        unfused_skeletons.append(fragment[label])
-
-    return unfused_skeletons
+    return all_skels
 
   def locations_for_labels(self, labels, cv):
     index_filenames = cv.skeleton.spatial_index.file_locations_per_label(labels)
@@ -388,6 +390,6 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     spec = cv.skeleton.reader.spec
 
     return [ 
-      lbl for lbl in labels \
+      lbl for lbl in tqdm(labels, desc="Computing Shard Numbers", disable=(not self.progress))  \
       if spec.compute_shard_location(lbl).shard_number == self.shard_no 
     ]

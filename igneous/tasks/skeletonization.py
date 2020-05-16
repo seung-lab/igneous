@@ -12,7 +12,6 @@ from collections import defaultdict
 from tqdm import tqdm
 
 import numpy as np
-import pylru
 
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton, view
@@ -27,8 +26,6 @@ from taskqueue import RegisteredTask
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
 SPATIAL_EXT = re.compile(r'\.spatial$')
-
-FRAG_CACHE = pylru.lrucache(100)
 
 def filename_to_segid(filename):
   matches = SEGIDRE.search(filename)

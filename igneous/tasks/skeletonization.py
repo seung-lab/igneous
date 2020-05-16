@@ -280,14 +280,6 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     return cropped
 
 class ShardedSkeletonMergeTask(RegisteredTask):
-  """
-  Note: unlike most other igneous tasks, this task 
-  has "side effects" in that it writes to disk
-  and has a persistent LRU cache in memory. 
-
-  You will need to redeploy your Kubernetes deployment
-  to clear these out.
-  """
   def __init__(
     self, cloudpath, shard_no, 
     dust_threshold=4000, tick_threshold=6000
@@ -299,7 +291,9 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     self.progress = False
 
   def execute(self):
-    cv = CloudVolume(self.cloudpath, cache=True, progress=self.progress)
+    # cache is necessary for local computation, but on GCE download is very fast
+    # so cache isn't necessary.
+    cv = CloudVolume(self.cloudpath, cache=False, progress=self.progress)
     labels = self.labels_for_shard(cv)
     locations = self.locations_for_labels(labels, cv)
     skeletons = self.process_skeletons(locations, cv)

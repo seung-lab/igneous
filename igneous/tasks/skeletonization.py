@@ -25,7 +25,6 @@ import kimimaro
 from taskqueue import RegisteredTask
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
-SPATIAL_EXT = re.compile(r'\.spatial$')
 
 def filename_to_segid(filename):
   matches = SEGIDRE.search(filename)
@@ -344,13 +343,18 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     filenames = [ skeldirfn(loc) for loc in filenames ]
 
     block_size = 50
-    n_blocks = len(filenames) // block_size
-    blocks = scatter(filenames, n_blocks)
 
+    if len(filenames) < block_size:
+      blocks = [ filenames ]
+      n_blocks = 1
+    else:
+      n_blocks = max(len(filenames) // block_size, 1)
+      blocks = scatter(filenames, n_blocks)
+
+    all_skels = defaultdict(list)
     for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not self.progress)):
       all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)
-      all_skels = defaultdict(list)
-
+      
       for filename, content in tqdm(all_files.items(), desc="Unpickling Fragments", disable=(not self.progress)):
         fragment = pickle.loads(content)
         for label in labels:
@@ -360,6 +364,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     return all_skels
 
   def locations_for_labels(self, labels, cv):
+    SPATIAL_EXT = re.compile(r'\.spatial$')
     index_filenames = cv.skeleton.spatial_index.file_locations_per_label(labels)
     for label, locations in index_filenames.items():
       for i, location in enumerate(locations):

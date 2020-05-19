@@ -574,6 +574,8 @@ def create_skeletonizing_tasks(
     vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
   
   vol.skeleton.meta.info['mip'] = int(mip)
+  if sharded:
+    vol.skeleton.meta.info['vertex_attributes'] = vol.skeleton.meta.info['vertex_attributes'][:1]
   vol.skeleton.meta.commit_info()
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))

@@ -131,6 +131,13 @@ class SkeletonTask(RegisteredTask):
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
   
   def upload_batch(self, vol, path, bbox, skeletons):
+    # neuroglancer doesn't support int attributes for shards
+    for skel in skeletons.values():
+      skel.extra_attributes = [ 
+      attr for attr in skel.extra_attributes 
+      if attr['data_type'] in ('float32', 'float64')
+    ]
+
     with SimpleStorage(path, progress=vol.progress) as stor:
       # Create skeleton batch for postprocessing later
       stor.put_file(

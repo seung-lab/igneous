@@ -307,6 +307,8 @@ def create_downsampling_tasks(
     dest_path: (optional) instead of writing downsamples to the existing 
       volume, write them somewhere else. This can be useful e.g. if someone 
       doesn't want you to touch the existing info file.
+    compress: None, 'gzip', or 'br' Determines which compression algorithm to use 
+      for new uploaded files.
     """
     def ds_shape(mip, chunk_size=None):
       if chunk_size:
@@ -938,7 +940,7 @@ def create_transfer_tasks(
     bounds=None, mip=0, preserve_chunk_size=True,
     encoding=None, skip_downsamples=False,
     delete_black_uploads=False, background_color=0,
-    agglomerate=False, timestamp=None
+    agglomerate=False, timestamp=None, compress='gzip'
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -997,6 +999,7 @@ def create_transfer_tasks(
         background_color=background_color,
         agglomerate=agglomerate,
         timestamp=timestamp,
+        compress=compress,
       )
 
     def on_finish(self):
@@ -1018,6 +1021,7 @@ def create_transfer_tasks(
           'mip': mip,
           'agglomerate': bool(agglomerate),
           'timestamp': timestamp,
+          'compress': compress,
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

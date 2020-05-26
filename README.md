@@ -160,6 +160,7 @@ tasks = create_downsampling_tasks(
     encoding=None # e.g. 'raw', 'compressed_segmentation', etc
     delete_black_uploads=False, # issue a delete instead of uploading files containing all background
     background_color=0, # Designates the background color
+    compress='gzip', # None, 'gzip', and 'br' (brotli) are options
   )
 ```
 
@@ -195,7 +196,7 @@ tasks = create_transfer_tasks(
   fill_missing=False, translate=(0,0,0), 
   bounds=None, mip=0, preserve_chunk_size=True,
   encoding=None, skip_downsamples=False,
-  delete_black_uploads=False
+  delete_black_uploads=False, compress='gzip'
 )
 ```
 

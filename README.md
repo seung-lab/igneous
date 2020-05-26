@@ -129,7 +129,6 @@ Contrast Normalization   |LuminanceLevelsTask, ContrastNormalizationTask |Spread
 Quantization             |QuantizeTask                                   |Rescale values into 8-bit to make them easier to visualize.          
 Remapping                |WatershedRemapTask                             |Remap segmentations to create agglomerated labels.                   
 Eyewire Consensus Import |HyperSquareConsensusTask                       |Map Eyewire consensus into Neuroglancer.                             
-Ingest                   |IngestTask                                     |(deprecated) Convert HDF5 into Precomputed format.                   
 HyperSquare Ingest       |HyperSquareTask                                |(deprecated) Convert Eyewire's HyperSquare format into Precomputed.  
 HyperSquareConsensus     |HyperSquareConsensusTask                       |Apply Eyewire consensus to a watershed version in Precomputed.
 

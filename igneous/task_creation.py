@@ -28,7 +28,7 @@ from taskqueue import TaskQueue, MockTaskQueue
 from igneous import downsample_scales, chunks
 import igneous.tasks
 from igneous.tasks import (
-  IngestTask, HyperSquareConsensusTask, 
+  HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, GrapheneMeshTask,
   DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
@@ -118,23 +118,6 @@ class FinelyDividedTaskIterator():
   def on_finish(self):
     pass
 
-def create_ingest_tasks(cloudpath):
-  """
-  Creates one task for each ingest chunk present in the build folder.
-  It is required that the info file is already placed in order for this task
-  to run succesfully.
-  """
-  class IngestTaskIterator():
-    def __iter__(self):
-      with Storage(cloudpath) as storage:
-        for filename in storage.list_files(prefix='build/'):
-          yield IngestTask(
-            chunk_path=storage.get_path_to_file('build/'+filename),
-            chunk_encoding='npz',
-            layer_path=cloudpath,
-          )
-  return IngestTaskIterator()
-
 # def create_bigarray_task(cloudpath):
 #   """
 #   Creates one task for each bigarray chunk present in the bigarray folder.
@@ -150,50 +133,6 @@ def create_ingest_tasks(cloudpath):
 #             version='{}/{}'.format(storage._path.dataset_name, storage._path.layer_name)
 #           )
 #   return BigArrayTaskIterator()
-
-def compute_build_bounding_box(storage, prefix='build/'):
-    bboxes = []
-    for filename in tqdm(storage.list_files(prefix=prefix), desc='Computing Bounds'):
-        bbox = Bbox.from_filename(filename) 
-        bboxes.append(bbox)
-
-    bounds = Bbox.expand(*bboxes)
-    chunk_size = reduce(max2, map(lambda bbox: bbox.size3(), bboxes))
-
-    print('bounds={} (size: {}); chunk_size={}'.format(bounds, bounds.size3(), chunk_size))
-  
-    return bounds, chunk_size
-
-def get_build_data_type_and_shape(storage):
-    for filename in storage.list_files(prefix='build/'):
-        arr = chunks.decode_npz(storage.get_file(filename))
-        return arr.dtype.name, arr.shape[3] #num_channels
-
-def create_info_file_from_build(layer_path, layer_type, resolution, encoding):
-  assert layer_type in ('image', 'segmentation', 'affinities')
-
-  with Storage(layer_path) as storage:
-    bounds, build_chunk_size = compute_build_bounding_box(storage)
-    data_type, num_channels = get_build_data_type_and_shape(storage)
-
-  neuroglancer_chunk_size = find_closest_divisor(build_chunk_size, closest_to=[64,64,64])
-
-  info = CloudVolume.create_new_info(
-    num_channels=num_channels, 
-    layer_type=layer_type, 
-    data_type=data_type, 
-    encoding=encoding, 
-    resolution=resolution, 
-    voxel_offset=bounds.minpt.tolist(), 
-    volume_size=bounds.size3(),
-    mesh=(layer_type == 'segmentation'), 
-    chunk_size=list(map(int, neuroglancer_chunk_size)),
-  )
-
-  vol = CloudVolume(layer_path, mip=0, info=info).commit_info()
-  vol = create_downsample_scales(layer_path, mip=0, ds_shape=build_chunk_size, axis='z')
-  
-  return vol.info
 
 def create_downsample_scales(
     layer_path, mip, ds_shape, axis='z', 
@@ -1612,7 +1551,6 @@ def create_mask_affinity_map_tasks(
         vol.commit_provenance()
 
     return MaskAffinityMapTaskIterator()
-
 
 def create_inference_tasks(
     image_layer_path, convnet_path, 

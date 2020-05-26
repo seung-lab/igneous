@@ -112,36 +112,6 @@ def cache(task, cloudpath):
 
   return filestr
 
-class IngestTask(RegisteredTask):
-  """Ingests and does downsampling.
-     We want tasks execution to be independent of each other, so that no synchronization is
-     required.
-     The downsample scales should be such that the lowest resolution chunk should be able
-     to be produce from the data available.
-  """
-
-  def __init__(self, chunk_path, chunk_encoding, layer_path):
-    super(IngestTask, self).__init__(chunk_path, chunk_encoding, layer_path)
-    self.chunk_path = chunk_path
-    self.chunk_encoding = chunk_encoding
-    self.layer_path = layer_path
-
-  def execute(self):
-    volume = CloudVolume(self.layer_path, mip=0)
-    bounds = Bbox.from_filename(self.chunk_path)
-    image = self._download_input_chunk(bounds)
-    image = chunks.decode(image, self.chunk_encoding)
-    # BUG: We need to provide some kind of ds_shape independent of the image
-    # otherwise the edges of the dataset may not generate as many mip levels.
-    downsample_and_upload(image, bounds, volume, mip=0,
-                          ds_shape=image.shape[:3])
-
-  def _download_input_chunk(self, bounds):
-    storage = Storage(self.layer_path, n_threads=0)
-    relpath = 'build/{}'.format(bounds.to_filename())
-    return storage.get_file(relpath)
-
-
 class DeleteTask(RegisteredTask):
   """Delete a block of images inside a layer on all mip levels."""
 

@@ -744,6 +744,7 @@ class TransferTask(RegisteredTask):
     axis='z',
     agglomerate=False,
     timestamp=None,
+    compress='gzip',
   ):
     super(TransferTask, self).__init__(
       src_path, dest_path, 
@@ -751,7 +752,7 @@ class TransferTask(RegisteredTask):
       translate, fill_missing, 
       skip_first, skip_downsamples,
       delete_black_uploads, background_color,
-      sparse, axis, agglomerate, timestamp
+      sparse, axis, agglomerate, timestamp, compress
     )
     self.src_path = src_path
     self.dest_path = dest_path
@@ -769,6 +770,7 @@ class TransferTask(RegisteredTask):
     self.sparse = sparse
     self.agglomerate = agglomerate
     self.timestamp = timestamp
+    self.compress = compress
 
   def execute(self):
     srccv = CloudVolume(
@@ -778,7 +780,7 @@ class TransferTask(RegisteredTask):
     destcv = CloudVolume(
       self.dest_path, fill_missing=self.fill_missing,
       mip=self.mip, delete_black_uploads=self.delete_black_uploads,
-      background_color=self.background_color
+      background_color=self.background_color, compress=self.compress
     )
 
     dst_bounds = Bbox(self.offset, self.shape + self.offset)
@@ -803,7 +805,7 @@ class DownsampleTask(TransferTask):
     self, layer_path, mip, shape, offset, 
     fill_missing=False, axis='z', sparse=False,
     delete_black_uploads=False, background_color=0,
-    dest_path=None
+    dest_path=None, compress="gzip"
   ):
     self.layer_type = layer_path
 
@@ -820,7 +822,8 @@ class DownsampleTask(TransferTask):
       delete_black_uploads=delete_black_uploads, 
       background_color=background_color,
       sparse=sparse,
-      axis=axis
+      axis=axis,
+      compress=compress
     )
 
 

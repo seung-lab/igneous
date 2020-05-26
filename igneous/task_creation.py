@@ -345,7 +345,7 @@ def create_downsampling_tasks(
     axis='z', num_mips=5, preserve_chunk_size=True,
     sparse=False, bounds=None, chunk_size=None,
     encoding=None, delete_black_uploads=False, 
-    background_color=0, dest_path=None
+    background_color=0, dest_path=None, compress=None
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -404,7 +404,8 @@ def create_downsampling_tasks(
           sparse=sparse,
           delete_black_uploads=delete_black_uploads,
           background_color=background_color,
-          dest_path=dest_path
+          dest_path=dest_path,
+          compress=compress,
         )
 
       def on_finish(self):
@@ -424,6 +425,7 @@ def create_downsampling_tasks(
             'delete_black_uploads': bool(delete_black_uploads),
             'background_color': background_color,
             'dest_path': dest_path,
+            'compress': compress,
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),

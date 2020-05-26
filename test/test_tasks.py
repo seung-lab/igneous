@@ -1,3 +1,5 @@
+import pytest
+
 from builtins import range
 from collections import defaultdict
 import json
@@ -80,7 +82,8 @@ def test_ingest_segmentation():
     cv.mip = 2
     assert np.all(cv[slice64] == data_ds2[slice64])
 
-def test_downsample_no_offset():
+@pytest.mark.parametrize("compression_method", (None, "gzip", "br"))
+def test_downsample_no_offset(compression_method):
     delete_layer()
     storage, data = create_layer(size=(1024,1024,128,1), offset=(0,0,0))
     cv = CloudVolume(storage.layer_path)
@@ -90,7 +93,7 @@ def test_downsample_no_offset():
     cv.commit_info()
 
     tq = MockTaskQueue()
-    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=4)
+    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=4, compress=compression_method)
     tq.insert_all(tasks)
 
     cv.refresh_info()

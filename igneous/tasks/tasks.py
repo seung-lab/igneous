@@ -112,36 +112,6 @@ def cache(task, cloudpath):
 
   return filestr
 
-class IngestTask(RegisteredTask):
-  """Ingests and does downsampling.
-     We want tasks execution to be independent of each other, so that no synchronization is
-     required.
-     The downsample scales should be such that the lowest resolution chunk should be able
-     to be produce from the data available.
-  """
-
-  def __init__(self, chunk_path, chunk_encoding, layer_path):
-    super(IngestTask, self).__init__(chunk_path, chunk_encoding, layer_path)
-    self.chunk_path = chunk_path
-    self.chunk_encoding = chunk_encoding
-    self.layer_path = layer_path
-
-  def execute(self):
-    volume = CloudVolume(self.layer_path, mip=0)
-    bounds = Bbox.from_filename(self.chunk_path)
-    image = self._download_input_chunk(bounds)
-    image = chunks.decode(image, self.chunk_encoding)
-    # BUG: We need to provide some kind of ds_shape independent of the image
-    # otherwise the edges of the dataset may not generate as many mip levels.
-    downsample_and_upload(image, bounds, volume, mip=0,
-                          ds_shape=image.shape[:3])
-
-  def _download_input_chunk(self, bounds):
-    storage = Storage(self.layer_path, n_threads=0)
-    relpath = 'build/{}'.format(bounds.to_filename())
-    return storage.get_file(relpath)
-
-
 class DeleteTask(RegisteredTask):
   """Delete a block of images inside a layer on all mip levels."""
 
@@ -744,6 +714,7 @@ class TransferTask(RegisteredTask):
     axis='z',
     agglomerate=False,
     timestamp=None,
+    compress='gzip',
   ):
     super(TransferTask, self).__init__(
       src_path, dest_path, 
@@ -751,7 +722,7 @@ class TransferTask(RegisteredTask):
       translate, fill_missing, 
       skip_first, skip_downsamples,
       delete_black_uploads, background_color,
-      sparse, axis, agglomerate, timestamp
+      sparse, axis, agglomerate, timestamp, compress
     )
     self.src_path = src_path
     self.dest_path = dest_path
@@ -769,6 +740,7 @@ class TransferTask(RegisteredTask):
     self.sparse = sparse
     self.agglomerate = agglomerate
     self.timestamp = timestamp
+    self.compress = compress
 
   def execute(self):
     srccv = CloudVolume(
@@ -778,7 +750,7 @@ class TransferTask(RegisteredTask):
     destcv = CloudVolume(
       self.dest_path, fill_missing=self.fill_missing,
       mip=self.mip, delete_black_uploads=self.delete_black_uploads,
-      background_color=self.background_color
+      background_color=self.background_color, compress=self.compress
     )
 
     dst_bounds = Bbox(self.offset, self.shape + self.offset)
@@ -803,7 +775,7 @@ class DownsampleTask(TransferTask):
     self, layer_path, mip, shape, offset, 
     fill_missing=False, axis='z', sparse=False,
     delete_black_uploads=False, background_color=0,
-    dest_path=None
+    dest_path=None, compress="gzip"
   ):
     self.layer_type = layer_path
 
@@ -820,7 +792,8 @@ class DownsampleTask(TransferTask):
       delete_black_uploads=delete_black_uploads, 
       background_color=background_color,
       sparse=sparse,
-      axis=axis
+      axis=axis,
+      compress=compress
     )
 
 

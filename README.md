@@ -129,7 +129,6 @@ Contrast Normalization   |LuminanceLevelsTask, ContrastNormalizationTask |Spread
 Quantization             |QuantizeTask                                   |Rescale values into 8-bit to make them easier to visualize.          
 Remapping                |WatershedRemapTask                             |Remap segmentations to create agglomerated labels.                   
 Eyewire Consensus Import |HyperSquareConsensusTask                       |Map Eyewire consensus into Neuroglancer.                             
-Ingest                   |IngestTask                                     |(deprecated) Convert HDF5 into Precomputed format.                   
 HyperSquare Ingest       |HyperSquareTask                                |(deprecated) Convert Eyewire's HyperSquare format into Precomputed.  
 HyperSquareConsensus     |HyperSquareConsensusTask                       |Apply Eyewire consensus to a watershed version in Precomputed.
 
@@ -160,6 +159,7 @@ tasks = create_downsampling_tasks(
     encoding=None # e.g. 'raw', 'compressed_segmentation', etc
     delete_black_uploads=False, # issue a delete instead of uploading files containing all background
     background_color=0, # Designates the background color
+    compress='gzip', # None, 'gzip', and 'br' (brotli) are options
   )
 ```
 
@@ -195,7 +195,7 @@ tasks = create_transfer_tasks(
   fill_missing=False, translate=(0,0,0), 
   bounds=None, mip=0, preserve_chunk_size=True,
   encoding=None, skip_downsamples=False,
-  delete_black_uploads=False
+  delete_black_uploads=False, compress='gzip'
 )
 ```
 

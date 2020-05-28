@@ -965,6 +965,8 @@ def create_transfer_tasks(
 
   if encoding is not None:
     dvol.info['scales'][mip]['encoding'] = encoding
+    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dvol.info['scales'][mip]:
+      dvol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
   dvol.info['scales'] = dvol.info['scales'][:mip+1]
   dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
   dvol.commit_info()

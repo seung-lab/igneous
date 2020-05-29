@@ -56,3 +56,29 @@ def test_plane_scales_yz():
   assert scales[4] == (1,16,16)
 
 
+def test_plane_scales_all():
+  scales = downsample_scales.compute_plane_downsampling_scales( 
+    (2048, 2048, 512), max_downsampled_size=128, preserve_axis=''
+  )
+
+  assert len(scales) == 5
+  assert scales[0] == (1,1,1)
+  assert scales[1] == (2,2,2)
+  assert scales[2] == (4,4,4)
+  assert scales[3] == (8,8,8)
+  assert scales[4] == (16,16,16)
+
+  scales = downsample_scales.compute_plane_downsampling_scales( 
+    (357, 2048, 512), max_downsampled_size=128, preserve_axis=''
+  )
+
+  assert len(scales) == 2
+  assert scales[0] == (1,1,1)
+  assert scales[1] == (2,2,2)
+
+  scales = downsample_scales.compute_plane_downsampling_scales( 
+    (0, 2048, 512), max_downsampled_size=128, preserve_axis=''
+  )
+
+  assert len(scales) == 1
+  assert scales[0] == (1,1,1)

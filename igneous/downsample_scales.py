@@ -101,15 +101,16 @@ def compute_plane_downsampling_scales(size, preserve_axis='z',
                                        max_downsampling=DEFAULT_MAX_DOWNSAMPLING,
                                        max_downsampled_size=DEFAULT_MAX_DOWNSAMPLED_SIZE):
 
-    axis_map = { 'x': 0, 'y': 1, 'z': 2 }
-    preserve_axis = axis_map[preserve_axis]
-
     size = np.array(size)
-
     if np.any(size <= 0):
         return [ (1,1,1) ]
 
-    size[preserve_axis] = size[ (preserve_axis + 1) % 3 ]
+    if preserve_axis in ['x', 'y', 'z']:
+        axis_map = { 'x': 0, 'y': 1, 'z': 2 }
+        preserve_axis = axis_map[preserve_axis]
+        size[preserve_axis] = size[ (preserve_axis + 1) % 3 ]
+    else:
+        preserve_axis = None
 
     dimension = min(*size)
     num_downsamples = int(np.log2(dimension / max_downsampled_size))
@@ -124,7 +125,8 @@ def compute_plane_downsampling_scales(size, preserve_axis='z',
             break
 
         scale = [ factor, factor, factor ]
-        scale[preserve_axis] = 1
+        if preserve_axis is not None:
+            scale[preserve_axis] = 1
 
         scales.append(tuple(scale))
         factor *= 2

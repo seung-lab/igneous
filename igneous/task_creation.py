@@ -200,6 +200,8 @@ def create_downsample_scales(
     encoding=None
   ):
   vol = CloudVolume(layer_path, mip)
+  # with Storage(layer_path) as storage:
+  #   vol.info = storage.get_json('info.new')
   shape = min2(vol.volume_size, ds_shape)
 
   # sometimes we downsample a base layer of 512x512 
@@ -210,9 +212,10 @@ def create_downsample_scales(
   if chunk_size:
     underlying_shape = Vec(*chunk_size).astype(np.float32)
 
-  toidx = { 'x': 0, 'y': 1, 'z': 2 }
-  preserved_idx = toidx[axis]
-  underlying_shape[preserved_idx] = float('inf')
+  if axis in ['x', 'y', 'z']:
+    toidx = { 'x': 0, 'y': 1, 'z': 2 }
+    preserved_idx = toidx[axis]
+    underlying_shape[preserved_idx] = float('inf')
 
   scales = downsample_scales.compute_plane_downsampling_scales(
     size=shape, 
@@ -242,7 +245,7 @@ def create_downsample_scales(
   for i in range(mip + 1, mip + len(scales) + 1):
     vol.scales[i]['chunk_sizes'] = chunk_size
 
-  vol.commit_info()
+  # vol.commit_info()
   return vol
 
 def create_blackout_tasks(
@@ -373,8 +376,12 @@ def create_downsampling_tasks(
         shape = Vec(*chunk_size)
       else:
         shape = vol.mip_underlying(mip)[:3]
-      shape.x *= 2 ** num_mips
-      shape.y *= 2 ** num_mips
+      if axis != 'x':
+        shape.x *= 2 ** num_mips
+      if axis != 'y':
+        shape.y *= 2 ** num_mips
+      if axis != 'z':
+        shape.z *= 2 ** num_mips
       return shape
 
     vol = CloudVolume(layer_path, mip=mip)
@@ -383,7 +390,7 @@ def create_downsampling_tasks(
     vol = create_downsample_scales(
       layer_path, mip, shape, 
       preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
-      encoding=encoding
+      encoding=encoding, axis=axis
     )
 
     if not preserve_chunk_size or chunk_size:

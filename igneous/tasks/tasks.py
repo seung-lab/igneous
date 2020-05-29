@@ -46,9 +46,10 @@ def downsample_and_upload(
     # into underlying chunks of 64x64 which permits more scales
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
     underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
-    toidx = {'x': 0, 'y': 1, 'z': 2}
-    preserved_idx = toidx[axis]
-    underlying_shape[preserved_idx] = float('inf')
+    if axis in ['x', 'y', 'z']:
+      toidx = {'x': 0, 'y': 1, 'z': 2}
+      preserved_idx = toidx[axis]
+      underlying_shape[preserved_idx] = float('inf')
 
     # Need to use ds_shape here. Using image bounds means truncated
     # edges won't generate as many mip levels
@@ -91,7 +92,12 @@ def downsample_and_upload(
       new_bounds //= factor3
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
-      vol[new_bounds] = mipped
+      try:
+        vol[new_bounds] = mipped
+      except:
+        import IPython
+        IPython.embed()
+        raise()
 
 def cache(task, cloudpath):
   layer_path, filename = os.path.split(cloudpath)
@@ -1127,11 +1133,15 @@ class TransferTask(RegisteredTask):
       self.src_path, fill_missing=self.fill_missing,
       mip=self.mip, bounded=False
     )
+    # with Storage(self.src_path) as storage:
+    #   srccv.info = storage.get_json('info.new')
     destcv = CloudVolume(
       self.dest_path, fill_missing=self.fill_missing,
       mip=self.mip, delete_black_uploads=self.delete_black_uploads,
-      background_color=self.background_color
+      background_color=self.background_color#, non_aligned_writes=True
     )
+    # with Storage(self.dest_path) as storage:
+    #   destcv.info = storage.get_json('info.new')
 
     dst_bounds = Bbox(self.offset, self.shape + self.offset)
     dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
@@ -1139,6 +1149,11 @@ class TransferTask(RegisteredTask):
     image = srccv.download(
       src_bounds, agglomerate=self.agglomerate, timestamp=self.timestamp
     )
+    if np.max(image) <= 1:
+      print("Near empty volume - skip")
+      return
+    
+    print("All good - here we go")
 
     if self.skip_downsamples:
       destcv[dst_bounds] = image

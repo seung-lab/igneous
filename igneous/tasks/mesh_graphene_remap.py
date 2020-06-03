@@ -68,7 +68,10 @@ def remap_segmentation(
   cv, chunk_x, chunk_y, chunk_z, mip=2, 
   overlap_vx=1, time_stamp=None, progress=False
 ):
-  ws_cv = CloudVolume(cv.meta.cloudpath, mip=mip, progress=progress)
+  ws_cv = CloudVolume(
+    cv.meta.cloudpath, mip=mip, 
+    progress=progress, fill_missing=cv.fill_missing
+  )
   mip_diff = mip - cv.meta.watershed_mip
 
   mip_chunk_size = np.array(

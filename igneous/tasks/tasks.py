@@ -28,36 +28,54 @@ from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
 from taskqueue import RegisteredTask
 
-from igneous import chunks, downsample_scales
+from igneous import chunks
 
 import DracoPy
 import fastremap
 import tinybrain
 import zmesh
 
+def compute_factors(vol, ds_shape, factor, chunk_size):
+  grid_size = Vec(*ds_shape, dtype=np.float32) / Vec(*chunk_size, dtype=np.float32)
+  # find the dimension which will tolerate the smallest number of downsamples and 
+  # return the number it will accept. + 0.0001 then truncate to compensate for FP errors
+  # that would result in the log e.g. resulting in 1.9999999382 when it should be an
+  # exact result.
+
+  # This filtering is to avoid problems with dividing by log(1)
+  grid_size = [ g for f, g in zip(factor, grid_size) if f != 1 ]
+  grid_size = Vec(*grid_size, dtype=np.float32)
+
+  factor_div = [ f for f in factor if f != 1 ]
+  factor_div = Vec(*factor_div, dtype=np.float32)
+
+  if len(factor_div) == 0:
+    return []
+
+  N = np.log(grid_size) / np.log(factor_div)
+  N += 0.0001
+  return [ factor ] * int(min(N))
+
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
-    sparse=False
+    sparse=False, factor=None
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
-
-    # sometimes we downsample a base layer of 512x512
-    # into underlying chunks of 64x64 which permits more scales
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
-    underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
-    toidx = {'x': 0, 'y': 1, 'z': 2}
-    preserved_idx = toidx[axis]
-    underlying_shape[preserved_idx] = float('inf')
+    chunk_size = vol.meta.chunk_size(underlying_mip).astype(np.float32)
 
-    # Need to use ds_shape here. Using image bounds means truncated
-    # edges won't generate as many mip levels
-    fullscales = downsample_scales.compute_plane_downsampling_scales(
-      size=ds_shape,
-      preserve_axis=axis,
-      max_downsampled_size=int(min(*underlying_shape)),
-    )
-    factors = downsample_scales.scale_series_to_downsample_factors(fullscales)
+    if factor is None:
+      if axis == 'x':
+        factor = (1,2,2)
+      elif axis == 'y':
+        factor = (2,1,2)
+      elif axis == 'z':
+        factor = (2,2,1)
+      else:
+        raise ValueError("Axis not supported: " + str(axis))
+
+    factors = compute_factors(vol, ds_shape, factor, chunk_size)
 
     if len(factors) == 0:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
@@ -715,6 +733,7 @@ class TransferTask(RegisteredTask):
     agglomerate=False,
     timestamp=None,
     compress='gzip',
+    factor=None,
   ):
     super(TransferTask, self).__init__(
       src_path, dest_path, 
@@ -722,7 +741,8 @@ class TransferTask(RegisteredTask):
       translate, fill_missing, 
       skip_first, skip_downsamples,
       delete_black_uploads, background_color,
-      sparse, axis, agglomerate, timestamp, compress
+      sparse, axis, agglomerate, timestamp, 
+      compress, factor
     )
     self.src_path = src_path
     self.dest_path = dest_path
@@ -737,6 +757,7 @@ class TransferTask(RegisteredTask):
     self.skip_downsamples = bool(skip_downsamples)
     self.background_color = background_color
     self.axis = axis
+    self.factor = factor
     self.sparse = sparse
     self.agglomerate = agglomerate
     self.timestamp = timestamp
@@ -767,15 +788,21 @@ class TransferTask(RegisteredTask):
         image, dst_bounds, destcv,
         self.shape, mip=self.mip,
         skip_first=self.skip_first,
-        sparse=self.sparse, axis=self.axis
+        sparse=self.sparse, axis=self.axis,
+        factor=self.factor
       )
 
 class DownsampleTask(TransferTask):
+  """
+  Downsamples a cutout of the volume. By default it performs 
+  2x2x1 downsamples along the specified axis. The factor argument
+  overrrides this functionality.
+  """
   def __init__(
     self, layer_path, mip, shape, offset, 
     fill_missing=False, axis='z', sparse=False,
     delete_black_uploads=False, background_color=0,
-    dest_path=None, compress="gzip"
+    dest_path=None, compress="gzip", factor=None
   ):
     self.layer_type = layer_path
 
@@ -793,7 +820,8 @@ class DownsampleTask(TransferTask):
       background_color=background_color,
       sparse=sparse,
       axis=axis,
-      compress=compress
+      compress=compress,
+      factor=None,
     )
 
 

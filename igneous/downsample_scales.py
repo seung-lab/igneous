@@ -154,6 +154,16 @@ def compute_factors(ds_shape, factor, chunk_size):
   N += 0.0001
   return [ factor ] * int(min(N))
 
+def axis_to_factor(axis):
+  if axis == 'x':
+    return (1,2,2)
+  elif axis == 'y':
+    return (2,1,2)
+  elif axis == 'z':
+    return (2,2,1)
+  else:
+    raise ValueError("Axis not supported: " + str(axis))
+
 def compute_scales(vol, mip, shape, axis, factor, chunk_size=None):
   vol.mip = mip
   shape = min2(vol.volume_size, shape)
@@ -167,14 +177,7 @@ def compute_scales(vol, mip, shape, axis, factor, chunk_size=None):
     scale_chunk_size = vol.meta.chunk_size(underlying_mip).astype(np.float32)
 
   if factor is None:
-    if axis == 'x':
-      factor = (1,2,2)
-    elif axis == 'y':
-      factor = (2,1,2)
-    elif axis == 'z':
-      factor = (2,2,1)
-    else:
-      raise ValueError("Axis not supported: " + str(axis))
+    factor = axis_to_factor(axis)
 
   factors = compute_factors(shape, factor, scale_chunk_size)
   scales = [ vol.resolution ]

@@ -45,15 +45,7 @@ def downsample_and_upload(
     chunk_size = vol.meta.chunk_size(underlying_mip).astype(np.float32)
 
     if factor is None:
-      if axis == 'x':
-        factor = (1,2,2)
-      elif axis == 'y':
-        factor = (2,1,2)
-      elif axis == 'z':
-        factor = (2,2,1)
-      else:
-        raise ValueError("Axis not supported: " + str(axis))
-
+      factor = downsample_scales.axis_to_factor(axis)
     factors = downsample_scales.compute_factors(ds_shape, factor, chunk_size)
 
     if len(factors) == 0:
@@ -800,7 +792,7 @@ class DownsampleTask(TransferTask):
       sparse=sparse,
       axis=axis,
       compress=compress,
-      factor=None,
+      factor=factor,
     )
 
 

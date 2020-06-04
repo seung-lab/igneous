@@ -262,17 +262,22 @@ def create_downsampling_tasks(
     factor: (overrides axis) can manually specify what each downsampling round is
       supposed to do: e.g. (2,2,1), (2,2,2), etc
     """
-    def ds_shape(mip, chunk_size=None):
+    def ds_shape(mip, chunk_size=None, factor=None):
       if chunk_size:
         shape = Vec(*chunk_size)
       else:
         shape = vol.meta.chunk_size(mip)[:3]
-      shape.x *= 2 ** num_mips
-      shape.y *= 2 ** num_mips
+
+      if factor is None:
+        factor = downsample_scales.axis_to_factor(axis)
+
+      shape.x *= factor[0] ** num_mips
+      shape.y *= factor[1] ** num_mips
+      shape.z *= factor[2] ** num_mips
       return shape
 
     vol = CloudVolume(layer_path, mip=mip)
-    shape = ds_shape(mip, chunk_size)
+    shape = ds_shape(mip, chunk_size, factor)
 
     vol = downsample_scales.create_downsample_scales(
       layer_path, mip, shape, 

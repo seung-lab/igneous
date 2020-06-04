@@ -66,6 +66,47 @@ def test_downsample_no_offset(compression_method):
     cv.mip = 4
     assert np.all(cv[slice64] == data_ds4[slice64])
 
+def test_downsample_no_offset_2x2x2():
+    delete_layer()
+    storage, data = create_layer(size=(512,512,512,1), offset=(0,0,0))
+    cv = CloudVolume(storage.layer_path)
+    assert len(cv.scales) == 1
+    assert len(cv.available_mips) == 1
+
+    cv.commit_info()
+
+    tq = MockTaskQueue()
+    tasks = create_downsampling_tasks(
+        storage.layer_path, mip=0, num_mips=3, 
+        compress=None, factor=(2,2,2)
+    )
+    tq.insert_all(tasks)
+
+    cv.refresh_info()
+
+    assert len(cv.available_mips) == 4
+    assert np.array_equal(cv.mip_volume_size(0), [ 512, 512, 512 ])
+    assert np.array_equal(cv.mip_volume_size(1), [ 256, 256, 256 ])
+    assert np.array_equal(cv.mip_volume_size(2), [ 128, 128, 128 ])
+    assert np.array_equal(cv.mip_volume_size(3), [  64,  64,  64 ])
+    
+    slice64 = np.s_[0:64, 0:64, 0:64]
+
+    cv.mip = 0
+    assert np.all(cv[slice64] == data[slice64])
+
+    data_ds1, = tinybrain.downsample_with_averaging(data, factor=[2, 2, 2, 1])
+    cv.mip = 1
+    assert np.all(cv[slice64] == data_ds1[slice64])
+
+    data_ds2, = tinybrain.downsample_with_averaging(data, factor=[4, 4, 4, 1])
+    cv.mip = 2
+    assert np.all(cv[slice64] == data_ds2[slice64])
+
+    data_ds3, = tinybrain.downsample_with_averaging(data, factor=[8, 8, 8, 1])
+    cv.mip = 3
+    assert np.all(cv[slice64] == data_ds3[slice64])
+
 def test_downsample_with_offset():
     delete_layer()
     storage, data = create_layer(size=(512,512,128,1), offset=(3,7,11))

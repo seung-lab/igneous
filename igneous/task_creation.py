@@ -932,7 +932,7 @@ def create_transfer_tasks(
   dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
   dvol.commit_info()
 
-  create_downsample_scales(dest_layer_path, 
+  downsample_scales.create_downsample_scales(dest_layer_path, 
     mip=mip, ds_shape=shape, 
     preserve_chunk_size=preserve_chunk_size,
     encoding=encoding
@@ -1027,7 +1027,7 @@ def create_contrast_normalization_tasks(
   
   shape = Vec(*shape)
 
-  create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
+  downsample_scales.create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
   dvol.refresh_info()
 
   bounds = get_bounds(srcvol, bounds, shape, mip)
@@ -1162,7 +1162,7 @@ def create_watershed_remap_tasks(
   shape = Vec(*shape)
   vol = CloudVolume(src_layer_path)
 
-  create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape)
+  downsample_scales.create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape)
 
   class WatershedRemapTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -1259,7 +1259,7 @@ def create_quantize_tasks(
   destvol = CloudVolume(dest_layer, info=info, mip=mip)
   destvol.commit_info()
 
-  create_downsample_scales(
+  downsample_scales.create_downsample_scales(
     dest_layer, mip=mip, ds_shape=shape, 
     chunk_size=chunk_size, encoding=encoding
   )

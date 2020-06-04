@@ -1583,28 +1583,12 @@ def create_inference_tasks(
 
     return InferenceTaskIterator()
 
-
-def upload_build_chunks(storage, volume, offset=[0, 0, 0], build_chunk_size=[1024,1024,128]):
-  offset = Vec(*offset)
-  shape = Vec(*volume.shape[:3])
-  build_chunk_size = Vec(*build_chunk_size)
-
-  for spt in xyzrange( (0,0,0), shape, build_chunk_size):
-    ept = min2(spt + build_chunk_size, shape)
-    bbox = Bbox(spt, ept)
-    chunk = volume[ bbox.to_slices() ]
-    bbox += offset
-    filename = 'build/{}'.format(bbox.to_filename())
-    storage.put_file(filename, chunks.encode_npz(chunk))
-  storage.wait()
-
-
 def cascade(tq, fnlist):
-    for fn in fnlist:
-      fn(tq)
+  for fn in fnlist:
+    fn(tq)
+    N = tq.enqueued
+    while N > 0:
       N = tq.enqueued
-      while N > 0:
-        N = tq.enqueued
-        print('\r {} remaining'.format(N), end='')
-        time.sleep(2)
+      print('\r {} remaining'.format(N), end='')
+      time.sleep(2)
 

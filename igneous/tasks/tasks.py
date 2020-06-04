@@ -28,33 +28,12 @@ from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
 from taskqueue import RegisteredTask
 
-from igneous import chunks
+from igneous import chunks, downsample_scales
 
 import DracoPy
 import fastremap
 import tinybrain
 import zmesh
-
-def compute_factors(vol, ds_shape, factor, chunk_size):
-  grid_size = Vec(*ds_shape, dtype=np.float32) / Vec(*chunk_size, dtype=np.float32)
-  # find the dimension which will tolerate the smallest number of downsamples and 
-  # return the number it will accept. + 0.0001 then truncate to compensate for FP errors
-  # that would result in the log e.g. resulting in 1.9999999382 when it should be an
-  # exact result.
-
-  # This filtering is to avoid problems with dividing by log(1)
-  grid_size = [ g for f, g in zip(factor, grid_size) if f != 1 ]
-  grid_size = Vec(*grid_size, dtype=np.float32)
-
-  factor_div = [ f for f in factor if f != 1 ]
-  factor_div = Vec(*factor_div, dtype=np.float32)
-
-  if len(factor_div) == 0:
-    return []
-
-  N = np.log(grid_size) / np.log(factor_div)
-  N += 0.0001
-  return [ factor ] * int(min(N))
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -75,7 +54,7 @@ def downsample_and_upload(
       else:
         raise ValueError("Axis not supported: " + str(axis))
 
-    factors = compute_factors(vol, ds_shape, factor, chunk_size)
+    factors = downsample_scales.compute_factors(ds_shape, factor, chunk_size)
 
     if len(factors) == 0:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(

@@ -134,57 +134,6 @@ class FinelyDividedTaskIterator():
 #           )
 #   return BigArrayTaskIterator()
 
-def create_downsample_scales(
-    layer_path, mip, ds_shape, axis='z', 
-    preserve_chunk_size=False, chunk_size=None,
-    encoding=None
-  ):
-  vol = CloudVolume(layer_path, mip)
-  shape = min2(vol.volume_size, ds_shape)
-
-  # sometimes we downsample a base layer of 512x512 
-  # into underlying chunks of 64x64 which permits more scales
-  underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
-  underlying_shape = vol.mip_underlying(underlying_mip).astype(np.float32)
-
-  if chunk_size:
-    underlying_shape = Vec(*chunk_size).astype(np.float32)
-
-  toidx = { 'x': 0, 'y': 1, 'z': 2 }
-  preserved_idx = toidx[axis]
-  underlying_shape[preserved_idx] = float('inf')
-
-  scales = downsample_scales.compute_plane_downsampling_scales(
-    size=shape, 
-    preserve_axis=axis, 
-    max_downsampled_size=int(min(*underlying_shape)),
-  ) 
-  scales = scales[1:] # omit (1,1,1)
-  scales = [ list(map(int, vol.downsample_ratio * Vec(*factor3))) for factor3 in scales ]
-
-  if len(scales) == 0:
-    print("WARNING: No scales generated.")
-
-  for scale in scales:
-    vol.add_scale(scale, encoding=encoding, chunk_size=chunk_size)
-
-  if chunk_size is None:
-    if preserve_chunk_size or len(scales) == 0:
-      chunk_size = vol.scales[mip]['chunk_sizes']
-    else:
-      chunk_size = vol.scales[mip + 1]['chunk_sizes']
-  else:
-    chunk_size = [ chunk_size ]
-
-  if encoding is None:
-    encoding = vol.scales[mip]['encoding']
-
-  for i in range(mip + 1, mip + len(scales) + 1):
-    vol.scales[i]['chunk_sizes'] = chunk_size
-
-  vol.commit_info()
-  return vol
-
 def create_blackout_tasks(
     cloudpath, bounds, 
     mip=0, shape=(2048, 2048, 64), 
@@ -284,7 +233,8 @@ def create_downsampling_tasks(
     axis='z', num_mips=5, preserve_chunk_size=True,
     sparse=False, bounds=None, chunk_size=None,
     encoding=None, delete_black_uploads=False, 
-    background_color=0, dest_path=None, compress=None
+    background_color=0, dest_path=None, compress=None,
+    factor=None
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -309,12 +259,14 @@ def create_downsampling_tasks(
       doesn't want you to touch the existing info file.
     compress: None, 'gzip', or 'br' Determines which compression algorithm to use 
       for new uploaded files.
+    factor: (overrides axis) can manually specify what each downsampling round is
+      supposed to do: e.g. (2,2,1), (2,2,2), etc
     """
     def ds_shape(mip, chunk_size=None):
       if chunk_size:
         shape = Vec(*chunk_size)
       else:
-        shape = vol.mip_underlying(mip)[:3]
+        shape = vol.meta.chunk_size(mip)[:3]
       shape.x *= 2 ** num_mips
       shape.y *= 2 ** num_mips
       return shape
@@ -322,10 +274,10 @@ def create_downsampling_tasks(
     vol = CloudVolume(layer_path, mip=mip)
     shape = ds_shape(mip, chunk_size)
 
-    vol = create_downsample_scales(
+    vol = downsample_scales.create_downsample_scales(
       layer_path, mip, shape, 
       preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
-      encoding=encoding
+      encoding=encoding, factor=factor
     )
 
     if not preserve_chunk_size or chunk_size:
@@ -347,6 +299,7 @@ def create_downsampling_tasks(
           background_color=background_color,
           dest_path=dest_path,
           compress=compress,
+          factor=factor,
         )
 
       def on_finish(self):
@@ -367,6 +320,7 @@ def create_downsampling_tasks(
             'background_color': background_color,
             'dest_path': dest_path,
             'compress': compress,
+            'factor': (tuple(factor) if factor else None),
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -940,7 +894,8 @@ def create_transfer_tasks(
     bounds=None, mip=0, preserve_chunk_size=True,
     encoding=None, skip_downsamples=False,
     delete_black_uploads=False, background_color=0,
-    agglomerate=False, timestamp=None, compress='gzip'
+    agglomerate=False, timestamp=None, compress='gzip',
+    factor=None
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -1002,6 +957,7 @@ def create_transfer_tasks(
         agglomerate=agglomerate,
         timestamp=timestamp,
         compress=compress,
+        factor=factor,
       )
 
     def on_finish(self):
@@ -1024,6 +980,7 @@ def create_transfer_tasks(
           'agglomerate': bool(agglomerate),
           'timestamp': timestamp,
           'compress': compress,
+          'factor': (tuple(factor) if factor else None),
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

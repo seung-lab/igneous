@@ -16,6 +16,8 @@ from __future__ import division
 from builtins import range
 
 import numpy as np
+from cloudvolume import CloudVolume, Vec
+from cloudvolume.lib import min2
 
 DEFAULT_MAX_DOWNSAMPLING = 64 # maximum factor to downsample by
 DEFAULT_MAX_DOWNSAMPLED_SIZE = 128 # minimum length of a side after downsampling
@@ -131,8 +133,86 @@ def compute_plane_downsampling_scales(size, preserve_axis='z',
 
     return scales
     
+def compute_factors(ds_shape, factor, chunk_size):
+  grid_size = Vec(*ds_shape, dtype=np.float32) / Vec(*chunk_size, dtype=np.float32)
+  # find the dimension which will tolerate the smallest number of downsamples and 
+  # return the number it will accept. + 0.0001 then truncate to compensate for FP errors
+  # that would result in the log e.g. resulting in 1.9999999382 when it should be an
+  # exact result.
 
+  # This filtering is to avoid problems with dividing by log(1)
+  grid_size = [ g for f, g in zip(factor, grid_size) if f != 1 ]
+  grid_size = Vec(*grid_size, dtype=np.float32)
 
+  factor_div = [ f for f in factor if f != 1 ]
+  factor_div = Vec(*factor_div, dtype=np.float32)
 
+  if len(factor_div) == 0:
+    return []
 
+  N = np.log(grid_size) / np.log(factor_div)
+  N += 0.0001
+  return [ factor ] * int(min(N))
+
+def compute_scales(vol, mip, shape, axis, factor, chunk_size=None):
+  vol.mip = mip
+  shape = min2(vol.volume_size, shape)
+  # sometimes we downsample a base layer of 512x512 
+  # into underlying chunks of 64x64 which permits more scales
+  underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
+
+  if chunk_size:
+    scale_chunk_size = Vec(*chunk_size).astype(np.float32)
+  else:
+    scale_chunk_size = vol.meta.chunk_size(underlying_mip).astype(np.float32)
+
+  if factor is None:
+    if axis == 'x':
+      factor = (1,2,2)
+    elif axis == 'y':
+      factor = (2,1,2)
+    elif axis == 'z':
+      factor = (2,2,1)
+    else:
+      raise ValueError("Axis not supported: " + str(axis))
+
+  factors = compute_factors(shape, factor, scale_chunk_size)
+  scales = [ vol.resolution ]
+  for factor3 in factors:
+    scales.append(
+      list(map(int, Vec(*scales[-1], dtype=np.float32) * Vec(*factor3)))
+    )
+  return scales[1:]
+
+def create_downsample_scales(
+    layer_path, mip, ds_shape, axis='z', 
+    preserve_chunk_size=False, chunk_size=None,
+    encoding=None, factor=None
+  ):
+  vol = CloudVolume(layer_path, mip)
+
+  scales = compute_scales(vol, mip, ds_shape, axis, factor, chunk_size)
+
+  if len(scales) == 0:
+    print("WARNING: No scales generated.")
+
+  for scale in scales:
+    vol.add_scale(scale, encoding=encoding, chunk_size=chunk_size)
+
+  if chunk_size is None:
+    if preserve_chunk_size or len(scales) == 0:
+      chunk_size = vol.scales[mip]['chunk_sizes']
+    else:
+      chunk_size = vol.scales[mip + 1]['chunk_sizes']
+  else:
+    chunk_size = [ chunk_size ]
+
+  if encoding is None:
+    encoding = vol.scales[mip]['encoding']
+
+  for i in range(mip + 1, mip + len(scales) + 1):
+    vol.scales[i]['chunk_sizes'] = chunk_size
+
+  vol.commit_info()
+  return vol
 

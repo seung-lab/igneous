@@ -18,7 +18,8 @@ from igneous import (
     DeleteTask, BlackoutTask
 )
 import igneous.task_creation as tc
-from igneous.task_creation import create_downsample_scales, create_downsampling_tasks, create_quantized_affinity_info
+from igneous.task_creation import create_downsampling_tasks, create_quantized_affinity_info
+from igneous.downsample_scales import create_downsample_scales
 from .layer_harness import delete_layer, create_layer
 
 @pytest.mark.parametrize("compression_method", ( None, 'gzip', 'br',))

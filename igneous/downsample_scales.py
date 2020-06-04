@@ -200,6 +200,7 @@ def create_downsample_scales(
     print("WARNING: No scales generated.")
 
   for scale in scales:
+    scale = scale // vol.meta.resolution(0)
     vol.add_scale(scale, encoding=encoding, chunk_size=chunk_size)
 
   if chunk_size is None:

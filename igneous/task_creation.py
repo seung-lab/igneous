@@ -312,6 +312,7 @@ def create_downsampling_tasks(
           'method': {
             'task': 'DownsampleTask',
             'mip': mip,
+            'num_mips': num_mips,
             'shape': shape.tolist(),
             'axis': axis,
             'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',

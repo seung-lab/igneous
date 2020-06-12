@@ -787,7 +787,7 @@ def create_meshing_tasks(
         encoding=encoding,
         spatial_index=spatial_index,
         sharded=sharded,
-        compress='gzip',
+        compress=compress,
       )
 
     def on_finish(self):

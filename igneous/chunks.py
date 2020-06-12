@@ -32,7 +32,7 @@ def encode(img_chunk, encoding):
     raise NotImplementedError(encoding)
 
 def decode(filedata, encoding, shape=None, dtype=None):
-  if (shape is None or dtype is None) and encoding is not 'npz':
+  if (shape is None or dtype is None) and encoding != 'npz':
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:

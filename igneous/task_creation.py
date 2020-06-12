@@ -743,7 +743,8 @@ def create_meshing_tasks(
     simplification=True, max_simplification_error=40,
     mesh_dir=None, cdn_cache=False, dust_threshold=None,
     object_ids=None, progress=False, fill_missing=False,
-    encoding='precomputed', spatial_index=True, sharded=False
+    encoding='precomputed', spatial_index=True, sharded=False,
+    compress='gzip'
   ):
   shape = Vec(*shape)
 
@@ -786,6 +787,7 @@ def create_meshing_tasks(
         encoding=encoding,
         spatial_index=spatial_index,
         sharded=sharded,
+        compress='gzip',
       )
 
     def on_finish(self):
@@ -805,6 +807,7 @@ def create_meshing_tasks(
           'object_ids': object_ids,
           'spatial_index': spatial_index,
           'sharded': sharded,
+          'compress': compress,
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

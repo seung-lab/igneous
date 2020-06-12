@@ -258,8 +258,8 @@ def test_blackout_tasks():
     assert counts[23] == twenty_threes
     assert counts[11] == (128 * 64 * 64) - twenty_threes
     
-
-def test_mesh():
+@pytest.mark.parametrize('compress', ('gzip', 'br'))
+def test_mesh(compress):
     delete_layer()
     storage, _ = create_layer(size=(64,64,64,1), offset=(0,0,0), layer_type="segmentation")
     cv = CloudVolume(storage.layer_path)
@@ -277,7 +277,8 @@ def test_mesh():
         mip=0,
         remap_table={"1": "10"},
         low_padding=0,
-        high_padding=1
+        high_padding=1,
+        compress=compress
     )
     t.execute()
     assert storage.get_file('mesh/10:0:0-64_0-64_0-64') is not None 

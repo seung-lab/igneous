@@ -120,6 +120,7 @@ class MeshTask(RegisteredTask):
       'timestamp': kwargs.get('timestamp', None),
       'agglomerate': kwargs.get('agglomerate', True),
       'stop_layer': kwargs.get('stop_layer', 2),
+      'compress': kwargs.get('compress', 'gzip'),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -127,7 +128,7 @@ class MeshTask(RegisteredTask):
         self.options['encoding'], ', '.join(supported_encodings)
       ))
     self._encoding_to_compression_dict = {
-      'precomputed': True,
+      'precomputed': self.options['compress'],
       'draco': False,
     }
 
@@ -251,7 +252,7 @@ class MeshTask(RegisteredTask):
       stor.put_file(
         file_path="{}/{}.frags".format(self._mesh_dir, bbox.to_filename()),
         content=pickle.dumps(meshes),
-        compress='gzip',
+        compress=self.options['compress'],
         content_type="application/python-pickle",
         cache_control=False,
       )
@@ -318,7 +319,7 @@ class MeshTask(RegisteredTask):
       stor.put_file(
         file_path="{}/{}.spatial".format(self._mesh_dir, bbox.to_filename()),
         content=jsonify(mesh_bboxes).encode('utf8'),
-        compress='gzip',
+        compress=self.options['compress'],
         content_type="application/json",
         cache_control=False,
       )

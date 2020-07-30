@@ -184,7 +184,7 @@ def create_blackout_tasks(
   return BlackoutTaskIterator(bounds, shape)
   
 def create_touch_tasks(
-    self, cloudpath, 
+    cloudpath, 
     mip=0, shape=(2048, 2048, 64),
     bounds=None
   ):

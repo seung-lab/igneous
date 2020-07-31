@@ -410,6 +410,27 @@ def test_luminance_levels_task():
     assert levels['coverage_ratio'] == 1.0
     assert levels['levels'] == gt
 
+def test_skeletonization_task():
+    directory = '/tmp/removeme/skeleton/'
+    layer_path = 'file://' + directory
+    delete_layer(layer_path)
+
+    img = np.ones((256,256,256), dtype=np.uint64)
+    img[:,:,:] = 2
+    cv = CloudVolume.from_numpy(
+        img,
+        layer_type='segmentation',
+        vol_path=layer_path, 
+    )
+
+    tq = MockTaskQueue()
+    tasks = tc.create_skeletonizing_tasks(layer_path, mip=0, teasar_params={
+        'scale': 10,
+        'const': 10,
+    })
+    tq.insert_all(tasks)
+
+
         
 # def test_watershed():
 #     return # needs expensive julia stuff enabled in dockerfile

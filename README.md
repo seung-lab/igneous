@@ -30,7 +30,7 @@ python setup.py develop
 
 This generates meshes for an already-existing precomputed segmentation volume. It uses the MockTaskQueue driver (which is the single local worker mode).
 
-```python3
+```python
 from taskqueue import LocalTaskQueue
 import igneous.task_creation as tc
 
@@ -57,7 +57,7 @@ You'll need to create an Amazon SQS queue to store the tasks you generate. Googl
 
 There's a bit of an art to achieving high performance on SQS. You can read more about it [here](https://github.com/seung-lab/python-task-queue#how-to-achieve-high-performance).
 
-```python3
+```python
 import sys
 from taskqueue import TaskQueue
 import igneous.task_creation as tc
@@ -65,12 +65,12 @@ import igneous.task_creation as tc
 cloudpath = sys.argv[1]
 
 # Get qurl from the SQS queue metadata, visible on the web dashboard when you click on it.
-with TaskQueue(queue_server='sqs', qurl="$URL") as tq:
-  tasks = tc.create_downsampling_tasks(
-    cloudpath, mip=0, 
-    fill_missing=True, preserve_chunk_size=True
-  )
-  tq.insert_all(tasks)
+tq = TaskQueue("sqs://queue-url")
+tasks = tc.create_downsampling_tasks(
+  cloudpath, mip=0, 
+  fill_missing=True, preserve_chunk_size=True
+)
+tq.insert(tasks)
 print("Done!")
 ```
 

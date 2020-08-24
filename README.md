@@ -160,6 +160,7 @@ tasks = create_downsampling_tasks(
     delete_black_uploads=False, # issue a delete instead of uploading files containing all background
     background_color=0, # Designates the background color
     compress='gzip', # None, 'gzip', and 'br' (brotli) are options
+    factor=(2,2,1), # common options are (2,2,1) and (2,2,2)
   )
 ```
 

@@ -28,7 +28,11 @@ python setup.py develop
 
 ## Sample Local Use
 
-This generates meshes for an already-existing precomputed segmentation volume. It uses the MockTaskQueue driver (which is the single local worker mode).
+Below we show two ways to use Igneous on a local workstation or cluster. As an example, we generate meshes for an already-existing Precomputed segmentation volume.
+
+### In Memory Queue (Simple Execution)
+
+This procedure is good for running small jobs as it is very simple, allows you to make use of parallelization, but on the downside it is brittle. If a job fails, you may have to restart the entire task set.
 
 ```python
 from taskqueue import LocalTaskQueue
@@ -36,13 +40,48 @@ import igneous.task_creation as tc
 
 # Mesh on 8 cores, use True to use all cores
 cloudpath = 'gs://bucket/dataset/labels'
-with LocalTaskQueue(parallel=8) as tq:
-  tasks = tc.create_meshing_tasks(cloudpath, mip=3, shape=(256, 256, 256))
-  tq.insert_all(tasks)
-  tasks = tc.create_mesh_manifest_tasks(cloudpath)
-  tq.insert_all(tasks)
+tq = LocalTaskQueue(parallel=8)
+tasks = tc.create_meshing_tasks(cloudpath, mip=3, shape=(256, 256, 256))
+tq.insert(tasks)
+tasks = tc.create_mesh_manifest_tasks(cloudpath)
+tq.insert(tasks)
 print("Done!")
+```
 
+### Filesystem Queue (Producer-Consumer)
+
+This procedure is more robust as tasks can be restarted if they fail. The queue is written to the filesystem and as such can be used by any processor that can read and write files to the selected directory. Thus, there is the potential for local cluster processing. Conceptually, a single producer script populates a filesystem queue ("FileQueue") and then typically one worker per a core consumes each task. The FileQueue allows for leasing a task for a set amount of time. If the task is not completed, it recycles into the available task pool. The order with which tasks are consumed is not guaranteed, but is approximately FIFO (a random task is selected from the next 100 to avoid conflicts) if all goes well. 
+
+This mode is very new, so please report any issues. You can read about the queue design [here](https://github.com/seung-lab/python-task-queue/wiki/FileQueue-Design). In particular, we expect you may see problems with NFS or other filesystems that have problems with networked file locking. However, purely local use should generally be issue free. You can read more tips on using FileQueue [here](https://github.com/seung-lab/python-task-queue#notes-on-file-queue). You can remove a FileQueue by deleting its containing directory.
+
+#### Producer Script
+
+```python
+from taskqueue import TaskQueue
+import igneous.task_creation as tc
+
+# Mesh on 8 cores, use True to use all cores
+cloudpath = 'gs://bucket/dataset/labels'
+tq = TaskQueue("fq:///path/to/queue/directory")
+tasks = tc.create_meshing_tasks(cloudpath, mip=3, shape=(256, 256, 256))
+tq.insert(tasks)
+tasks = tc.create_mesh_manifest_tasks(cloudpath)
+tq.insert(tasks)
+print("Tasks created!")
+```
+
+#### Consumer Script
+
+```python
+from taskqueue import TaskQueue
+import igneous.tasks # magic import needed to provide task definitions
+
+tq = TaskQueue("fq:///path/to/queue/directory")
+tq.poll(
+  verbose=True, # prints progress
+  lease_seconds=600, # allow exclusive 10 min per task
+  tally=True # makes tq.completed work, logs 1 byte per completed task
+)
 ```
 
 ## Sample Cloud Use

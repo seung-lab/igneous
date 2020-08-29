@@ -11,14 +11,11 @@ from cloudvolume.secrets import (
   boss_credentials, boss_credentials_path
 )
 
-def envval(key, default):
-	return default if key not in os.environ else os.environ[key]
-
-QUEUE_NAME = envval('PIPELINE_USER_QUEUE', 'pull-queue') 
-TEST_QUEUE_NAME = envval('TEST_PIPELINE_USER_QUEUE', 'test-pull-queue')
-QUEUE_TYPE = envval('QUEUE_TYPE', 'sqs')
-SQS_URL = envval('SQS_URL', None)
+QUEUE_NAME = os.environ.get('PIPELINE_USER_QUEUE', 'pull-queue') 
+SQS_URL = os.environ.get('SQS_URL')
+SQS_REGION_NAME = os.environ.get('SQS_REGION_NAME', 'us-east-1')
+SQS_ENDPOINT_URL = os.environ.get('SQS_ENDPOINT_URL')
 PROJECT_NAME = 'neuromancer-seung-import'
 APPENGINE_QUEUE_URL = 'https://queue-dot-neuromancer-seung-import.appspot.com'
 
-LEASE_SECONDS = envval('LEASE_SECONDS', 600)
+LEASE_SECONDS = os.environ.get('LEASE_SECONDS', 600)

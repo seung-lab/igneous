@@ -6,21 +6,23 @@ import time
 import traceback
 
 import click
-from taskqueue import TaskQueue, QueueEmpty
+from taskqueue import TaskQueue
 
 from igneous import EmptyVolumeException
 # from igneous import logger
 
-from igneous.secrets import QUEUE_NAME, QUEUE_TYPE, SQS_URL, LEASE_SECONDS
+from igneous.secrets import SQS_URL, SQS_REGION_NAME, SQS_ENDPOINT_URL, LEASE_SECONDS
 
 @click.command()
 @click.option('-m', default=False,  help='Run in parallel.', is_flag=True)
 @click.option('--queue', default=SQS_URL,  help='TaskQueue protocol url for queue. e.g. sqs://test-queue or fq:///tmp/test-queue')
+@click.option('--region_name', default=SQS_REGION_NAME,  help='AWS region in which the taskqueue resides')
+@click.option('--endpoint_url', default=SQS_ENDPOINT_URL,  help='Endpoint of the SQS service if not AWS (NOT the queue url)')
 @click.option('--seconds', default=LEASE_SECONDS, help="Lease seconds.")
 @click.option('--loop/--no-loop', default=True, help='run execution in infinite loop or not', is_flag=True)
-def command(tag, m, queue, seconds, loop):
+def command(m, queue, region_name, endpoint_url, seconds, loop):
   if not m:
-    execute(queue, seconds, loop)
+    execute(queue, region_name, endpoint_url, seconds, loop)
     return 
 
   # if multiprocessing
@@ -29,7 +31,7 @@ def command(tag, m, queue, seconds, loop):
   print("Running %s threads of execution." % proc)
   try:
     for _ in range(proc):
-      pool.apply_async(execute, (queue, seconds, loop))
+      pool.apply_async(execute, (queue, region_name, endpoint_url, seconds, loop))
     pool.close()
     pool.join()
   except KeyboardInterrupt:
@@ -37,8 +39,8 @@ def command(tag, m, queue, seconds, loop):
     pool.terminate()
     pool.join()
 
-def execute(tag, queue, seconds, loop):
-  tq = TaskQueue(queue)
+def execute(queue, region_name, endpoint_url, seconds, loop):
+  tq = TaskQueue(queue, region_name=region_name, endpoint_url=endpoint_url)
 
   print("Pulling from {}".format(tq.qualified_path))
 

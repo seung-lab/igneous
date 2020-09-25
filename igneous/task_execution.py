@@ -19,10 +19,13 @@ from igneous.secrets import SQS_URL, SQS_REGION_NAME, SQS_ENDPOINT_URL, LEASE_SE
 @click.option('--region_name', default=SQS_REGION_NAME,  help='AWS region in which the taskqueue resides')
 @click.option('--endpoint_url', default=SQS_ENDPOINT_URL,  help='Endpoint of the SQS service if not AWS (NOT the queue url)')
 @click.option('--seconds', default=LEASE_SECONDS, help="Lease seconds.")
+@click.option('--tally/--no-tally', default=True, help="Tally completed fq tasks.")
 @click.option('--loop/--no-loop', default=True, help='run execution in infinite loop or not', is_flag=True)
-def command(m, queue, region_name, endpoint_url, seconds, loop):
+def command(m, queue, region_name, endpoint_url, seconds, tally, loop):
+  args = (queue, region_name, endpoint_url, seconds, tally, loop)
+
   if not m:
-    execute(queue, region_name, endpoint_url, seconds, loop)
+    execute(*args)
     return 
 
   # if multiprocessing
@@ -31,7 +34,7 @@ def command(m, queue, region_name, endpoint_url, seconds, loop):
   print("Running %s threads of execution." % proc)
   try:
     for _ in range(proc):
-      pool.apply_async(execute, (queue, region_name, endpoint_url, seconds, loop))
+      pool.apply_async(execute, args)
     pool.close()
     pool.join()
   except KeyboardInterrupt:
@@ -39,7 +42,7 @@ def command(m, queue, region_name, endpoint_url, seconds, loop):
     pool.terminate()
     pool.join()
 
-def execute(queue, region_name, endpoint_url, seconds, loop):
+def execute(queue, region_name, endpoint_url, seconds, tally, loop):
   tq = TaskQueue(queue, region_name=region_name, endpoint_url=endpoint_url)
 
   print("Pulling from {}".format(tq.qualified_path))
@@ -47,7 +50,11 @@ def execute(queue, region_name, endpoint_url, seconds, loop):
   seconds = int(seconds)
 
   if loop:
-    tq.poll(lease_seconds=seconds, verbose=True)
+    tq.poll(
+      lease_seconds=seconds,
+      verbose=True,
+      tally=tally,
+    )
   else:
     task = tq.lease(seconds=seconds)
     task.execute()

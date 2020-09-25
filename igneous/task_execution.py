@@ -14,22 +14,22 @@ from igneous import EmptyVolumeException
 from igneous.secrets import SQS_URL, SQS_REGION_NAME, SQS_ENDPOINT_URL, LEASE_SECONDS
 
 @click.command()
-@click.option('-m', default=False,  help='Run in parallel.', is_flag=True)
+@click.option('-p', default=1,  help='Run with this number of parallel processes.')
 @click.option('--queue', default=SQS_URL,  help='TaskQueue protocol url for queue. e.g. sqs://test-queue or fq:///tmp/test-queue')
 @click.option('--region_name', default=SQS_REGION_NAME,  help='AWS region in which the taskqueue resides')
 @click.option('--endpoint_url', default=SQS_ENDPOINT_URL,  help='Endpoint of the SQS service if not AWS (NOT the queue url)')
 @click.option('--seconds', default=LEASE_SECONDS, help="Lease seconds.")
 @click.option('--tally/--no-tally', default=True, help="Tally completed fq tasks.")
 @click.option('--loop/--no-loop', default=True, help='run execution in infinite loop or not', is_flag=True)
-def command(m, queue, region_name, endpoint_url, seconds, tally, loop):
+def command(p, queue, region_name, endpoint_url, seconds, tally, loop):
   args = (queue, region_name, endpoint_url, seconds, tally, loop)
 
-  if not m:
+  if p == 1:
     execute(*args)
     return 
 
   # if multiprocessing
-  proc = mp.cpu_count()
+  proc = p if p > 0 else mp.cpu_count()
   pool = mp.Pool(processes=proc)
   print("Running %s threads of execution." % proc)
   try:

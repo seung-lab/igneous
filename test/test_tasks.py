@@ -163,6 +163,8 @@ def test_downsample_w_missing():
     except EmptyVolumeException:
         pass
 
+    tq = MockTaskQueue()
+
     tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3, fill_missing=True)
     tq.insert_all(tasks)
 

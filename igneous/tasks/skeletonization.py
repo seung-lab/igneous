@@ -123,6 +123,9 @@ class SkeletonTask(RegisteredTask):
           if vert in extra_targets_after.keys():
             skel.vertex_types[i] = extra_targets_after[vert]
     
+    # neuroglancer doesn't support int attributes
+    self.strip_integer_attributes(skeletons.values())
+
     if self.sharded:
       self.upload_batch(vol, path, index_bbox, skeletons)
     else:
@@ -131,14 +134,15 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
   
-  def upload_batch(self, vol, path, bbox, skeletons):
-    # neuroglancer doesn't support int attributes for shards
-    for skel in skeletons.values():
+  def strip_integer_attributes(self, skeletons):
+    for skel in skeletons:
       skel.extra_attributes = [ 
       attr for attr in skel.extra_attributes 
       if attr['data_type'] in ('float32', 'float64')
     ]
+    return skeletons
 
+  def upload_batch(self, vol, path, bbox, skeletons):
     with SimpleStorage(path, progress=vol.progress) as stor:
       # Create skeleton batch for postprocessing later
       stor.put_file(

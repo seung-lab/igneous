@@ -1,7 +1,6 @@
 import os
 import json
 
-from oauth2client import service_account
 from cloudvolume.lib import mkdir, colorize
 
 from cloudvolume.secrets import (

@@ -15,7 +15,6 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles
 
 from cloudvolume import CloudVolume, view
-from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import Vec, Bbox, jsonify
 from taskqueue import RegisteredTask
 
@@ -249,44 +248,42 @@ class MeshTask(RegisteredTask):
       self._upload_spatial_index(self._bounds, bounding_boxes)
 
   def _upload_batch(self, meshes, bbox):
-    with SimpleStorage(self.layer_path, progress=self.options['progress']) as stor:
-      # Create mesh batch for postprocessing later
-      stor.put_file(
-        file_path="{}/{}.frags".format(self._mesh_dir, bbox.to_filename()),
-        content=pickle.dumps(meshes),
-        compress=self.options['compress'],
-        content_type="application/python-pickle",
-        cache_control=False,
-      )
+    cf = CloudFiles(self.layer_path, progress=self.options['progress'])
+    # Create mesh batch for postprocessing later
+    cf.put(
+      f"{self._mesh_dir}/{bbox.to_filename()}.frags",
+      content=pickle.dumps(meshes),
+      compress=self.options['compress'],
+      content_type="application/python-pickle",
+      cache_control=False,
+    )
 
   def _upload_individuals(self, mesh_binaries, generate_manifests):
-    with Storage(self.layer_path) as storage:
-      for segid, mesh_binary in mesh_binaries.items():
-        storage.put_file(
-          file_path='{}/{}:{}:{}'.format(
-            self._mesh_dir, segid, self.options['lod'],
-            self._bounds.to_filename()
-          ),
-          content=mesh_binary,
-          compress=self._encoding_to_compression_dict[self.options['encoding']],
-          cache_control=self.options['cache_control']
-        )
+    cf = CloudFiles(self.layer_path)
+    cf.puts(
+      ( 
+        (
+          f"{self._mesh_dir}/{segid}:{self.options['lod']}:{self._bounds.to_filename()}", 
+          mesh_binary
+        ) 
+        for segid, mesh_binary in mesh_binaries.items() 
+      ),
+      compress=self._encoding_to_compression_dict[self.options['encoding']],
+      cache_control=self.options['cache_control'],
+    )
 
-        if generate_manifests:
-          fragments = []
-          fragments.append('{}:{}:{}'.format(
-            segid, self.options['lod'],
-            self._bounds.to_filename())
+    if generate_manifests:
+      cf.put_jsons(
+        (
+          (
+            f"{self._mesh_dir}/{segid}:{self.options['lod']}", 
+            { "fragments": [ f"{segid}:{self.options['lod']}:{self._bounds.to_filename()}" ] }
           )
-
-          storage.put_file(
-            file_path='{}/{}:{}'.format(
-              self._mesh_dir, segid, self.options['lod']
-            ),
-            content=json.dumps({"fragments": fragments}),
-            content_type='application/json',
-            cache_control=self.options['cache_control']
-          )
+          for segid, mesh_binary in mesh_binaries.items()
+        ),
+        compress=None,
+        cache_control=self.options['cache_control'],
+      )
 
   def _create_mesh(self, obj_id):
     mesh = self._mesher.get_mesh(
@@ -317,14 +314,13 @@ class MeshTask(RegisteredTask):
     return mesh_binary, mesh_bounds
 
   def _upload_spatial_index(self, bbox, mesh_bboxes):
-    with SimpleStorage(self.layer_path, progress=self.options['progress']) as stor:
-      stor.put_file(
-        file_path="{}/{}.spatial".format(self._mesh_dir, bbox.to_filename()),
-        content=jsonify(mesh_bboxes).encode('utf8'),
-        compress=self.options['compress'],
-        content_type="application/json",
-        cache_control=False,
-      )
+    cf = CloudFiles(self.layer_path, progress=self.options['progress'])
+    cf.put_json(
+      f"{self._mesh_dir}/{bbox.to_filename()}.spatial",
+      mesh_bboxes,
+      compress=self.options['compress'],
+      cache_control=False,
+    )
 
 class GrapheneMeshTask(RegisteredTask):
   def __init__(self, cloudpath, shape, offset, mip, **kwargs):
@@ -448,14 +444,14 @@ class GrapheneMeshTask(RegisteredTask):
     # so any label inside this L2 chunk will do
     shard_filename = reader.get_filename(list(meshes.keys())[0]) 
 
-    with SimpleStorage(self.cv.cloudpath) as stor:
-      stor.put_file(
-        file_path="{}/initial/{}/{}".format(self.get_mesh_dir(), self.layer_id, shard_filename),
-        content=shard_binary,
-        compress=None,
-        content_type="application/octet-stream",
-        cache_control="no-cache",
-      )
+    cf = CloudFiles(self.cv.cloudpath)
+    cf.put(
+      f"{self.get_mesh_dir()}/initial/{self.layer_id}/{shard_filename}",
+      shard_binary,
+      compress=None,
+      content_type="application/octet-stream",
+      cache_control="no-cache",
+    )
 
   def create_mesh(self, obj_id):
     mesh = self.mesher.get_mesh(

@@ -13,9 +13,10 @@ from tqdm import tqdm
 
 import numpy as np
 
+from cloudfiles import CloudFiles
+
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton, view
-from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images, jsonify, scatter
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
@@ -35,8 +36,8 @@ def filename_to_segid(filename):
   return int(segid)
 
 def skeldir(cloudpath):
-  with SimpleStorage(cloudpath) as storage:
-    info = storage.get_json('info')
+  cf = CloudFiles(cloudpath)
+  info = cf.get_json('info')
 
   skel_dir = 'skeletons/'
   if 'skeletons' in info:
@@ -143,15 +144,14 @@ class SkeletonTask(RegisteredTask):
     return skeletons
 
   def upload_batch(self, vol, path, bbox, skeletons):
-    with SimpleStorage(path, progress=vol.progress) as stor:
-      # Create skeleton batch for postprocessing later
-      stor.put_file(
-        file_path="{}.frags".format(bbox.to_filename()),
-        content=pickle.dumps(skeletons),
-        compress='gzip',
-        content_type="application/python-pickle",
-        cache_control=False,
-      )
+    cf = CloudFiles(path, progress=vol.progress)
+    cf.put(
+      path="{}.frags".format(bbox.to_filename()),
+      content=pickle.dumps(skeletons),
+      compress='gzip',
+      content_type="application/python-pickle",
+      cache_control=False,
+    )
 
   def upload_individuals(self, vol, path, bbox, skeletons):
     skeletons = skeletons.values()
@@ -161,15 +161,19 @@ class SkeletonTask(RegisteredTask):
       return 
 
     bbox = bbox * vol.resolution
-    with Storage(path, progress=vol.progress) as stor:
-      for skel in skeletons:
-        stor.put_file(
-          file_path="{}:{}".format(skel.id, bbox.to_filename()),
-          content=pickle.dumps(skel),
-          compress='gzip',
-          content_type="application/python-pickle",
-          cache_control=False,
+    cf = CloudFiles(path, progress=vol.progress)
+    cf.puts(
+      (
+        (
+          f"{skel.id}:{bbox.to_filename()}",
+          pickle.dumps(skel)
         )
+        for skel in skeletons
+      ),
+      compress='gzip',
+      content_type="application/python-pickle",
+      cache_control=False,
+    )
 
   def upload_spatial_index(self, vol, path, bbox, skeletons):
     spatial_index = {}
@@ -178,14 +182,13 @@ class SkeletonTask(RegisteredTask):
       spatial_index[segid] = segid_bbx.to_list()
 
     bbox = bbox * vol.resolution
-    with SimpleStorage(path, progress=vol.progress) as stor:
-      stor.put_file(
-        file_path="{}.spatial".format(bbox.to_filename()),
-        content=jsonify(spatial_index).encode('utf8'),
-        compress='gzip',
-        content_type="application/json",
-        cache_control=False,
-      )
+    cf = CloudFiles(path, progress=vol.progress)
+    cf.put_json(
+      path=f"{bbox.to_filename()}.spatial",
+      content=spatial_index,
+      compress='gzip',
+      cache_control=False,
+    )
 
 class UnshardedSkeletonMergeTask(RegisteredTask):
   """
@@ -226,18 +229,18 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     self.vol.skeleton.upload(skeletons)
     
     if self.delete_fragments:
-      with Storage(self.cloudpath, progress=True) as stor:
-        stor.delete_files(fragment_filenames)
+      cf = CloudFiles(self.cloudpath, progress=True)
+      cf.delete(fragment_filenames)
 
   def get_filenames(self):
     prefix = '{}/{}'.format(self.vol.skeleton.path, self.prefix)
 
-    with Storage(self.cloudpath, progress=True) as stor:
-      return [ _ for _ in stor.list_files(prefix=prefix) ]
+    cf = CloudFiles(self.cloudpath, progress=True)
+    return [ _ for _ in cf.list(prefix=prefix) ]
 
   def get_skeletons_by_segid(self, filenames):
-    with Storage(self.cloudpath, progress=True) as stor:
-      skels = stor.get_files(filenames)
+    cf = CloudFiles(self.cloudpath, progress=True)
+    skels = cf.get(filenames)
 
     skeletons = defaultdict(list)
     for skel in skels:
@@ -320,14 +323,13 @@ class ShardedSkeletonMergeTask(RegisteredTask):
           str(self.shard_no), ", ".join(shard_files.keys())
       ))
 
-    uploadable = [ (fname, data) for fname, data in shard_files.items() ]
-    with Storage(cv.skeleton.meta.layerpath, progress=self.progress) as stor:
-      stor.put_files(
-        files=uploadable, 
-        compress=False,
-        content_type='application/octet-stream',
-        cache_control='no-cache',
-      )
+    cf = CloudFiles(cv.skeleton.meta.layerpath, progress=self.progress)
+    cf.puts( 
+      ( (fname, data) for fname, data in shard_files.items() ),
+      compress=False,
+      content_type='application/octet-stream',
+      cache_control='no-cache',      
+    )
 
   def process_skeletons(self, locations, cv):    
     filenames = set(itertools.chain(*locations.values()))
@@ -390,7 +392,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     Try to fetch precalculated labels from `$shardno.labels` (faster) otherwise, 
     compute which labels are applicable to this shard from the shard index (much slower).
     """
-    labels = SimpleStorage(cv.skeleton.meta.layerpath).get_json(self.shard_no + '.labels')
+    labels = CloudFiles(cv.skeleton.meta.layerpath).get_json(self.shard_no + '.labels')
     if labels is not None:
       return labels
 

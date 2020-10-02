@@ -23,8 +23,9 @@ import pickle
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from cloudvolume import CloudVolume
-from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
 from taskqueue import RegisteredTask
 
@@ -93,8 +94,8 @@ def cache(task, cloudpath):
     with open(lclpath, 'rb') as f:
       filestr = f.read()
   else:
-    with Storage(layer_path, n_threads=0) as stor:
-      filestr = stor.get_file(filename)
+    cf = CloudFiles(layer_path)
+    filestr = cf.get(filename)
 
     with open(lclpath, 'wb') as f:
       f.write(filestr)
@@ -582,11 +583,11 @@ class ContrastNormalizationTask(RegisteredTask):
       for z in range(bounds.minpt.z, bounds.maxpt.z)
     ]
     
-    with Storage(self.levels_path) as stor:
-      levels = stor.get_files(levelfilenames)
+    cf = CloudFiles(self.levels_path)
+    levels = cf.get(levelfilenames)
 
     errors = [ 
-      level['filename'] \
+      level['path'] \
       for level in levels if level['content'] == None
     ]
 
@@ -595,7 +596,7 @@ class ContrastNormalizationTask(RegisteredTask):
           errors) + " were not defined. Did you run a LuminanceLevelsTask for these slices?")
 
     levels = [(
-      int(os.path.basename(item['filename'])),
+      int(os.path.basename(item['path'])),
       json.loads(item['content'].decode('utf-8'))
     ) for item in levels ]
 
@@ -652,12 +653,13 @@ class LuminanceLevelsTask(RegisteredTask):
 
     path = self.levels_path if self.levels_path else self.src_path
     path = os.path.join(path, 'levels')
-    with Storage(path, n_threads=0) as stor:
-      stor.put_json(
-        file_path="{}/{}".format(self.mip, self.offset.z),
-        content=output,
-        cache_control='no-cache'
-      )
+
+    cf = CloudFiles(path)
+    cf.put_json(
+      path="{}/{}".format(self.mip, self.offset.z),
+      content=output,
+      cache_control='no-cache'
+    )
 
   def select_bounding_boxes(self, dataset_bounds):
     # Sample patches until coverage factor is satisfied. 

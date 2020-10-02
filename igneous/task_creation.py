@@ -1306,7 +1306,7 @@ def create_quantize_tasks(
   return QuantizeTasksIterator(bounds, shape)
 
 # split the work up into ~1000 tasks (magnitude 3)
-def create_mesh_manifest_tasks(layer_path, magnitude=3):
+def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
   assert int(magnitude) == magnitude
 
   start = 10 ** (magnitude - 1)
@@ -1317,11 +1317,11 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3):
       return 10 ** magnitude
     def __iter__(self):
       for prefix in range(1, start):
-        yield MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':')
+        yield MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':', mesh_dir=mesh_dir)
 
       # enumerate from e.g. 100 to 999
       for prefix in range(start, end):
-        yield MeshManifestTask(layer_path=layer_path, prefix=prefix)
+        yield MeshManifestTask(layer_path=layer_path, prefix=prefix, mesh_dir=mesh_dir)
 
   return MeshManifestTaskIterator()
 

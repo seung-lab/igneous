@@ -12,6 +12,8 @@ import re
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from cloudvolume import CloudVolume, view
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import Vec, Bbox, jsonify
@@ -521,19 +523,19 @@ class MeshManifestTask(RegisteredTask):
     self.mesh_dir = mesh_dir
 
   def execute(self):
-    with Storage(self.layer_path) as storage:
-      self._info = json.loads(storage.get_file('info').decode('utf8'))
+    cf = CloudFiles(self.layer_path)
+    self._info = cf.get_json('info')
 
-      if self.mesh_dir is None and 'mesh' in self._info:
-        self.mesh_dir = self._info['mesh']
+    if self.mesh_dir is None and 'mesh' in self._info:
+      self.mesh_dir = self._info['mesh']
 
-      self._generate_manifests(storage)
+    self._generate_manifests(cf)
 
-  def _get_mesh_filenames_subset(self, storage):
+  def _get_mesh_filenames_subset(self, cf):
     prefix = '{}/{}'.format(self.mesh_dir, self.prefix)
     segids = defaultdict(list)
 
-    for filename in storage.list_files(prefix=prefix):
+    for filename in cf.list(prefix=prefix):
       filename = os.path.basename(filename)
       # `match` implies the beginning (^). `search` matches whole string
       matches = re.search(r'(\d+):(\d+):', filename)
@@ -551,11 +553,11 @@ class MeshManifestTask(RegisteredTask):
 
     return segids
 
-  def _generate_manifests(self, storage):
-    segids = self._get_mesh_filenames_subset(storage)
-    for segid, frags in segids.items():
-      storage.put_file(
-          file_path='{}/{}:{}'.format(self.mesh_dir, segid, self.lod),
-          content=json.dumps({"fragments": frags}),
-          content_type='application/json',
-      )
+  def _generate_manifests(self, cf):
+    segids = self._get_mesh_filenames_subset(cf)
+    items = ( (
+        f"{self.mesh_dir}/{segid}:{self.lod}",
+        json.dumps({ "fragments": frags })
+      ) for segid, frags in segids.items() )
+
+    cf.puts(items, content_type='application/json')

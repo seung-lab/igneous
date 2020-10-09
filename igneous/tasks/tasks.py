@@ -38,7 +38,8 @@ import zmesh
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
-    sparse=False, factor=None
+    sparse=False, factor=None,
+    only_last=False
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -74,13 +75,17 @@ def downsample_and_upload(
       mips = tinybrain.downsample_with_striding(image, factors[0], num_mips=num_mips)
 
     new_bounds = bounds.clone()
-   
+    print(f'only_last = {only_last}')
     for factor3 in factors:
       vol.mip += 1
       new_bounds //= factor3
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
-      vol[new_bounds] = mipped
+      if only_last:
+        if len(mips) == 0:
+          vol[new_bounds] = mipped
+      else:
+        vol[new_bounds] = mipped
 
 def cache(task, cloudpath):
   layer_path, filename = os.path.split(cloudpath)
@@ -705,6 +710,7 @@ class TransferTask(RegisteredTask):
     timestamp=None,
     compress='gzip',
     factor=None,
+    only_last=False
   ):
     super(TransferTask, self).__init__(
       src_path, dest_path, 
@@ -713,8 +719,9 @@ class TransferTask(RegisteredTask):
       skip_first, skip_downsamples,
       delete_black_uploads, background_color,
       sparse, axis, agglomerate, timestamp, 
-      compress, factor
+      compress, factor, only_last
     )
+    # print('constructor\n')
     self.src_path = src_path
     self.dest_path = dest_path
     self.mip = mip
@@ -733,6 +740,7 @@ class TransferTask(RegisteredTask):
     self.agglomerate = agglomerate
     self.timestamp = timestamp
     self.compress = compress
+    self.only_last = only_last
 
   def execute(self):
     srccv = CloudVolume(
@@ -760,7 +768,8 @@ class TransferTask(RegisteredTask):
         self.shape, mip=self.mip,
         skip_first=self.skip_first,
         sparse=self.sparse, axis=self.axis,
-        factor=self.factor
+        factor=self.factor,
+        only_last=self.only_last
       )
 
 class DownsampleTask(TransferTask):

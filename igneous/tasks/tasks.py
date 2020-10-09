@@ -39,7 +39,8 @@ import zmesh
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
-    sparse=False, factor=None
+    sparse=False, factor=None,
+    skip_ds_mips=[]
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -75,13 +76,13 @@ def downsample_and_upload(
       mips = tinybrain.downsample_with_striding(image, factors[0], num_mips=num_mips)
 
     new_bounds = bounds.clone()
-   
     for factor3 in factors:
       vol.mip += 1
       new_bounds //= factor3
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
-      vol[new_bounds] = mipped
+      if not vol.mip in skip_ds_mips:
+        vol[new_bounds] = mipped
 
 def cache(task, cloudpath):
   layer_path, filename = os.path.split(cloudpath)
@@ -699,7 +700,8 @@ def TransferTask(
   agglomerate=False,
   timestamp=None,
   compress='gzip',
-  factor=None
+  factor=None,
+  skip_ds_mips=[]
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
@@ -735,7 +737,8 @@ def TransferTask(
       shape, mip=mip,
       skip_first=skip_first,
       sparse=sparse, axis=axis,
-      factor=factor
+      factor=factor,
+      skip_ds_mips=self.skip_ds_mips
     )
 
 @queueable

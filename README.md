@@ -12,7 +12,7 @@ https://hub.docker.com/r/seunglab/igneous/
 
 ## Installation
 
-You'll need Python 2 or 3, pip, a C++ compiler (g++ or clang), and virtualenv. Igneous appears to have higher performance using Python 3. It's tested under Ubuntu 14.04, Ubuntu 16.04 and Mac OS High Sierra and Mojave. 
+You'll need Python 3, pip, (possibly) a C++ compiler (e.g. g++ or clang), and virtualenv. It's tested under Ubuntu 16.04 and Mac OS Catalina. 
 
 ```bash
 git clone git@github.com:seung-lab/igneous.git

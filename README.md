@@ -43,8 +43,10 @@ cloudpath = 'gs://bucket/dataset/labels'
 tq = LocalTaskQueue(parallel=8)
 tasks = tc.create_meshing_tasks(cloudpath, mip=3, shape=(256, 256, 256))
 tq.insert(tasks)
+tq.execute()
 tasks = tc.create_mesh_manifest_tasks(cloudpath)
 tq.insert(tasks)
+tq.execute()
 print("Done!")
 ```
 
@@ -65,8 +67,10 @@ cloudpath = 'gs://bucket/dataset/labels'
 tq = TaskQueue("fq:///path/to/queue/directory")
 tasks = tc.create_meshing_tasks(cloudpath, mip=3, shape=(256, 256, 256))
 tq.insert(tasks)
+tq.execute()
 tasks = tc.create_mesh_manifest_tasks(cloudpath)
 tq.insert(tasks)
+tq.execute()
 print("Tasks created!")
 ```
 

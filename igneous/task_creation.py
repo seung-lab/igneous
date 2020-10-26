@@ -23,6 +23,7 @@ from cloudvolume import CloudVolume
 from cloudvolume.storage import Storage, SimpleStorage
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
+from cloudfiles import CloudFiles
 from taskqueue import TaskQueue, MockTaskQueue 
 
 from igneous import downsample_scales, chunks
@@ -631,7 +632,7 @@ def create_sharded_skeleton_merge_tasks(
   cv.skeleton.meta.info['sharding'] = spec.to_dict()
   cv.skeleton.meta.commit_info()
 
-  cv = CloudVolume(layer_path) # rebuild b/c sharding changes the skeleton object
+  cv = CloudVolume(layer_path, progress=True) # rebuild b/c sharding changes the skeleton object
 
   # 17 sec to download for pinky100
   all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
@@ -639,31 +640,15 @@ def create_sharded_skeleton_merge_tasks(
   shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
 
   shard_labels = defaultdict(list)
-  for label in all_labels:
+  for label in tqdm(all_labels, desc="Hashes"):
     shard_labels[shardfn(label)].append(label)
 
-  with Storage(cv.skeleton.meta.layerpath) as stor:
-    files = ( 
-      (str(shardno) + '.labels', jsonify(labels).encode('utf8')) 
-      for shardno, labels in shard_labels.items() 
-    )
-    stor.put_files(
-      files,
-      content_type='application/json', 
-      compress='gzip', 
-      cache_control='no-cache'
-    )
-
-  # This should always be a small number of tasks,
-  # no more than tens of thousands and usually much 
-  # less.
-  tasks = []
-  for shard_no in shard_labels.keys():
-    task = ShardedSkeletonMergeTask(
-      layer_path, shard_no, 
-      dust_threshold, tick_threshold
-    )
-    tasks.append(task)
+  cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
+  files = ( 
+    (str(shardno) + '.labels', jsonify(labels).encode('utf8')) 
+    for shardno, labels in shard_labels.items() 
+  )
+  cf.put_jsons(files, compress="gzip", cache_control="no-cache")
 
   cv.provenance.processing.append({
     'method': {
@@ -678,7 +663,13 @@ def create_sharded_skeleton_merge_tasks(
   }) 
   cv.commit_provenance()
 
-  return tasks
+  return (
+    ShardedSkeletonMergeTask(
+      layer_path, shard_no, 
+      dust_threshold, tick_threshold
+    )
+    for shard_no in shard_labels.keys()
+  )
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_unsharded_skeleton_merge_tasks(    

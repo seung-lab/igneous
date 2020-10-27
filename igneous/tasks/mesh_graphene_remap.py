@@ -140,6 +140,8 @@ def remap_segmentation(
         cc_ids = np.sort(list(cc))
         seg[np.in1d(seg, cc_ids[1:]).reshape(seg.shape)] = cc_ids[0]
 
+  import ipdb; ipdb.set_trace()
+
   return seg
 
 @lru_cache(maxsize=200)

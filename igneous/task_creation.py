@@ -906,7 +906,7 @@ def create_transfer_tasks(
     encoding=None, skip_downsamples=False,
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
-    factor=None, skip_first=False, skip_ds_mips=[]
+    factor=None, skip_first=False, skip_ds_mips=[], z_list=[]
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -970,7 +970,8 @@ def create_transfer_tasks(
         compress=compress,
         factor=factor,
         skip_first=skip_first,
-        skip_ds_mips=skip_ds_mips
+        skip_ds_mips=skip_ds_mips,
+        z_list=z_list
       )
 
     def on_finish(self):

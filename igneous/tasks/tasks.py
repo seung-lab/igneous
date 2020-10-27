@@ -706,7 +706,8 @@ class TransferTask(RegisteredTask):
     timestamp=None,
     compress='gzip',
     factor=None,
-    skip_ds_mips=[]
+    skip_ds_mips=[],
+    z_list=[]
   ):
     super(TransferTask, self).__init__(
       src_path, dest_path, 
@@ -715,7 +716,7 @@ class TransferTask(RegisteredTask):
       skip_first, skip_downsamples,
       delete_black_uploads, background_color,
       sparse, axis, agglomerate, timestamp, 
-      compress, factor, skip_ds_mips
+      compress, factor, skip_ds_mips, z_list
     )
     # print('constructor\n')
     self.src_path = src_path
@@ -737,36 +738,38 @@ class TransferTask(RegisteredTask):
     self.timestamp = timestamp
     self.compress = compress
     self.skip_ds_mips = skip_ds_mips
+    self.z_list = z_list
 
   def execute(self):
-    srccv = CloudVolume(
-      self.src_path, fill_missing=self.fill_missing,
-      mip=self.mip, bounded=False
-    )
-    destcv = CloudVolume(
-      self.dest_path, fill_missing=self.fill_missing,
-      mip=self.mip, delete_black_uploads=self.delete_black_uploads,
-      background_color=self.background_color, compress=self.compress
-    )
-
-    dst_bounds = Bbox(self.offset, self.shape + self.offset)
-    dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
-    src_bounds = dst_bounds - self.translate
-    image = srccv.download(
-      src_bounds, agglomerate=self.agglomerate, timestamp=self.timestamp
-    )
-
-    if self.skip_downsamples:
-      destcv[dst_bounds] = image
-    else:
-      downsample_and_upload(
-        image, dst_bounds, destcv,
-        self.shape, mip=self.mip,
-        skip_first=self.skip_first,
-        sparse=self.sparse, axis=self.axis,
-        factor=self.factor,
-        skip_ds_mips=self.skip_ds_mips
+    if len(self.z_list) == 0 or self.offset[2] in self.z_list:
+      srccv = CloudVolume(
+        self.src_path, fill_missing=self.fill_missing,
+        mip=self.mip, bounded=False
       )
+      destcv = CloudVolume(
+        self.dest_path, fill_missing=self.fill_missing,
+        mip=self.mip, delete_black_uploads=self.delete_black_uploads,
+        background_color=self.background_color, compress=self.compress
+      )
+
+      dst_bounds = Bbox(self.offset, self.shape + self.offset)
+      dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
+      src_bounds = dst_bounds - self.translate
+      image = srccv.download(
+        src_bounds, agglomerate=self.agglomerate, timestamp=self.timestamp
+      )
+
+      if self.skip_downsamples:
+        destcv[dst_bounds] = image
+      else:
+        downsample_and_upload(
+          image, dst_bounds, destcv,
+          self.shape, mip=self.mip,
+          skip_first=self.skip_first,
+          sparse=self.sparse, axis=self.axis,
+          factor=self.factor,
+          skip_ds_mips=self.skip_ds_mips
+        )
 
 class DownsampleTask(TransferTask):
   """

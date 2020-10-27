@@ -633,6 +633,7 @@ def create_sharded_skeleton_merge_tasks(
   cv.skeleton.meta.commit_info()
 
   cv = CloudVolume(layer_path, progress=True) # rebuild b/c sharding changes the skeleton object
+  cv.mip = cv.skeleton.meta.mip
 
   # 17 sec to download for pinky100
   all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)

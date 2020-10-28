@@ -646,7 +646,7 @@ def create_sharded_skeleton_merge_tasks(
 
   cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
   files = ( 
-    (str(shardno) + '.labels', jsonify(labels).encode('utf8')) 
+    (str(shardno) + '.labels', labels) 
     for shardno, labels in shard_labels.items() 
   )
   cf.put_jsons(files, compress="gzip", cache_control="no-cache")

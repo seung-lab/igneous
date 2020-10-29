@@ -649,7 +649,10 @@ def create_sharded_skeleton_merge_tasks(
     (str(shardno) + '.labels', labels) 
     for shardno, labels in shard_labels.items() 
   )
-  cf.put_jsons(files, compress="gzip", cache_control="no-cache")
+  cf.put_jsons(
+    files, compress="gzip", 
+    cache_control="no-cache", total=len(shard_labels)
+  )
 
   cv.provenance.processing.append({
     'method': {

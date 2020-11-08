@@ -24,6 +24,12 @@ pip install -r requirements.txt
 python setup.py develop
 ```
 
+You can add a speed boost to decompressing gzip files if you also write:
+
+```bash
+pip install deflate
+```
+
 *Igneous is intended as a self-contained pipeline system and not as a library. Such uses are possible, but not supported. If specific functionality is needed, please open an issue and we can break that out into a library as has been done with several algorithms such as [tinybrain](https://github.com/seung-lab/tinybrain), [zmesh](https://github.com/seung-lab/zmesh), and [kimimaro](https://github.com/seung-lab/kimimaro).*  
 
 ## Sample Local Use

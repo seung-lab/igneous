@@ -1,6 +1,5 @@
 click>=6.7
 cloud-volume>=1.13.0
-deflate
 DracoPy
 fastremap>=1.10.0
 google-cloud-logging

@@ -11,7 +11,7 @@ Pillow>=4.2.1
 pytest>=3.3.1
 scipy
 tinybrain
-task-queue>=2.1.0
+task-queue>=2.4.0
 tqdm
 zmesh>=0.3.0
 

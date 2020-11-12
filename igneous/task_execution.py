@@ -21,8 +21,9 @@ from igneous.secrets import SQS_URL, SQS_REGION_NAME, SQS_ENDPOINT_URL, LEASE_SE
 @click.option('--endpoint_url', default=SQS_ENDPOINT_URL,  help='Endpoint of the SQS service if not AWS (NOT the queue url)')
 @click.option('--seconds', default=LEASE_SECONDS, help="Lease seconds.")
 @click.option('--tally/--no-tally', default=True, help="Tally completed fq tasks.")
-@click.option('--loop/--no-loop', default=True, help='run execution in infinite loop or not', is_flag=True)
+@click.option('--loop', default=-1, help='Execute for at least this many seconds. 0: Run only a single task. -1: Loop forever (default).')
 def command(m, p, queue, region_name, endpoint_url, seconds, tally, loop):
+  loop = float(loop)
   args = (queue, region_name, endpoint_url, seconds, tally, loop)
 
   if m:
@@ -51,14 +52,19 @@ def execute(queue, region_name, endpoint_url, seconds, tally, loop):
   tq = TaskQueue(queue, region_name=region_name, endpoint_url=endpoint_url)
 
   print("Pulling from {}".format(tq.qualified_path))
-
   seconds = int(seconds)
 
-  if loop:
+  def stop_after_elapsed_time(elapsed_time):
+    if loop < 0:
+      return False
+    return loop < elapsed_time
+
+  if loop != 0:
     tq.poll(
       lease_seconds=seconds,
       verbose=True,
       tally=tally,
+      stop_fn=stop_after_elapsed_time,
     )
   else:
     task = tq.lease(seconds=seconds)

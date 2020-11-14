@@ -308,12 +308,19 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     # cache is necessary for local computation, but on GCE download is very fast
     # so cache isn't necessary.
     cv = CloudVolume(self.cloudpath, cache=False, progress=self.progress)
-    # Nested construction to avoid creating standing references
-    # to high memory variables so we can delete them inside
-    # process_skeletons.
-    skeletons = self.process_skeletons(
-      self.locations_for_labels(self.labels_for_shard(cv), cv), cv
-    )
+
+    # This looks messy because we are trying to avoid retaining
+    # unnecessary memory. In the original iteration, this was 
+    # using 50 GB+ memory on minnie65. With changes to this
+    # and the spatial_index, we are getting it down to something reasonable.
+    locations = self.locations_for_labels(self.labels_for_shard(cv), cv)
+    filenames = set(itertools.chain(*locations.values()))
+    labels = set(locations.keys())
+    del locations
+    skeletons = self.get_unfused(labels, filenames, cv)
+    del labels
+    del filenames
+    skeletons = self.process_skeletons(unfused_skeletons, in_place=True)
 
     if len(skeletons) == 0:
       return
@@ -334,15 +341,13 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       cache_control='no-cache',      
     )
 
-  def process_skeletons(self, locations, cv):    
-    filenames = set(itertools.chain(*locations.values()))
-    labels = set(locations.keys())
-    del locations
-
-    unfused_skeletons = self.get_unfused(labels, filenames, cv)
-
+  def process_skeletons(self, unfused_skeletons, in_place=False):
     skeletons = {}
-    for label, skels in tqdm(unfused_skeletons.items(), desc="Postprocessing", disable=(not self.progress)):
+    if in_place:
+      skeletons = unfused_skeletons
+
+    for label in tqdm(unfused_skeletons.keys(), desc="Postprocessing", disable=(not self.progress)):
+      skels = unfused_skeletons[label]
       skel = PrecomputedSkeleton.simple_merge(skels)
       skel.id = label
       skel.extra_attributes = [ 

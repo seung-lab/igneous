@@ -308,9 +308,12 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     # cache is necessary for local computation, but on GCE download is very fast
     # so cache isn't necessary.
     cv = CloudVolume(self.cloudpath, cache=False, progress=self.progress)
-    labels = self.labels_for_shard(cv)
-    locations = self.locations_for_labels(labels, cv)
-    skeletons = self.process_skeletons(locations, cv)
+    # Nested construction to avoid creating standing references
+    # to high memory variables so we can delete them inside
+    # process_skeletons.
+    skeletons = self.process_skeletons(
+      self.locations_for_labels(self.labels_for_shard(cv), cv), cv
+    )
 
     if len(skeletons) == 0:
       return
@@ -334,6 +337,8 @@ class ShardedSkeletonMergeTask(RegisteredTask):
   def process_skeletons(self, locations, cv):    
     filenames = set(itertools.chain(*locations.values()))
     labels = set(locations.keys())
+    del locations
+
     unfused_skeletons = self.get_unfused(labels, filenames, cv)
 
     skeletons = {}

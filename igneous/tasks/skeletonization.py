@@ -320,7 +320,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     skeletons = self.get_unfused(labels, filenames, cv)
     del labels
     del filenames
-    skeletons = self.process_skeletons(unfused_skeletons, in_place=True)
+    skeletons = self.process_skeletons(skeletons, in_place=True)
 
     if len(skeletons) == 0:
       return

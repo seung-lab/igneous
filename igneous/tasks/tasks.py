@@ -27,7 +27,7 @@ from cloudfiles import CloudFiles
 
 from cloudvolume import CloudVolume
 from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
-from taskqueue import RegisteredTask
+from taskqueue import RegisteredTask, queueable
 
 from igneous import chunks, downsample_scales
 
@@ -131,24 +131,38 @@ class DeleteTask(RegisteredTask):
 
       vol.delete(bbox)
 
-class BlackoutTask(RegisteredTask):
-  def __init__(
-    self, cloudpath, mip, shape, offset, 
-    value=0, non_aligned_writes=False
-  ):
-    super(BlackoutTask, self).__init__(
-      cloudpath, mip, shape, 
-      offset, value, non_aligned_writes
-    )
-    self.shape = Vec(*self.shape)
-    self.offset = Vec(*self.offset)
+@queueable
+def BlackoutTask(
+  cloudpath, mip, shape, offset, 
+  value=0, non_aligned_writes=False
+):
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  vol = CloudVolume(cloudpath, mip, non_aligned_writes=non_aligned_writes)
+  bounds = Bbox(offset, shape + offset)
+  bounds = Bbox.clamp(bounds, vol.bounds)
+  img = np.zeros(bounds.size3(), dtype=vol.dtype) + value
+  vol[bounds] = img
 
-  def execute(self):
-    vol = CloudVolume(self.cloudpath, self.mip, non_aligned_writes=self.non_aligned_writes)
-    bounds = Bbox(self.offset, self.shape + self.offset)
-    bounds = Bbox.clamp(bounds, vol.bounds)
-    img = np.zeros(bounds.size3(), dtype=vol.dtype) + self.value
-    vol[bounds] = img
+
+# class BlackoutTask(RegisteredTask):
+#   def __init__(
+#     self, cloudpath, mip, shape, offset, 
+#     value=0, non_aligned_writes=False
+#   ):
+#     super(BlackoutTask, self).__init__(
+#       cloudpath, mip, shape, 
+#       offset, value, non_aligned_writes
+#     )
+#     self.shape = Vec(*self.shape)
+#     self.offset = Vec(*self.offset)
+
+#   def execute(self):
+#     vol = CloudVolume(self.cloudpath, self.mip, non_aligned_writes=self.non_aligned_writes)
+#     bounds = Bbox(self.offset, self.shape + self.offset)
+#     bounds = Bbox.clamp(bounds, vol.bounds)
+#     img = np.zeros(bounds.size3(), dtype=vol.dtype) + self.value
+#     vol[bounds] = img
 
 class TouchTask(RegisteredTask):
   def __init__(self, cloudpath, mip, shape, offset):

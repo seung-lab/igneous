@@ -1,5 +1,6 @@
 import pytest
 
+from functools import partial
 from builtins import range
 from collections import defaultdict
 import json
@@ -9,7 +10,7 @@ import shutil
 import numpy as np
 from cloudvolume import Storage, CloudVolume, EmptyVolumeException, view
 import cloudvolume.lib as lib
-from taskqueue import MockTaskQueue
+from taskqueue import MockTaskQueue, TaskQueue
 import tinybrain
 
 from igneous import (
@@ -225,14 +226,19 @@ def test_blackout_tasks():
     storage, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="image")
     cv = CloudVolume(storage.layer_path)
 
-    BlackoutTask(
-        cloudpath=storage.layer_path,
-        mip=0,
-        offset=(0,0,0),
-        shape=(128, 64, 64),
-        value=11,
-        non_aligned_writes=False
-    ).execute()
+    tq = TaskQueue("fq:///tmp/removeme/blackout/")
+
+    tq.insert(
+        partial(BlackoutTask, 
+            cloudpath=storage.layer_path,
+            mip=0,
+            offset=(0,0,0),
+            shape=(128, 64, 64),
+            value=11,
+            non_aligned_writes=False
+        )
+    )
+    tq.lease().execute()
 
     img = cv[:,:,:]
     assert np.all(img == 11)
@@ -244,7 +250,7 @@ def test_blackout_tasks():
         shape=(37, 64, 64),
         value=23,
         non_aligned_writes=True
-    ).execute()
+    )
 
     img = cv[:37,:,:]
     assert np.all(img == 23)

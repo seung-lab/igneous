@@ -393,10 +393,12 @@ class ShardedSkeletonMergeTask(RegisteredTask):
           fragment = MapBuffer(content, frombytesfn=PrecomputedSkeleton.from_precomputed)
 
         for label in labels:
-          if label in fragment:
+          try:
             skel = fragment[label]
             skel.id = label
             all_skels[label].append(skel)
+          except KeyError:
+            continue
 
     return all_skels
 

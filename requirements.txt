@@ -4,6 +4,7 @@ DracoPy
 fastremap>=1.10.0
 google-cloud-logging
 kimimaro>=0.5.0
+mapbuffer>=0.1.1
 networkx
 numpy>=1.14.2
 pathos

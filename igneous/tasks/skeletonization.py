@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 import numpy as np
 
+from mapbuffer import MapBuffer
 from cloudfiles import CloudFiles
 
 import cloudvolume
@@ -144,12 +145,17 @@ class SkeletonTask(RegisteredTask):
     return skeletons
 
   def upload_batch(self, vol, path, bbox, skeletons):
+    mbuf = MapBuffer(
+      skeletons, compress="br", 
+      tobytesfn=lambda skel: skel.to_precomputed()
+    )
+
     cf = CloudFiles(path, progress=vol.progress)
     cf.put(
       path="{}.frags".format(bbox.to_filename()),
-      content=pickle.dumps(skeletons),
-      compress='gzip',
-      content_type="application/python-pickle",
+      content=mbuf.tobytes(),
+      compress=None,
+      content_type="application/x-mapbuffer",
       cache_control=False,
     )
 
@@ -296,11 +302,12 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 class ShardedSkeletonMergeTask(RegisteredTask):
   def __init__(
     self, cloudpath, shard_no, 
-    dust_threshold=4000, tick_threshold=6000
+    dust_threshold=4000, tick_threshold=6000,
+    sqlite_db=None
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
-      dust_threshold, tick_threshold
+      dust_threshold, tick_threshold, sqlite_db
     )
     self.progress = False
 
@@ -380,15 +387,23 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)
       
       for filename, content in tqdm(all_files.items(), desc="Unpickling Fragments", disable=(not self.progress)):
-        fragment = pickle.loads(content)
+        try:
+          fragment = pickle.loads(content)
+        except pickle.UnpicklingError:
+          fragment = MapBuffer(content, frombytesfn=PrecomputedSkeleton.from_precomputed)
+
         for label in labels:
           if label in fragment:
-            all_skels[label].append(fragment[label])
+            skel = fragment[label]
+            skel.id = label
+            all_skels[label].append(skel)
 
     return all_skels
 
   def locations_for_labels(self, labels, cv):
     SPATIAL_EXT = re.compile(r'\.spatial$')
+    if self.sqlite_db:
+      cv.skeleton.spatial_index.sqlite_db = self.sqlite_db
     index_filenames = cv.skeleton.spatial_index.file_locations_per_label(labels)
     for label, locations in index_filenames.items():
       for i, location in enumerate(locations):

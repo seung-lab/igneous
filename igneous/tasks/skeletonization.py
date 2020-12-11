@@ -387,8 +387,9 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not self.progress)):
       if cv.meta.path.protocol == "file":
         all_files = {}
+        prefix = cv.cloudpath.replace("file://", "")
         for filename in filenames_block:
-          f = open(filename, "rb")
+          f = open(os.path.join(prefix, filename), "rb")
           all_files[filename] = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
       else:
         all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)

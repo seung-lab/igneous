@@ -3,6 +3,7 @@ import six
 from functools import reduce
 import itertools
 import json
+import mmap
 import pickle
 import posixpath
 import os
@@ -17,8 +18,8 @@ from mapbuffer import MapBuffer
 from cloudfiles import CloudFiles
 
 import cloudvolume
-from cloudvolume import CloudVolume, PrecomputedSkeleton, view
-from cloudvolume.lib import xyzrange, min2, max2, Vec, Bbox, mkdir, save_images, jsonify, scatter
+from cloudvolume import CloudVolume, PrecomputedSkeleton
+from cloudvolume.lib import Vec, Bbox, sip
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
 import fastremap
@@ -380,13 +381,20 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       n_blocks = 1
     else:
       n_blocks = max(len(filenames) // block_size, 1)
-      blocks = scatter(filenames, n_blocks)
+      blocks = sip(filenames, block_size)
 
     all_skels = defaultdict(list)
     for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not self.progress)):
-      all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)
+      if cv.meta.path.protocol == "file":
+        all_files = {}
+        prefix = cv.cloudpath.replace("file://", "")
+        for filename in filenames_block:
+          f = open(os.path.join(prefix, filename), "rb")
+          all_files[filename] = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
+      else:
+        all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)
       
-      for filename, content in tqdm(all_files.items(), desc="Unpickling Fragments", disable=(not self.progress)):
+      for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not self.progress)):
         try:
           fragment = pickle.loads(content)
         except pickle.UnpicklingError:

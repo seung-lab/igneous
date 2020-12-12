@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 import numpy as np
 
+import mapbuffer
 from mapbuffer import MapBuffer
 from cloudfiles import CloudFiles
 
@@ -396,9 +397,10 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       
       for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not self.progress)):
         try:
-          fragment = pickle.loads(content)
-        except pickle.UnpicklingError:
           fragment = MapBuffer(content, frombytesfn=PrecomputedSkeleton.from_precomputed)
+          fragment.validate()
+        except mapbuffer.ValidationError:
+          fragment = pickle.loads(content)
 
         for label in labels:
           try:

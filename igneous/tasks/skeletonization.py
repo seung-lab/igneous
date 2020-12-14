@@ -305,13 +305,15 @@ class ShardedSkeletonMergeTask(RegisteredTask):
   def __init__(
     self, cloudpath, shard_no, 
     dust_threshold=4000, tick_threshold=6000,
-    sqlite_db=None
+    sqlite_db=None, max_cable_length=None
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
-      dust_threshold, tick_threshold, sqlite_db
+      dust_threshold, tick_threshold, sqlite_db,
+      max_cable_length
     )
     self.progress = False
+    self.max_cable_length = float(max_cable_length)
 
   def execute(self):
     # cache is necessary for local computation, but on GCE download is very fast
@@ -362,12 +364,15 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       skel.extra_attributes = [ 
         attr for attr in skel.extra_attributes \
         if attr['data_type'] == 'float32' 
-      ]      
-      skeletons[label] = kimimaro.postprocess(
-        skel, 
-        dust_threshold=self.dust_threshold, # voxels 
-        tick_threshold=self.tick_threshold, # nm
-      ).to_precomputed()
+      ]
+      if self.max_cable_length is not None and skel.cable_length() > self.max_cable_length:
+        skeletons[label] = skel.to_precomputed()
+      else:
+        skeletons[label] = kimimaro.postprocess(
+          skel, 
+          dust_threshold=self.dust_threshold, # voxels 
+          tick_threshold=self.tick_threshold, # nm
+        ).to_precomputed()
 
     return skeletons
 

@@ -32,7 +32,7 @@ from igneous.tasks import (
   HyperSquareConsensusTask, 
   MeshTask, MeshManifestTask, GrapheneMeshTask,
   DownsampleTask, QuantizeTask, 
-  TransferTask, WatershedRemapTask, DeleteTask, 
+  TransferTask, CollectMissingKeysTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
   SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask, 
   MaskAffinitymapTask, InferenceTask
@@ -1002,6 +1002,44 @@ def create_transfer_tasks(
 
   return TransferTaskIterator(bounds, shape)
 
+def create_collect_missing_keys_tasks(
+    src_layer_path,
+    log_layer_path,
+    shape=Vec(2048, 2048, 64),
+    bounds=None,
+    mip=0
+):
+    """
+    Check if the chunks exist - write missing keys to log_path (empty objects)
+    """
+    shape = Vec(*shape)
+    vol = CloudVolume(src_layer_path, mip=mip)
+
+    chunk_size = vol.info["scales"][mip]["chunk_sizes"][0]
+    chunk_size = Vec(*chunk_size)
+
+    if bounds is None:
+        bounds = vol.bounds.clone()
+    else:
+        bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+        bounds = Bbox.clamp(bounds, vol.bounds)
+
+    class CollectMissingKeysTaskIterator(FinelyDividedTaskIterator):
+        def task(self, shape, offset):
+            task_shape = min2(shape.clone(), bounds.maxpt - offset)
+            return CollectMissingKeysTask(
+                src_path=src_layer_path,
+                log_path=log_layer_path,
+                shape=task_shape,
+                offset=offset.clone(),
+                mip=mip
+            )
+
+        def on_finish(self):
+            pass
+
+    return CollectMissingKeysTaskIterator(bounds, shape)
+
 def create_contrast_normalization_tasks(
     src_path, dest_path, levels_path=None,
     shape=None, mip=0, clip_fraction=0.01, 
@@ -1074,7 +1112,7 @@ def create_contrast_normalization_tasks(
 
 def create_luminance_levels_tasks(
     layer_path, levels_path=None, coverage_factor=0.01, 
-    shape=None, offset=(0,0,0), mip=0, bounds=None
+    shape=None, offset=(0,0,0), mip=0, bounds=None, blackout_mask_path=None, blackout_mask_mip=None
   ):
   """
   Compute per slice luminance level histogram and write them as
@@ -1088,6 +1126,8 @@ def create_luminance_levels_tasks(
   }
 
   layer_path: source image to sample from
+  blackout_mask_path: optional mask to apply to layer (treat as 0/black)
+  blackout_mask_mip: int, which mip to use for the masks.
   levels_path: which path to write ./levels/ to (default: $layer_path)
   coverage_factor: what fraction of the image to sample
 
@@ -1120,6 +1160,8 @@ def create_luminance_levels_tasks(
           offset=zoffset, 
           coverage_factor=coverage_factor,
           mip=mip,
+          blackout_mask_path=blackout_mask_path,
+          blackout_mask_mip=blackout_mask_mip
         )
 
       if protocol == 'boss':
@@ -1146,6 +1188,8 @@ def create_luminance_levels_tasks(
           ],
           'coverage_factor': coverage_factor,
           'mip': mip,
+          'blackout_mask_path': blackout_mask_path,
+          'blackout_mask_mip': blackout_mask_mip,
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

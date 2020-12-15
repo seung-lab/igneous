@@ -2,7 +2,7 @@ from .skeletonization import SkeletonTask, UnshardedSkeletonMergeTask, ShardedSk
 from .mesh import MeshTask, MeshManifestTask, GrapheneMeshTask
 from .tasks import (
   HyperSquareConsensusTask, 
-  DownsampleTask, QuantizeTask, 
+  DownsampleTask, QuantizeTask, CollectMissingKeysTask,
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
   MaskAffinitymapTask, InferenceTask, BlackoutTask

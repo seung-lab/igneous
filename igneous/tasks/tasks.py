@@ -27,6 +27,7 @@ from cloudfiles import CloudFiles
 
 from cloudvolume import CloudVolume
 from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
+from cloudvolume.datasource.precomputed.image.common import chunknames
 from taskqueue import RegisteredTask, queueable
 
 from igneous import chunks, downsample_scales
@@ -622,10 +623,14 @@ class ContrastNormalizationTask(RegisteredTask):
 class LuminanceLevelsTask(RegisteredTask):
   """Generate a frequency count of luminance values by random sampling. Output to $PATH/levels/$MIP/$Z"""
 
-  def __init__(self, src_path, levels_path, shape, offset, coverage_factor, mip):
+  def __init__(
+    self, src_path, levels_path, shape, offset, coverage_factor, mip,
+    blackout_mask_path, blackout_mask_mip
+  ):
     super(LuminanceLevelsTask, self).__init__(
       src_path, levels_path, shape, 
-      offset, coverage_factor, mip
+      offset, coverage_factor, mip,
+      blackout_mask_path, blackout_mask_mip
     )
     self.src_path = src_path
     self.shape = Vec(*shape)
@@ -633,11 +638,17 @@ class LuminanceLevelsTask(RegisteredTask):
     self.coverage_factor = coverage_factor
     self.mip = int(mip)
     self.levels_path = levels_path
+    self.blackout_mask_path = blackout_mask_path
+    self.blackout_mask_mip = blackout_mask_mip
 
     assert 0 < coverage_factor <= 1, "Coverage Factor must be between 0 and 1"
 
   def execute(self):
     srccv = CloudVolume(self.src_path, mip=self.mip, fill_missing=True)
+    if self.blackout_mask_path is not None:
+      maskcv = CloudVolume(self.blackout_mask_path, mip=self.blackout_mask_mip, fill_missing=True)
+    else:
+      maskcv = None
 
     # Accumulate a histogram of the luminance levels
     nbits = np.dtype(srccv.dtype).itemsize * 8
@@ -649,6 +660,12 @@ class LuminanceLevelsTask(RegisteredTask):
     bboxes = self.select_bounding_boxes(bounds)
     for bbox in bboxes:
       img2d = srccv[bbox.to_slices()].reshape((bbox.volume()))
+      if maskcv is not None:
+        mask2d = maskcv[maskcv.bbox_to_mip(bbox, self.mip, self.blackout_mask_mip).to_slices()]
+        factor = maskcv.resolution // srccv.resolution
+        mask2d = mask2d.repeat(factor[0], axis=0).repeat(factor[1], axis=1).repeat(factor[2], axis=2).reshape((bbox.volume()))
+        img2d[mask2d>0] = 0
+
       cts = np.bincount(img2d)
       levels[0:len(cts)] += cts.astype(np.uint64)
 
@@ -678,7 +695,8 @@ class LuminanceLevelsTask(RegisteredTask):
   def select_bounding_boxes(self, dataset_bounds):
     # Sample patches until coverage factor is satisfied. 
     # Ensure the patches are non-overlapping and random.
-    sample_shape = Bbox((0, 0, 0), (2048, 2048, 1))
+
+    sample_shape = Bbox((0, 0, 0), (1024, 1024, 1))
     area = self.shape.rectVolume()
 
     total_patches = int(math.ceil(area / sample_shape.volume()))
@@ -778,6 +796,48 @@ class TransferTask(RegisteredTask):
         sparse=self.sparse, axis=self.axis,
         factor=self.factor
       )
+
+class CollectMissingKeysTask(RegisteredTask):
+  def __init__(
+    self, src_path, log_path, 
+    mip, shape, offset, 
+  ):
+    super(CollectMissingKeysTask, self).__init__(
+      src_path, log_path,
+      mip, shape, offset
+    )
+    self.src_path = src_path
+    self.log_path = log_path
+    self.mip = mip
+    self.shape = Vec(*shape)
+    self.offset = Vec(*offset)
+
+  def execute(self):
+    srccv = CloudVolume(
+      self.src_path, fill_missing=False,
+      mip=self.mip, bounded=False
+    )
+    srccf = CloudFiles(self.src_path)
+    logcf = CloudFiles(self.log_path)
+
+    src_bounds = Bbox(self.offset, self.shape + self.offset)
+    full_bbox = src_bounds.expand_to_chunk_size(
+      srccv.meta.chunk_size(self.mip), offset=srccv.meta.voxel_offset(self.mip)
+    )
+    full_bbox = Bbox.clamp(full_bbox, srccv.meta.bounds(self.mip))
+
+    cloudpaths = list(chunknames(
+      full_bbox, srccv.meta.bounds(self.mip),
+      srccv.meta.key(self.mip), srccv.meta.chunk_size(self.mip),
+      protocol=srccv.meta.path.protocol
+    ))
+
+    res = srccf.exists(cloudpaths)
+    missing = [k for (k,v) in res.items() if v is False]
+
+    logcf.puts([(filepath, '') for filepath in missing], compress=None, raw=True, content_type='text/plain')
+
+
 
 class DownsampleTask(TransferTask):
   """

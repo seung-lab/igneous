@@ -931,11 +931,12 @@ def create_transfer_tasks(
   dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
   dvol.commit_info()
 
-  downsample_scales.create_downsample_scales(dest_layer_path, 
-    mip=mip, ds_shape=shape, 
-    preserve_chunk_size=preserve_chunk_size,
-    encoding=encoding
-  )
+  if not skip_downsamples:
+    downsample_scales.create_downsample_scales(dest_layer_path, 
+      mip=mip, ds_shape=shape, 
+      preserve_chunk_size=preserve_chunk_size,
+      encoding=encoding
+    )
 
   if bounds is None:
     bounds = vol.bounds.clone()

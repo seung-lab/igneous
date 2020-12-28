@@ -20,7 +20,7 @@ spec:
           image: seunglab/igneous
           volumeMounts:
           - name: secrets
-            mountPath: "/secrets"
+            mountPath: "/root/.cloudvolume/secrets"
             readOnly: true
           - name: tmp
             mountPath: "/tmp"

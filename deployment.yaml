@@ -1,9 +1,14 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: igneous
+  labels:
+    app: igneous
 spec:
   replicas: 16
+  selector:
+    matchLabels:
+      app: igneous
   template:
     metadata:
       labels:

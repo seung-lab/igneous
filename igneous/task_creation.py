@@ -287,7 +287,7 @@ def create_downsampling_tasks(
     )
 
     if not preserve_chunk_size or chunk_size:
-      shape = ds_shape(mip + 1, chunk_size)
+      shape = ds_shape(mip + 1, chunk_size, factor)
 
     bounds = get_bounds(vol, bounds, shape, mip, vol.chunk_size)
     

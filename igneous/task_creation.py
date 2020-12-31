@@ -1357,9 +1357,9 @@ def graphene_prefixes(
   return prefixes
 
 def create_graphene_hybrid_mesh_manifest_tasks(
-  cloudpath, mip, mip_bits, x_bits, y_bits
+  cloudpath, mip, mip_bits, x_bits, y_bits, z_bits
 ):
-  prefixes = graphene_prefixes(mip, mip_bits, (x_bits, y_bits))
+  prefixes = graphene_prefixes(mip, mip_bits, (x_bits, y_bits, z_bits))
 
   class GrapheneHybridMeshManifestTaskIterator(object):
     def __len__(self):

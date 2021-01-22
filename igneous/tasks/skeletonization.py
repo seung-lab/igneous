@@ -313,7 +313,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       max_cable_length
     )
     self.progress = False
-    self.max_cable_length = float(max_cable_length)
+    self.max_cable_length = float(max_cable_length) if max_cable_length is not None
 
   def execute(self):
     # cache is necessary for local computation, but on GCE download is very fast

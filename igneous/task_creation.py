@@ -235,7 +235,7 @@ def create_downsampling_tasks(
     sparse=False, bounds=None, chunk_size=None,
     encoding=None, delete_black_uploads=False, 
     background_color=0, dest_path=None, compress=None,
-    factor=None
+    factor=None, renumber=False
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -262,6 +262,9 @@ def create_downsampling_tasks(
       for new uploaded files.
     factor: (overrides axis) can manually specify what each downsampling round is
       supposed to do: e.g. (2,2,1), (2,2,2), etc
+    renumber: if True, use CloudVolume's renumbered download feature to download
+      a potentially smaller dtype so that larger images will fit in memory. Downloads
+      will be somewhat slower.
     """
     def ds_shape(mip, chunk_size=None, factor=None):
       if chunk_size:
@@ -306,6 +309,7 @@ def create_downsampling_tasks(
           dest_path=dest_path,
           compress=compress,
           factor=factor,
+          renumber=bool(renumber),
         )
 
       def on_finish(self):
@@ -328,6 +332,7 @@ def create_downsampling_tasks(
             'dest_path': dest_path,
             'compress': compress,
             'factor': (tuple(factor) if factor else None),
+            'renumber': bool(renumber),
           },
           'by': OPERATOR_CONTACT,
           'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -900,7 +905,7 @@ def create_transfer_tasks(
     encoding=None, skip_downsamples=False,
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
-    factor=None
+    factor=None, renumber=False
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -964,6 +969,7 @@ def create_transfer_tasks(
         timestamp=timestamp,
         compress=compress,
         factor=factor,
+        renumber=renumber,
       )
 
     def on_finish(self):
@@ -987,6 +993,7 @@ def create_transfer_tasks(
           'timestamp': timestamp,
           'compress': compress,
           'factor': (tuple(factor) if factor else None),
+          'renumber': bool(renumber),
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -40,7 +40,8 @@ def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
     sparse=False, factor=None,
-    skip_ds_mips=[], mip_to_storage_class={}
+    skip_ds_mips=[], mip_to_storage_class={},
+    max_mip=None
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -78,6 +79,8 @@ def downsample_and_upload(
     new_bounds = bounds.clone()
     for factor3 in factors:
       vol.mip += 1
+      if max_mip and vol.mip > max_mip:
+        break
       vol.config.storage_class = mip_to_storage_class.get(vol.mip)
       new_bounds //= factor3
       mipped = mips.pop(0)
@@ -703,7 +706,8 @@ def TransferTask(
   compress='gzip',
   factor=None,
   skip_ds_mips=[],
-  mip_to_storage_class={}
+  mip_to_storage_class={},
+  max_mip=None
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
@@ -743,7 +747,8 @@ def TransferTask(
       sparse=sparse, axis=axis,
       factor=factor,
       skip_ds_mips=skip_ds_mips,
-      mip_to_storage_class=mip_to_storage_class
+      mip_to_storage_class=mip_to_storage_class,
+      max_mip=max_mip
     )
 
 @queueable

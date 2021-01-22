@@ -78,7 +78,7 @@ def downsample_and_upload(
     new_bounds = bounds.clone()
     for factor3 in factors:
       vol.mip += 1
-      vol.storage_class = mip_to_storage_class.get(vol.mip)
+      vol.config.storage_class = mip_to_storage_class.get(vol.mip)
       new_bounds //= factor3
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])

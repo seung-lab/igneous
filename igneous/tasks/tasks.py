@@ -40,7 +40,7 @@ def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
     sparse=False, factor=None,
-    skip_ds_mips=[]
+    skip_ds_mips=[], mip_to_storage_class={}
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -78,6 +78,7 @@ def downsample_and_upload(
     new_bounds = bounds.clone()
     for factor3 in factors:
       vol.mip += 1
+      vol.storage_class = mip_to_storage_class.get(vol.mip)
       new_bounds //= factor3
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
@@ -701,7 +702,8 @@ def TransferTask(
   timestamp=None,
   compress='gzip',
   factor=None,
-  skip_ds_mips=[]
+  skip_ds_mips=[],
+  mip_to_storage_class={}
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
@@ -716,10 +718,12 @@ def TransferTask(
     src_path, fill_missing=fill_missing,
     mip=mip, bounded=False
   )
+  storage_class = mip_to_storage_class.get(mip)
   destcv = CloudVolume(
     dest_path, fill_missing=fill_missing,
     mip=mip, delete_black_uploads=delete_black_uploads,
-    background_color=background_color, compress=compress
+    background_color=background_color, compress=compress,
+    storage_class=storage_class
   )
 
   dst_bounds = Bbox(offset, shape + offset)
@@ -738,7 +742,8 @@ def TransferTask(
       skip_first=skip_first,
       sparse=sparse, axis=axis,
       factor=factor,
-      skip_ds_mips=self.skip_ds_mips
+      skip_ds_mips=skip_ds_mips,
+      mip_to_storage_class=mip_to_storage_class
     )
 
 @queueable
@@ -746,7 +751,8 @@ def DownsampleTask(
   layer_path, mip, shape, offset, 
   fill_missing=False, axis='z', sparse=False,
   delete_black_uploads=False, background_color=0,
-  dest_path=None, compress="gzip", factor=None
+  dest_path=None, compress="gzip", factor=None,
+  mip_to_storage_class={}
 ):
   """
   Downsamples a cutout of the volume. By default it performs 
@@ -769,6 +775,7 @@ def DownsampleTask(
     axis=axis,
     compress=compress,
     factor=factor,
+    mip_to_storage_class=mip_to_storage_class
   )
 
 class WatershedRemapTask(RegisteredTask):

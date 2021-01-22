@@ -235,7 +235,7 @@ def create_downsampling_tasks(
     sparse=False, bounds=None, chunk_size=None,
     encoding=None, delete_black_uploads=False, 
     background_color=0, dest_path=None, compress=None,
-    factor=None
+    factor=None, mip_to_storage_class={}
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -306,6 +306,7 @@ def create_downsampling_tasks(
           dest_path=dest_path,
           compress=compress,
           factor=factor,
+          mip_to_storage_class=mip_to_storage_class
         )
 
       def on_finish(self):
@@ -900,7 +901,8 @@ def create_transfer_tasks(
     encoding=None, skip_downsamples=False,
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
-    factor=None, skip_first=False, skip_ds_mips=[]
+    factor=None, skip_first=False, skip_ds_mips=[],
+    mip_to_storage_class={}
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -921,15 +923,15 @@ def create_transfer_tasks(
   except Exception: # no info file
     info = copy.deepcopy(vol.info)
     dvol = CloudVolume(dest_layer_path, info=info)
-    dvol.commit_info()
+    # dvol.commit_info()
 
   if encoding is not None:
     dvol.info['scales'][mip]['encoding'] = encoding
     if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dvol.info['scales'][mip]:
       dvol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
-  dvol.info['scales'] = dvol.info['scales'][:mip+1]
-  dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
-  dvol.commit_info()
+  # dvol.info['scales'] = dvol.info['scales'][:mip+1]
+  # dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
+  # dvol.commit_info()
 
   if not skip_downsamples:
     downsample_scales.create_downsample_scales(dest_layer_path, 
@@ -965,7 +967,8 @@ def create_transfer_tasks(
         compress=compress,
         factor=factor,
         skip_first=skip_first,
-        skip_ds_mips=skip_ds_mips
+        skip_ds_mips=skip_ds_mips,
+        mip_to_storage_class=mip_to_storage_class
       )
 
     def on_finish(self):

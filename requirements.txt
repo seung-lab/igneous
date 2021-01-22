@@ -1,5 +1,6 @@
+-e git+https://github.com/seung-lab/cloud-volume.git@manuel-storage-class#egg=cloud-volume
+urllib3==1.25.11
 click>=6.7
-cloud-volume>=1.13.0
 DracoPy
 fastremap>=1.10.0
 google-cloud-logging
@@ -15,4 +16,3 @@ tinybrain
 task-queue>=2.4.0
 tqdm
 zmesh>=0.3.0
-

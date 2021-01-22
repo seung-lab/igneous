@@ -79,7 +79,7 @@ def downsample_and_upload(
     new_bounds = bounds.clone()
     for factor3 in factors:
       vol.mip += 1
-      if max_mip and vol.mip > max_mip:
+      if max_mip is not None and vol.mip > max_mip:
         break
       vol.config.storage_class = mip_to_storage_class.get(vol.mip)
       new_bounds //= factor3

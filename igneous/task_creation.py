@@ -3,7 +3,7 @@ from __future__ import print_function
 from collections import defaultdict
 from six.moves import range
 from itertools import product
-from functools import reduce
+from functools import reduce, partial
 import operator
 
 import copy
@@ -155,7 +155,7 @@ def create_blackout_tasks(
   class BlackoutTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       bounded_shape = min2(shape, vol.bounds.maxpt - offset)
-      return igneous.tasks.BlackoutTask(
+      return partial(igneous.tasks.BlackoutTask, 
         cloudpath=cloudpath, 
         mip=mip, 
         shape=shape.clone(), 
@@ -293,7 +293,7 @@ def create_downsampling_tasks(
     
     class DownsampleTaskIterator(FinelyDividedTaskIterator):
       def task(self, shape, offset):
-        return DownsampleTask(
+        return partial(DownsampleTask, 
           layer_path=layer_path,
           mip=vol.mip,
           shape=shape.clone(),
@@ -949,7 +949,7 @@ def create_transfer_tasks(
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  
       task_shape = min2(shape.clone(), dvol_bounds.maxpt - offset)
-      return TransferTask(
+      return partial(TransferTask,
         src_path=src_layer_path,
         dest_path=dest_layer_path,
         shape=task_shape,

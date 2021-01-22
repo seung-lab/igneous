@@ -144,26 +144,6 @@ def BlackoutTask(
   img = np.zeros(bounds.size3(), dtype=vol.dtype) + value
   vol[bounds] = img
 
-
-# class BlackoutTask(RegisteredTask):
-#   def __init__(
-#     self, cloudpath, mip, shape, offset, 
-#     value=0, non_aligned_writes=False
-#   ):
-#     super(BlackoutTask, self).__init__(
-#       cloudpath, mip, shape, 
-#       offset, value, non_aligned_writes
-#     )
-#     self.shape = Vec(*self.shape)
-#     self.offset = Vec(*self.offset)
-
-#   def execute(self):
-#     vol = CloudVolume(self.cloudpath, self.mip, non_aligned_writes=self.non_aligned_writes)
-#     bounds = Bbox(self.offset, self.shape + self.offset)
-#     bounds = Bbox.clamp(bounds, vol.bounds)
-#     img = np.zeros(bounds.size3(), dtype=vol.dtype) + self.value
-#     vol[bounds] = img
-
 class TouchTask(RegisteredTask):
   def __init__(self, cloudpath, mip, shape, offset):
     super(TouchTask, self).__init__(cloudpath, mip, shape, offset)
@@ -704,114 +684,89 @@ class LuminanceLevelsTask(RegisteredTask):
       bboxes.append(bbox)
     return bboxes
 
-class TransferTask(RegisteredTask):
-  # translate = change of origin
-  def __init__(
-    self, src_path, dest_path, 
-    mip, shape, offset, 
-    translate=(0,0,0),
-    fill_missing=False, 
-    skip_first=False, 
-    skip_downsamples=False,
-    delete_black_uploads=False, 
-    background_color=0,
-    sparse=False,
-    axis='z',
-    agglomerate=False,
-    timestamp=None,
-    compress='gzip',
-    factor=None,
-  ):
-    super(TransferTask, self).__init__(
-      src_path, dest_path, 
-      mip, shape, offset, 
-      translate, fill_missing, 
-      skip_first, skip_downsamples,
-      delete_black_uploads, background_color,
-      sparse, axis, agglomerate, timestamp, 
-      compress, factor
-    )
-    self.src_path = src_path
-    self.dest_path = dest_path
-    self.mip = mip
-    self.shape = Vec(*shape)
-    self.offset = Vec(*offset)
-    self.fill_missing = bool(fill_missing)
-    self.translate = Vec(*translate)
-    self.delete_black_uploads = bool(delete_black_uploads)
-    self.sparse = bool(sparse)
-    self.skip_first = bool(skip_first)
-    self.skip_downsamples = bool(skip_downsamples)
-    self.background_color = background_color
-    self.axis = axis
-    self.factor = factor
-    self.sparse = sparse
-    self.agglomerate = agglomerate
-    self.timestamp = timestamp
-    self.compress = compress
+@queueable
+def TransferTask(
+  src_path, dest_path, 
+  mip, shape, offset, 
+  translate=(0,0,0), # change of origin
+  fill_missing=False, 
+  skip_first=False, 
+  skip_downsamples=False,
+  delete_black_uploads=False, 
+  background_color=0,
+  sparse=False,
+  axis='z',
+  agglomerate=False,
+  timestamp=None,
+  compress='gzip',
+  factor=None
+):
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  fill_missing = bool(fill_missing)
+  translate = Vec(*translate)
+  delete_black_uploads = bool(delete_black_uploads)
+  sparse = bool(sparse)
+  skip_first = bool(skip_first)
+  skip_downsamples = bool(skip_downsamples)
 
-  def execute(self):
-    srccv = CloudVolume(
-      self.src_path, fill_missing=self.fill_missing,
-      mip=self.mip, bounded=False
-    )
-    destcv = CloudVolume(
-      self.dest_path, fill_missing=self.fill_missing,
-      mip=self.mip, delete_black_uploads=self.delete_black_uploads,
-      background_color=self.background_color, compress=self.compress
+  srccv = CloudVolume(
+    src_path, fill_missing=fill_missing,
+    mip=mip, bounded=False
+  )
+  destcv = CloudVolume(
+    dest_path, fill_missing=fill_missing,
+    mip=mip, delete_black_uploads=delete_black_uploads,
+    background_color=background_color, compress=compress
+  )
+
+  dst_bounds = Bbox(offset, shape + offset)
+  dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
+  src_bounds = dst_bounds - translate
+  image = srccv.download(
+    src_bounds, agglomerate=agglomerate, timestamp=timestamp
+  )
+
+  if skip_downsamples:
+    destcv[dst_bounds] = image
+  else:
+    downsample_and_upload(
+      image, dst_bounds, destcv,
+      shape, mip=mip,
+      skip_first=skip_first,
+      sparse=sparse, axis=axis,
+      factor=factor
     )
 
-    dst_bounds = Bbox(self.offset, self.shape + self.offset)
-    dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
-    src_bounds = dst_bounds - self.translate
-    image = srccv.download(
-      src_bounds, agglomerate=self.agglomerate, timestamp=self.timestamp
-    )
-
-    if self.skip_downsamples:
-      destcv[dst_bounds] = image
-    else:
-      downsample_and_upload(
-        image, dst_bounds, destcv,
-        self.shape, mip=self.mip,
-        skip_first=self.skip_first,
-        sparse=self.sparse, axis=self.axis,
-        factor=self.factor
-      )
-
-class DownsampleTask(TransferTask):
+@queueable
+def DownsampleTask(
+  layer_path, mip, shape, offset, 
+  fill_missing=False, axis='z', sparse=False,
+  delete_black_uploads=False, background_color=0,
+  dest_path=None, compress="gzip", factor=None
+):
   """
   Downsamples a cutout of the volume. By default it performs 
   2x2x1 downsamples along the specified axis. The factor argument
   overrrides this functionality.
   """
-  def __init__(
-    self, layer_path, mip, shape, offset, 
-    fill_missing=False, axis='z', sparse=False,
-    delete_black_uploads=False, background_color=0,
-    dest_path=None, compress="gzip", factor=None
-  ):
-    self.layer_type = layer_path
+  if dest_path is None:
+    dest_path = layer_path
 
-    if dest_path is None:
-      dest_path = layer_path
-
-    super(DownsampleTask, self).__init__(
-      layer_path, dest_path, 
-      mip, shape, offset, 
-      translate=(0,0,0),
-      fill_missing=fill_missing, 
-      skip_first=True, 
-      skip_downsamples=False,
-      delete_black_uploads=delete_black_uploads, 
-      background_color=background_color,
-      sparse=sparse,
-      axis=axis,
-      compress=compress,
-      factor=factor,
-    )
-
-
+  return TransferTask(
+    layer_path, dest_path, 
+    mip, shape, offset, 
+    translate=(0,0,0),
+    fill_missing=fill_missing, 
+    skip_first=True, 
+    skip_downsamples=False,
+    delete_black_uploads=delete_black_uploads, 
+    background_color=background_color,
+    sparse=sparse,
+    axis=axis,
+    compress=compress,
+    factor=factor,
+  )
 
 class WatershedRemapTask(RegisteredTask):
   """

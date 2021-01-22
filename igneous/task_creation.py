@@ -951,13 +951,17 @@ def create_transfer_tasks(
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  
       task_shape = min2(shape.clone(), dvol_bounds.maxpt - offset)
+      shape_copy = tuple([x.item() for x in task_shape])
+      offset_copy = tuple([x.item() for x in offset])
+      translate_copy = tuple([x.item() for x in translate])
+      # import ipdb; ipdb.set_trace()
       return partial(TransferTask,
         src_path=src_layer_path,
         dest_path=dest_layer_path,
-        shape=task_shape,
-        offset=offset.clone(),
+        shape=shape_copy,
+        offset=offset_copy,
         fill_missing=fill_missing,
-        translate=translate,
+        translate=translate_copy,
         mip=mip,
         skip_downsamples=skip_downsamples,
         delete_black_uploads=bool(delete_black_uploads),

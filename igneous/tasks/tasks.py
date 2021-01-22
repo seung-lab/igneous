@@ -39,7 +39,7 @@ import zmesh
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
-    sparse=False, factor=None
+    sparse=False, factor=None, remap=None
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -81,6 +81,8 @@ def downsample_and_upload(
       new_bounds //= factor3
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
+      if remap:
+        mipped = fastremap.remap(mipped, remap, in_place=True)
       vol[new_bounds] = mipped
 
 def cache(task, cloudpath):
@@ -699,7 +701,8 @@ def TransferTask(
   agglomerate=False,
   timestamp=None,
   compress='gzip',
-  factor=None
+  factor=None,
+  renumber=False
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
@@ -724,8 +727,14 @@ def TransferTask(
   dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
   src_bounds = dst_bounds - translate
   image = srccv.download(
-    src_bounds, agglomerate=agglomerate, timestamp=timestamp
+    src_bounds, 
+    agglomerate=agglomerate, timestamp=timestamp, 
+    renumber=renumber
   )
+  remap = None
+  if renumber:
+    image, remap = image
+    remap = { v:k for k,v in remap.items() } # { label: 1, ... } -> { 1: label, ... }
 
   if skip_downsamples:
     destcv[dst_bounds] = image
@@ -735,7 +744,7 @@ def TransferTask(
       shape, mip=mip,
       skip_first=skip_first,
       sparse=sparse, axis=axis,
-      factor=factor
+      factor=factor, remap=remap
     )
 
 @queueable
@@ -743,7 +752,8 @@ def DownsampleTask(
   layer_path, mip, shape, offset, 
   fill_missing=False, axis='z', sparse=False,
   delete_black_uploads=False, background_color=0,
-  dest_path=None, compress="gzip", factor=None
+  dest_path=None, compress="gzip", factor=None, 
+  renumber=False
 ):
   """
   Downsamples a cutout of the volume. By default it performs 
@@ -766,6 +776,7 @@ def DownsampleTask(
     axis=axis,
     compress=compress,
     factor=factor,
+    renumber=renumber,
   )
 
 class WatershedRemapTask(RegisteredTask):

@@ -31,7 +31,8 @@ def calculate_transfer_cost(src_layer_path, dest_layer_path,
     skip_downsamples=False,
     skip_first=False, skip_ds_mips=[],
     mip_to_storage_class={},
-    use_dvol_info=False):
+    use_dvol_info=False,
+    is_inter_region=False):
       shape = Vec(*shape)
       if use_dvol_info:
         vol = CloudVolume(dest_layer_path, mip=mip)
@@ -71,6 +72,13 @@ def calculate_transfer_cost(src_layer_path, dest_layer_path,
         print(f'cost for storage class {sc} = ${cost_for_sc:,.2f}')
 
       print(f'Total Class A Cost = ${cost:,.2f}\n')
-      for sc, amount_data_per_storage_class in amount_data_per_storage_class.items():
-          file_size, unit = to_file_size(amount_data_per_storage_class)
-          print(f'Amount of data for storage class {sc}: {file_size:,.2f} {unit}')
+      for sc, amount_data in amount_data_per_storage_class.items():
+          file_size, unit = to_file_size(amount_data)
+          print(f'Amount of data for storage class {sc}: {file_size:,.2f} {unit}\n')
+
+      if is_inter_region:
+        total_data = 0
+        for sc, amount_data in amount_data_per_storage_class.items():
+          total_data = total_data + amount_data
+        egress_cost = .01 * (total_data / (1024 ** 3))
+        print(f'Inter-region egress cost = ${egress_cost:,.2f}')

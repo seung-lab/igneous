@@ -616,7 +616,8 @@ def create_flat_graphene_skeleton_merge_tasks(
 def create_sharded_skeleton_merge_tasks(
     layer_path, dust_threshold, tick_threshold,
     preshift_bits, minishard_bits, shard_bits,
-    minishard_index_encoding='gzip', data_encoding='gzip'
+    minishard_index_encoding='gzip', data_encoding='gzip',
+    max_cable_length=None
   ): 
   spec = ShardingSpecification(
     type='neuroglancer_uint64_sharded_v1',
@@ -653,7 +654,7 @@ def create_sharded_skeleton_merge_tasks(
     files, compress="gzip", 
     cache_control="no-cache", total=len(shard_labels)
   )
-
+  
   cv.provenance.processing.append({
     'method': {
       'task': 'ShardedSkeletonMergeTask',
@@ -661,6 +662,10 @@ def create_sharded_skeleton_merge_tasks(
       'mip': cv.skeleton.meta.mip,
       'dust_threshold': dust_threshold,
       'tick_threshold': tick_threshold,
+      'max_cable_length': max_cable_length,
+      'preshift_bits': preshift_bits, 
+      'minishard_bits': minishard_bits, 
+      'shard_bits': shard_bits,
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -670,7 +675,8 @@ def create_sharded_skeleton_merge_tasks(
   return (
     ShardedSkeletonMergeTask(
       layer_path, shard_no, 
-      dust_threshold, tick_threshold
+      dust_threshold, tick_threshold,
+      max_cable_length=max_cable_length
     )
     for shard_no in shard_labels.keys()
   )

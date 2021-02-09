@@ -232,7 +232,7 @@ def create_downsampling_tasks(
     layer_path, mip=0, fill_missing=False, 
     axis='z', num_mips=5, preserve_chunk_size=True,
     sparse=False, bounds=None, chunk_size=None,
-    encoding=None, delete_black_uploads=False, 
+    encoding=None, delete_black_uploads=True, 
     background_color=0, dest_path=None, compress=None,
     factor=None
   ):
@@ -904,7 +904,7 @@ def create_transfer_tasks(
     fill_missing=False, translate=(0,0,0), 
     bounds=None, mip=0, preserve_chunk_size=True,
     encoding=None, skip_downsamples=False,
-    delete_black_uploads=False, background_color=0,
+    delete_black_uploads=True, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
     factor=None, skip_first=False, skip_ds_mips=[]
   ):

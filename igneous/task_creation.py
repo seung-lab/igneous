@@ -663,12 +663,9 @@ def create_sharded_skeleton_merge_tasks(
       'dust_threshold': dust_threshold,
       'tick_threshold': tick_threshold,
       'max_cable_length': max_cable_length,
-<<<<<<< HEAD
       'preshift_bits': preshift_bits, 
       'minishard_bits': minishard_bits, 
       'shard_bits': shard_bits,
-=======
->>>>>>> 031b6a741d96f4d734a130a6a9f46a9760e4bb28
     },
     'by': OPERATOR_CONTACT,
     'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -679,11 +676,7 @@ def create_sharded_skeleton_merge_tasks(
     ShardedSkeletonMergeTask(
       layer_path, shard_no, 
       dust_threshold, tick_threshold,
-<<<<<<< HEAD
       max_cable_length=max_cable_length
-=======
-      max_cable_length
->>>>>>> 031b6a741d96f4d734a130a6a9f46a9760e4bb28
     )
     for shard_no in shard_labels.keys()
   )

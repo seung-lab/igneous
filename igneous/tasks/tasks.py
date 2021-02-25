@@ -39,7 +39,7 @@ def downsample_and_upload(
     image, bounds, vol, ds_shape, 
     mip=0, axis='z', skip_first=False,
     sparse=False, factor=None,
-    skip_ds_mips=[]
+    skip_ds_mips=[], max_mip=None
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -77,6 +77,8 @@ def downsample_and_upload(
     new_bounds = bounds.clone()
     for factor3 in factors:
       vol.mip += 1
+      if max_mip is not None and vol.mip > max_mip:
+        break
       new_bounds //= factor3
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
@@ -706,7 +708,8 @@ class TransferTask(RegisteredTask):
     timestamp=None,
     compress='gzip',
     factor=None,
-    skip_ds_mips=[]
+    skip_ds_mips=[],
+    max_mip=None
   ):
     super(TransferTask, self).__init__(
       src_path, dest_path, 
@@ -715,7 +718,7 @@ class TransferTask(RegisteredTask):
       skip_first, skip_downsamples,
       delete_black_uploads, background_color,
       sparse, axis, agglomerate, timestamp, 
-      compress, factor, skip_ds_mips
+      compress, factor, skip_ds_mips, max_mip
     )
     # print('constructor\n')
     self.src_path = src_path
@@ -737,6 +740,7 @@ class TransferTask(RegisteredTask):
     self.timestamp = timestamp
     self.compress = compress
     self.skip_ds_mips = skip_ds_mips
+    self.max_mip=max_mip
 
   def execute(self):
     srccv = CloudVolume(
@@ -765,7 +769,8 @@ class TransferTask(RegisteredTask):
         skip_first=self.skip_first,
         sparse=self.sparse, axis=self.axis,
         factor=self.factor,
-        skip_ds_mips=self.skip_ds_mips
+        skip_ds_mips=self.skip_ds_mips,
+        max_mip=self.max_mip
       )
 
 class DownsampleTask(TransferTask):

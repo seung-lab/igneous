@@ -906,7 +906,8 @@ def create_transfer_tasks(
     encoding=None, skip_downsamples=False,
     delete_black_uploads=True, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
-    factor=None, skip_first=False, skip_ds_mips=[]
+    factor=None, skip_first=False, skip_ds_mips=[],
+    max_mip=None
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -927,7 +928,7 @@ def create_transfer_tasks(
   except Exception: # no info file
     info = copy.deepcopy(vol.info)
     dvol = CloudVolume(dest_layer_path, info=info)
-    dvol.commit_info()
+    # dvol.commit_info()
 
   if encoding is not None:
     dvol.info['scales'][mip]['encoding'] = encoding
@@ -935,7 +936,7 @@ def create_transfer_tasks(
       dvol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
   dvol.info['scales'] = dvol.info['scales'][:mip+1]
   dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
-  dvol.commit_info()
+  # dvol.commit_info()
 
   downsample_scales.create_downsample_scales(dest_layer_path, 
     mip=mip, ds_shape=shape, 
@@ -954,13 +955,16 @@ def create_transfer_tasks(
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  
       task_shape = min2(shape.clone(), dvol_bounds.maxpt - offset)
+      shape_copy = tuple([x.item() for x in task_shape])
+      offset_copy = tuple([x.item() for x in offset])
+      translate_copy = tuple([x.item() for x in translate])
       return TransferTask(
         src_path=src_layer_path,
         dest_path=dest_layer_path,
-        shape=task_shape,
-        offset=offset.clone(),
+        shape=shape_copy,
+        offset=offset_copy,
         fill_missing=fill_missing,
-        translate=translate,
+        translate=translate_copy,
         mip=mip,
         skip_downsamples=skip_downsamples,
         delete_black_uploads=bool(delete_black_uploads),
@@ -970,7 +974,8 @@ def create_transfer_tasks(
         compress=compress,
         factor=factor,
         skip_first=skip_first,
-        skip_ds_mips=skip_ds_mips
+        skip_ds_mips=skip_ds_mips,
+        max_mip=max_mip
       )
 
     def on_finish(self):

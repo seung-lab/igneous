@@ -217,6 +217,6 @@ def create_downsample_scales(
   for i in range(mip + 1, mip + len(scales) + 1):
     vol.scales[i]['chunk_sizes'] = chunk_size
 
-  vol.commit_info()
+  # vol.commit_info()
   return vol
 

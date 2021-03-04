@@ -114,7 +114,7 @@ class DeleteTask(RegisteredTask):
     self.num_mips = num_mips
 
   def execute(self):
-    vol = CloudVolume(self.layer_path, mip=self.mip)
+    vol = CloudVolume(self.layer_path, mip=self.mip, max_redirects=0)
 
     highres_bbox = Bbox( self.offset, self.offset + self.shape )
 

@@ -340,7 +340,7 @@ def create_deletion_tasks(
     layer_path, mip=0, num_mips=5, 
     shape=None, bounds=None
   ):
-  vol = CloudVolume(layer_path)
+  vol = CloudVolume(layer_path, max_redirects=0)
   
   if shape is None:
     shape = vol.mip_underlying(mip)[:3]
@@ -364,7 +364,7 @@ def create_deletion_tasks(
       )
 
     def on_finish(self):
-      vol = CloudVolume(layer_path)
+      vol = CloudVolume(layer_path, max_redirects=0)
       vol.provenance.processing.append({
         'method': {
           'task': 'DeleteTask',

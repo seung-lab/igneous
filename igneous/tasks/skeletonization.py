@@ -190,9 +190,10 @@ class SkeletonTask(RegisteredTask):
       spatial_index[segid] = segid_bbx.to_list()
 
     bbox = bbox * vol.resolution
+    precision = vol.skeleton.spatial_index.precision
     cf = CloudFiles(path, progress=vol.progress)
     cf.put_json(
-      path=f"{bbox.to_filename()}.spatial",
+      path=f"{bbox.to_filename(precision)}.spatial",
       content=spatial_index,
       compress='gzip',
       cache_control=False,

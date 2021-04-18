@@ -169,6 +169,8 @@ class MeshTask(RegisteredTask):
     )
 
     if not np.any(data):
+      if self.options['spatial_index']:
+        self._upload_spatial_index(self._bounds, {})
       return
 
     data = self._remove_dust(data, self.options['dust_threshold'])
@@ -315,8 +317,13 @@ class MeshTask(RegisteredTask):
 
   def _upload_spatial_index(self, bbox, mesh_bboxes):
     cf = CloudFiles(self.layer_path, progress=self.options['progress'])
+    precision = self._volume.mesh.spatial_index.precision
+    resolution = self._volume.resolution 
+
+    bbox = bbox.astype(resolution.dtype) * resolution
+
     cf.put_json(
-      f"{self._mesh_dir}/{bbox.to_filename()}.spatial",
+      f"{self._mesh_dir}/{bbox.to_filename(precision)}.spatial",
       mesh_bboxes,
       compress=self.options['compress'],
       cache_control=False,

@@ -1,11 +1,8 @@
-from __future__ import print_function
-
 from collections import defaultdict
 
 import json
 import math
 import os
-import pickle
 import random
 import re
 
@@ -16,6 +13,8 @@ from cloudfiles import CloudFiles
 
 from cloudvolume import CloudVolume, view
 from cloudvolume.lib import Vec, Bbox, jsonify
+import mapbuffer
+from mapbuffer import MapBuffer
 from taskqueue import RegisteredTask
 
 import cc3d
@@ -88,7 +87,7 @@ class MeshTask(RegisteredTask):
       fill_missing: (bool: False) replace missing segmentation files with zeros instead of erroring
       spatial_index: (bool: False) generate a JSON spatial index of which meshes are available in
         a given bounding box. 
-      sharded: (bool: False) If True, upload all meshes together as a single pickled 
+      sharded: (bool: False) If True, upload all meshes together as a single mapbuffer 
         fragment file. 
       timestamp: (int: None) (graphene only) use the segmentation existing at this
         UNIX timestamp.
@@ -249,12 +248,17 @@ class MeshTask(RegisteredTask):
 
   def _upload_batch(self, meshes, bbox):
     cf = CloudFiles(self.layer_path, progress=self.options['progress'])
-    # Create mesh batch for postprocessing later
+
+    mbuf = MapBuffer(
+      meshes, compress="br", 
+      tobytesfn=lambda mesh: mesh.to_precomputed()
+    )
+
     cf.put(
       f"{self._mesh_dir}/{bbox.to_filename()}.frags",
-      content=pickle.dumps(meshes),
-      compress=self.options['compress'],
-      content_type="application/python-pickle",
+      content=mbuf.tobytes(),
+      compress=None,
+      content_type="application/x-mapbuffer",
       cache_control=False,
     )
 

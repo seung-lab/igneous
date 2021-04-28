@@ -189,7 +189,7 @@ class SkeletonTask(RegisteredTask):
       segid_bbx = Bbox.from_points( skel.vertices )
       spatial_index[segid] = segid_bbx.to_list()
 
-    bbox = bbox * vol.resolution
+    bbox = bbox.astype(vol.resolution.dtype) * vol.resolution
     precision = vol.skeleton.spatial_index.precision
     cf = CloudFiles(path, progress=vol.progress)
     cf.put_json(

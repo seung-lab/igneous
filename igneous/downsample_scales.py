@@ -17,7 +17,7 @@ from builtins import range
 
 import numpy as np
 from cloudvolume import CloudVolume, Vec
-from cloudvolume.lib import min2
+from cloudvolume.lib import min2, getprecision
 
 DEFAULT_MAX_DOWNSAMPLING = 64 # maximum factor to downsample by
 DEFAULT_MAX_DOWNSAMPLED_SIZE = 128 # minimum length of a side after downsampling
@@ -165,8 +165,7 @@ def axis_to_factor(axis):
     raise ValueError("Axis not supported: " + str(axis))
 
 def compute_scales(vol, mip, shape, axis, factor, chunk_size=None):
-  vol.mip = mip
-  shape = min2(vol.volume_size, shape)
+  shape = min2(vol.meta.volume_size(mip), shape)
   # sometimes we downsample a base layer of 512x512 
   # into underlying chunks of 64x64 which permits more scales
   underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -180,10 +179,18 @@ def compute_scales(vol, mip, shape, axis, factor, chunk_size=None):
     factor = axis_to_factor(axis)
 
   factors = compute_factors(shape, factor, scale_chunk_size)
-  scales = [ vol.resolution ]
+  scales = [ vol.meta.resolution(mip) ]
+
+  precision = max(map(getprecision, vol.meta.resolution(mip)))
+
+  def prec(x):
+    if precision == 0:
+      return int(x)
+    return round(x, precision)
+
   for factor3 in factors:
     scales.append(
-      list(map(int, Vec(*scales[-1], dtype=np.float32) * Vec(*factor3)))
+      list(map(prec, Vec(*scales[-1], dtype=np.float32) * Vec(*factor3)))
     )
   return scales[1:]
 
@@ -200,8 +207,7 @@ def create_downsample_scales(
     print("WARNING: No scales generated.")
 
   for scale in scales:
-    scale = scale // vol.meta.resolution(0)
-    vol.add_scale(scale, encoding=encoding, chunk_size=chunk_size)
+    vol.meta.add_resolution(scale, encoding=encoding, chunk_size=chunk_size)
 
   if chunk_size is None:
     if preserve_chunk_size or len(scales) == 0:

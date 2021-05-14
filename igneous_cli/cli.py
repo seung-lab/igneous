@@ -110,8 +110,8 @@ def downsample(
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
 @click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
-@click.option('--shape', default="2048,2048,64", help="Set the task shape. This also determines how many downsamples you get. e.g. 2048,2048,64")
-@click.option('--chunk-size', default=None, help="Chunk size of new layers. e.g. 128,128,64")
+@click.option('--shape', default="2048,2048,64", help="Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
+@click.option('--chunk-size', default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
@@ -123,7 +123,21 @@ def xfer(
 	chunk_size, compress, volumetric,
 	delete_bg, bg_color
 ):
-  """Transfer an image layer to another location."""
+  """
+  Transfer an image layer to another location.
+
+  It is crucial to choose a good task shape. The task
+  shape must be a multiple of two of the destination 
+  image layer chunk size. Too small, and you'll have
+  an inefficient transfer. Too big, and you'll run out
+  of memory and also have an inefficient transfer.
+
+  Downsamples will by default be automatically calculated
+  from whatever material is available. For the default 
+  2x2x1 downsampling, larger XY dimension is desirable
+  compared to Z as more downsamples can be computed for 
+  each 2x2 increase in the task size.
+  """
   encoding = ("compressed_segmentation" if cseg else None)
   factor = (2,2,1)
   if volumetric:

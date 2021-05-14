@@ -133,15 +133,15 @@ def xfer(
   Transfer an image layer to another location.
 
   It is crucial to choose a good task shape. The task
-  shape must be a multiple of two of the destination 
+  shape must be a multiple of two of the destination
   image layer chunk size. Too small, and you'll have
   an inefficient transfer. Too big, and you'll run out
   of memory and also have an inefficient transfer.
 
   Downsamples will by default be automatically calculated
-  from whatever material is available. For the default 
+  from whatever material is available. For the default
   2x2x1 downsampling, larger XY dimension is desirable
-  compared to Z as more downsamples can be computed for 
+  compared to Z as more downsamples can be computed for
   each 2x2 increase in the task size.
   """
   encoding = ("compressed_segmentation" if cseg else None)

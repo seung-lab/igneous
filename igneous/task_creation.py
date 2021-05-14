@@ -380,7 +380,8 @@ def create_skeletonizing_tasks(
     shape=Vec(512, 512, 512),
     teasar_params={'scale':10, 'const': 10}, 
     info=None, object_ids=None, mask_ids=None,
-    fix_branching=True, fix_borders=True, fix_avocados=False,
+    fix_branching=True, fix_borders=True, 
+    fix_avocados=False, fill_holes=False,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, 
     sharded=False, spatial_index=True,
@@ -442,7 +443,7 @@ def create_skeletonizing_tasks(
     with parallel=1 for cloud deployments.
   fill_missing: passthrough to CloudVolume, fill missing image tiles with zeros
     instead of throwing an error if True.
-  sharded: (bool) if true, output a single pickled dict containing all skeletons
+  sharded: (bool) if true, output a single mapbuffer dict containing all skeletons
     in a task, which will serve as input to a sharded format generator. You don't 
     want this unless you know what you're doing. If False, generate a skeleton fragment
     file per a label for later agglomeration using the SkeletonMergeTask.

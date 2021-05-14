@@ -58,7 +58,8 @@ class SkeletonTask(RegisteredTask):
     self, cloudpath, shape, offset, 
     mip, teasar_params, will_postprocess, 
     info=None, object_ids=None, mask_ids=None,
-    fix_branching=True, fix_borders=True, fix_avocados=False,
+    fix_branching=True, fix_borders=True, 
+    fix_avocados=False, fill_holes=False,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, sharded=False,
     spatial_index=True, spatial_grid_shape=None,
@@ -68,7 +69,8 @@ class SkeletonTask(RegisteredTask):
       cloudpath, shape, offset, mip, 
       teasar_params, will_postprocess, 
       info, object_ids, mask_ids,
-      fix_branching, fix_borders, fix_avocados,
+      fix_branching, fix_borders, 
+      fix_avocados, fill_holes,
       dust_threshold, progress, parallel,
       fill_missing, bool(sharded), bool(spatial_index),
       spatial_grid_shape, synapses
@@ -110,6 +112,7 @@ class SkeletonTask(RegisteredTask):
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,
       fix_avocados=self.fix_avocados,
+      fill_holes=self.fill_holes,
       parallel=self.parallel,
       extra_targets_after=extra_targets_after.keys(),
     )    

@@ -21,12 +21,18 @@ def normalize_path(queuepath):
 def main(ctx, parallel):
   """
   CLI tool for managing igneous jobs.
-  
+  https://github.com/seung-lab/igneous
+
   Igneous is a tool for producing neuroglancer
   datasets. It scales to hundreds of teravoxels
   or more.
 
-  https://github.com/seung-lab/igneous
+  Select an operation, dataset, and queue and
+  tasks will be inserted into the queue. Queues
+  can be either SQS or a filesystem directory.
+
+  Then use "igneous execute $queue" to start
+  processing that operation.
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by

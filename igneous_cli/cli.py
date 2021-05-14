@@ -16,7 +16,7 @@ def normalize_path(queuepath):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="0.2.0")
+@click.version_option(version="0.3.0")
 @click.pass_context
 def main(ctx, parallel):
   """

@@ -5,8 +5,12 @@
 ```bash
 # A few examples. The CLI tool is limited. Read on!
 $ igneous xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
-$ igneous downsample file://./my-data --mip 0 --queue ./xfer-queue
-$ igneous --parallel 2 execute ./xfer-queue
+$ igneous downsample file://./my-data --mip 0 --queue ./ds-queue
+$ igneous execute ./ds-queue
+$ igneous mesh forge s3://my-data/seg --mip 2 --queue sqs://mesh-queue
+$ igneous --parallel 4 execute sqs://mesh-queue
+$ igneous mesh merge s3://my-data/seg --queue sqs://mesh-queue
+$ igneous execute sqs://mesh-queue
 
 $ igneous --help
 ```
@@ -172,9 +176,11 @@ kubectl delete deployment igneous
 
 ## Command Line Interface (CLI)
 
-Igneous also comes with a (beta) command line interface for performing some routine tasks. We currently support `downsample`, `xfer`, and `execute` and plan to add more Igneous functions as well. Check `igneous --help` to see the current menu of functions and their options.
+Igneous also comes with a (beta) command line interface for performing some routine tasks. We currently support `downsample`, `xfer`, `mesh`, `skeleton`, and `execute` and plan to add more Igneous functions as well. Check `igneous --help` to see the current menu of functions and their options. 
 
 The principle of the CLI is specify a source layer, a destination layer (if applicable), and a [TaskQueue](https://github.com/seung-lab/python-task-queue) (e.g. `sqs://` or `fq://`). First, populate the queue with the correct task type and then execute against it.
+
+The CLI is intended to handle typical tasks that aren't too complex. If your task gets weird, it's time to try scripting!
 
 ```bash
 igneous downsample gs://my-lab/data --mip 0 --queue ./my-queue
@@ -215,6 +221,22 @@ resolution data in the context of a data processing (e.g. ETL) pipeline.
 Image (uint8, microscopy) datasets are typically downsampled in an recursive hierarchy using 2x2x1 average pooling. Segmentation (uint8-uint64, labels) datasets (i.e. human ground truth or machine labels) are downsampled using 2x2x1 mode pooling in a recursive hierarchy using the [COUNTLESS algorithm](https://towardsdatascience.com/countless-high-performance-2x-downsampling-of-labeled-images-using-python-and-numpy-e70ad3275589). This means that mip 1 segmentation labels are exact mode computations, but subsequent ones may not be. Under this scheme, the space taken by downsamples will be at most 33% of the highest resolution image's storage.
 
 Whether image or segmentation type downsampling will be used is determined from the neuroglancer info file's "type" attribute.
+
+#### CLI Downsample
+
+Here we show an example where we insert the tasks to downsample 4 mip levels using 2x2x1 pooling into a queue and process it. Then we insert the tasks to downsample from mip 4 up to mip 7 using 2x2x2 downsamples that ignores background to avoid ghosted images when multiple Z are combined.
+
+```bash
+PATH=gs://mydataset/layer 
+QUEUE=fq://./my-queue # could also be sqs://
+
+igneous downsample $PATH --mip 0 --num-mips 4 --queue $QUEUE # downsample
+igneous execute $QUEUE # process the queue
+igneous downsample $PATH --mip 4 --num-mips 3 --volumetric --sparse --queue $QUEUE # superdownsample
+igneous execute $QUEUE # process the queue
+```
+
+#### Scripting Downsample
 
 ```python3
 tasks = create_downsampling_tasks(
@@ -261,6 +283,17 @@ visualize progress and reducing the amount of work a subsequent `DownsampleTask`
 Another use case is to transfer a neuroglancer dataset from one cloud bucket to another, but often the cloud
 provider's transfer service will suffice, even across providers. 
 
+#### CLI Transfer
+
+Here's an example where we transfer from a source to destination dataset using blocks of 2048x2048x50. There are many options available, see `igneous xfer --help`.
+
+```bash
+igneous xfer $SRC $DEST --shape 2048,2048,50 --queue $QUEUE
+igneous -p 4 execute $QUEUE
+```
+
+#### Scripting Transfer
+
 ```python3
 tasks = create_transfer_tasks(
   src_layer_path, dest_layer_path, 
@@ -303,6 +336,19 @@ The `$BOUNDING_BOX` part of the name is arbitrary and is the convention used by 
 
 The manually actuated second stage runs the `MeshManifestTask` which generates files named `$SEGID:0` which contains a short JSON snippet like `{ "fragments": [ "1052:0:0-512_0-512_0-512" ] }`. This file tells Neuroglancer and CloudVolume which mesh files to download when accessing a given segment ID.  
 
+#### CLI Meshing
+
+The CLI supports only standard Precomputed. Graphene is not currently supported. There are many more options, check out `igneous mesh --help`, `igneous mesh forge --help`, and `igneous mesh merge --help`.
+
+```bash
+igneous mesh forge $PATH --mip 2 --queue $QUEUE
+igneous execute $QUEUE
+igneous mesh merge $PATH --magnitude 2 --queue $QUEUE
+igneous execute $QUEUE
+```
+
+#### Scripting Meshing
+
 ```python3
 tasks = create_meshing_tasks(             # First Pass
   layer_path, # Which data layer 
@@ -336,7 +382,27 @@ Of note: Meshing is a memory intensive operation. The underlying zmesh library h
 Igneous provides the engine for performing out-of-core skeletonization of labeled images. 
 The in-core part of the algorithm is provided by the [Kimimaro](https://github.com/seung-lab/kimimaro) library.  
 
-The strategy is to apply Kimimaro mass skeletonization to 1 voxel overlapping chunks of the segmentation and then fuse them in a second pass. 
+The strategy is to apply Kimimaro mass skeletonization to 1 voxel overlapping chunks of the segmentation and then fuse them in a second pass. Both sharded and unsharded formats are supported. For very large datasets, note that sharded runs better on a local cluster as it can make use of `mmap`.
+
+#### CLI Skeletonization
+
+The CLI for skeletonization is similar to meshing. Graphene is not supported. However, both sharded and unsharded formats are. 
+
+```bash
+# Unsharded Example
+igneous skeleton forge $PATH --mip 2 --queue $QUEUE --scale 2.5 --const 10
+igneous execute $QUEUE
+igneous skeleton merge $PATH --queue $QUEUE --tick-threshold 500 --max-cable-length 10000000
+igneous execute $QUEUE
+
+# Sharded Example
+igneous skeleton forge $PATH --mip 2 --queue $QUEUE --scale 2.5 --const 10 --sharded
+igneous execute $QUEUE
+igneous skeleton merge-sharded $PATH --queue $QUEUE --tick-threshold 500 --max-cable-length 10000000 --minishard-bits 7 --shard-bits 3 --preshift-bits 4
+igneous execute $QUEUE
+```
+
+#### Scripting Skeletonization
 
 ```python3
 import igneous.task_creation as tc 

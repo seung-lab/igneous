@@ -902,7 +902,7 @@ def create_transfer_tasks(
     encoding=None, skip_downsamples=False,
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
-    factor=None
+    factor=None, sparse=False
   ):
   """
   Transfer data from one data layer to another. It's possible
@@ -913,7 +913,13 @@ def create_transfer_tasks(
   shape = Vec(*shape)
   vol = CloudVolume(src_layer_path, mip=mip)
   translate = Vec(*translate) // vol.downsample_ratio
- 
+  
+  if factor is None:
+    factor = (2,2,1)
+
+  if factor[2] == 1:
+    shape.z = int(vol.chunk_size.z * round(shape.z / vol.chunk_size.z))
+
   if not chunk_size:
     chunk_size = vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
@@ -966,6 +972,7 @@ def create_transfer_tasks(
         timestamp=timestamp,
         compress=compress,
         factor=factor,
+        sparse=sparse,
       )
 
     def on_finish(self):
@@ -989,6 +996,7 @@ def create_transfer_tasks(
           'timestamp': timestamp,
           'compress': compress,
           'factor': (tuple(factor) if factor else None),
+          'sparse': bool(sparse),
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -215,11 +215,12 @@ def execute_helper(queue, aws_region, lease_sec, tally, min_sec):
 @main.group("mesh")
 def meshgroup():
   """
-  Meshing is a two step process. (subgroup) 
+  Create 3D meshes from a segmentation. (subgroup)
 
-  First the meshes are created from a regular
-  grid of segmentation cutouts. Second, the
-  pieces are glued together.
+  Meshing is a two step process of forging then 
+  merging. First the meshes are created from a
+  regular grid of segmentation cutouts. Second,
+  the pieces are glued together.
   """
   pass
 

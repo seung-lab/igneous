@@ -680,8 +680,8 @@ def create_sharded_skeleton_merge_tasks(
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_unsharded_skeleton_merge_tasks(    
-    layer_path, mip, crop=0,
-    magnitude=3, dust_threshold=4000, 
+    layer_path, crop=0,
+    magnitude=3, dust_threshold=4000, max_cable_length=None,
     tick_threshold=6000, delete_fragments=False
   ):
   assert int(magnitude) == magnitude
@@ -701,8 +701,8 @@ def create_unsharded_skeleton_merge_tasks(
           cloudpath=layer_path, 
           prefix=str(prefix) + ':',
           crop=crop,
-          mip=mip,
           dust_threshold=dust_threshold,
+          max_cable_length=max_cable_length,
           tick_threshold=tick_threshold,
           delete_fragments=delete_fragments,
         )
@@ -713,8 +713,8 @@ def create_unsharded_skeleton_merge_tasks(
           cloudpath=layer_path, 
           prefix=prefix, 
           crop=crop,
-          mip=mip, 
           dust_threshold=dust_threshold, 
+          max_cable_length=max_cable_length,
           tick_threshold=tick_threshold,
           delete_fragments=delete_fragments,
         )
@@ -724,11 +724,11 @@ def create_unsharded_skeleton_merge_tasks(
         'method': {
           'task': 'UnshardedSkeletonMergeTask',
           'cloudpath': layer_path,
-          'mip': mip,
           'crop': crop,
           'dust_threshold': dust_threshold,
           'tick_threshold': tick_threshold,
           'delete_fragments': delete_fragments,
+          'max_cable_length': max_cable_length,
         },
         'by': OPERATOR_CONTACT,
         'date': strftime('%Y-%m-%d %H:%M %Z'),

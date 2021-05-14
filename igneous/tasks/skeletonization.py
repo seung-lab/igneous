@@ -214,16 +214,19 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
   """
   def __init__(
       self, cloudpath, prefix, 
-      crop=0, mip=0, dust_threshold=4000, 
+      crop=0, dust_threshold=4000, max_cable_length=None,
       tick_threshold=6000, delete_fragments=False
     ):
     super(UnshardedSkeletonMergeTask, self).__init__(
-      cloudpath, prefix, crop, mip, 
-      dust_threshold, tick_threshold, delete_fragments
+      cloudpath, prefix, crop, 
+      dust_threshold, max_cable_length,
+      tick_threshold, delete_fragments
     )
+    self.max_cable_length = float(max_cable_length) if max_cable_length is not None else None
 
   def execute(self):
-    self.vol = CloudVolume(self.cloudpath, mip=self.mip, cdn_cache=False)
+    self.vol = CloudVolume(self.cloudpath, cdn_cache=False)
+    self.vol.mip = self.vol.skeleton.meta.mip
 
     fragment_filenames = self.get_filenames()
     skels = self.get_skeletons_by_segid(fragment_filenames)
@@ -231,9 +234,10 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     skeletons = []
     for segid, frags in skels.items():
       skeleton = self.fuse_skeletons(frags)
-      skeleton = kimimaro.postprocess(
-        skeleton, self.dust_threshold, self.tick_threshold
-      )
+      if self.max_cable_length is None or skel.cable_length() <= self.max_cable_length:
+        skeleton = kimimaro.postprocess(
+          skeleton, self.dust_threshold, self.tick_threshold
+        )
       skeleton.id = segid
       skeletons.append(skeleton)
 

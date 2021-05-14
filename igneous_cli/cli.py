@@ -243,7 +243,7 @@ def meshgroup():
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.")
 @click.pass_context
-def mesh_create(
+def mesh_forge(
   ctx, path, queue, mip, shape, 
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
@@ -302,3 +302,92 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+
+@main.group("skeleton")
+def skeletongroup():
+  """
+  Create skeletons from a segmentation.
+
+  Skeletonizing is a two step process of forging 
+  then merging. First the skeletons are created
+  from a regular grid of segmentation cutouts.
+  Second, the pieces are postprocessed and glued
+  together.
+  """
+  pass
+
+@skeletongroup.command("forge")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid. Default: 0")
+@click.option('--shape', default="512,512,512", help="Set the task shape in voxels. Default: 512,512,512")
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--fix-branching', is_flag=True, default=True, help="Trades speed for quality of branching at forks. Default: True")
+@click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task. Default: True")
+@click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations. Default: False")
+@click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions. Default: False")
+@click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout. Default: 1000.", type=int)
+@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.")
+@click.option('--scale', default=4, help="Multiplies invalidation radius by distance from boundary.", type=float)
+@click.option('--const', default=10, help="Adds constant amount to invalidation radius in physical units.", type=float)
+@click.option('--soma-detect', default=1100, help="Consider objects with peak distances to boundary larger than this soma candidates. Physical units. Default: 1100 nm", type=float)
+@click.option('--soma-accept', default=3500, help="Accept soma candidates over this threshold and perform a one-time spherical invalidation around their peak value. Physical units. Default: 3500 nm", type=float)
+@click.option('--soma-scale', default=1.0, help="Scale factor for soma invalidation.", type=float)
+@click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float)
+@click.option('--max-paths', default=None, help="Abort skeletonizing an object after this many paths have been traced.", type=float)
+@click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.")
+@click.pass_context
+def skeleton_forge(
+  ctx, path, queue, mip, shape, 
+  fill_missing, dust_threshold, spatial_index,
+  fix_branching, fix_borders, fix_avocados, 
+  fill_holes, scale, const, soma_detect, soma_accept,
+  soma_scale, soma_const, max_paths, sharded
+):
+  """
+  (1) Synthesize skeletons from segmentation cutouts.
+
+  A large labeled image is divided into a regular
+  grid. Kimimaro is applied to grid point, which performs
+  a TEASAR based skeletonization.
+
+  You can read more about the parameters here:
+  https://github.com/seung-lab/kimimaro
+
+  Tutorials are located here:
+
+  - https://github.com/seung-lab/kimimaro/wiki/A-Pictorial-Guide-to-TEASAR-Skeletonization
+
+  - https://github.com/seung-lab/kimimaro/wiki/Intuition-for-Setting-Parameters-const-and-scale
+
+  A guide to how much this might cost is located here:
+
+  - https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People
+  """
+  shape = [ int(axis) for axis in shape.split(",") ]
+
+  teasar_params = {
+    'scale': scale,
+    'const': const, # physical units
+    'pdrf_exponent': 4,
+    'pdrf_scale': 100000,
+    'soma_detection_threshold': soma_detect, # physical units
+    'soma_acceptance_threshold': soma_accept, # physical units
+    'soma_invalidation_scale': soma_scale,
+    'soma_invalidation_const': soma_const, # physical units
+    'max_paths': max_paths, # default None
+  }
+
+  tasks = tc.create_skeletonizing_tasks(
+    path, mip, shape, 
+    teasar_params=teasar_params, 
+    fix_branching=fix_branching, fix_borders=fix_borders, 
+    fix_avocados=fix_avocados, fill_holes=fill_holes,
+    dust_threshold=dust_threshold, progress=False,
+    parallel=1, fill_missing=fill_missing, 
+    sharded=sharded, spatial_index=spatial_index,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)

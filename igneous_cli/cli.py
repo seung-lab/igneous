@@ -424,3 +424,46 @@ def skeleton_merge(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@skeletongroup.command("merge-sharded")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--min-cable-length', default=1000, help="Skip objects smaller than this physical path length. Default: 1000 nm", type=float)
+@click.option('--max-cable-length', default=None, help="Skip objects larger than this physical path length. Default: no limit", type=float)
+@click.option('--tick-threshold', default=0, help="Remove small \"ticks\", or branches from the main skeleton one at a time from smallest to largest. Branches larger than this are preserved. Default: no elimination", type=float)
+@click.option('--preshift-bits', default=3, help="Shift LSB to try to increase number of hash collisions.", type=int)
+@click.option('--minishard-bits', default=10, help="2^bits number of bays holding variable numbers of labels per shard.", type=int)
+@click.option('--shard-bits', default=2, help="2^bits number of shard files to generate.", type=int)
+@click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw. Default: gzip")
+@click.option('--data-encoding', default="gzip", help="Shard data can be compressed. gzip or raw. Default: gzip")
+@click.pass_context
+def skeleton_sharded_merge(
+  ctx, path, queue, 
+  min_cable_length, max_cable_length, 
+  tick_threshold, 
+  preshift_bits, minishard_bits, shard_bits,
+  minishard_index_encoding, data_encoding
+):
+  """
+  (2) Postprocess fragments into finished skeletons.
+
+  Only use this command if you used the --sharded flag
+  during the forging step. Some reasonable defaults
+  are selected for a dataset with a few million labels,
+  but for smaller or larger datasets they may not be
+  appropriate.
+  """
+  tasks = tc.create_sharded_skeleton_merge_tasks(
+    path, 
+    dust_threshold=min_cable_length,
+    max_cable_length=max_cable_length,
+    tick_threshold=tick_threshold,
+    preshift_bits=preshift_bits, 
+    minishard_bits=minishard_bits, 
+    shard_bits=shard_bits,
+    minishard_index_encoding=minishard_index_encoding, 
+    data_encoding=data_encoding,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)

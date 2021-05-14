@@ -1,13 +1,15 @@
 [![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi)
 
-# Igneous
-
 ```bash
-igneous xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
-igneous --parallel 2 execute ./xfer-queue
+# A few examples. The CLI tool is limited. Read on!
+$ igneous xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
+$ igneous downsample file://./my-data --mip 0 --queue ./xfer-queue
+$ igneous --parallel 2 execute ./xfer-queue
 
-igneous --help
+$ igneous --help
 ```
+
+# Igneous
 
 Igneous is a [TaskQueue](https://github.com/seung-lab/python-task-queue) and CloudVolume based pipeline for producing and managing visualizable Neuroglancer [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for accessing data on AWS S3, Google Storage, or the local filesystem. It can operate in the cloud using an [SQS](https://aws.amazon.com/sqs/) task queuing system or run locally on a single machine or cluster (using a file based SQS emulation). Originally by Nacho and Will. 
 

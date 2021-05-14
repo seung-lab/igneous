@@ -16,7 +16,7 @@ def normalize_path(queuepath):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.2.0")
 @click.pass_context
 def main(ctx, parallel):
   """
@@ -212,4 +212,86 @@ def execute_helper(queue, aws_region, lease_sec, tally, min_sec):
     task = tq.lease(seconds=lease_sec)
     task.execute()
 
+@main.group("mesh")
+def meshgroup():
+  """
+  Meshing is a two step process. (subgroup) 
+
+  First the meshes are created from a regular
+  grid of segmentation cutouts. Second, the
+  pieces are glued together.
+  """
+  pass
+
+@meshgroup.command("forge")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid. Default: 0")
+@click.option('--shape', default="448,448,448", help="Set the task shape in voxels. Default: 448,448,448")
+@click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification. Default: True")
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--max-error', default=40, help="Maximum simplification error in physical units. Default: 40 nm")
+@click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
+@click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
+@click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
+@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.")
+@click.pass_context
+def mesh_create(
+  ctx, path, queue, mip, shape, 
+  simplify, fill_missing, max_error, 
+  dust_threshold, dir, compress, 
+  spatial_index
+):
+  """
+  (1) Synthesize meshes from segmentation cutouts.
+
+  A large labeled image is divided into a regular
+  grid. zmesh is applied to grid point, which performs
+  marching cubes and a quadratic mesh simplifier.
+
+  Note that using task shapes with axes less than
+  or equal to 511x1023x511 (don't ask) will be more
+  memory efficient as it can use a 32-bit mesher.
+
+  zmesh is used: https://github.com/seung-lab/zmesh
+
+  Sharded format not currently supports. Coming soon.
+  """
+  shape = [ int(axis) for axis in shape.split(",") ]
+
+  tasks = tc.create_meshing_tasks(
+    path, mip, shape, 
+    simplification=simplify, max_simplification_error=max_error,
+    mesh_dir=dir, cdn_cache=False, dust_threshold=dust_threshold,
+    object_ids=None, progress=False, fill_missing=fill_missing,
+    encoding='precomputed', spatial_index=spatial_index, 
+    sharded=False, compress=compress
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+@meshgroup.command("merge")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
+@click.option('--dir', default=None, help="Write manifests into this directory instead of the one indicated in the info file.")
+@click.pass_context
+def mesh_merge(ctx, path, queue, magnitude, dir):
+  """
+  (2) Merge the mesh pieces produced from the forging step.
+
+  The per-cutout mesh fragments are then assembled and
+  merged. However, this process occurs by compiling 
+  a list of fragment files and uploading a "mesh manifest"
+  file that is an index for locating the fragments.
+  """
+  tasks = tc.create_mesh_manifest_tasks(
+    path, magnitude=magnitude, mesh_dir=dir
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
 

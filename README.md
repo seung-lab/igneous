@@ -2,7 +2,14 @@
 
 # Igneous
 
-Igneous is a [Kubernetes](https://kubernetes.io/), [SQS](https://aws.amazon.com/sqs/), and CloudVolume based pipeline for producing and managing visualizable Neuroglancer [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for accessing data on AWS S3, Google Storage, or the local filesystem. It can operate in the cloud using a task queuing system or run locally. Originally by Nacho and Will.
+```bash
+igneous xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
+igneous --parallel 2 execute ./xfer-queue
+
+igneous --help
+```
+
+Igneous is a [TaskQueue](https://github.com/seung-lab/python-task-queue) and CloudVolume based pipeline for producing and managing visualizable Neuroglancer [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for accessing data on AWS S3, Google Storage, or the local filesystem. It can operate in the cloud using an [SQS](https://aws.amazon.com/sqs/) task queuing system or run locally on a single machine or cluster (using a file based SQS emulation). Originally by Nacho and Will. 
 
 ## Pre-Built Docker Container
 
@@ -12,7 +19,7 @@ https://hub.docker.com/r/seunglab/igneous/
 
 ## Installation
 
-You'll need Python 3, pip, (possibly) a C++ compiler (e.g. g++ or clang), and virtualenv. It's tested under Ubuntu 16.04 and Mac OS Catalina. 
+You'll need Python 3, pip, (possibly) a C++ compiler (e.g. g++ or clang), and virtualenv. It's tested under Ubuntu 16.04 and Mac OS Big Sur. 
 
 ```bash
 git clone git@github.com:seung-lab/igneous.git
@@ -24,17 +31,11 @@ pip install -r requirements.txt
 python setup.py develop
 ```
 
-You can add a speed boost to decompressing gzip files if you also write:
-
-```bash
-pip install deflate
-```
-
 *Igneous is intended as a self-contained pipeline system and not as a library. Such uses are possible, but not supported. If specific functionality is needed, please open an issue and we can break that out into a library as has been done with several algorithms such as [tinybrain](https://github.com/seung-lab/tinybrain), [zmesh](https://github.com/seung-lab/zmesh), and [kimimaro](https://github.com/seung-lab/kimimaro).*  
 
 ## Sample Local Use
 
-Below we show two ways to use Igneous on a local workstation or cluster. As an example, we generate meshes for an already-existing Precomputed segmentation volume.
+Below we show three ways to use Igneous on a local workstation or cluster. As an example, we generate meshes for an already-existing Precomputed segmentation volume.
 
 ### In Memory Queue (Simple Execution)
 
@@ -162,6 +163,21 @@ kubectl scale deployment igneous --replicas=320 # 16 * nodes b/c n1-standard-16 
 gcloud container clusters resize $CLUSTER_NAME --num-nodes=0
 kubectl delete deployment igneous
 ```
+
+## Command Line Interface (CLI)
+
+Igneous also comes with a (beta) command line interface for performing some routine tasks. We currently support `downsample`, `xfer`, and `execute` and plan to add more Igneous functions as well. Check `igneous --help` to see the current menu of functions and their options.
+
+The principle of the CLI is specify a source layer, a destination layer (if applicable), and a [TaskQueue](https://github.com/seung-lab/python-task-queue) (e.g. `sqs://` or `fq://`). First, populate the queue with the correct task type and then execute against it.
+
+```bash
+igneous downsample gs://my-lab/data --mip 0 --queue ./my-queue
+igneous execute ./my-queue
+
+igneous --help 
+```
+
+For those that have been using Igneous a long time, `igneous execute` can replace `python igneous/task_execution.py`.
 
 ## Capabilities
 

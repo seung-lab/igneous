@@ -22,9 +22,9 @@ class Tuple3(click.ParamType):
       try:
         value = tuple(map(int, value.split(',')))
       except ValueError:
-        self.fail(f"'{value}' does not contain a list of 3 integers.")
+        self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
       if len(value) != 3:
-        self.fail(f"'{value}' does not contain a list of 3 integers.")
+        self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
     return value
   
 

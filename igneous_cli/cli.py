@@ -14,6 +14,20 @@ def normalize_path(queuepath):
     return "fq://" + toabs(queuepath)
   return queuepath
 
+class Tuple3(click.ParamType):
+  """A command line option type consisting of 3 comma-separated integers."""
+  name = 'tuple3'
+  def convert(self, value, param, ctx):
+    if isinstance(value, str):
+      try:
+        value = tuple(map(int, value.split(',')))
+      except ValueError:
+        self.fail(f"'{value}' does not contain a list of 3 integers.")
+      if len(value) != 3:
+        self.fail(f"'{value}' does not contain a list of 3 integers.")
+    return value
+  
+
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
 @click.version_option(version="0.3.0")
@@ -60,7 +74,7 @@ def license():
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
 @click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
-@click.option('--chunk-size', default=None, help="Chunk size of new layers. e.g. 128,128,64")
+@click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
@@ -110,14 +124,14 @@ def downsample(
 @click.argument("dest")
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
-@click.option('--translate', default="0,0,0", help="Translate the bounding box by X,Y,Z voxels in the new location.")
+@click.option('--translate', type=Tuple3(), default=(0, 0, 0), help="Translate the bounding box by X,Y,Z voxels in the new location.")
 @click.option('--downsample/--skip-downsample', is_flag=True, default=True, help="Whether or not to produce downsamples from transfer tiles. Default: True")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
 @click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
-@click.option('--shape', default="2048,2048,64", help="Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
-@click.option('--chunk-size', default=None, help="Chunk size of destination layer. e.g. 128,128,64")
+@click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
+@click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
@@ -148,9 +162,6 @@ def xfer(
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
-
-  shape = [ int(axis) for axis in shape.split(",") ]
-  translate = [ int(amt) for amt in translate.split(",") ]
 
   tasks = tc.create_transfer_tasks(
     src, dest, 
@@ -234,7 +245,7 @@ def meshgroup():
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid. Default: 0")
-@click.option('--shape', default="448,448,448", help="Set the task shape in voxels. Default: 448,448,448")
+@click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels. Default: 448,448,448")
 @click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification. Default: True")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--max-error', default=40, help="Maximum simplification error in physical units. Default: 40 nm")
@@ -264,8 +275,6 @@ def mesh_forge(
 
   Sharded format not currently supports. Coming soon.
   """
-  shape = [ int(axis) for axis in shape.split(",") ]
-
   tasks = tc.create_meshing_tasks(
     path, mip, shape, 
     simplification=simplify, max_simplification_error=max_error,
@@ -320,7 +329,7 @@ def skeletongroup():
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid. Default: 0")
-@click.option('--shape', default="512,512,512", help="Set the task shape in voxels. Default: 512,512,512")
+@click.option('--shape', type=Tuple3(), default=(512, 512, 512), help="Set the task shape in voxels. Default: 512,512,512")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--fix-branching', is_flag=True, default=True, help="Trades speed for quality of branching at forks. Default: True")
 @click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task. Default: True")
@@ -364,8 +373,6 @@ def skeleton_forge(
 
   - https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People
   """
-  shape = [ int(axis) for axis in shape.split(",") ]
-
   teasar_params = {
     'scale': scale,
     'const': const, # physical units

@@ -9,7 +9,8 @@ $ igneous downsample file://./my-data --mip 0 --queue ./ds-queue
 $ igneous execute ./ds-queue
 $ igneous mesh forge s3://my-data/seg --mip 2 --queue sqs://mesh-queue
 $ igneous --parallel 4 execute sqs://mesh-queue
-$ igneous mesh merge s3://my-data/seg --queue sqs://mesh-queue
+$ igneous skeleton forge s3://my-data/seg --mip 2 --queue sqs://mesh-queue
+$ igneous skeleton merge s3://my-data/seg --queue sqs://mesh-queue
 $ igneous execute sqs://mesh-queue
 
 $ igneous --help

@@ -472,6 +472,7 @@ def create_skeletonizing_tasks(
     if 'spatial_index' not in vol.skeleton.meta.info or not vol.skeleton.meta.info['spatial_index']:
       vol.skeleton.meta.info['spatial_index'] = {}
     vol.skeleton.meta.info['@type'] = 'neuroglancer_skeletons'
+    vol.skeleton.meta.info['spatial_index']['resolution'] = tuple(vol.resolution)
     vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
   
   vol.skeleton.meta.info['mip'] = int(mip)
@@ -764,7 +765,8 @@ def create_meshing_tasks(
   mesh_info['chunk_size'] = shape.tolist()
   if spatial_index:
     mesh_info['spatial_index'] = {
-        'chunk_size': (shape*vol.resolution).tolist()
+        'resolution': vol.resolution.tolist(),
+        'chunk_size': (shape*vol.resolution).tolist(),
     }
   cf.put_json(info_filename, mesh_info)
 

@@ -123,7 +123,7 @@ class DeleteTask(RegisteredTask):
     for mip in range(self.mip, top_mip + 1):
       vol.mip = mip
       bbox = vol.bbox_to_mip(highres_bbox, self.mip, mip)
-      bbox = bbox.round_to_chunk_size(vol.underlying, offset=vol.bounds.minpt)
+      bbox = bbox.round_to_chunk_size(vol.chunk_size, offset=vol.bounds.minpt)
       bbox = Bbox.clamp(bbox, vol.bounds)
 
       if bbox.volume() == 0: 

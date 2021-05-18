@@ -474,3 +474,34 @@ def skeleton_sharded_merge(
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
+
+@main.group("rm")
+def deletegroup():
+  """
+  Parallelize the deletion process for
+  different kinds of data.
+  """
+  pass
+
+@deletegroup.command("image")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--mip', default=0, help="Which mip level to start deleting from. Default: 0")
+@click.option('--num-mips', default=5, help="The number of mip levels to delete at once. Default: 5")
+@click.option('--shape', default=None, help="The size of each deletion task as a comma delimited list. Must be a multiple of the chunk size.", type=Tuple3())
+@click.pass_context
+def delete_images(
+  ctx, path, queue, 
+  mip, num_mips, shape
+):
+  """
+  Delete the image layer of a dataset.
+  """
+  tasks = tc.create_deletion_tasks(
+    path, mip, num_mips=num_mips, shape=shape
+  )
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+

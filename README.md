@@ -33,6 +33,14 @@ https://hub.docker.com/r/seunglab/igneous/
 You'll need Python 3, pip, (possibly) a C++ compiler (e.g. g++ or clang), and virtualenv. It's tested under Ubuntu 16.04 and Mac OS Big Sur. 
 
 ```bash
+pip install igneous-pipeline
+```
+
+### Manual Installation
+
+Sometimes it's useful to tweak tasks for special circumstances, and so you'll want to use a developer installation.
+
+```bash
 git clone git@github.com:seung-lab/igneous.git
 cd igneous
 virtualenv venv

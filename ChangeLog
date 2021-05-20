@@ -1,17 +1,314 @@
 CHANGES
 =======
 
-* add mask disable capability
+* chore: dracopy version number in wrong position
+* chore: bump cloud-volume to match floating resolution release
+* feat: support floating point resolutions (#91)
+* feat(cli): add "rm image" command for deleting images
+* docs: add skeleton forge and merge to README top
+* docs: add "comma delimited" to CLI error message
+* Implement param type for cli tuple options (#94)
+* docs: describe CLI better
+* chore: whitespace
+* chore: bump cli version to 0.3.0
+* feat(cli): add sharded merging to the skeleton command set
+* feat: add unsharded skeleton merging
+* feat: add max\_cable\_length arg to unsharded skeletons
+* feat(cli): add skeleton forging
+* feat: add fill\_holes to skeletonization options
+* docs: make it easier to understand how to use the CLI
+* docs: make mesh comment clearer
+* feat(cli:mesh): adds mesh commands
+* docs: realized we never say what Igneous does in the intro
+* docs: make sure people understand the CLI tool isn't all of igneous
+* docs: show how to use the CLI
+* docs: describe xfer tasks better
+* feat: add CLI with downsample, transfer, and execute functions
+* chore: updated license Trove identifiiers
+* feat: add sparse downsamples to TransferTask
+* chore(MeshTask): switch from pickle to mapbuffer
+* refactor: remove unnecessary imports
+* fix(DeleteTask): do not redirect delete tasks
+* merge: new max\_cable\_length changes
+* feat(create\_sharded\_skeleton\_merge\_tasks): adds max\_cable\_length
+* fix: syntax error
+* feat: add max\_cable\_length to task creation
+* refactor: TransferTask and DownsampleTask are queueable functions
+* fix: missing z\_bits from graphene manifest generation
+* fix: factor was not preserved in create\_downsample\_tasks
+* fix: finally update /secrets to /root/.cloudvolume/secrets
+* fix: update deployment.yaml for K8s 1.16+
+* fix(TransferTask): skip\_downsamples was not being respected for scales
+* feat: add max\_cable\_length argument to shardedskeletonmerge
+* perf: use mapbuffer validate b/c it's faster
+* perf: use mmap for sharded skeleton merge when possible (#82)
+* perf: why even spend the time checking label in frag
+* perf: start using MapBuffer for sharded skeletons
+* refactor: change BlackoutTask to use queueable functions
+* fix: wrong variable name
+* perf: another attempt at reducing memory usage
+* perf: attempt to reduce memory usage for ShardedSkeletonMerge
+* feat: add time argument to --loop (removes --no-loop)
+* chore: make deflate an optional dependency
+* fix: add total argument to create progress bar for .labels uploads
+* fix: don't jsonify twice
+* fix: ensure correct mip is used
+* feat: add performance and progress to sharded skeleton generation
+* perf: faster gzip decompression
+* chore: upgrade to py38
+* fix: Meshing examples require tq.execute() after each phase
+* docs(README): update description of supported configurations
+* refactor(tasks.py): use CloudFiles instead of Storage
+* refactor(skeletonization): use CloudFiles instead of Storage
+* refactor: replace Storage with CloudFiles in meshing tasks
+* refactor(MeshManifestTask): switch to using CloudFiles
+* feat(MeshManifestTask): adds support for mesh\_dir in task\_creation
+* fix: remove unnecessary requirement oauth2client
+* fix: stop uploading vertext\_types with skeletons
+* fix(test\_downsample\_w\_missing): failing test
+* refactor: no need to maintain two implementations of chunks
+* fix: add deprecated -m flag
+* feat: customize the number of parallel processes
+* feat: igneous now tallys completed tasks for fq
+* docs: fix name of create\_skeletonizing\_tasks
+* chore: bump task-queue to latest compatible version
+* Allow boto3 client parameters region\_name and endpoint\_url (#75)
+* docs: show how to use FileQueue
+* docs: show how to use "factor" in downsample tasks
+* docs: show how to use the new TaskQueue
+* test: add basic skeletonization task
+* chore: bump task-queue to 2.0.0
+* fix: bring task\_execution.py up to date with task-queue 2.0.0
+* fix: errant self reference in create\_touch\_tasks
+* feat: add support for fix\_avocados in Kimimaro
+* fix: syntax error when shape or dtype is omitted from decode
+* fix: use variable instead of 'gzip'
+* feat: MeshTask supports brotli
+* fix: add module prefix to create\_downsample\_scales
+* fix: inputs to add\_scale
+* fix: add num\_mips to provenance file
+* refactor: remove unused build function
+* fix+test: downsample tasks actually use the factor argument
+* feat: add factor argument to task creation for downsample and transfer
+* feat: add factor argument to Downsample and Transfer
+* fix: propagate fill\_missing in GrapheneMeshTask
+* fix: handle compressed segmentation correctly
+* feat: ensure TransferTasks can be created with compress keyword
+* docs: missing table entry
+* feat: support brotli compression for downsamples and transfers (#66)
+* fix: make it possible to visualize skeletons while performing postprocessing
+* fix: problems with fusing skeletons due to integer truncation
+* fix: remove caching from ShardedSkeletonMergeTask
+* fix: remove pylru as we're not using persistent caches anymore
+* perf: much more efficient ShardedSkeletonMergeTask
+* docs: changed name of docker to remove :master
+* feat: add precalculated $shardno.labels files to sharded task generation
+* fix: don't crash when there's only one segid in the whole volume
+* fix: wrote sign
+* fix: ensure remapping code respects 'chunks\_start\_at\_voxel\_offset'
+* fix: bug in stop\_layer calculation
+* chore: don't dockerize data
+* fix(ShardedSkeletonMergeTask): don't error on 0 skeletons
+* perf: process empty GrapheneMeshTasks faster
+* feat: L2 GrapheneMeshTask (#64)
+* fix: typo in upload\_batch for MeshTask
+* fix: remove extraneous printing from ShardedSkeletonMergeTask
+* docs: new sharded and unsharded skeletonization
+* feat: sharded skeleton synthesis as an Igneous task (#61)
+* fix: wrong call to cloudvolume, fix remapping
+* refactor(MeshTask): use fastremap for remap and move meshdir into function
+* feat(TransferTask): allow creating flat segmentations from graphene (#63)
+* perf(MeshTask): speed up dust removal
+* feat: add timestamp parameter to MeshTask
+* feat: mesh graphene volumes
+* feat(ContrastNormalizationTask): Specify lower / upper fraction separately (#62)
+* feat: add synapse tracing capability (#60)
+* fix: add legacy mesh type to mesh info files
+* fix: set cc3d safety factor to 1
+* refactor(TransferTask): translation without unaligned writes (#58)
+* Make updates for cloud-volume v1.0 & remove mesh info creation (#57)
+* feat: add mip and chunk\_size to mesh info file
+* feat: added more sophisticated checkpoint logic
+* fix: increase number of default shard bits to 9
+* feat: dataset specific checkpoint names
+* feat: add checkpoint to skeleton merging code
+* fix: send skeleton not label to complex\_merge
+* perf: reduce memory usage for single process final merging
+* perf: avoid storage overhead for unfused\_skeletons
+* feat: use shared memory manager for parallel processing
+* feat: special handling for parallel == 1 to allow line\_profiler
+* perf: reduce memory usage during unpickling shard fragments
+* perf: parallel sharded skeleton generation script
+* fix: strip non-float32 vertex attributes from sharded skeletons
+* feat: upload mesh info file with spatial\_index chunk\_size
+* feat: add spatial\_index and sharded to create\_meshing\_tasks
+* feat: add support for shard fragment mesh generation
+* refactor: alphabetize meshing options
+* feat: add support for generating a spatial\_index for meshes
+* docs: describe mesh task
+* fix: some issues with 3.7 invocations
+* chore: update igneous to python37
+* chore: update dockerignore to reduce image sizes
+* Update README.md
+* feat: actually upload the shard files
+* wip: checking that something is output at all
+* fix: update compute\_bounds.py to use current standards
+* chore: cleanup .DS\_Store
+* wip: script to generate sharded skeletons
+* fix: ensure that the spatial index for skeletons is non-overlapping
+* fix: issue correct spatial index chunk size
+* fix: incorrect variable names
+* feat: support for alternative write destinations for downsampling
+* refactor: Combine DownsampleTask and TransferTask
+* docs: updated documentation for Igneous
+* fix: correct for resolution
+* fix: update spatial index field for skeleton info file
+* feat: upload condensed skeleton fragments (#54)
+* feat: add delete\_black\_uploads and bgcolor to downsampling tasks
+* chore: CloudVolume 0.59.1 has background\_color
+* chore: upgrade tqdm in requirements
+* feat: TransferTasks support different background colors
+* fix: "fill\_missing" was not in proveneance data for downsampling
+* docs: add parameters for downsample, transfer, delete
+* feat: add support for delete\_black\_uploads to TransferTask
+* feat: add fill\_missing option to SkeletonTask
+* perf: improve speed of object masking in mesh task
+* fix: compatibility with cloudvolume 0.51.0
+* refactor: use postprocessing from kimimaro 0.5.0
+* fix: stable\_prefixes -> prefix\_length
+* feat: add object masking to skeleton tasks
+* feat: enable shared memory on kubernetes depoyments
+* feat: skeleton graphene hybrid tasks
+* chore: bump kimimaro version
+* fix: shape and offset passed by value in FinelyDividedTaskIterator
+* feat: encode created meshes in draco format (#46)
+* feat: parallel argument for skeletonization
+* fix: parallel should be spelled self.parallel
+* feat: add parallel, progress, and dust\_threshold to skeleton options
+* feat: add nano to igneous containers for editing capability
+* feat: add fill\_missing to create\_meshing\_tasks
+* feat: add fill\_missing option to MeshTask
+* refactor: use zmesh 0.2.0 idioms
+* docs: add zmesh to list of related projects
+* perf: 32-bit Triangle Representations for Meshes (#49)
+* Update README.md
+* docs: added "Related Projects" section
+* refactor: remove incorrect comment in setup.py
+* fix: make will\_postprocess json serializable
+* chore: specify minimum Kimimaro version
+* fix: remove debug code and restore provenance for SkeletonTask creation
+* feat: support Kimimaro 0.3.1's fix\_border mode (#52)
+* refactor: remove skeletontricks (kimimaro already has it) (#50)
+* fix: create\_delete\_tasks wasn't handling boundaries correctly
+* fix: remove progress bar from production skeletonization
+* perf(MeshTask): early abort if all zeros
+* perf: reduce average memory pressure from meshing (#48)
+* docs: update skeletonization to remove incorrect info
+* fix: add chunk alignment to QuantizeTask creation
+* fix: TransferTask should use return rather than yield
+* feat: support for parallel upload for grid-regular tasks (#47)
+* fix: missing arguments to MeshTaskIterator and new fn parameter
+* fix: dust threshold was in the wrong direction..
+* fix: restore mistakenly removed import of 'os'
+* feat: Skeletonization (#12)
+* feat: add dust\_threshold option to MeshTask
+* fix: report total length as int for MeshTaskIterator and DeleteTaskIterator
+* feat: skip\_downsamples flag for TransferTask
+* fix: set default meshing shape to (256, 256, 256)
+* fix: remove noisy progress bar from MeshManifestTasks
+* fix: remove redundant progress bar from MeshTask creation
+* fix: add encoding to provenance file for DownsampleTasks
+* fix: use prefixes correctly in hybrid mesh manifest task
+* wip: hybrid graphene mesh manifests
+* chore: help protect against accidental secret uploads
+* chore: ignore test2.py
+* revert+fix: clamp to volume bounds in TransferTask
+* fix: cap volume bounds at correct mip level for TransferTasks
+* feat: introduce tinybrain (#44)
+* docs: update README to reflect new TaskQueue upgrades
+* fix: TransferTask boundary clamping should be handled in task creation
+* fix: dvol\_bounds needed seperate definition
+* fix: create\_transfer\_tasks respect destination bounds rather than source
+* feat: add encoding parameter to create\_transfer\_tasks
+* perf: use node DNS over cluster DNS
+* fix: missing reference to LOOP
+* feat: create TouchTask and BlackoutTask
+* chore: bump requirements for cloudvolume and taskqueue
+* refactor: remove dead code in task\_execution
+* refactor: modernize task polling
+* chore: make sure "projects" directory isn't included in docker images
+* fix: single slice contrast normalization tasks
+* fix: QueueEmpty error
+* fix: integer length for DownsampleTaskIterator
+* refactor: remove dead fastremap code
+* chore: remove PrintTask
+* refactor: Convert task\_creation.py to Iterators and TaskQueue 0.13.0 (#42)
+* fix: several errors introduced by spacing and renaming
+* refactor: convert all remaining tasks to iterators
+* chore: remove autodeploy, it's broken
+* chore: add projects to gitignore
+* fix: forgot to remove some legacy attributes on ContrastNormalizationTask
+* fix: missed part of refactor
+* refactor: additional conversion to iterators
+* wip: add DownsampleTask, DeleteTask, and MeshTask to iterator paradigm
+* wip: convert task\_creation to produce iterators
+* docs: update downsample documentation
+* fix: get\_bounds should have only an option for expand\_to\_chunk\_size
+* feat: support bounds in provenance for contrastnormalizationtask
+* chore: meaningless change to force deployment
+* fix: adjust downsample shape when chunk\_size is specified
+* feat: add bounds to ContrastNormalizationTask
+* fix: ContrastNormalizationTask respects mip level for upload
+* refactor(Dockerfile): Reduce Docker image size (#37)
+* fix: queue\_pickle.py can save again
+* Create LICENSE
+* chore: pin python-jsonschema-objects
+* feat: added minval, maxval, and level\_paths to ContrastNormalizationTask
+* feat: added bounds parameter to luminance levels task
+* chore: added resource limits to deployment memory
+* feat: add levels\_path to LuminanceLevelsTask
+* chore: use --password-stdin in .travis.yml (#33)
+* fix: ensure python2 installs futures
+* fix: python2 compatibility
+* feat: can use different encoding on downsampled layers
+* fix: don't commit provenance files to BOSS
+* feat: TransferTasks support transfer from any mip level
+* Update README.md
+* fix: write bounds to provenance file w/o crashing for TransferTask
+* feat: support mesh\_dir and cdn\_cache in create\_meshing\_tasks
+* feat: use $USER intead of git user.email if not available
+* feat(MeshTask): configurable mesh\_dir
+* changed version.py to igneous\_version.py
+* feat(MeshTask): cache\_control and parallel kwargs support
+* fix: broken DeleteTask
+* feat: make DeleteTasks more like DownsampleTasks
+* fix: abort deletion if bbox volume is zero
+* feat: add provenance support for DeleteTasks
+* fix: upgrade PyOpenSSL
+* feat: allow deleting only some mips with DeleteTask
+* fix: add bounds to transfer task provenance
+* feat: chunk\_size support in create\_downsampling\_tasks
+* Remove layers added by RUN (#23)
+* chore: bump cloudvolume to 0.33.4
+* chore: remove intern from requirements, rely on cloud-volume version
+* chore: bump intern to 0.9.9
+* test: honesty in testing, only use one python version
+* chore: bump python to 3.6
+* chore: bump python version to 3.5 from 3.4
+* feat: use git user email for provenance file
+* fix: reduce default mesh shape to a reasonable size
+* fix: change default queue type to SQS
+* Add chunkflow InferenceTask and MaskAffinitymapTask (#17)
+* feat: add bounds argument to create\_transfer\_tasks
+* chore: remove inaccurate intern dependency
+* feat: progress bars for task upload
+* chore: bump cloud-volume version
 * chore: fix some style issues
 * fix(MeshTask): Set default low\_padding to 0 to allow for continuous mesh boundaries
 * chore: bump cloudvolume to be compatible with matrix deployment
 * fix(cMesher): revert change to max\_simplification\_error from #9
 * chore: update requirements.txt, CloudVolume w/ matrix support
-* change aff to output
-* fix mask layer path bug
-* fix some bugs
 * fix: bbox in mip 0 coordiantes
-* rebase to update
 * fix: autoresizing of bounding box needed to use shape not underlying
 * feat: add bounds argument, documentation, and mip=0 to create\_downsampling\_tasks
 * fix(MeshTask): \_update\_vertices() accounts for 'low\_padding' offset
@@ -27,18 +324,13 @@ CHANGES
 * refactor: move pipeline running commands to pipeline.py
 * feat: add sparse downsampling capability for segmentation (#15)
 * Preparations for agglomeration meshing (#9)
-* set fill\_missing=False to avoid zero image bug
 * refactor: simplified mesh interface, now only need to call mesher.mesh(numpy\_array) (#13)
 * fix: update queue\_pickle to python3
 * fix: always set chunk\_size for transfer task even if info exists
 * Update README.md
-* add mask affinitymap task
-* add option for running without looping, which means single time execution. This is helpful to use container for each task and cleaned up the memory footprint by docker in case any memory leak in program, such as pznet
 * Update README.md
 * Update README.md
-* cloudvolume hangs, may not use it correctly
 * fix: added provenance processing for MeshTask
-* add inference task, not working yet
 * fix: updated deployment.yml to reflect SQS usage
 * docs: some rewording
 * docs: added info on running igneous in the cloud

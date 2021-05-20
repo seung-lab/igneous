@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+* feat: setting up pypi package
 * chore: dracopy version number in wrong position
 * chore: bump cloud-volume to match floating resolution release
 * feat: support floating point resolutions (#91)

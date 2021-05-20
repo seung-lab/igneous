@@ -104,7 +104,6 @@ def remap_segmentation(
     if np.sum(bin_seg) == 0:
         continue
 
-    l2_edges = []
     cc_seg = cc3d.connected_components(bin_seg)
     for i_cc in range(1, np.max(cc_seg) + 1):
       bin_cc_seg = cc_seg == i_cc
@@ -119,26 +118,8 @@ def remap_segmentation(
 
       if len(linked_l2_ids) == 0:
         seg[bin_cc_seg] = 0
-      elif len(linked_l2_ids) == 1:
-        seg[bin_cc_seg] = linked_l2_ids[0]
       else:
         seg[bin_cc_seg] = linked_l2_ids[0]
-
-        for i_l2_id in range(len(linked_l2_ids) - 1):
-          for j_l2_id in range(i_l2_id + 1, len(linked_l2_ids)):
-            l2_edges.append(
-                [linked_l2_ids[i_l2_id], linked_l2_ids[j_l2_id]]
-            )
-
-    if len(l2_edges) > 0:
-      g = nx.Graph()
-      g.add_edges_from(l2_edges)
-
-      ccs = nx.connected_components(g)
-
-      for cc in ccs:
-        cc_ids = np.sort(list(cc))
-        seg[np.in1d(seg, cc_ids[1:]).reshape(seg.shape)] = cc_ids[0]
 
   return seg
 

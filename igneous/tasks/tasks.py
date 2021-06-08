@@ -91,8 +91,8 @@ def downsample_and_upload(
 
 @queueable
 def ImageSpatialIndexTask(
-  cloudpath:str, shape:Iterable[int,int,int], offset:Iterable[int,int,int],
-  mip=0:int
+  cloudpath:str, shape:Iterable[int], offset:Iterable[int],
+  mip=0
 ):
   shape = Vec(*shape, dtype=int)
   offset = Vec(*offset, dtype=int)

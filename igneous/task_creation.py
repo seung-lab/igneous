@@ -17,7 +17,11 @@ from tqdm import tqdm
 
 import cloudvolume
 from cloudvolume import CloudVolume
-from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
+from cloudvolume.lib import (
+  Vec, Bbox, max2, min2, xyzrange, 
+  find_closest_divisor, yellow, jsonify,
+  getprecision
+)
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudfiles import CloudFiles
 from taskqueue import TaskQueue, MockTaskQueue 
@@ -31,7 +35,7 @@ from igneous.tasks import (
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
   SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask, 
-  MaskAffinitymapTask, InferenceTask
+  MaskAffinitymapTask, InferenceTask, ImageSpatialIndexTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -224,6 +228,51 @@ def create_touch_tasks(
       vol.commit_provenance()
 
   return TouchTaskIterator(bounds, shape)
+
+def create_segmentation_spatial_index_tasks(
+  cloudpath:str, mip=0, shape=(512, 512, 512),
+  fill_missing=False
+):
+  """
+  Generate a spatial index for a segmentation image layer.
+  """
+  cv = CloudVolume(cloudpath, mip=mip)
+  shape = Vec(*shape, dtype=int)
+
+  if cv.layer_type != "segmentation":
+    raise ValueError(
+      f"Can only create the spatial index on segmentation. {cv.cloudpath} is an {cv.layer_type}."
+    )
+
+  cv.scale["spatial_index"] = {
+    'resolution': vol.resolution.tolist(),
+    'chunk_size': (shape.astype(cv.resolution) * cv.resolution).tolist(),
+  }
+  cv.commit_info()
+
+  class ImageSpatialIndexTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return partial(ImageSpatialIndexTask, 
+        cloudpath=cloudpath, 
+        shape=shape.clone(), 
+        offset=offset.clone(), 
+        mip=mip, 
+        fill_missing=bool(fill_missing)
+      )
+    def on_finish(self):
+      cv.provenance.processing.append({
+        'method': {
+          'task': 'ImageSpatialIndexTask',
+          'mip': mip,
+          'shape': shape.tolist(),
+          'fill_missing': bool(fill_missing),
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      cv.commit_provenance()      
+
+  return ImageSpatialIndexTaskIterator(cv.bounds.clone(), shape)
 
 def create_downsampling_tasks(
     layer_path, mip=0, fill_missing=False, 

@@ -91,14 +91,15 @@ def downsample_and_upload(
 
 @queueable
 def ImageSpatialIndexTask(
-  cloudpath:str, shape:Iterable[int], offset:Iterable[int],
-  mip=0
+  cloudpath:str, 
+  shape:Iterable[int], offset:Iterable[int],
+  mip=0, fill_missing=False
 ):
   shape = Vec(*shape, dtype=int)
   offset = Vec(*offset, dtype=int)
   bbox = Bbox(offset, offset + shape, dtype=int)
 
-  cv = CloudVolume(cloudpath, mip=mip)
+  cv = CloudVolume(cloudpath, mip=mip, fill_missing=fill_missing)
   bbox = Bbox.clamp(bbox, cv.bounds)
   labels = cv[bbox]
 

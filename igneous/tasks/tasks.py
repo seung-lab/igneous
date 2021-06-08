@@ -77,34 +77,27 @@ def downsample_and_upload(
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
       vol[new_bounds] = mipped
 
-class DeleteTask(RegisteredTask):
+@queueable
+def DeleteTask(layer_path:str, shape, offset, mip=0, num_mips=5):
   """Delete a block of images inside a layer on all mip levels."""
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  vol = CloudVolume(layer_path, mip=mip, max_redirects=0)
 
-  def __init__(self, layer_path, shape, offset, mip=0, num_mips=5):
-    super(DeleteTask, self).__init__(layer_path, shape, offset, mip, num_mips)
-    self.layer_path = layer_path
-    self.shape = Vec(*shape)
-    self.offset = Vec(*offset)
-    self.mip = mip
-    self.num_mips = num_mips
+  highres_bbox = Bbox( offset, offset + shape )
 
-  def execute(self):
-    vol = CloudVolume(self.layer_path, mip=self.mip, max_redirects=0)
+  top_mip = min(vol.available_mips[-1], mip + num_mips)
 
-    highres_bbox = Bbox( self.offset, self.offset + self.shape )
+  for mip_i in range(mip, top_mip + 1):
+    vol.mip = mip_i
+    bbox = vol.bbox_to_mip(highres_bbox, mip, mip_i)
+    bbox = bbox.round_to_chunk_size(vol.chunk_size, offset=vol.bounds.minpt)
+    bbox = Bbox.clamp(bbox, vol.bounds)
 
-    top_mip = min(vol.available_mips[-1], self.mip + self.num_mips)
+    if bbox.volume() == 0: 
+      continue
 
-    for mip in range(self.mip, top_mip + 1):
-      vol.mip = mip
-      bbox = vol.bbox_to_mip(highres_bbox, self.mip, mip)
-      bbox = bbox.round_to_chunk_size(vol.chunk_size, offset=vol.bounds.minpt)
-      bbox = Bbox.clamp(bbox, vol.bounds)
-
-      if bbox.volume() == 0: 
-        continue
-
-      vol.delete(bbox)
+    vol.delete(bbox)
 
 @queueable
 def BlackoutTask(

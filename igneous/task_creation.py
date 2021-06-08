@@ -351,7 +351,7 @@ def create_deletion_tasks(
   class DeleteTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       bounded_shape = min2(shape, bounds.maxpt - offset)
-      return DeleteTask(
+      return partial(DeleteTask,
         layer_path=layer_path,
         shape=bounded_shape.clone(),
         offset=offset.clone(),

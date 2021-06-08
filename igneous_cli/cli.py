@@ -538,18 +538,17 @@ def image_spatial_index(
   tq.insert(tasks, parallel=parallel)
 
 @indexgroup.command("sqlite")
-@click.argument("path", help="Path to image layer.")
-@click.argument("filepath", help="Save to this file.")
+@click.argument("cloudpath")
+@click.argument("dbpath")
 @click.option('--mip', default=0, help="Which mip level. Default: 0")
 @click.option('--progress', is_flag=True, default=True, help="Display progress bar. Default: True")
 @click.pass_context
-def image_spatial_index_to_sqlite(ctx, path, filepath, mip, progress):
+def image_spatial_index_to_sqlite(ctx, cloudpath, dbpath, mip, progress):
   """
-  Downloads and converts the spatial index into 
-  a sqlite3 database for faster querying.
+  Download and convert the index into an sqlite3 database.
   """
-  cv = CloudVolume(path, mip=mip)
-  cv.image.spatial_index[mip].to_sqlite(filepath, progress=progress)
+  cv = CloudVolume(cloudpath, mip=mip)
+  cv.image.spatial_index[mip].to_sqlite(dbpath, progress=progress)
 
 
 

@@ -1,15 +1,15 @@
 from collections import defaultdict
 from collections.abc import Sequence
-
 from io import BytesIO
-
 import json
 import math
 import os
 import random
 import re
+from typing import Iterable, List, Tuple, Set
 
 import numpy as np
+import scipy.ndimage
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
@@ -29,6 +29,18 @@ from .obsolete import (
   HyperSquareConsensusTask, WatershedRemapTask, 
   MaskAffinitymapTask, InferenceTask
 )
+
+def find_objects(labels):
+  """  
+  scipy.ndimage.find_objects performs about 7-8x faster on C 
+  ordered arrays, so we just do it that way and convert
+  the results if it's in F order.
+  """
+  if labels.flags['C_CONTIGUOUS']:
+    return scipy.ndimage.find_objects(labels)
+  else:
+    all_slices = scipy.ndimage.find_objects(labels.T)
+    return [ (slcs and slcs[::-1]) for slcs in all_slices ]
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -76,6 +88,44 @@ def downsample_and_upload(
       mipped = mips.pop(0)
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
       vol[new_bounds] = mipped
+
+@queueable
+def ImageSpatialIndexTask(
+  cloudpath:str, shape:Iterable[int,int,int], offset:Iterable[int,int,int],
+  mip=0:int
+):
+  shape = Vec(*shape, dtype=int)
+  offset = Vec(*offset, dtype=int)
+  bbox = Bbox(offset, offset + shape, dtype=int)
+
+  cv = CloudVolume(cloudpath, mip=mip)
+  bbox = Bbox.clamp(bbox, cv.bounds)
+  labels = cv[bbox]
+
+  labels, remap = fastremap.renumber(labels, in_place=True)
+  slcs = find_objects(labels)
+  
+  spatial_index = {}
+  for orig_label, renum_label in remap.items():
+    if orig_label == 0:
+      continue
+    slc = slcs[renum_label - 1]
+    if slc is None:
+      continue
+
+    subbox = Bbox.from_slices(slc)
+    subbox += bbox.minpt
+    subbox = subbox.astype(cv.resolution.dtype) * cv.resolution
+    spatial_index[orig_label] = subbox.to_list()
+
+  path = cv.meta.join(cloudpath, cv.key, 'spatial_index')
+  precision = cv.image.spatial_index.precision
+  cf = CloudFiles(path)
+  cf.put_json(
+    path=f"{bbox.to_filename(precision)}.spatial",
+    content=spatial_index,
+    compress='br',
+  )
 
 @queueable
 def DeleteTask(layer_path:str, shape, offset, mip=0, num_mips=5):

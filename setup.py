@@ -8,6 +8,7 @@ setuptools.setup(
       "igneous=igneous_cli:main"
     ],
   },
+  long_description_content_type="text/markdown",
   pbr=True,
 )
 

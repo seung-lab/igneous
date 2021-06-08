@@ -104,7 +104,8 @@ def ImageSpatialIndexTask(
 
   labels, remap = fastremap.renumber(labels, in_place=True)
   slcs = find_objects(labels)
-  
+  del labels
+
   spatial_index = {}
   for orig_label, renum_label in remap.items():
     if orig_label == 0:

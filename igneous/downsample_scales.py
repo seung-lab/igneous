@@ -246,6 +246,12 @@ def downsample_shape_from_memory_target(
   """
   # formulas come from solving the following optimization equations:
   #
+  # factor (1,1,1)
+  # find integers n and m such that
+  # |n * cx - m * cy| is (approximately) minimized
+  # treat cz as fixed to make thing easier.
+  # We start with a guess that n = sqrt(byte_target / data_width / cx / cy / cz)
+  #
   # factor (2,2,1)
   # 4/3 * data_width * cx^(2^n) * cy^(2^n) * cz < byte_target
   #

@@ -557,3 +557,33 @@ def dsmemory(path, memory_bytes, mip, factor, verbose):
     print(f"Downsamples: {num_downsamples}")
   else:
     print(shape)
+
+@designgroup.command("ds-shape")
+@click.argument("path")
+@click.argument("shape", type=Tuple3())
+@click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
+@click.option('--factor', default="2,2,1", type=Tuple3(), help="Downsample factor to use.", show_default=True)
+def dsshape(path, shape, mip, factor):
+  """
+  Compute the approximate memory usage for a
+  given downsample task shape.
+  """ 
+  cv = CloudVolume(path, mip=mip)
+  data_width = np.dtype(cv.dtype).itemsize
+  
+  memory_bytes = data_width * shape[0] * shape[1] * shape[2]
+
+  if factor not in ((2,2,1), (2,1,2), (1,2,2), (2,2,2)):
+    raise ValueError(f"factor must be 2,2,1 or 2,2,2. Got: {factor}")
+
+  # comes from a converging infinite series proof
+  constant = factor[0] * factor[1] * factor[2]
+  if constant != 1:
+    memory_bytes *= constant / (constant - 1)
+
+  print(format_bytes(memory_bytes, True))
+
+  
+
+
+

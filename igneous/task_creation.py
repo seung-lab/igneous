@@ -900,29 +900,87 @@ def create_graphene_meshing_tasks(
 
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 
-    chunk_size=None, shape=Vec(2048, 2048, 64), 
-    fill_missing=False, translate=(0,0,0), 
+    chunk_size=None, shape=None, 
+    fill_missing=False, translate=None,
     bounds=None, mip=0, preserve_chunk_size=True,
     encoding=None, skip_downsamples=False,
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
-    factor=None, sparse=False
+    factor=None, sparse=False, dest_voxel_offset=None,
+    memory_target=3.5e9
   ):
   """
-  Transfer data from one data layer to another. It's possible
-  to transfer from a lower resolution mip level within a given
-  bounding box. The bounding box should be specified in terms of
-  the highest resolution.
+  Transfer data to a new data layer. You can use this operation
+  to make changes to the dataset representation as well. For 
+  example, you can change the chunk size, compression, bounds,
+  and offset.
+
+  Downsamples will be automatically generated while transferring
+  unless skip_downsamples is set. The number of downsamples will
+  be determined by the chunk size and the task shape.
+
+  bounds: Bbox specified in terms of the destination image and its
+    highest resolution.
+  translate: Vec3 pointing from source bounds to dest bounds
+    and is in terms of the highest resolution of the source image.
+    This allows you to compensate for differing voxel offsets
+    or enables you to move part of the image to a new location.
+  dest_voxel_offset: When creating a new image, move the 
+    global coordinate origin to this point. This is commonly
+    used to "zero" a newly aligned image (e.g. (0,0,0)) 
+
+  background_color: Designates which color should be considered background.
+  chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
+  compress: None, 'gzip', or 'br' Determines which compression algorithm to use 
+    for new uploaded files.
+  delete_black_uploads: issue delete commands instead of upload chunks
+    that are all background.
+  encoding: "raw", "jpeg", "compressed_segmentation", "compresso", "fpzip", or "kempressed"
+    depending on which kind of data you're dealing with. raw works for everything (no compression) 
+    but you might get better compression with another encoding. You can think of encoding as the
+    image type-specific first stage of compression and the "compress" flag as the data
+    agnostic second stage compressor. For example, compressed_segmentation and gzip work
+    well together, but not jpeg and gzip.
+  factor: (overrides axis) can manually specify what each downsampling round is
+    supposed to do: e.g. (2,2,1), (2,2,2), etc
+  fill_missing: Treat missing image tiles as zeroed for both src and dest.
+  memory_target: given a task size in bytes, pick the task shape that will produce the 
+    maximum number of downsamples. Only works for (2,2,1) or (2,2,2).
+  preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
+    evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
+    useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
+  shape: (overrides memory_target) The 3d size of each task. Choose a shape that meets 
+    the following criteria:
+    (a) 2^n multiple of destination chunk size (b) doesn't consume too much memory
+    (c) n is related to the downsample factor for each axis, so for a factor of (2,2,1) (default)
+      z only needs to be a single chunk, but x and y should be 2, 4, 8,or 16 times the chunk size.
+    Remember to multiply 4/3 * shape.x * shape.y * shape.z * data_type to estimate how much memory 
+    each task will require. If downsamples are off, you can skip the 4/3. In the future, if chunk
+    sizes match we might be able to do a simple file transfer. The problem can be formulated as 
+    producing the largest number of downsamples within a given memory target.
+
+    EXAMPLE: destination is uint64 with chunk size (128, 128, 64) with a memory target of
+      at most 3GB per task and a downsample factor of (2,2,1).
+
+      The largest number of downsamples is 4 using 2048 * 2048 * 64 sized tasks which will
+      use 2.9 GB of memory. The next size up would use 11.5GB and is too big. 
+
+  sparse: When downsampling segmentation, if true, don't count black pixels when computing
+    the mode. Useful for e.g. synapses and point labels.
+
+  agglomerate: (graphene only) remap the watershed layer to a proofread segmentation.
+  timestamp: (graphene only) integer UNIX timestamp indicating the proofreading state
+    to represent.
   """
-  shape = Vec(*shape)
   vol = CloudVolume(src_layer_path, mip=mip)
-  translate = Vec(*translate) // vol.downsample_ratio
-  
+
+  if dest_voxel_offset:
+    dest_voxel_offset = Vec3(*dest_voxel_offset, dtype=int)
+  else:
+    dest_voxel_offset = vol.voxel_offset.clone()
+
   if factor is None:
     factor = (2,2,1)
-
-  if factor[2] == 1:
-    shape.z = int(vol.chunk_size.z * round(shape.z / vol.chunk_size.z))
 
   if not chunk_size:
     chunk_size = vol.info['scales'][mip]['chunk_sizes'][0]
@@ -932,8 +990,18 @@ def create_transfer_tasks(
     dvol = CloudVolume(dest_layer_path, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(vol.info)
-    dvol = CloudVolume(dest_layer_path, info=info)
+    dvol = CloudVolume(dest_layer_path, info=info, mip=mip)
     dvol.commit_info()
+
+  if dest_voxel_offset is not None:
+    dvol.scale["voxel_offset"] = dest_voxel_offset
+
+  # If translate is not set, but dest_voxel_offset is then it should naturally be
+  # only be the difference between datasets.
+  if translate is None:
+    translate = dvol.voxel_offset - srcvol.voxel_offset # vector pointing from src to dest
+  else:
+    translate = Vec(*translate) // vol.downsample_ratio
 
   if encoding is not None:
     dvol.info['scales'][mip]['encoding'] = encoding
@@ -942,6 +1010,21 @@ def create_transfer_tasks(
   dvol.info['scales'] = dvol.info['scales'][:mip+1]
   dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
   dvol.commit_info()
+
+  if shape is None:
+    if memory_target is not None:
+      shape = downsample_scales.downsample_shape_from_memory_target(
+        np.dtype(vol.dtype).itemsize, 
+        dvol.chunk_size.x, dvol.chunk_size.y, dvol.chunk_size.z, 
+        factor, memory_target
+      )
+    else:
+      raise ValueError("Either shape or memory_target must be specified.")
+
+  shape = Vec(*shape)
+
+  if factor[2] == 1:
+    shape.z = int(vol.chunk_size.z * round(shape.z / vol.chunk_size.z))
 
   if not skip_downsamples:
     downsample_scales.create_downsample_scales(dest_layer_path, 
@@ -958,7 +1041,7 @@ def create_transfer_tasks(
         src_path=src_layer_path,
         dest_path=dest_layer_path,
         shape=task_shape,
-        offset=offset.clone(),
+        offset=offset,
         fill_missing=fill_missing,
         translate=translate,
         mip=mip,
@@ -992,6 +1075,8 @@ def create_transfer_tasks(
           'agglomerate': bool(agglomerate),
           'timestamp': timestamp,
           'compress': compress,
+          'encoding': encoding,
+          'memory_target': memory_target,
           'factor': (tuple(factor) if factor else None),
           'sparse': bool(sparse),
         },
@@ -1599,4 +1684,3 @@ def cascade(tq, fnlist):
       N = tq.enqueued
       print('\r {} remaining'.format(N), end='')
       time.sleep(2)
-

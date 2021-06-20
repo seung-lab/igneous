@@ -226,3 +226,47 @@ def create_downsample_scales(
   vol.commit_info()
   return vol
 
+
+def downsample_shape_from_memory_target(data_width, cx, cy, cz, factor, byte_target):
+  """
+  Compute the shape that will give the most downsamples for a given 
+  memory target (e.g. 3e9 bytes aka 3 GB).
+
+  data_width: byte size of dtype
+  cx: chunk size x
+  cy: chunk size y 
+  cz: chunk size z
+  factor: (2,2,1) or (2,2,2) are supported
+  byte_target: memory used should be less than this
+
+  Returns: Vec3 shape
+  """
+  # formulas come from solving the following optimization equations:
+  #
+  # factor (2,2,1)
+  # 4/3 * data_width * cx^(2^n) * cy^(2^n) * cz < byte_target
+  #
+  # factor (2,2,2)
+  # 8/7 * data_width * cx^(2^n) * cy^(2^n) * cz^(2^n) < byte_target
+  #
+  # it's possible to solve for an arbitrary factor, but more complicated
+  # and we really only need those two as the blowup gets intense.
+  if byte_target <= 0:
+    raise ValueError(f"Unable to pick a shape for a byte budget <= 0. Got: {byte_target}")
+
+  def n_shape(n, c_):
+    num_downsamples = int(math.log2((c_ ** (2*n)) / c_))
+    return c_ * (2 ** num_downsamples)
+
+  if factor == (2,2,1):
+    n = math.log(3/4 * byte_target / data_width / cz)
+    n = n / 2 / math.log(cx * cy)
+    shape = lambda c_: n_shape(n, c_) 
+    return Vec(shape(cx), shape(cy), cz)
+  elif factor == (2,2,2):
+    n = math.log(7/8 * byte_target / data_width)
+    n = n / 2 / math.log(cx * cy * cz) 
+    shape = lambda c_: n_shape(n, c_) 
+    return Vec(shape(cx), shape(cy), shape(cz))
+  else:
+    raise ValueError(f"This is now a harder optimization problem. Got: {factor}")

@@ -393,28 +393,35 @@ def TransferTask(
   skip_first = bool(skip_first)
   skip_downsamples = bool(skip_downsamples)
 
-  srccv = CloudVolume(
+  src_cv = CloudVolume(
     src_path, fill_missing=fill_missing,
     mip=mip, bounded=False
   )
-  destcv = CloudVolume(
+  dest_cv = CloudVolume(
     dest_path, fill_missing=fill_missing,
     mip=mip, delete_black_uploads=delete_black_uploads,
     background_color=background_color, compress=compress
   )
 
-  dst_bounds = Bbox(offset, shape + offset)
-  dst_bounds = Bbox.clamp(dst_bounds, destcv.bounds)
-  src_bounds = dst_bounds - translate
-  image = srccv.download(
-    src_bounds, agglomerate=agglomerate, timestamp=timestamp
+  dst_bbox = Bbox(offset, shape + offset)
+  dst_bbox = Bbox.clamp(dst_bbox, dest_cv.bounds)
+  src_bbox = dst_bbox - translate
+
+  # If the destination bounds is bigger than source bounds, we should
+  # use fill missing for those regions outside.
+  src_bounds = src_cv.bounds.clone() + translate
+  if not src_bounds.contains_bbox(src_bbox):
+    src_cv.fill_missing = True
+
+  image = src_cv.download(
+    src_bbox, agglomerate=agglomerate, timestamp=timestamp
   )
 
   if skip_downsamples:
-    destcv[dst_bounds] = image
+    dest_cv[dst_bbox] = image
   else:
     downsample_and_upload(
-      image, dst_bounds, destcv,
+      image, dst_bbox, dest_cv,
       shape, mip=mip,
       skip_first=skip_first,
       sparse=sparse, axis=axis,

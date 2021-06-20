@@ -371,7 +371,7 @@ class LuminanceLevelsTask(RegisteredTask):
 def TransferTask(
   src_path, dest_path, 
   mip, shape, offset, 
-  translate=(0,0,0), # change of origin
+  translate=(0,0,0),
   fill_missing=False, 
   skip_first=False, 
   skip_downsamples=False,
@@ -384,6 +384,12 @@ def TransferTask(
   compress='gzip',
   factor=None
 ):
+  """
+  Transfer an image to a new location while enabling
+  rechunking, translation, reencoding, recompressing,
+  and downsampling. For graphene, we can also generate
+  proofread segmentation using the agglomerate flag.
+  """
   shape = Vec(*shape)
   offset = Vec(*offset)
   fill_missing = bool(fill_missing)

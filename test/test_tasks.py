@@ -214,7 +214,7 @@ def test_delete():
         layer_path=storage.layer_path,
         offset=(0,0,0),
         shape=(128, 64, 64),
-    ).execute()
+    )
 
     fnames = [ _ for _ in storage.list_files() ]
     

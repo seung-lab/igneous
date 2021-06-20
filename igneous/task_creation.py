@@ -17,7 +17,11 @@ from tqdm import tqdm
 
 import cloudvolume
 from cloudvolume import CloudVolume
-from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
+from cloudvolume.lib import (
+  Vec, Bbox, max2, min2, xyzrange, 
+  find_closest_divisor, yellow, jsonify,
+  getprecision
+)
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudfiles import CloudFiles
 from taskqueue import TaskQueue, MockTaskQueue 
@@ -31,7 +35,7 @@ from igneous.tasks import (
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
   SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask, 
-  MaskAffinitymapTask, InferenceTask
+  MaskAffinitymapTask, InferenceTask, ImageSpatialIndexTask
 )
 # from igneous.tasks import BigArrayTask
 
@@ -225,6 +229,51 @@ def create_touch_tasks(
 
   return TouchTaskIterator(bounds, shape)
 
+def create_segmentation_spatial_index_tasks(
+  cloudpath:str, mip=0, shape=(512, 512, 512),
+  fill_missing=False
+):
+  """
+  Generate a spatial index for a segmentation image layer.
+  """
+  cv = CloudVolume(cloudpath, mip=mip)
+  shape = Vec(*shape, dtype=int)
+
+  if cv.layer_type != "segmentation":
+    raise ValueError(
+      f"Can only create the spatial index on segmentation. {cv.cloudpath} is an {cv.layer_type}."
+    )
+
+  cv.scale["spatial_index"] = {
+    'resolution': vol.resolution.tolist(),
+    'chunk_size': (shape.astype(cv.resolution) * cv.resolution).tolist(),
+  }
+  cv.commit_info()
+
+  class ImageSpatialIndexTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return partial(ImageSpatialIndexTask, 
+        cloudpath=cloudpath, 
+        shape=shape.clone(), 
+        offset=offset.clone(), 
+        mip=mip, 
+        fill_missing=bool(fill_missing)
+      )
+    def on_finish(self):
+      cv.provenance.processing.append({
+        'method': {
+          'task': 'ImageSpatialIndexTask',
+          'mip': mip,
+          'shape': shape.tolist(),
+          'fill_missing': bool(fill_missing),
+        },
+        'by': OPERATOR_CONTACT,
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      cv.commit_provenance()      
+
+  return ImageSpatialIndexTaskIterator(cv.bounds.clone(), shape)
+
 def create_downsampling_tasks(
     layer_path, mip=0, fill_missing=False, 
     axis='z', num_mips=5, preserve_chunk_size=True,
@@ -243,6 +292,12 @@ def create_downsampling_tasks(
       evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
       useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
     chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
+    encoding: "raw", "jpeg", "compressed_segmentation", "compresso", "fpzip", or "kempressed"
+      depending on which kind of data you're dealing with. raw works for everything but you
+      might get better compression with another encoding. You can think of encoding as the
+      image type-specific first stage of compression and the "compress" flag as the data
+      agnostic second stage compressor. For example, compressed_segmentation and gzip work
+      well together, but not jpeg and gzip.
     sparse: When downsampling segmentation, if true, don't count black pixels when computing
       the mode. Useful for e.g. synapses and point labels.
     bounds: By default, downsample everything, but you can specify restricted bounding boxes
@@ -351,7 +406,7 @@ def create_deletion_tasks(
   class DeleteTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       bounded_shape = min2(shape, bounds.maxpt - offset)
-      return DeleteTask(
+      return partial(DeleteTask,
         layer_path=layer_path,
         shape=bounded_shape.clone(),
         offset=offset.clone(),

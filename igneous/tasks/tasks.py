@@ -1,15 +1,15 @@
 from collections import defaultdict
 from collections.abc import Sequence
-
 from io import BytesIO
-
 import json
 import math
 import os
 import random
 import re
+from typing import Iterable, List, Tuple, Set
 
 import numpy as np
+import scipy.ndimage
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
@@ -29,6 +29,18 @@ from .obsolete import (
   HyperSquareConsensusTask, WatershedRemapTask, 
   MaskAffinitymapTask, InferenceTask
 )
+
+def find_objects(labels):
+  """  
+  scipy.ndimage.find_objects performs about 7-8x faster on C 
+  ordered arrays, so we just do it that way and convert
+  the results if it's in F order.
+  """
+  if labels.flags['C_CONTIGUOUS']:
+    return scipy.ndimage.find_objects(labels)
+  else:
+    all_slices = scipy.ndimage.find_objects(labels.T)
+    return [ (slcs and slcs[::-1]) for slcs in all_slices ]
 
 def downsample_and_upload(
     image, bounds, vol, ds_shape, 
@@ -77,34 +89,67 @@ def downsample_and_upload(
       new_bounds.maxpt = new_bounds.minpt + Vec(*mipped.shape[:3])
       vol[new_bounds] = mipped
 
-class DeleteTask(RegisteredTask):
+@queueable
+def ImageSpatialIndexTask(
+  cloudpath:str, 
+  shape:Iterable[int], offset:Iterable[int],
+  mip=0, fill_missing=False
+):
+  shape = Vec(*shape, dtype=int)
+  offset = Vec(*offset, dtype=int)
+  bbox = Bbox(offset, offset + shape, dtype=int)
+
+  cv = CloudVolume(cloudpath, mip=mip, fill_missing=fill_missing)
+  bbox = Bbox.clamp(bbox, cv.bounds)
+  labels = cv[bbox]
+
+  labels, remap = fastremap.renumber(labels, in_place=True)
+  slcs = find_objects(labels)
+  del labels
+
+  spatial_index = {}
+  for orig_label, renum_label in remap.items():
+    if orig_label == 0:
+      continue
+    slc = slcs[renum_label - 1]
+    if slc is None:
+      continue
+
+    subbox = Bbox.from_slices(slc)
+    subbox += bbox.minpt
+    subbox = subbox.astype(cv.resolution.dtype) * cv.resolution
+    spatial_index[orig_label] = subbox.to_list()
+
+  path = cv.meta.join(cloudpath, cv.key, 'spatial_index')
+  precision = cv.image.spatial_index.precision
+  cf = CloudFiles(path)
+  cf.put_json(
+    path=f"{bbox.to_filename(precision)}.spatial",
+    content=spatial_index,
+    compress='br',
+  )
+
+@queueable
+def DeleteTask(layer_path:str, shape, offset, mip=0, num_mips=5):
   """Delete a block of images inside a layer on all mip levels."""
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  vol = CloudVolume(layer_path, mip=mip, max_redirects=0)
 
-  def __init__(self, layer_path, shape, offset, mip=0, num_mips=5):
-    super(DeleteTask, self).__init__(layer_path, shape, offset, mip, num_mips)
-    self.layer_path = layer_path
-    self.shape = Vec(*shape)
-    self.offset = Vec(*offset)
-    self.mip = mip
-    self.num_mips = num_mips
+  highres_bbox = Bbox( offset, offset + shape )
 
-  def execute(self):
-    vol = CloudVolume(self.layer_path, mip=self.mip, max_redirects=0)
+  top_mip = min(vol.available_mips[-1], mip + num_mips)
 
-    highres_bbox = Bbox( self.offset, self.offset + self.shape )
+  for mip_i in range(mip, top_mip + 1):
+    vol.mip = mip_i
+    bbox = vol.bbox_to_mip(highres_bbox, mip, mip_i)
+    bbox = bbox.round_to_chunk_size(vol.chunk_size, offset=vol.bounds.minpt)
+    bbox = Bbox.clamp(bbox, vol.bounds)
 
-    top_mip = min(vol.available_mips[-1], self.mip + self.num_mips)
+    if bbox.volume() == 0: 
+      continue
 
-    for mip in range(self.mip, top_mip + 1):
-      vol.mip = mip
-      bbox = vol.bbox_to_mip(highres_bbox, self.mip, mip)
-      bbox = bbox.round_to_chunk_size(vol.chunk_size, offset=vol.bounds.minpt)
-      bbox = Bbox.clamp(bbox, vol.bounds)
-
-      if bbox.volume() == 0: 
-        continue
-
-      vol.delete(bbox)
+    vol.delete(bbox)
 
 @queueable
 def BlackoutTask(

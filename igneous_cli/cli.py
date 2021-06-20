@@ -2,6 +2,7 @@ import multiprocessing as mp
 import os
 
 import click
+from cloudvolume import CloudVolume
 from taskqueue import TaskQueue
 from taskqueue.lib import toabs
 from taskqueue.paths import get_protocol
@@ -503,5 +504,52 @@ def delete_images(
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
+
+@main.group("index")
+def indexgroup():
+  """
+  Create and manage a spatial index for segmentation layers.
+  
+  This allows you to more efficiently query the locations
+  of segment ids in space.
+  """
+  pass
+
+@indexgroup.command("create")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--mip', default=0, help="Which mip level to index. Default: 0")
+@click.option('--shape', default=None, help="The grid size of the index as a comma delimited list. Should be a multiple of the chunk size.", type=Tuple3())
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.pass_context
+def image_spatial_index(
+  ctx, path, queue,
+  mip, shape, fill_missing
+):
+  """
+  Create a spatial index for a segmentation image layer.
+  """
+  tasks = tc.create_segmentation_spatial_index_tasks(
+    path, mip=mip, 
+    shape=shape, fill_missing=fill_missing
+  )
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+@indexgroup.command("sqlite")
+@click.argument("cloudpath")
+@click.argument("dbpath")
+@click.option('--mip', default=0, help="Which mip level. Default: 0")
+@click.option('--progress', is_flag=True, default=True, help="Display progress bar. Default: True")
+@click.pass_context
+def image_spatial_index_to_sqlite(ctx, cloudpath, dbpath, mip, progress):
+  """
+  Download and convert the index into an sqlite3 database.
+  """
+  cv = CloudVolume(cloudpath, mip=mip)
+  cv.image.spatial_index[mip].to_sqlite(dbpath, progress=progress)
+
+
 
 

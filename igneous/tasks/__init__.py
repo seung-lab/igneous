@@ -5,5 +5,6 @@ from .tasks import (
   DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
-  MaskAffinitymapTask, InferenceTask, BlackoutTask
+  MaskAffinitymapTask, InferenceTask, BlackoutTask,
+  ImageSpatialIndexTask
 )

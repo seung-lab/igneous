@@ -78,6 +78,9 @@ def test_downsample_shape_from_memory_target():
   shape = downsample_scales.downsample_shape_from_memory_target(8, 256, 256, 64, (1,1,1), 35e6)
   assert np.all(shape == (256,256,64))
 
+  shape = downsample_scales.downsample_shape_from_memory_target(8, 256, 256, 64, (1,1,1), 3.5e9)
+  assert np.all(shape == (2560,2560,64))
+
   shape = downsample_scales.downsample_shape_from_memory_target(1, 1, 1, 1, (2,2,1), 16)
   assert np.all(shape == (4,4,1))
 

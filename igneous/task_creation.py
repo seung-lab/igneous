@@ -974,50 +974,50 @@ def create_transfer_tasks(
   timestamp: (graphene only) integer UNIX timestamp indicating the proofreading state
     to represent.
   """
-  vol = CloudVolume(src_layer_path, mip=mip)
+  src_vol = CloudVolume(src_layer_path, mip=mip)
 
   if dest_voxel_offset:
     dest_voxel_offset = Vec3(*dest_voxel_offset, dtype=int)
   else:
-    dest_voxel_offset = vol.voxel_offset.clone()
+    dest_voxel_offset = src_vol.voxel_offset.clone()
 
   if factor is None:
     factor = (2,2,1)
 
   if not chunk_size:
-    chunk_size = vol.info['scales'][mip]['chunk_sizes'][0]
+    chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
 
   try:
-    dvol = CloudVolume(dest_layer_path, mip=mip)
+    dest_vol = CloudVolume(dest_layer_path, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
-    info = copy.deepcopy(vol.info)
-    dvol = CloudVolume(dest_layer_path, info=info, mip=mip)
-    dvol.commit_info()
+    info = copy.deepcopy(src_vol.info)
+    dest_vol = CloudVolume(dest_layer_path, info=info, mip=mip)
+    dest_vol.commit_info()
 
   if dest_voxel_offset is not None:
-    dvol.scale["voxel_offset"] = dest_voxel_offset
+    dest_vol.scale["voxel_offset"] = dest_voxel_offset
 
   # If translate is not set, but dest_voxel_offset is then it should naturally be
   # only be the difference between datasets.
   if translate is None:
-    translate = dvol.voxel_offset - srcvol.voxel_offset # vector pointing from src to dest
+    translate = dest_vol.voxel_offset - src_vol.voxel_offset # vector pointing from src to dest
   else:
-    translate = Vec(*translate) // vol.downsample_ratio
+    translate = Vec(*translate) // src_vol.downsample_ratio
 
   if encoding is not None:
-    dvol.info['scales'][mip]['encoding'] = encoding
-    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dvol.info['scales'][mip]:
-      dvol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
-  dvol.info['scales'] = dvol.info['scales'][:mip+1]
-  dvol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
-  dvol.commit_info()
+    dest_vol.info['scales'][mip]['encoding'] = encoding
+    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dest_vol.info['scales'][mip]:
+      dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
+  dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
+  dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
+  dest_vol.commit_info()
 
   if shape is None:
     if memory_target is not None:
       shape = downsample_scales.downsample_shape_from_memory_target(
-        np.dtype(vol.dtype).itemsize, 
-        dvol.chunk_size.x, dvol.chunk_size.y, dvol.chunk_size.z, 
+        np.dtype(src_vol.dtype).itemsize, 
+        dest_vol.chunk_size.x, dest_vol.chunk_size.y, dest_vol.chunk_size.z, 
         factor, memory_target, max_mips
       )
     else:
@@ -1026,7 +1026,7 @@ def create_transfer_tasks(
   shape = Vec(*shape)
 
   if factor[2] == 1:
-    shape.z = int(vol.chunk_size.z * round(shape.z / vol.chunk_size.z))
+    shape.z = int(dest_vol.chunk_size.z * round(shape.z / dest_vol.chunk_size.z))
 
   if not skip_downsamples:
     downsample_scales.create_downsample_scales(dest_layer_path, 
@@ -1035,15 +1035,15 @@ def create_transfer_tasks(
       encoding=encoding
     )
 
-  dest_bounds = get_bounds(dvol, bounds, mip, chunk_size)
+  dest_bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
 
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  
       return partial(TransferTask,
         src_path=src_layer_path,
         dest_path=dest_layer_path,
-        shape=task_shape,
-        offset=offset,
+        shape=shape.clone(),
+        offset=offset.clone(),
         fill_missing=fill_missing,
         translate=translate,
         mip=mip,
@@ -1070,8 +1070,8 @@ def create_transfer_tasks(
           'delete_black_uploads': bool(delete_black_uploads),
           'background_color': background_color,
           'bounds': [
-            bounds.minpt.tolist(),
-            bounds.maxpt.tolist()
+            dest_bounds.minpt.tolist(),
+            dest_bounds.maxpt.tolist()
           ],
           'mip': mip,
           'agglomerate': bool(agglomerate),
@@ -1086,14 +1086,14 @@ def create_transfer_tasks(
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       }
 
-      dvol = CloudVolume(dest_layer_path)
-      dvol.provenance.sources = [ src_layer_path ]
-      dvol.provenance.processing.append(job_details) 
-      dvol.commit_provenance()
+      dest_vol = CloudVolume(dest_layer_path)
+      dest_vol.provenance.sources = [ src_layer_path ]
+      dest_vol.provenance.processing.append(job_details) 
+      dest_vol.commit_provenance()
 
-      if vol.meta.path.protocol != 'boss':
-        vol.provenance.processing.append(job_details)
-        vol.commit_provenance()
+      if src_vol.meta.path.protocol != 'boss':
+        src_vol.provenance.processing.append(job_details)
+        src_vol.commit_provenance()
 
   return TransferTaskIterator(dest_bounds, shape)
 

@@ -109,6 +109,50 @@ def test_downsample_no_offset_2x2x2():
     cv.mip = 3
     assert np.all(cv[slice64] == data_ds3[slice64])
 
+def test_transfer_task():
+    random_data = np.random.randint(0xFF, size=(512,512,128), dtype=np.uint8)
+    path_root = "/tmp/removeme/transfertask"
+    srcpath = f"file://{path_root}/src"
+    destpath = f"file://{path_root}/dest"
+
+    def rmdest():
+        directory = f"{path_root}/dest"
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+    def rmsrc():
+        directory = f"{path_root}/src"
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+
+    rmsrc()
+    rmdest()
+
+    tq = MockTaskQueue()
+
+    src_cv = CloudVolume.from_numpy(random_data, 
+        vol_path=srcpath,
+        resolution=(1,1,1), 
+        voxel_offset=(0,0,0), 
+        chunk_size=(64,64,64), 
+        layer_type="image", 
+        max_mip=0,
+    )
+    tasks = tc.create_transfer_tasks(src_cv.cloudpath, destpath)
+    tq.insert_all(tasks)
+
+    dest_cv = CloudVolume(destpath)
+    print(src_cv.shape, dest_cv.shape)
+    assert np.all(src_cv[:] == dest_cv[:])
+    rmdest()
+
+    tasks = tc.create_transfer_tasks(src_cv.cloudpath, destpath, chunk_size=(50,50,50))
+    tq.insert_all(tasks)
+
+    dest_cv = CloudVolume(destpath)
+    assert np.all(src_cv[:] == dest_cv[:])
+
+    rmsrc()
+
 def test_downsample_with_offset():
     delete_layer()
     cf, data = create_layer(size=(512,512,128,1), offset=(3,7,11))

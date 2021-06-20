@@ -8,8 +8,9 @@ import os.path
 import shutil
 
 import numpy as np
-from cloudvolume import Storage, CloudVolume, EmptyVolumeException, view
+from cloudvolume import CloudVolume, EmptyVolumeException, view
 import cloudvolume.lib as lib
+from cloudfiles import CloudFiles
 from taskqueue import MockTaskQueue, TaskQueue
 import tinybrain
 
@@ -26,15 +27,15 @@ from .layer_harness import delete_layer, create_layer
 @pytest.mark.parametrize("compression_method", ( None, 'gzip', 'br',))
 def test_downsample_no_offset(compression_method):
     delete_layer()
-    storage, data = create_layer(size=(1024,1024,128,1), offset=(0,0,0))
-    cv = CloudVolume(storage.layer_path)
+    cf, data = create_layer(size=(1024,1024,128,1), offset=(0,0,0))
+    cv = CloudVolume(cf.cloudpath)
     assert len(cv.scales) == 1
     assert len(cv.available_mips) == 1
 
     cv.commit_info()
 
     tq = MockTaskQueue()
-    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=4, compress=compression_method)
+    tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=4, compress=compression_method)
     tq.insert_all(tasks)
 
     cv.refresh_info()
@@ -69,8 +70,8 @@ def test_downsample_no_offset(compression_method):
 
 def test_downsample_no_offset_2x2x2():
     delete_layer()
-    storage, data = create_layer(size=(512,512,512,1), offset=(0,0,0))
-    cv = CloudVolume(storage.layer_path)
+    cf, data = create_layer(size=(512,512,512,1), offset=(0,0,0))
+    cv = CloudVolume(cf.cloudpath)
     assert len(cv.scales) == 1
     assert len(cv.available_mips) == 1
 
@@ -78,7 +79,7 @@ def test_downsample_no_offset_2x2x2():
 
     tq = MockTaskQueue()
     tasks = create_downsampling_tasks(
-        storage.layer_path, mip=0, num_mips=3, 
+        cf.cloudpath, mip=0, num_mips=3, 
         compress=None, factor=(2,2,2)
     )
     tq.insert_all(tasks)
@@ -110,15 +111,15 @@ def test_downsample_no_offset_2x2x2():
 
 def test_downsample_with_offset():
     delete_layer()
-    storage, data = create_layer(size=(512,512,128,1), offset=(3,7,11))
-    cv = CloudVolume(storage.layer_path)
+    cf, data = create_layer(size=(512,512,128,1), offset=(3,7,11))
+    cv = CloudVolume(cf.cloudpath)
     assert len(cv.scales) == 1
     assert len(cv.available_mips) == 1
 
     cv.commit_info()
 
     tq = MockTaskQueue()
-    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3)
+    tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3)
     tq.insert_all(tasks)
 
     cv.refresh_info()
@@ -148,8 +149,8 @@ def test_downsample_with_offset():
 
 def test_downsample_w_missing():
     delete_layer()
-    storage, data = create_layer(size=(512,512,128,1), offset=(3,7,11))
-    cv = CloudVolume(storage.layer_path)
+    cf, data = create_layer(size=(512,512,128,1), offset=(3,7,11))
+    cv = CloudVolume(cf.cloudpath)
     assert len(cv.scales) == 1
     assert len(cv.available_mips) == 1
     delete_layer()
@@ -159,14 +160,14 @@ def test_downsample_w_missing():
     tq = MockTaskQueue()
 
     try:
-        tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3, fill_missing=False)
+        tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3, fill_missing=False)
         tq.insert_all(tasks)
     except EmptyVolumeException:
         pass
 
     tq = MockTaskQueue()
 
-    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=3, fill_missing=True)
+    tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3, fill_missing=True)
     tq.insert_all(tasks)
 
     cv.refresh_info()
@@ -185,19 +186,19 @@ def test_downsample_w_missing():
 
 def test_downsample_higher_mip():
     delete_layer()
-    storage, data = create_layer(size=(512,512,64,1), offset=(3,7,11))
-    cv = CloudVolume(storage.layer_path)
+    cf, data = create_layer(size=(512,512,64,1), offset=(3,7,11))
+    cv = CloudVolume(cf.cloudpath)
     cv.info['scales'] = cv.info['scales'][:1]
     
     tq = MockTaskQueue()
 
     cv.commit_info()
-    tasks = create_downsampling_tasks(storage.layer_path, mip=0, num_mips=2)
+    tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=2)
     tq.insert_all(tasks)
     cv.refresh_info()
     assert len(cv.available_mips) == 3
 
-    tasks = create_downsampling_tasks(storage.layer_path, mip=1, num_mips=2)
+    tasks = create_downsampling_tasks(cf.cloudpath, mip=1, num_mips=2)
     tq.insert_all(tasks)
     cv.refresh_info()
     assert len(cv.available_mips) == 4
@@ -207,30 +208,30 @@ def test_downsample_higher_mip():
 
 def test_delete():
     delete_layer()
-    storage, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="segmentation")
-    cv = CloudVolume(storage.layer_path)
+    cf, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="segmentation")
+    cv = CloudVolume(cf.cloudpath)
 
     DeleteTask(
-        layer_path=storage.layer_path,
+        layer_path=cf.cloudpath,
         offset=(0,0,0),
         shape=(128, 64, 64),
-    ).execute()
+    )
 
-    fnames = [ _ for _ in storage.list_files() ]
+    fnames = list(cf.list())
     
     assert '1_1_1/0-64_0-64_0-64' not in fnames
     assert '1_1_1/64-128_0-64_0-64' not in fnames
 
 def test_blackout_tasks():
     delete_layer()
-    storage, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="image")
-    cv = CloudVolume(storage.layer_path)
+    cf, _ = create_layer(size=(128,64,64,1), offset=(0,0,0), layer_type="image")
+    cv = CloudVolume(cf.cloudpath)
 
     tq = TaskQueue("fq:///tmp/removeme/blackout/")
 
     tq.insert(
         partial(BlackoutTask, 
-            cloudpath=storage.layer_path,
+            cloudpath=cf.cloudpath,
             mip=0,
             offset=(0,0,0),
             shape=(128, 64, 64),
@@ -244,7 +245,7 @@ def test_blackout_tasks():
     assert np.all(img == 11)
 
     BlackoutTask(
-        cloudpath=storage.layer_path,
+        cloudpath=cf.cloudpath,
         mip=0,
         offset=(0,0,0),
         shape=(37, 64, 64),
@@ -269,8 +270,8 @@ def test_blackout_tasks():
 @pytest.mark.parametrize('compress', ('gzip', 'br'))
 def test_mesh(compress):
     delete_layer()
-    storage, _ = create_layer(size=(64,64,64,1), offset=(0,0,0), layer_type="segmentation")
-    cv = CloudVolume(storage.layer_path)
+    cf, _ = create_layer(size=(64,64,64,1), offset=(0,0,0), layer_type="segmentation")
+    cv = CloudVolume(cf.cloudpath)
     # create a box of ones surrounded by zeroes
     data = np.zeros(shape=(64,64,64,1), dtype=np.uint32)
     data[1:-1,1:-1,1:-1,:] = 1
@@ -281,7 +282,7 @@ def test_mesh(compress):
     t = MeshTask(
         shape=(64,64,64),
         offset=(0,0,0),
-        layer_path=storage.layer_path,
+        layer_path=cf.cloudpath,
         mip=0,
         remap_table={"1": "10"},
         low_padding=0,
@@ -289,8 +290,8 @@ def test_mesh(compress):
         compress=compress
     )
     t.execute()
-    assert storage.get_file('mesh/10:0:0-64_0-64_0-64') is not None 
-    assert list(storage.list_files('mesh/')) == ['mesh/10:0:0-64_0-64_0-64']
+    assert cf.get('mesh/10:0:0-64_0-64_0-64') is not None 
+    assert list(cf.list('mesh/')) == ['mesh/10:0:0-64_0-64_0-64']
 
 
 def test_quantize():
@@ -299,8 +300,8 @@ def test_quantize():
     delete_layer()
     delete_layer(qpath)
 
-    storage, _ = create_layer(size=(256,256,128,3), offset=(0,0,0), layer_type="affinities")
-    cv = CloudVolume(storage.layer_path)
+    cf, _ = create_layer(size=(256,256,128,3), offset=(0,0,0), layer_type="affinities")
+    cv = CloudVolume(cf.cloudpath)
 
     shape = (128, 128, 64)
     slices = np.s_[ :shape[0], :shape[1], :shape[2], :1 ]
@@ -310,7 +311,7 @@ def test_quantize():
     data = data.astype(np.uint8)
 
     task = QuantizeTask(
-        source_layer_path=storage.layer_path,
+        source_layer_path=cf.cloudpath,
         dest_layer_path=qpath,
         shape=shape,
         offset=(0,0,0),
@@ -318,7 +319,7 @@ def test_quantize():
     )
 
     info = create_quantized_affinity_info(
-        storage.layer_path, qpath, shape, 
+        cf.cloudpath, qpath, shape, 
         mip=0, chunk_size=[64,64,64], encoding='raw'
     )
     qcv = CloudVolume(qpath, info=info)
@@ -350,8 +351,7 @@ def test_mesh_manifests():
     n_lods = 2
     n_fragids = 5
 
-    with Storage(layer_path) as stor:
-        stor.put_file('info', '{"mesh":"mesh_mip_3_error_40"}'.encode('utf8'))
+    CloudFiles(layer_path).put_json('info', {"mesh":"mesh_mip_3_error_40"})
 
     for segid in range(n_segids):
         for lod in range(n_lods):
@@ -392,7 +392,7 @@ def test_luminance_levels_task():
 
     delete_layer(layer_path)
 
-    storage, imgd = create_layer(
+    cf, imgd = create_layer(
         size=(256,256,128,1), offset=(0,0,0), 
         layer_type="image", layer_name='luminance_levels'
     )
@@ -438,47 +438,3 @@ def test_skeletonization_task():
     })
     tq.insert_all(tasks)
 
-
-        
-# def test_watershed():
-#     return # needs expensive julia stuff enabled in dockerfile
-#     from igneous import WatershedTask
-#     delete_layer('affinities')
-#     storage, data = create_layer(size=(64,64,64,3), offset=(0,0,0), layer_type='affinities', layer_name='affinities')
-
-#     delete_layer('segmentation')
-#     storage, data = create_layer(size=(64,64,64,1), offset=(0,0,0), layer_type='segmentation', layer_name='segmentation')
-
-#     WatershedTask(chunk_position='0-64_0-64_0-64',
-#                   crop_position='0-64_0-64_0-64',
-#                   layer_path_affinities='file:///tmp/removeme/affinities',
-#                   layer_path_segmentation='file:///tmp/removeme/segmentation',
-#                   high_threshold=0.999987, low_threshold=0.003, merge_threshold=0.3, 
-#                   merge_size=800, dust_size=800).execute()
-
-
-# def test_real_data():
-#     return # this is to expensive to be test by travis
-#     from igneous import WatershedTask
-#     from tqdm import tqdm
-#     from itertools import product
-#     vol = CloudVolume('s3://neuroglancer/pinky40_v11/affinitymap-jnet')
-#     scale = vol.info['scales'][0]
-#     for x_min in range(0, scale['size'][0], 512):
-#         for y_min in range(0, scale['size'][1], 512):
-#             for z_min in range(0, scale['size'][2], 1024):
-#                 x_max = min(scale['size'][0], x_min + 768)
-#                 y_max = min(scale['size'][1], y_min + 768)
-#                 z_max = min(scale['size'][2], z_min + 1024)
-
-#                 #adds offsets
-#                 x_min += scale['voxel_offset'][0]; x_max += scale['voxel_offset'][0]
-#                 y_min += scale['voxel_offset'][1]; y_max += scale['voxel_offset'][1]
-#                 z_min += scale['voxel_offset'][2]; z_max += scale['voxel_offset'][2]
-#                 WatershedTask(chunk_position='{}-{}_{}-{}_{}-{}'.format(x_min, x_max, y_min, y_max, z_min, z_max),
-#                   crop_position='128-640_128-640_0-1024',
-#                   layer_path_affinities='s3://neuroglancer/pinky40_v11/affinitymap-jnet',
-#                   layer_path_segmentation='s3://neuroglancer/pinky40_v11/chunked_watershed',
-#                   high_threshold=0.999987, low_threshold=0.003, merge_threshold=0.3, 
-#                   merge_size=800, dust_size=800).execute()
-   

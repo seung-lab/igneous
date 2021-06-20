@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+0.1.0
+-----
+
+* refactor: remove [deflate] extra (it's standard nowadays)
 * feat: setting up pypi package
 * chore: dracopy version number in wrong position
 * chore: bump cloud-volume to match floating resolution release

@@ -537,7 +537,7 @@ def dsmemory(path, memory_bytes, mip, factor, verbose):
   data_width = np.dtype(cv.dtype).itemsize
   cx, cy, cz = cv.chunk_size
   memory_bytes = int(memory_bytes)
-  
+
   shape = downsample_scales.downsample_shape_from_memory_target(
     data_width, cx, cy, cz, factor, memory_bytes
   )
@@ -574,7 +574,8 @@ def dsshape(path, shape, mip, factor):
   memory_bytes = data_width * shape[0] * shape[1] * shape[2]
 
   if factor not in ((2,2,1), (2,1,2), (1,2,2), (2,2,2)):
-    raise ValueError(f"factor must be 2,2,1 or 2,2,2. Got: {factor}")
+    print(f"igneous: factor must be 2,2,1 or 2,2,2. Got: {factor}")
+    sys.exit()
 
   # comes from a converging infinite series proof
   constant = factor[0] * factor[1] * factor[2]

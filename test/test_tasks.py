@@ -152,15 +152,27 @@ def test_transfer_task():
     assert np.all(src_cv[:] == dest_cv[:])
     rmdest()
 
+    def compare():
+        dest_cv = CloudVolume(destpath)
+        assert len(dest_cv.scales) == 4
+        assert np.all(src_cv[:] == dest_cv[:])
+        for mip in range(1, 4):
+            dest_cv.mip = mip
+            assert np.all(dest_cv[:] == ds_data[mip])
+        rmdest()
+
     tasks = tc.create_transfer_tasks(src_cv.cloudpath, destpath, chunk_size=(50,50,50))
     tq.insert_all(tasks)
+    compare()
 
+    tasks = tc.create_transfer_tasks(
+        src_cv.cloudpath, destpath, 
+        chunk_size=(50,50,50), skip_downsamples=True
+    )
+    tq.insert_all(tasks)
     dest_cv = CloudVolume(destpath)
-    assert len(dest_cv.scales) == 4
+    assert len(dest_cv.scales) == 1
     assert np.all(src_cv[:] == dest_cv[:])
-    for mip in range(1, 4):
-        dest_cv.mip = mip
-        assert np.all(dest_cv[:] == ds_data[mip])
 
     rmsrc()
     rmdest()

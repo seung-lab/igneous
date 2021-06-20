@@ -525,7 +525,8 @@ def designgroup():
 @click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
 @click.option('--factor', default="2,2,1", type=Tuple3(), help="Downsample factor to use.", show_default=True)
 @click.option('--verbose', is_flag=True, help="Print some additional information.")
-def dsmemory(path, memory_bytes, mip, factor, verbose):
+@click.option('--max-mips', default=5, help="Maximum downsamples to generate from this shape.", show_default=True)
+def dsmemory(path, memory_bytes, mip, factor, verbose, max_mips):
   """
   Compute the task shape that maximizes the number of
   downsamples for a given amount of memory.
@@ -537,7 +538,9 @@ def dsmemory(path, memory_bytes, mip, factor, verbose):
   memory_bytes = int(memory_bytes)
 
   shape = downsample_scales.downsample_shape_from_memory_target(
-    data_width, cx, cy, cz, factor, memory_bytes
+    data_width, 
+    cx, cy, cz, factor, 
+    memory_bytes, max_mips
   )
 
   num_downsamples = int(math.log2(max(shape / cv.chunk_size)))

@@ -907,7 +907,7 @@ def create_transfer_tasks(
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
     factor=None, sparse=False, dest_voxel_offset=None,
-    memory_target=3.5e9
+    memory_target=3.5e9, max_mips=5
   ):
   """
   Transfer data to a new data layer. You can use this operation
@@ -1016,7 +1016,7 @@ def create_transfer_tasks(
       shape = downsample_scales.downsample_shape_from_memory_target(
         np.dtype(vol.dtype).itemsize, 
         dvol.chunk_size.x, dvol.chunk_size.y, dvol.chunk_size.z, 
-        factor, memory_target
+        factor, memory_target, max_mips
       )
     else:
       raise ValueError("Either shape or memory_target must be specified.")

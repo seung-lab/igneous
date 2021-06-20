@@ -57,8 +57,11 @@ def test_plane_scales_yz():
 
 
 def test_downsample_shape_from_memory_target():
-  shape = downsample_scales.downsample_shape_from_memory_target(1, 0, 1, 1, (2,2,1), 16)
-  assert np.all(shape == (4,4,1))
+  try:
+    downsample_scales.downsample_shape_from_memory_target(1, 0, 1, 1, (2,2,1), 16)
+    assert False
+  except ValueError:
+    pass
 
   shape = downsample_scales.downsample_shape_from_memory_target(1, 1, 1, 1, (2,2,1), 16)
   assert np.all(shape == (4,4,1))

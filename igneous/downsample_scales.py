@@ -226,7 +226,11 @@ def create_downsample_scales(
   return vol
 
 
-def downsample_shape_from_memory_target(data_width, cx, cy, cz, factor, byte_target):
+def downsample_shape_from_memory_target(
+  data_width, cx, cy, cz, 
+  factor, byte_target,
+  max_mips=float('inf')
+):
   """
   Compute the shape that will give the most downsamples for a given 
   memory target (e.g. 3e9 bytes aka 3 GB).
@@ -258,6 +262,7 @@ def downsample_shape_from_memory_target(data_width, cx, cy, cz, factor, byte_tar
 
   def n_shape(n, c_):
     num_downsamples = int(math.log2((c_ ** (2*n)) / c_))
+    num_downsamples = int(min(num_downsamples, max_mips))
     return c_ * (2 ** num_downsamples)
 
   if factor == (2,2,1):

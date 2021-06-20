@@ -514,9 +514,7 @@ def delete_images(
 @main.group("design")
 def designgroup():
   """
-  Calculation tools to aid the design
-  of igneous tasks or neuroglancer 
-  layers.
+  Tools to aid the design of tasks or neuroglancer layers.
   """
   pass
 

@@ -405,14 +405,23 @@ def TransferTask(
 
   dst_bbox = Bbox(offset, shape + offset)
   dst_bbox = Bbox.clamp(dst_bbox, dest_cv.bounds)
+
+  if (
+    skip_downsamples 
+    and agglomerate == False
+    and src_cv.scale == dest_cv.scale
+    and src_cv.dtype == dest_cv.dtype
+    and np.all(translate == (0,0,0))
+  ):
+    # most efficient transfer type, just copy
+    # files possibly without even decompressing
+    src_cv.image.transfer_to(
+      dest_path, dst_bbox, mip, 
+      compress=compress
+    )
+    return
+
   src_bbox = dst_bbox - translate
-
-  # If the destination bounds is bigger than source bounds, we should
-  # use fill missing for those regions outside.
-  src_bounds = src_cv.bounds.clone() + translate
-  if not src_bounds.contains_bbox(src_bbox):
-    src_cv.fill_missing = True
-
   image = src_cv.download(
     src_bbox, agglomerate=agglomerate, timestamp=timestamp
   )

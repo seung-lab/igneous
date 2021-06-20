@@ -93,10 +93,12 @@ def test_transfer_task_rechunk(tq, src_cv, transfer_data):
   rmsrc()
   rmdest()
 
-def test_transfer_task_skip_downsample(tq, src_cv):
+# chunk size (64,64,64) should test transfer_to pathway
+@pytest.mark.parametrize("chunk_size", [ (50,50,50), (64,64,64) ])
+def test_transfer_task_skip_downsample(tq, src_cv, chunk_size):
   tasks = tc.create_transfer_tasks(
     src_cv.cloudpath, destpath, 
-    chunk_size=(50,50,50), skip_downsamples=True
+    chunk_size=chunk_size, skip_downsamples=True
   )
   tq.insert_all(tasks)
   dest_cv = CloudVolume(destpath)
@@ -140,3 +142,4 @@ def test_transfer_task_subset(tq, src_cv, transfer_data):
 
   rmsrc()
   rmdest()
+

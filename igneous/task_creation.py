@@ -944,13 +944,15 @@ def create_transfer_tasks(
   factor: (overrides axis) can manually specify what each downsampling round is
     supposed to do: e.g. (2,2,1), (2,2,2), etc
   fill_missing: Treat missing image tiles as zeroed for both src and dest.
+  max_mips: (pairs with memory_target) maximum number of downsamples to generate even
+    if the memory budget is large enough for more.
   memory_target: given a task size in bytes, pick the task shape that will produce the 
     maximum number of downsamples. Only works for (2,2,1) or (2,2,2).
   preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
     evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
     useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
   shape: (overrides memory_target) The 3d size of each task. Choose a shape that meets 
-    the following criteria:
+    the following criteria unless you're doing something out of the ordinary.
     (a) 2^n multiple of destination chunk size (b) doesn't consume too much memory
     (c) n is related to the downsample factor for each axis, so for a factor of (2,2,1) (default)
       z only needs to be a single chunk, but x and y should be 2, 4, 8,or 16 times the chunk size.

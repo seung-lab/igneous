@@ -977,7 +977,7 @@ def create_transfer_tasks(
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
   if dest_voxel_offset:
-    dest_voxel_offset = Vec3(*dest_voxel_offset, dtype=int)
+    dest_voxel_offset = Vec(*dest_voxel_offset, dtype=int)
   else:
     dest_voxel_offset = src_vol.voxel_offset.clone()
 

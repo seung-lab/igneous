@@ -292,6 +292,12 @@ def create_downsampling_tasks(
       evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
       useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
     chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
+    encoding: "raw", "jpeg", "compressed_segmentation", "compresso", "fpzip", or "kempressed"
+      depending on which kind of data you're dealing with. raw works for everything but you
+      might get better compression with another encoding. You can think of encoding as the
+      image type-specific first stage of compression and the "compress" flag as the data
+      agnostic second stage compressor. For example, compressed_segmentation and gzip work
+      well together, but not jpeg and gzip.
     sparse: When downsampling segmentation, if true, don't count black pixels when computing
       the mode. Useful for e.g. synapses and point labels.
     bounds: By default, downsample everything, but you can specify restricted bounding boxes

@@ -17,12 +17,12 @@ import igneous
 import igneous.task_creation as tc
 from igneous.downsample_scales import create_downsample_scales
 
-CHECKER = True
+CHECKER = False
 
-@pytest.fixture(scope="module")
-def transfer_data():
+@pytest.fixture(scope="module", params=[ (512,512,128), (600, 600, 200) ])
+def transfer_data(request):
   if not CHECKER:
-    data = np.random.randint(0xFF, size=(512,512,128), dtype=np.uint8)
+    data = np.random.randint(0xFF, size=request.param, dtype=np.uint8)
   else:
     data = np.zeros((512,512,128), dtype=np.uint8)
     i = 1

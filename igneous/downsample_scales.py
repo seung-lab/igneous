@@ -253,20 +253,39 @@ def downsample_shape_from_memory_target(data_width, cx, cy, cz, factor, byte_tar
   if byte_target <= 0:
     raise ValueError(f"Unable to pick a shape for a byte budget <= 0. Got: {byte_target}")
 
+  if cx * cy * cz <= 0:
+    raise ValueError(f"Chunk size must have a positive integer volume. Got: <{cx},{cy},{cz}>")
+
   def n_shape(n, c_):
     num_downsamples = int(math.log2((c_ ** (2*n)) / c_))
     return c_ * (2 ** num_downsamples)
 
   if factor == (2,2,1):
-    n = math.log(3/4 * byte_target / data_width / cz)
-    n = n / 2 / math.log(cx * cy)
-    shape = lambda c_: n_shape(n, c_) 
-    out = Vec(shape(cx), shape(cy), cz)
+    if cx * cy == 1:
+      size = 2 ** int(math.log2(math.sqrt(byte_target / cz)))
+      out = Vec(
+        size,
+        size,
+        cz
+      )
+    else:
+      n = math.log(3/4 * byte_target / data_width / cz)
+      n = n / 2 / math.log(cx * cy)
+      shape = lambda c_: n_shape(n, c_) 
+      out = Vec(shape(cx), shape(cy), cz)
   elif factor == (2,2,2):
-    n = math.log(7/8 * byte_target / data_width)
-    n = n / 2 / math.log(cx * cy * cz) 
-    shape = lambda c_: n_shape(n, c_) 
-    out = Vec(shape(cx), shape(cy), shape(cz))
+    if cx * cy * cz == 1:
+      size = 2 ** int(math.log2(round(byte_target ** (1/3), 5)))
+      out = Vec(
+        size,
+        size,
+        size
+      )
+    else:
+      n = math.log(7/8 * byte_target / data_width)
+      n = n / 2 / math.log(cx * cy * cz) 
+      shape = lambda c_: n_shape(n, c_) 
+      out = Vec(shape(cx), shape(cy), shape(cz))
   else:
     raise ValueError(f"This is now a harder optimization problem. Got: {factor}")
 

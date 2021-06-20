@@ -56,3 +56,41 @@ def test_plane_scales_yz():
   assert scales[4] == (1,16,16)
 
 
+def test_downsample_shape_from_memory_target():
+  shape = downsample_scales.downsample_shape_from_memory_target(1, 0, 1, 1, (2,2,1), 16)
+  assert np.all(shape == (4,4,1))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(1, 1, 1, 1, (2,2,1), 16)
+  assert np.all(shape == (4,4,1))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(1, 1, 1, 1, (2,2,2), 64)
+  assert np.all(shape == (4,4,4))
+
+  try:
+    downsample_scales.downsample_shape_from_memory_target(1, 1, 1, 1, (2,2,1), 0)
+    assert False
+  except ValueError:
+    pass
+
+  try:
+    downsample_scales.downsample_shape_from_memory_target(8, 128, 128, 64, (2,2,1), 100)
+    assert False
+  except ValueError:
+    pass
+
+  shape = downsample_scales.downsample_shape_from_memory_target(8, 128, 128, 64, (2,2,1), 3.5e9)
+  assert np.all(shape == (2048,2048,64))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(1, 128, 128, 64, (2,2,1), 3.5e9)
+  assert np.all(shape == (4096,4096,64))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(8, 128, 128, 64, (2,2,2), 3.5e9)
+  assert np.all(shape == (512,512,256))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(4, 100, 100, 50, (2,2,1), 3.5e9)
+  assert np.all(shape == (3200,3200,50))
+
+
+
+
+

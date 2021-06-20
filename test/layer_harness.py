@@ -5,14 +5,15 @@ import numpy as np
 
 import os
 
-from cloudvolume import Storage, CloudVolume
+from cloudvolume import CloudVolume
+from cloudfiles import CloudFiles
 from igneous.task_creation import MockTaskQueue
 
 layer_path = '/tmp/removeme/'
 
 def create_storage(layer_name='layer'):
     stor_path = os.path.join(layer_path, layer_name)
-    return Storage('file://' + stor_path, n_threads=0)
+    return CloudFiles('file://' + stor_path)
 
 def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=None):
 
@@ -31,7 +32,8 @@ def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=Non
     storage = create_storage(layer_name)
 
     CloudVolume.from_numpy(
-        random_data, vol_path='file://' + layer_path + '/' + layer_name,
+        random_data, 
+        vol_path='file://' + layer_path + '/' + layer_name,
         resolution=(1,1,1), voxel_offset=offset, 
         chunk_size=(64,64,64), layer_type=layer_type, 
         max_mip=0,

@@ -1,13 +1,20 @@
+import math
 import multiprocessing as mp
 import os
+import sys
 
 import click
+from cloudvolume import CloudVolume
+import numpy as np
 from taskqueue import TaskQueue
 from taskqueue.lib import toabs
 from taskqueue.paths import get_protocol
 
 from igneous import task_creation as tc
+from igneous import downsample_scales
 from igneous.secrets import LEASE_SECONDS, SQS_REGION_NAME
+
+from igneous_cli.humanbytes import format_bytes
 
 def normalize_path(queuepath):
   if not get_protocol(queuepath):
@@ -73,6 +80,7 @@ def license():
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
 @click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
+@click.option('--compresso', is_flag=True, default=False, help="Use the compresso image chunk encoding scheme. Segmentation only.")
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
@@ -82,7 +90,7 @@ def license():
 @click.pass_context
 def downsample(
 	ctx, path, queue, mip, fill_missing, 
-	num_mips, cseg, sparse, 
+	num_mips, cseg, compresso, sparse, 
 	chunk_size, compress, volumetric,
 	delete_bg, bg_color
 ):
@@ -100,7 +108,13 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
+  if cseg and compresso:
+    print("igneous: must choose one of --cseg or --compresso")
+    sys.exit()
+
   encoding = ("compressed_segmentation" if cseg else None)
+  encoding = ("compresso" if compresso else None)
+
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
@@ -123,23 +137,26 @@ def downsample(
 @click.argument("src")
 @click.argument("dest")
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
+@click.option('--mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
 @click.option('--translate', type=Tuple3(), default=(0, 0, 0), help="Translate the bounding box by X,Y,Z voxels in the new location.")
-@click.option('--downsample/--skip-downsample', is_flag=True, default=True, help="Whether or not to produce downsamples from transfer tiles. Default: True")
+@click.option('--downsample/--skip-downsample', is_flag=True, default=True, help="Whether or not to produce downsamples from transfer tiles.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
-@click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
+@click.option('--memory', default=3.5e9, type=int, help="Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
+@click.option('--max-mips', default=5, help="Maximum number of additional pyramid levels.", show_default=True)
 @click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
+@click.option('--compresso', is_flag=True, default=False, help="Use the compresso image chunk encoding scheme. Segmentation only.")
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
-@click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
+@click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
-@click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
+@click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'gzip', 'br'", show_default=True)
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
-@click.option('--bg-color', default=0, help="Determines which color is regarded as background. Default: 0")
+@click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, downsample, mip, 
-	fill_missing, num_mips, cseg, shape, sparse, 
+	fill_missing, memory, max_mips, 
+  shape, sparse, cseg, compresso,
 	chunk_size, compress, volumetric,
 	delete_bg, bg_color
 ):
@@ -157,11 +174,23 @@ def xfer(
   2x2x1 downsampling, larger XY dimension is desirable
   compared to Z as more downsamples can be computed for
   each 2x2 increase in the task size.
+
+  Use the --memory flag to automatically compute the
+  a reasonable task shape based on your memory limits.
   """
+  if cseg and compresso:
+    print("igneous: must choose one of --cseg or --compresso")
+    sys.exit()
+
   encoding = ("compressed_segmentation" if cseg else None)
+  encoding = ("compresso" if compresso else None)
+
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
+
+  if compress and compress.lower() == "false":
+    compress = False
 
   tasks = tc.create_transfer_tasks(
     src, dest, 
@@ -170,6 +199,7 @@ def xfer(
     encoding=encoding, skip_downsamples=(not downsample),
     delete_black_uploads=delete_bg, background_color=bg_color,
     compress=compress, factor=factor, sparse=sparse,
+    memory_target=memory, max_mips=max_mips
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -504,4 +534,88 @@ def delete_images(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@main.group("design")
+def designgroup():
+  """
+  Tools to aid the design of tasks or neuroglancer layers.
+  """
+  pass
 
+
+@designgroup.command("ds-memory")
+@click.argument("path")
+@click.argument("memory_bytes", type=float)
+@click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
+@click.option('--factor', default="2,2,1", type=Tuple3(), help="Downsample factor to use.", show_default=True)
+@click.option('--verbose', is_flag=True, help="Print some additional information.")
+@click.option('--max-mips', default=5, help="Maximum downsamples to generate from this shape.", show_default=True)
+def dsmemory(path, memory_bytes, mip, factor, verbose, max_mips):
+  """
+  Compute the task shape that maximizes the number of
+  downsamples for a given amount of memory.
+  """ 
+  cv = CloudVolume(path, mip=mip)
+
+  data_width = np.dtype(cv.dtype).itemsize
+  cx, cy, cz = cv.chunk_size
+  memory_bytes = int(memory_bytes)
+
+  shape = downsample_scales.downsample_shape_from_memory_target(
+    data_width, 
+    cx, cy, cz, factor, 
+    memory_bytes, max_mips
+  )
+
+  num_downsamples = int(math.log2(max(shape / cv.chunk_size)))
+
+  mem_used = memory_used(data_width, shape, factor)
+
+  shape = [ str(x) for x in shape ]
+  shape = ",".join(shape)
+
+  if verbose:
+    print(f"Data Width: {data_width} B")
+    print(f"Factor: {factor}")
+    print(f"Chunk Size: {cx}, {cy}, {cz} voxels")
+    print(f"Memory Limit: {format_bytes(memory_bytes, True)}")
+    print("-----")
+    print(f"Optimized Shape: {shape}")
+    print(f"Downsamples: {num_downsamples}")
+    print(f"Memory Used*: {format_bytes(mem_used, True)}")
+    print(
+      "\n"
+      "* memory used is for retaining the image "
+      "and all downsamples.\nAdditional costs may be incurred "
+      "from processing."
+    )
+  else:
+    print(shape)
+
+@designgroup.command("ds-shape")
+@click.argument("path")
+@click.argument("shape", type=Tuple3())
+@click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
+@click.option('--factor', default="2,2,1", type=Tuple3(), help="Downsample factor to use.", show_default=True)
+def dsshape(path, shape, mip, factor):
+  """
+  Compute the approximate memory usage for a
+  given downsample task shape.
+  """ 
+  cv = CloudVolume(path, mip=mip)
+  data_width = np.dtype(cv.dtype).itemsize
+  memory_bytes = memory_used(data_width, shape, factor)  
+  print(format_bytes(memory_bytes, True))
+
+def memory_used(data_width, shape, factor): 
+  memory_bytes = data_width * shape[0] * shape[1] * shape[2]
+
+  if factor not in ((1,1,1), (2,2,1), (2,1,2), (1,2,2), (2,2,2)):
+    print(f"igneous: factor must be 2,2,1 or 2,2,2. Got: {factor}")
+    sys.exit()
+
+  # comes from a converging infinite series proof
+  constant = factor[0] * factor[1] * factor[2]
+  if constant != 1:
+    memory_bytes *= constant / (constant - 1)
+
+  return memory_bytes

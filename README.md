@@ -301,6 +301,26 @@ igneous xfer $SRC $DEST --shape 2048,2048,50 --queue $QUEUE
 igneous -p 4 execute $QUEUE
 ```
 
+We have developed some calculation aids to help you pick the right shape for the transfer task.
+
+```bash
+igneous design ds-shape gs://bucket/dataset --shape 1024,1024,64 --factor 2,2,1
+>>> 715.8 MB
+
+igneous design ds-memory gs://bucket/dataset 3.5e9 --verbose
+>>> Data Width: 8
+>>> Factor: (2, 2, 1)
+>>> Chunk Size: 512, 512, 16
+>>> Memory Limit: 3.5 GB
+>>> -----
+>>> Optimized Shape: 4096,4096,16
+>>> Downsamples: 3
+>>> Memory Used*: 2.9 GB
+>>> 
+>>> *memory used is for retaining the image and all downsamples.
+>>> Additional costs may be incurred from processing.
+```
+
 #### Scripting Transfer
 
 ```python3

@@ -51,18 +51,18 @@ if __name__ == '__main__':
       print(yellow('$USER was not set. The "owner" field of the provenance file will be blank.'))
       OPERATOR_CONTACT = ''
 
-def get_bounds(vol, bounds, shape, mip, chunk_size=None):
+def get_bounds(vol, bounds, mip, chunk_size=None):
   if bounds is None:
     bounds = vol.bounds.clone()
   else:
     bounds = Bbox.create(bounds)
     bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
     if chunk_size is not None:
-      bounds = bounds.expand_to_chunk_size(chunk_size, vol.mip_voxel_offset(mip))
-    bounds = Bbox.clamp(bounds, vol.mip_bounds(mip))
+      bounds = bounds.expand_to_chunk_size(chunk_size, vol.meta.voxel_offset(mip))
+    bounds = Bbox.clamp(bounds, vol.meta.bounds(mip))
   
 
-  print("Volume Bounds: ", vol.mip_bounds(mip))
+  print("Volume Bounds: ", vol.meta.bounds(mip))
   print("Selected ROI:  ", bounds)
 
   return bounds
@@ -286,7 +286,7 @@ def create_downsampling_tasks(
     if not preserve_chunk_size or chunk_size:
       shape = ds_shape(mip + 1, chunk_size, factor)
 
-    bounds = get_bounds(vol, bounds, shape, mip, vol.chunk_size)
+    bounds = get_bounds(vol, bounds, mip, vol.chunk_size)
     
     class DownsampleTaskIterator(FinelyDividedTaskIterator):
       def task(self, shape, offset):
@@ -950,17 +950,10 @@ def create_transfer_tasks(
       encoding=encoding
     )
 
-  if bounds is None:
-    bounds = vol.bounds.clone()
-  else:
-    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
-    bounds = Bbox.clamp(bounds, dvol.bounds)
-
-  dvol_bounds = dvol.mip_bounds(mip).clone()
+  dest_bounds = get_bounds(dvol, bounds, mip, chunk_size)
 
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  
-      task_shape = min2(shape.clone(), dvol_bounds.maxpt - offset)
       return partial(TransferTask,
         src_path=src_layer_path,
         dest_path=dest_layer_path,
@@ -1015,7 +1008,7 @@ def create_transfer_tasks(
         vol.provenance.processing.append(job_details)
         vol.commit_provenance()
 
-  return TransferTaskIterator(bounds, shape)
+  return TransferTaskIterator(dest_bounds, shape)
 
 def create_contrast_normalization_tasks(
     src_path, dest_path, levels_path=None,
@@ -1044,7 +1037,7 @@ def create_contrast_normalization_tasks(
   downsample_scales.create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
   dvol.refresh_info()
 
-  bounds = get_bounds(srcvol, bounds, shape, mip)
+  bounds = get_bounds(srcvol, bounds, mip)
 
   class ContrastNormalizationTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -1119,7 +1112,7 @@ def create_luminance_levels_tasks(
   offset = Vec(*offset)
   zoffset = offset.clone()
 
-  bounds = get_bounds(vol, bounds, shape, mip)
+  bounds = get_bounds(vol, bounds, mip)
   protocol = vol.meta.path.protocol
 
   class LuminanceLevelsTaskIterator(object):

@@ -545,17 +545,26 @@ def dsmemory(path, memory_bytes, mip, factor, verbose, max_mips):
 
   num_downsamples = int(math.log2(max(shape / cv.chunk_size)))
 
+  mem_used = memory_used(data_width, shape, factor)
+
   shape = [ str(x) for x in shape ]
   shape = ",".join(shape)
 
   if verbose:
-    print(f"Data Width: {data_width}")
+    print(f"Data Width: {data_width} B")
     print(f"Factor: {factor}")
-    print(f"Chunk Size: {cx}, {cy}, {cz}")
-    print(f"Memory: {format_bytes(memory_bytes, True)}")
+    print(f"Chunk Size: {cx}, {cy}, {cz} voxels")
+    print(f"Memory Limit: {format_bytes(memory_bytes, True)}")
     print("-----")
     print(f"Optimized Shape: {shape}")
     print(f"Downsamples: {num_downsamples}")
+    print(f"Memory Used*: {format_bytes(mem_used, True)}")
+    print(
+      "\n"
+      "* memory used is for retaining the image "
+      "and all downsamples.\nAdditional costs may be incurred "
+      "from processing."
+    )
   else:
     print(shape)
 
@@ -571,10 +580,13 @@ def dsshape(path, shape, mip, factor):
   """ 
   cv = CloudVolume(path, mip=mip)
   data_width = np.dtype(cv.dtype).itemsize
-  
+  memory_bytes = memory_used(data_width, shape, factor)  
+  print(format_bytes(memory_bytes, True))
+
+def memory_used(data_width, shape, factor): 
   memory_bytes = data_width * shape[0] * shape[1] * shape[2]
 
-  if factor not in ((2,2,1), (2,1,2), (1,2,2), (2,2,2)):
+  if factor not in ((1,1,1), (2,2,1), (2,1,2), (1,2,2), (2,2,2)):
     print(f"igneous: factor must be 2,2,1 or 2,2,2. Got: {factor}")
     sys.exit()
 
@@ -583,9 +595,4 @@ def dsshape(path, shape, mip, factor):
   if constant != 1:
     memory_bytes *= constant / (constant - 1)
 
-  print(format_bytes(memory_bytes, True))
-
-  
-
-
-
+  return memory_bytes

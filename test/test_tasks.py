@@ -111,6 +111,13 @@ def test_downsample_no_offset_2x2x2():
 
 def test_transfer_task():
     random_data = np.random.randint(0xFF, size=(512,512,128), dtype=np.uint8)
+    ds_data = tinybrain.downsample_with_averaging(random_data, factor=[2, 2, 1, 1], num_mips=5)
+    ds_data.insert(0, random_data)
+
+    for i in range(len(ds_data)):
+        while ds_data[i].ndim < 4:
+            ds_data[i] = ds_data[i][..., np.newaxis]
+
     path_root = "/tmp/removeme/transfertask"
     srcpath = f"file://{path_root}/src"
     destpath = f"file://{path_root}/dest"
@@ -149,9 +156,14 @@ def test_transfer_task():
     tq.insert_all(tasks)
 
     dest_cv = CloudVolume(destpath)
+    assert len(dest_cv.scales) == 4
     assert np.all(src_cv[:] == dest_cv[:])
+    for mip in range(1, 4):
+        dest_cv.mip = mip
+        assert np.all(dest_cv[:] == ds_data[mip])
 
     rmsrc()
+    rmdest()
 
 def test_downsample_with_offset():
     delete_layer()

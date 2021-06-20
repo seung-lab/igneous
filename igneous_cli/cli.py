@@ -1,13 +1,20 @@
+import math
 import multiprocessing as mp
 import os
+import sys
 
 import click
+from cloudvolume import CloudVolume
+import numpy as np
 from taskqueue import TaskQueue
 from taskqueue.lib import toabs
 from taskqueue.paths import get_protocol
 
 from igneous import task_creation as tc
+from igneous import downsample_scales
 from igneous.secrets import LEASE_SECONDS, SQS_REGION_NAME
+
+from igneous_cli.humanbytes import format_bytes
 
 def normalize_path(queuepath):
   if not get_protocol(queuepath):
@@ -504,4 +511,49 @@ def delete_images(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@main.group("design")
+def designgroup():
+  """
+  Calculation tools to aid the design
+  of igneous tasks or neuroglancer 
+  layers.
+  """
+  pass
 
+
+@designgroup.command("ds-memory")
+@click.argument("path")
+@click.argument("memory_bytes", type=float)
+@click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
+@click.option('--factor', default="2,2,1", type=Tuple3(), help="Downsample factor to use.", show_default=True)
+@click.option('--verbose', is_flag=True, help="Print some additional information.")
+def dsmemory(path, memory_bytes, mip, factor, verbose):
+  """
+  Compute the task shape that maximizes the number of
+  downsamples for a given amount of memory.
+  """ 
+  cv = CloudVolume(path, mip=mip)
+
+  data_width = np.dtype(cv.dtype).itemsize
+  cx, cy, cz = cv.chunk_size
+  memory_bytes = int(memory_bytes)
+  
+  shape = downsample_scales.downsample_shape_from_memory_target(
+    data_width, cx, cy, cz, factor, memory_bytes
+  )
+
+  num_downsamples = int(math.log2(max(shape / cv.chunk_size)))
+
+  shape = [ str(x) for x in shape ]
+  shape = ",".join(shape)
+
+  if verbose:
+    print(f"Data Width: {data_width}")
+    print(f"Factor: {factor}")
+    print(f"Chunk Size: {cx}, {cy}, {cz}")
+    print(f"Memory: {format_bytes(memory_bytes, True)}")
+    print("-----")
+    print(f"Optimized Shape: {shape}")
+    print(f"Downsamples: {num_downsamples}")
+  else:
+    print(shape)

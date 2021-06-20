@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import division
-from builtins import range
+import math
 
 import numpy as np
 from cloudvolume import CloudVolume, Vec
@@ -262,11 +261,22 @@ def downsample_shape_from_memory_target(data_width, cx, cy, cz, factor, byte_tar
     n = math.log(3/4 * byte_target / data_width / cz)
     n = n / 2 / math.log(cx * cy)
     shape = lambda c_: n_shape(n, c_) 
-    return Vec(shape(cx), shape(cy), cz)
+    out = Vec(shape(cx), shape(cy), cz)
   elif factor == (2,2,2):
     n = math.log(7/8 * byte_target / data_width)
     n = n / 2 / math.log(cx * cy * cz) 
     shape = lambda c_: n_shape(n, c_) 
-    return Vec(shape(cx), shape(cy), shape(cz))
+    out = Vec(shape(cx), shape(cy), shape(cz))
   else:
     raise ValueError(f"This is now a harder optimization problem. Got: {factor}")
+
+  out = out.astype(int)
+  min_shape = Vec(cx,cy,cz)
+  if any(out < min_shape):
+    raise ValueError(
+      f"Too little memory allocated to create a valid task."
+      f" Got: {byte_target} Predicted Shape: {out} Minimum Shape: {min_shape}"
+    )
+
+  return out
+

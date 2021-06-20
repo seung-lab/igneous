@@ -80,6 +80,7 @@ def license():
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
 @click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
+@click.option('--compresso', is_flag=True, default=False, help="Use the compresso image chunk encoding scheme. Segmentation only.")
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
@@ -89,7 +90,7 @@ def license():
 @click.pass_context
 def downsample(
 	ctx, path, queue, mip, fill_missing, 
-	num_mips, cseg, sparse, 
+	num_mips, cseg, compresso, sparse, 
 	chunk_size, compress, volumetric,
 	delete_bg, bg_color
 ):
@@ -107,7 +108,13 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
+  if cseg and compresso:
+    print("igneous: must choose one of --cseg or --compresso")
+    sys.exit()
+
   encoding = ("compressed_segmentation" if cseg else None)
+  encoding = ("compresso" if compresso else None)
+
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
@@ -130,23 +137,26 @@ def downsample(
 @click.argument("src")
 @click.argument("dest")
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
+@click.option('--mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
 @click.option('--translate', type=Tuple3(), default=(0, 0, 0), help="Translate the bounding box by X,Y,Z voxels in the new location.")
-@click.option('--downsample/--skip-downsample', is_flag=True, default=True, help="Whether or not to produce downsamples from transfer tiles. Default: True")
+@click.option('--downsample/--skip-downsample', is_flag=True, default=True, help="Whether or not to produce downsamples from transfer tiles.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
-@click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
+@click.option('--memory', default=3.5e9, type=int, help="Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
+@click.option('--max-mips', default=5, help="Maximum number of additional pyramid levels.", show_default=True)
 @click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
+@click.option('--compresso', is_flag=True, default=False, help="Use the compresso image chunk encoding scheme. Segmentation only.")
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
-@click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
+@click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
-@click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
+@click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'gzip', 'br'", show_default=True)
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
-@click.option('--bg-color', default=0, help="Determines which color is regarded as background. Default: 0")
+@click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, downsample, mip, 
-	fill_missing, num_mips, cseg, shape, sparse, 
+	fill_missing, memory, max_mips, 
+  shape, sparse, cseg, compresso,
 	chunk_size, compress, volumetric,
 	delete_bg, bg_color
 ):
@@ -164,11 +174,23 @@ def xfer(
   2x2x1 downsampling, larger XY dimension is desirable
   compared to Z as more downsamples can be computed for
   each 2x2 increase in the task size.
+
+  Use the --memory flag to automatically compute the
+  a reasonable task shape based on your memory limits.
   """
+  if cseg and compresso:
+    print("igneous: must choose one of --cseg or --compresso")
+    sys.exit()
+
   encoding = ("compressed_segmentation" if cseg else None)
+  encoding = ("compresso" if compresso else None)
+
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
+
+  if compress and compress.lower() == "false":
+    compress = False
 
   tasks = tc.create_transfer_tasks(
     src, dest, 
@@ -177,6 +199,7 @@ def xfer(
     encoding=encoding, skip_downsamples=(not downsample),
     delete_black_uploads=delete_bg, background_color=bg_color,
     compress=compress, factor=factor, sparse=sparse,
+    memory_target=memory, max_mips=max_mips
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

@@ -265,14 +265,14 @@ def downsample_shape_from_memory_target(
     num_downsamples = int(min(num_downsamples, max_mips))
     return c_ * (2 ** num_downsamples)
 
-  if factor == (2,2,1):
+  if factor == (1,1,1):
+    n = int(math.sqrt(byte_target / data_width / cx / cy / cz))
+    m = int(n * cx / cy)
+    out = Vec(n * cx, m * cy, cz)
+  elif factor == (2,2,1):
     if cx * cy == 1:
       size = 2 ** int(math.log2(math.sqrt(byte_target / cz)))
-      out = Vec(
-        size,
-        size,
-        cz
-      )
+      out = Vec(size, size, cz)
     else:
       n = math.log(3/4 * byte_target / data_width / cz)
       n = n / 2 / math.log(cx * cy)
@@ -281,11 +281,7 @@ def downsample_shape_from_memory_target(
   elif factor == (2,2,2):
     if cx * cy * cz == 1:
       size = 2 ** int(math.log2(round(byte_target ** (1/3), 5)))
-      out = Vec(
-        size,
-        size,
-        size
-      )
+      out = Vec(size, size, size)
     else:
       n = math.log(7/8 * byte_target / data_width)
       n = n / 2 / math.log(cx * cy * cz) 

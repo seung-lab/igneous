@@ -984,6 +984,9 @@ def create_transfer_tasks(
   if factor is None:
     factor = (2,2,1)
 
+  if skip_downsamples:
+    factor = (1,1,1)
+
   if not chunk_size:
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)

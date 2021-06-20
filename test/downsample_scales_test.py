@@ -63,6 +63,21 @@ def test_downsample_shape_from_memory_target():
   except ValueError:
     pass
 
+  shape = downsample_scales.downsample_shape_from_memory_target(1, 1, 1, 1, (1,1,1), 16)
+  assert np.all(shape == (4,4,1))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(2, 1, 1, 1, (1,1,1), 16)
+  assert np.all(shape == (2,2,1))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(1, 2, 1, 1, (1,1,1), 16)
+  assert np.all(shape == (4,4,1))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(1, 256, 256, 64, (1,1,1), 20e6)
+  assert np.all(shape == (512,512,64))
+
+  shape = downsample_scales.downsample_shape_from_memory_target(8, 256, 256, 64, (1,1,1), 35e6)
+  assert np.all(shape == (256,256,64))
+
   shape = downsample_scales.downsample_shape_from_memory_target(1, 1, 1, 1, (2,2,1), 16)
   assert np.all(shape == (4,4,1))
 

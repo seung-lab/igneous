@@ -16,6 +16,7 @@ import numpy as np
 from tqdm import tqdm
 
 import cloudvolume
+import cloudvolume.exceptions
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
@@ -929,7 +930,7 @@ def create_transfer_tasks(
 
   try:
     dvol = CloudVolume(dest_layer_path, mip=mip)
-  except Exception: # no info file
+  except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(vol.info)
     dvol = CloudVolume(dest_layer_path, info=info)
     dvol.commit_info()

@@ -112,9 +112,12 @@ def downsample(
     print("igneous: must choose one of --cseg or --compresso")
     sys.exit()
 
-  encoding = ("compressed_segmentation" if cseg else None)
-  encoding = ("compresso" if compresso else None)
-
+  encoding = None
+  if cseg:
+    encoding = "compressed_segmentation"
+  elif compresso:
+    encoding = "compresso"
+  
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
@@ -182,8 +185,11 @@ def xfer(
     print("igneous: must choose one of --cseg or --compresso")
     sys.exit()
 
-  encoding = ("compressed_segmentation" if cseg else None)
-  encoding = ("compresso" if compresso else None)
+  encoding = None
+  if cseg:
+    encoding = "compressed_segmentation"
+  elif compresso:
+    encoding = "compresso"
 
   factor = (2,2,1)
   if volumetric:

@@ -335,7 +335,9 @@ def create_downsampling_tasks(
     return DownsampleTaskIterator(bounds, shape)
 
 def create_sharded_image_info(
-  chunk_info: Dict[str, Any], 
+  dataset_size: Tuple[int,int,int],
+  chunk_size: Tuple[int,int,int],
+  encoding: str,
   dtype: Any,
   uncompressed_shard_bytesize: int = 3.5e9, 
   max_shard_index_bytes: int = 8192, # 2^13
@@ -382,8 +384,6 @@ def create_sharded_image_info(
   
   Returns: sharding recommendation (if OK, add as `cv.scales[0]['sharding']`)
   """
-  dataset_size = chunk_info["size"]
-  chunk_size = chunk_info["chunk_sizes"][0]
   if isinstance(dtype, int):
     byte_width = dtype
   elif isinstance(dtype, str) or np.issubdtype(dtype, np.integer):
@@ -395,7 +395,6 @@ def create_sharded_image_info(
 
   voxels = prod(dataset_size)
   chunk_voxels = prod(chunk_size)
-
   num_chunks = voxels / chunk_voxels
 
   # maximum amount of information in the volume
@@ -407,10 +406,17 @@ def create_sharded_image_info(
 
   num_shards = num_chunks / chunks_per_shard
   
+  def update_bits():
+    shard_bits = int(math.ceil(math.log2(num_shards)))
+    preshift_bits = int(math.ceil(math.log2(chunks_per_shard)))
+    preshift_bits = min(preshift_bits, max_bits - shard_bits)
+    return (shard_bits, preshift_bits)
+  
+  shard_bits, preshift_bits = update_bits()
+
   # each chunk is one morton code, and so # chunks = # labels
   num_labels_per_minishard = chunks_per_shard
   minishard_bits = 0
-  
   while num_labels_per_minishard > max_labels_per_minishard:
     num_labels_per_minishard /= 2
     minishard_bits += 1
@@ -420,33 +426,34 @@ def create_sharded_image_info(
     # two fields, each uint64 for each row w/ 2^minishard bits rows
     shard_index_size = 2 * 8 * (2 ** minishard_bits)
 
+    minishard_index_too_big = (
+      minishard_size > max_minishard_index_bytes 
+      and minishard_bits > preshift_bits
+    )
+
     if (
-      (minishard_size > max_minishard_index_bytes)
+      minishard_index_too_big
       or (shard_index_size > max_shard_index_bytes)
     ):
-      num_labels_per_minishard *= 2
       minishard_bits -= 1
       num_shards *= 2
-      break
-
-  shard_bits = int(math.ceil(math.log2(num_shards)))
+      shard_bits, preshift_bits = update_bits()
 
   # Preshift bits + shard bits always equals the total information
   # To have any space for minishard bits, we must steal from
   # preshift bits, which is okay, because it doesn't affect
   # which shard bits get read.
-  preshift_bits = int(math.ceil(math.log2(chunks_per_shard)))
-  preshift_bits = max(preshift_bits - minishard_bits, 0)
+  preshift_bits = preshift_bits - minishard_bits
 
-  data_encoding = "gzip"
-  if chunk_info["encoding"] in ("jpeg", "kempressed", "fpzip"):
-    data_encoding = "raw"
-
-  # preshift bits not necessary for this kind of sharded volume
-  # because the hash is identity and the space is evenly distributed
+  if preshift_bits < 0:
+    raise ValueError(f"Preshift bits cannot be negative. ({shard_bits}, {minishard_bits}, {preshift_bits}), total info: {max_bits} bits")
 
   if preshift_bits + shard_bits + minishard_bits > max_bits:
     raise ValueError(f"{preshift_bits} preshift_bits {shard_bits} shard_bits + {minishard_bits} minishard_bits must be <= {max_bits}. Try reducing the number of minishards.")
+
+  data_encoding = "gzip"
+  if encoding in ("jpeg", "kempressed", "fpzip"):
+    data_encoding = "raw"
 
   return {
     "@type": "neuroglancer_uint64_sharded_v1",

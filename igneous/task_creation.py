@@ -430,7 +430,13 @@ def create_sharded_image_info(
       break
 
   shard_bits = int(math.ceil(math.log2(num_shards)))
+
+  # Preshift bits + shard bits always equals the total information
+  # To have any space for minishard bits, we must steal from
+  # preshift bits, which is okay, because it doesn't affect
+  # which shard bits get read.
   preshift_bits = int(math.ceil(math.log2(chunks_per_shard)))
+  preshift_bits = max(preshift_bits - minishard_bits, 0)
 
   data_encoding = "gzip"
   if chunk_info["encoding"] in ("jpeg", "kempressed", "fpzip"):

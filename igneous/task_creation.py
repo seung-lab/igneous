@@ -397,7 +397,14 @@ def create_sharded_image_info(
   chunk_voxels = prod(chunk_size)
 
   num_chunks = voxels / chunk_voxels
+
+  # maximum amount of information in the volume
+  max_bits = math.ceil(math.log2(num_chunks))
+  max_bits = min(max_bits, 64)
+
   chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))
+  chunks_per_shard = 2 ** int(math.log2(chunks_per_shard))
+
   num_shards = num_chunks / chunks_per_shard
   
   # each chunk is one morton code, and so # chunks = # labels
@@ -423,6 +430,7 @@ def create_sharded_image_info(
       break
 
   shard_bits = int(math.ceil(math.log2(num_shards)))
+  preshift_bits = int(math.ceil(math.log2(chunks_per_shard)))
 
   data_encoding = "gzip"
   if chunk_info["encoding"] in ("jpeg", "kempressed", "fpzip"):
@@ -431,13 +439,16 @@ def create_sharded_image_info(
   # preshift bits not necessary for this kind of sharded volume
   # because the hash is identity and the space is evenly distributed
 
+  if preshift_bits + shard_bits + minishard_bits > max_bits:
+    raise ValueError(f"{preshift_bits} preshift_bits {shard_bits} shard_bits + {minishard_bits} minishard_bits must be <= {max_bits}. Try reducing the number of minishards.")
+
   return {
     "@type": "neuroglancer_uint64_sharded_v1",
     "data_encoding": data_encoding,
     "hash": "identity",
     "minishard_bits": minishard_bits,
     "minishard_index_encoding": "gzip",
-    "preshift_bits": 0, 
+    "preshift_bits": preshift_bits, 
     "shard_bits": shard_bits,
   }
 

@@ -37,7 +37,7 @@ class Tuple3(click.ParamType):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="0.4.0")
+@click.version_option(version="0.4.1")
 @click.pass_context
 def main(ctx, parallel):
   """
@@ -117,7 +117,7 @@ def downsample(
     encoding = "compressed_segmentation"
   elif compresso:
     encoding = "compresso"
-  
+
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)

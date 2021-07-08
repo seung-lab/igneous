@@ -477,7 +477,19 @@ def DownsampleTask(
     factor=factor,
   )
 
-def ImageShardTask(RegisteredTask):
+class ImageShardTransferTask(RegisteredTask):
+  """
+  Generates a sharded image volume from
+  a preexisting CloudVolume readable data 
+  source. Downsamples are also 
+  generated.
+
+  The sharded specification can be read here:
+  Shard Container: 
+  https://github.com/google/neuroglancer/blob/056a3548abffc3c76c93c7a906f1603ce02b5fa3/src/neuroglancer/datasource/precomputed/sharded.md
+  Sharded Images:    
+  https://github.com/google/neuroglancer/blob/056a3548abffc3c76c93c7a906f1603ce02b5fa3/src/neuroglancer/datasource/precomputed/volume.md#unsharded-chunk-storage
+  """
   def __init__(
     self,
     src_path: str,
@@ -490,6 +502,10 @@ def ImageShardTask(RegisteredTask):
     translate: Tuple[int, int, int] = (0, 0, 0),
     skip_first_mip: bool = False,
     sparse: bool = False,
+    agglomerate: bool = False,
+    timestamp: Optional[int] = None,
+    compress: Optional[str] = 'gzip',
+    factor: Optional[Tuple[int, int, int]] = None
   ):
     super().__init__(
       src_path, dst_path, dst_bbox,
@@ -510,9 +526,9 @@ def ImageShardTask(RegisteredTask):
 
   @staticmethod
   def calc_minishard_size(
-      vol: CloudVolumePrecomputed,
-      mip: Optional[int] = None,
-      spec: Optional[ShardingSpecification] = None,
+    vol: CloudVolumePrecomputed,
+    mip: Optional[int] = None,
+    spec: Optional[ShardingSpecification] = None,
   ) -> Vec:
     mip = vol.mip if mip is None else mip
     scale = vol.meta.scale(mip)
@@ -554,20 +570,7 @@ def ImageShardTask(RegisteredTask):
     minishards_per_shard = [
       2 ** ((int(spec.minishard_bits) + i) // 3) for i in range(3)
     ]
-    return ShardTask.calc_minishard_size(vol, mip=mip, spec=spec) * minishards_per_shard
-
-  @staticmethod
-  def calc_downsample_factor(
-      vol: CloudVolumePrecomputed, mip_start: int, mip_stop: int
-  ) -> Vec:
-    factors = [(
-      vol.meta.downsample_ratio(m + 1) / vol.meta.downsample_ratio(m)
-    ).astype(int) for m in range(mip_start, mip_stop)]
-
-    if len(np.unique(factors, axis=0)) > 1:
-      raise ValueError(f"All MIPs must use the same downsample factor. Got {factors}")
-
-    return factors[0]
+    return ImageShardTask.calc_minishard_size(vol, mip=mip, spec=spec) * minishards_per_shard
 
   def execute(self):
     src_vol = CloudVolume(
@@ -581,7 +584,7 @@ def ImageShardTask(RegisteredTask):
         mip=self.mip,
         background_color=self.background_color,
         compress=None
-      ),
+      )
     )
 
     dst_bbox = Bbox.from_dict(json.loads(self.dst_bbox))
@@ -591,9 +594,7 @@ def ImageShardTask(RegisteredTask):
     )
 
     src_bbox = dst_bbox - self.translate
-    print(src_bbox)
 
-    # with ILock("shard-task-download"):
     s = time()
     ds_results = [src_vol.download(src_bbox)]
 
@@ -602,7 +603,7 @@ def ImageShardTask(RegisteredTask):
 
     if self.num_mips > 0:
       s = time()
-      ds_factor = ShardTask.calc_downsample_factor(dst_vol, self.mip, self.mip + self.num_mips)
+      ds_factor = ImageShardTask.calc_downsample_factor(dst_vol, self.mip, self.mip + self.num_mips)
       ds_results.extend([np.empty_like(ds_results[0], shape=tuple(max(1, d // (f**(i+1))) for d, f in zip(ds_results[0].shape, [*ds_factor, 1]))) for i in range(self.num_mips)])
 
       if dst_vol.layer_type == "image":
@@ -640,11 +641,10 @@ def ImageShardTask(RegisteredTask):
       if self.skip_first_mip and mip_curr == mip_start:
         continue
 
-
       task_offset_mip_curr = task_offset // ds_factor ** (mip_curr - mip_start)
       task_size_mip_curr = task_size // ds_factor ** (mip_curr - mip_start)
 
-      shard_size = ShardTask.calc_shard_size(dst_vol, mip=mip_curr)
+      shard_size = ImageShardTask.calc_shard_size(dst_vol, mip=mip_curr)
       shard_grid = (range(0, task_size_mip_curr[j], shard_size[j]) for j in range(3))
 
       for rel_shard_offset in np.array(np.meshgrid(*shard_grid)).T.reshape(-1, 3):
@@ -658,14 +658,14 @@ def ImageShardTask(RegisteredTask):
           continue
 
         basepath = dst_vol.meta.join(
-            dst_vol.meta.cloudpath, dst_vol.meta.key(mip_curr)
+          dst_vol.meta.cloudpath, dst_vol.meta.key(mip_curr)
         )
 
         print(f"Starting {abs_shard_bbox} @ MIP {mip_curr}")
         s = time()
         try:
           (filename, shard) = dst_vol.image.make_shard(
-              img[rel_shard_bbox.to_slices()], abs_shard_bbox, mip_curr, progress=True
+            img[rel_shard_bbox.to_slices()], abs_shard_bbox, mip_curr, progress=True
           )
         except OutOfBoundsError:
           print("STILL FAILING")
@@ -673,7 +673,6 @@ def ImageShardTask(RegisteredTask):
 
         print(f"Make shard {filename} finished in {round(time() - s, 2)} s")
 
-        # with ILock("shard-task-download"):
         s = time()
         CloudFiles(basepath).put(filename, shard)
         print(f"Upload shard {filename} finished in {round(time() - s, 2)} s")

@@ -2,6 +2,7 @@ from collections import defaultdict
 from itertools import product
 from functools import reduce, partial
 import operator
+from typing import Any, Dict, Tuple, cast
 
 import copy
 import json
@@ -332,6 +333,180 @@ def create_downsampling_tasks(
         vol.commit_provenance()
 
     return DownsampleTaskIterator(bounds, shape)
+
+def create_sharded_image_info(
+  chunk_info: Dict[str, Any], 
+  dtype: Any,
+  uncompressed_shard_bytesize: int = 3.5e9, 
+  max_shard_index_bytes: int = 8192, # 2^13
+  max_minishard_index_bytes: int = 40000,
+  max_labels_per_minishard: int = 4000
+) -> Dict[str, Any]:
+  """
+  Create a recommended sharding scheme. These recommendations are based
+  on the following principles:
+
+  1. Compressed shard sizes should be smaller than 2 GB
+  2. Uncompressed shard sizes should be smaller than about 3.5 GB
+  3. The number of shard files should be minimized.
+  4. The size of the shard index should be small (< ~8 KiB)
+  5. The size of the minishard index should be small (< ~32 KiB)
+    and each index should contain between hundreds to thousands
+    of labels.
+
+  Rationale:
+
+  1. Large file transfers are more difficult to parallelize. Large
+    files > 4 GB, or > 5 GB may run into various limits (
+    can't be stored on FAT32, needs chunked upload to GCS/S3 which 
+    is not supported by every tool.)
+  2. Shard construction should fit in a reasonable amount of memory.
+  3. Easier to organize a transfer of shards. Shard
+     indices are cached efficiently.
+  4. Shard indices should not take up significant memory in cache
+    and should download quickly on 10 Mbps connections.
+  5. Minishard indices should download quickly, but should not be too small
+    else the cache becomes useless. The more minishards there are, the larger
+    the shard index becomes as well.
+
+  Achieving these goals requires approximate knowledge of the compression 
+  ratio and the number of labels per a unit volume.
+
+  Parameters:
+    chunk_info: A precomputed info for a SINGLE MIP (e.g. `cv.scales[0]`)
+    byte_width: number of bytes in the dtype e.g. uint8: 1, uint64: 8
+    labels_per_voxel: A quantity derived experimentally from your dataset.
+      Take a representative sample, count the number of labels and divide
+      by the number of voxels in the sample. It only needs to be in the 
+      ballpark.
+  
+  Returns: sharding recommendation (if OK, add as `cv.scales[0]['sharding']`)
+  """
+  dataset_size = chunk_info["size"]
+  chunk_size = chunk_info["chunk_sizes"][0]
+  if isinstance(dtype, int):
+    byte_width = dtype
+  elif isinstance(dtype, str) or np.issubdtype(dtype, np.integer):
+    byte_width = np.dtype(dtype).itemsize
+  else:
+    raise ValueError(f"{dtype} must be int, str, or np.integer.")
+
+  prod = lambda x: reduce(operator.mul, x, 1)
+
+  voxels = prod(dataset_size)
+  chunk_voxels = prod(chunk_size)
+
+  num_chunks = voxels / chunk_voxels
+  chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))
+  num_shards = num_chunks / chunks_per_shard
+  
+  # each chunk is one morton code, and so # chunks = # labels
+  num_labels_per_minishard = chunks_per_shard
+  minishard_bits = 0
+  
+  while num_labels_per_minishard > max_labels_per_minishard:
+    num_labels_per_minishard /= 2
+    minishard_bits += 1
+
+    # 3 fields, each a uint64 with # of labels rows
+    minishard_size = 3 * 8 * num_labels_per_minishard
+    # two fields, each uint64 for each row w/ 2^minishard bits rows
+    shard_index_size = 2 * 8 * (2 ** minishard_bits)
+
+    if (
+      (minishard_size > max_minishard_index_bytes)
+      or (shard_index_size > max_shard_index_bytes)
+    ):
+      num_labels_per_minishard *= 2
+      minishard_bits -= 1
+      num_shards *= 2
+      break
+
+  shard_bits = int(math.ceil(math.log2(num_shards)))
+
+  data_encoding = "gzip"
+  if chunk_info["encoding"] in ("jpeg", "kempressed", "fpzip"):
+    data_encoding = "raw"
+
+  # preshift bits not necessary for this kind of sharded volume
+  # because the hash is identity and the space is evenly distributed
+
+  return {
+    "@type": "neuroglancer_uint64_sharded_v1",
+    "data_encoding": data_encoding,
+    "hash": "identity",
+    "minishard_bits": minishard_bits,
+    "minishard_index_encoding": "gzip",
+    "preshift_bits": 0, 
+    "shard_bits": shard_bits,
+  }
+
+def create_image_shard_transfer_tasks(
+  src_layer_path: str,
+  dst_layer_path: str,
+  bounds: Bbox = None,
+  fill_missing: bool = False,
+  background_color: int = 0,
+  translate: Tuple[int, int, int] = (0, 0, 0),
+  mip: int = 0,
+  num_mips: int = 1,
+  skip_first_mip: bool = False,
+  sparse: bool = False,
+):
+  stop_mip = mip + num_mips
+  dst_vol = cast(CloudVolumePrecomputed, CloudVolume(dst_layer_path, mip=stop_mip))
+  if bounds is None:
+    bounds = dst_vol.mip_bounds(mip)
+
+  # TODO: Add checks for shard alignment and estimated memory size
+  shard_size = ShardTask.calc_shard_size(dst_vol, mip=stop_mip)
+  shape = (
+    shard_size
+    * (dst_vol.meta.downsample_ratio(stop_mip) / dst_vol.meta.downsample_ratio(mip))
+  ).astype(int)
+
+  class ShardTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      task_bbox = Bbox(offset, (offset + shape).astype(int))
+      return ShardTask(
+        src_layer_path,
+        dst_layer_path,
+        task_bbox,
+        fill_missing=fill_missing,
+        translate=translate,
+        mip=mip,
+        num_mips=num_mips,
+        background_color=background_color,
+        skip_first_mip=skip_first_mip,
+        sparse=sparse,
+      )
+
+    def on_finish(self):
+      job_details = {
+        "method": {
+          "task": "ShardTask",
+          "src": src_layer_path,
+          "dest": dst_layer_path,
+          "shape": list(map(int, shape)),
+          "fill_missing": fill_missing,
+          "translate": list(map(int, translate)),
+          "background_color": background_color,
+          "bounds": [bounds.minpt.tolist(), bounds.maxpt.tolist()],
+          "mip": mip,
+          "num_mips": num_mips,
+          "skip_first_mip": skip_first_mip,
+          "sparse": sparse,
+        },
+        "by": OPERATOR_CONTACT,
+        "date": strftime("%Y-%m-%d %H:%M %Z"),
+      }
+
+      dvol = CloudVolume(dst_layer_path)
+      dvol.provenance.sources = [src_layer_path]
+      dvol.provenance.processing.append(job_details)
+      dvol.commit_provenance()
+
+  return ShardTaskIterator(bounds, shape)
 
 def create_deletion_tasks(
     layer_path, mip=0, num_mips=5, 

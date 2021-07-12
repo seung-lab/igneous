@@ -494,7 +494,8 @@ class ImageShardTransferTask(RegisteredTask):
     self,
     src_path: str,
     dst_path: str,
-    dst_bbox: Bbox,
+    shape: Tuple[int,int,int],
+    offset: Tuple[int,int,int],
     mip: int = 0,
     num_mips: int = 0,
     fill_missing: bool = False,
@@ -508,14 +509,15 @@ class ImageShardTransferTask(RegisteredTask):
     factor: Optional[Tuple[int, int, int]] = None
   ):
     super().__init__(
-      src_path, dst_path, dst_bbox,
+      src_path, dst_path, shape, offset,
       mip=mip, num_mips=num_mips, fill_missing=fill_missing,
       background_color=background_color, translate=translate,
       skip_first_mip=skip_first_mip, sparse=sparse
     )
     self.src_path = src_path
     self.dst_path = dst_path
-    self.dst_bbox = dst_bbox
+    self.shape = Vec(*shape)
+    self.offset = Vec(*offset)
     self.mip = mip
     self.num_mips = num_mips
     self.fill_missing = fill_missing
@@ -524,79 +526,30 @@ class ImageShardTransferTask(RegisteredTask):
     self.skip_first_mip = skip_first_mip
     self.sparse = sparse
 
-  @staticmethod
-  def calc_minishard_size(
-    vol: CloudVolumePrecomputed,
-    mip: Optional[int] = None,
-    spec: Optional[ShardingSpecification] = None,
-  ) -> Vec:
-    mip = vol.mip if mip is None else mip
-    scale = vol.meta.scale(mip)
-
-    try:
-      spec = spec or ShardingSpecification.from_dict(scale["sharding"])
-    except KeyError:
-      raise ValueError(
-        f"MIP {mip} does not have a sharding specification and none was supplied."
-      )
-
-    # chunks_per_minishard = [
-    #     2 ** ((int(spec.preshift_bits) + 2 - i) // 3) for i in range(3)
-    # ]
-    chunks_per_minishard = [
-      2 ** ((int(spec.preshift_bits) + i) // 3) for i in range(3)
-    ]
-    return vol.meta.chunk_size(mip) * chunks_per_minishard
-
-  @staticmethod
-  def calc_shard_size(
-    vol: CloudVolumePrecomputed,
-    mip: Optional[int] = None,
-    spec: Optional[ShardingSpecification] = None,
-  ) -> Vec:
-    mip = vol.mip if mip is None else mip
-    scale = vol.meta.scale(mip)
-
-    try:
-      spec = spec or ShardingSpecification.from_dict(scale["sharding"])
-    except KeyError:
-      raise ValueError(
-        f"MIP {mip} does not have a sharding specification and none was supplied."
-      )
-
-    # minishards_per_shard = [
-    #     2 ** ((int(spec.minishard_bits) + 2 - i) // 3) for i in range(3)
-    # ]
-    minishards_per_shard = [
-      2 ** ((int(spec.minishard_bits) + i) // 3) for i in range(3)
-    ]
-    return ImageShardTask.calc_minishard_size(vol, mip=mip, spec=spec) * minishards_per_shard
-
   def execute(self):
     src_vol = CloudVolume(
-      self.src_path, fill_missing=self.fill_missing, mip=self.mip, bounded=False
+      self.src_path, fill_missing=self.fill_missing, 
+      mip=self.mip, bounded=False
     )
-    dst_vol = cast(
-      CloudVolumePrecomputed,
-      CloudVolume(
-        self.dst_path,
-        fill_missing=self.fill_missing,
-        mip=self.mip,
-        background_color=self.background_color,
-        compress=None
-      )
+    dst_vol = CloudVolume(
+      self.dst_path,
+      fill_missing=self.fill_missing,
+      mip=self.mip,
+      background_color=self.background_color,
+      compress=None
     )
 
-    dst_bbox = Bbox.from_dict(json.loads(self.dst_bbox))
+    dst_bbox = Bbox(self.offset, self.offset + self.shape)
     dst_bbox = Bbox.clamp(dst_bbox, dst_vol.meta.bounds(self.mip))
     dst_bbox = dst_bbox.expand_to_chunk_size(
-      dst_vol.meta.chunk_size(self.mip), offset=dst_vol.meta.voxel_offset(self.mip)
+      dst_vol.meta.chunk_size(self.mip), 
+      offset=dst_vol.meta.voxel_offset(self.mip)
     )
 
     src_bbox = dst_bbox - self.translate
 
     s = time()
-    ds_results = [src_vol.download(src_bbox)]
+    ds_results = [ src_vol.download(src_bbox) ]
 
     ds_factor = Vec(1,1,1)
     print(f"Download {src_bbox.size3()} finished in {round(time() - s, 2)} s")

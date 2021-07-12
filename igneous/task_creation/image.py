@@ -1,16 +1,10 @@
-from collections import defaultdict
-from itertools import product
 from functools import reduce, partial
 import operator
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Dict, Tuple, cast, Optional
 
 import copy
 import json
 import math
-import os
-import re
-import subprocess
-import time
 from time import strftime
 
 import numpy as np
@@ -20,118 +14,33 @@ import cloudvolume
 import cloudvolume.exceptions
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
-from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
-from cloudfiles import CloudFiles
-from taskqueue import TaskQueue, MockTaskQueue 
 
 from igneous import downsample_scales, chunks
-import igneous.tasks
 from igneous.tasks import (
-  HyperSquareConsensusTask, 
-  MeshTask, MeshManifestTask, GrapheneMeshTask,
-  DownsampleTask, QuantizeTask, 
-  TransferTask, WatershedRemapTask, DeleteTask, 
-  LuminanceLevelsTask, ContrastNormalizationTask,
-  SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask, 
-  MaskAffinitymapTask, InferenceTask
+  BlackoutTask, QuantizeTask, DeleteTask, 
+  ContrastNormalizationTask, DownsampleTask,
+  TransferTask, TouchTask, LuminanceLevelsTask,
+  HyperSquareConsensusTask, # HyperSquareTask,
 )
-# from igneous.tasks import BigArrayTask
 
-# for provenance files
+from .common import (
+  operator_contact, FinelyDividedTaskIterator, 
+  get_bounds, num_tasks,
+)
 
-OPERATOR_CONTACT = ''
-if __name__ == '__main__':
-  try:
-    OPERATOR_CONTACT = subprocess.check_output("git config user.email", shell=True)
-    OPERATOR_CONTACT = str(OPERATOR_CONTACT.rstrip())
-  except:
-    try:
-      print(yellow('Unable to determine provenance contact email. Set "git config user.email". Using unix $USER instead.'))
-      OPERATOR_CONTACT = os.environ['USER']
-    except:
-      print(yellow('$USER was not set. The "owner" field of the provenance file will be blank.'))
-      OPERATOR_CONTACT = ''
-
-def get_bounds(vol, bounds, mip, chunk_size=None):
-  if bounds is None:
-    bounds = vol.bounds.clone()
-  else:
-    bounds = Bbox.create(bounds)
-    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
-    if chunk_size is not None:
-      bounds = bounds.expand_to_chunk_size(chunk_size, vol.meta.voxel_offset(mip))
-    bounds = Bbox.clamp(bounds, vol.meta.bounds(mip))
-  
-
-  print("Volume Bounds: ", vol.meta.bounds(mip))
-  print("Selected ROI:  ", bounds)
-
-  return bounds
-
-def num_tasks(bounds, shape):
-  return int(reduce(operator.mul, np.ceil(bounds.size3() / shape)))
-
-class FinelyDividedTaskIterator():
-  """
-  Parallelizes tasks that do not have overlap.
-
-  Evenly splits tasks between processes without 
-  regards to whether the dividing line lands in
-  the middle of a slice. 
-  """
-  def __init__(self, bounds, shape):
-    self.bounds = bounds 
-    self.shape = Vec(*shape)
-    self.start = 0
-    self.end = num_tasks(bounds, shape)
-
-  def __len__(self):
-    return self.end - self.start
-  
-  def __getitem__(self, slc):
-    itr = copy.deepcopy(self)
-    itr.start = max(self.start + slc.start, self.start)
-    itr.end = min(self.start + slc.stop, self.end)
-    return itr
-
-  def __iter__(self):
-    for i in range(self.start, self.end):
-      pt = self.to_coord(i)
-      offset = pt * self.shape + self.bounds.minpt
-      yield self.task(self.shape.clone(), offset.clone())
-
-    self.on_finish()
-
-  def to_coord(self, index):
-    """Convert an index into a grid coordinate defined by the task shape."""
-    sx, sy, sz = np.ceil(self.bounds.size3() / self.shape).astype(int)
-    sxy = sx * sy
-    z = index // sxy
-    y = (index - (z * sxy)) // sx
-    x = index - sx * (y + z * sy)
-    return Vec(x,y,z)
-
-  def task(self, shape, offset):
-    raise NotImplementedError()
-
-  def on_finish(self):
-    pass
-
-# def create_bigarray_task(cloudpath):
-#   """
-#   Creates one task for each bigarray chunk present in the bigarray folder.
-#   These tasks will convert the bigarray chunks into chunks that ingest tasks are able to understand.
-#   """
-#   class BigArrayTaskIterator():
-#     def __iter__(self):    
-#       with Storage(cloudpath) as storage:
-#         for filename in storage.list_blobs(prefix='bigarray/'):
-#           yield BigArrayTask(
-#             chunk_path=storage.get_path_to_file('bigarray/'+filename),
-#             chunk_encoding='npz', # npz_uint8 to convert affinites float32 affinties to uint8
-#             version='{}/{}'.format(storage._path.dataset_name, storage._path.layer_name)
-#           )
-#   return BigArrayTaskIterator()
+__all__  = [
+  "create_blackout_tasks",
+  "create_touch_tasks",
+  "create_downsampling_tasks", 
+  "create_deletion_tasks",
+  "create_transfer_tasks",
+  "create_quantized_affinity_info",
+  "create_quantize_tasks",
+  "create_hypersquare_ingest_tasks",
+  "create_hypersquare_consensus_tasks",
+  "create_luminance_levels_tasks",
+  "create_contrast_normalization_tasks",
+]
 
 def create_blackout_tasks(
     cloudpath, bounds, 
@@ -176,7 +85,7 @@ def create_blackout_tasks(
             bounds.maxpt.tolist(),
           ],
         },
-        'by': OPERATOR_CONTACT,
+        'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       })
 
@@ -220,7 +129,7 @@ def create_touch_tasks(
               bounds.maxpt.tolist(),
             ],
           },
-        'by': OPERATOR_CONTACT,
+        'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       })
       vol.commit_provenance()
@@ -327,7 +236,7 @@ def create_downsampling_tasks(
             'compress': compress,
             'factor': (tuple(factor) if factor else None),
           },
-          'by': OPERATOR_CONTACT,
+          'by': operator_contact(),
           'date': strftime('%Y-%m-%d %H:%M %Z'),
         })
         vol.commit_provenance()
@@ -390,8 +299,6 @@ def create_sharded_image_info(
     byte_width = np.dtype(dtype).itemsize
   else:
     raise ValueError(f"{dtype} must be int, str, or np.integer.")
-
-  prod = lambda x: reduce(operator.mul, x, 1)
 
   voxels = prod(dataset_size)
   chunk_voxels = prod(chunk_size)
@@ -465,33 +372,118 @@ def create_sharded_image_info(
     "shard_bits": shard_bits,
   }
 
+def image_shard_shape_from_spec(spec, dataset_size, chunk_size):
+  # WARNING: Assumes data bounds are larger
+  # than the shard size. The compressed
+  # morton code logic changes if one of the
+  # axes is truncated.
+  chunk_size = Vec(*chunk_size, dtype=int)
+  preshift_bits = spec["preshift_bits"]
+
+  pot = preshift_bits // 3
+  x = 2 ** pot
+  y = 2 ** pot 
+  z = 2 ** pot
+
+  remainder = preshift_bits % 3
+  if remainder == 1:
+    x *= 2
+  elif remainder == 2:
+    x *= 2
+    y *= 2
+
+  shape = chunk_size * Vec(x,y,z)  
+  dataset_size = Vec(*dataset_size)
+
+  if np.any(shape > dataset_size):
+    raise ValueError(f"shape {shape} > {dataset_size} datset size.")
+
+  return shape
+
 def create_image_shard_transfer_tasks(
   src_layer_path: str,
   dst_layer_path: str,
-  bounds: Bbox = None,
+  mip: int = 0,
+  num_mips: int = 1,
+  chunk_size: Optional[Tuple[int,int,int]] = None,
+  encoding: bool = None,
+  bounds: Optional[Bbox] = None,
   fill_missing: bool = False,
   background_color: int = 0,
   translate: Tuple[int, int, int] = (0, 0, 0),
-  mip: int = 0,
-  num_mips: int = 1,
+  dest_voxel_offset: Optional[Tuple[int, int, int]] = None,
   skip_first_mip: bool = False,
   sparse: bool = False,
+  agglomerate: bool = False, 
+  timestamp: bool = None,
+  memory_target: int = 3.5e9,
+  factor: Tuple[int,int,int] = None,
 ):
-  stop_mip = mip + num_mips
-  dst_vol = cast(CloudVolumePrecomputed, CloudVolume(dst_layer_path, mip=stop_mip))
-  if bounds is None:
-    bounds = dst_vol.mip_bounds(mip)
+  src_vol = CloudVolume(src_layer_path, mip=mip)
 
-  # TODO: Add checks for shard alignment and estimated memory size
-  shard_size = ShardTask.calc_shard_size(dst_vol, mip=stop_mip)
-  shape = (
-    shard_size
-    * (dst_vol.meta.downsample_ratio(stop_mip) / dst_vol.meta.downsample_ratio(mip))
-  ).astype(int)
+  if dest_voxel_offset:
+    dest_voxel_offset = Vec(*dest_voxel_offset, dtype=int)
+  else:
+    dest_voxel_offset = src_vol.voxel_offset.clone()
+
+  if factor is None:
+    factor = (2,2,1)
+
+  if not chunk_size:
+    chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
+  chunk_size = Vec(*chunk_size)
+
+  try:
+    dest_vol = CloudVolume(dest_layer_path, mip=mip)
+  except cloudvolume.exceptions.InfoUnavailableError:
+    info = copy.deepcopy(src_vol.info)
+    dest_vol = CloudVolume(dest_layer_path, info=info, mip=mip)
+    dest_vol.commit_info()
+
+  if dest_voxel_offset is not None:
+    dest_vol.scale["voxel_offset"] = dest_voxel_offset
+
+  # If translate is not set, but dest_voxel_offset is then it should naturally be
+  # only be the difference between datasets.
+  if translate is None:
+    translate = dest_vol.voxel_offset - src_vol.voxel_offset # vector pointing from src to dest
+  else:
+    translate = Vec(*translate) // src_vol.downsample_ratio
+
+  if encoding is not None:
+    dest_vol.info['scales'][mip]['encoding'] = encoding
+    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dest_vol.info['scales'][mip]:
+      dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
+  dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
+  dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
+
+  ds_factor = prod(factor) ** (num_mips - 1)
+
+  spec = create_sharded_image_info(
+    dataset_size=dest_vol.scale["size"], 
+    chunk_size=dest_vol.scale["chunk_size"][0], 
+    encoding=dest_vol.scale["encoding"], 
+    dtype=dest_vol.dtype,
+    uncompressed_shard_bytesize=memory_target // ds_factor,
+  )
+  dest_vol.scale["sharding"] = spec
+  dest_vol.commit_info()
+
+  stop_mip = mip + num_mips
+  shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
+  shape *= dst_vol.meta.downsample_ratio(stop_mip) // dst_vol.meta.downsample_ratio(mip)
+
+  if factor[2] == 1:
+    shape.z = int(dest_vol.chunk_size.z * round(shape.z / dest_vol.chunk_size.z))
+
+  dest_bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
+
+  if bounds is None:
+    bounds = dst_vol.meta.bounds(mip)
 
   class ShardTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      task_bbox = Bbox(offset, (offset + shape).astype(int))
+      task_bbox = Bbox(offset, offset + shape, dtype=int)
       return ShardTask(
         src_layer_path,
         dst_layer_path,
@@ -521,7 +513,7 @@ def create_image_shard_transfer_tasks(
           "skip_first_mip": skip_first_mip,
           "sparse": sparse,
         },
-        "by": OPERATOR_CONTACT,
+        "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),
       }
 
@@ -568,534 +560,12 @@ def create_deletion_tasks(
           'num_mips': num_mips,
           'shape': shape.tolist(),
         },
-        'by': OPERATOR_CONTACT,
+        'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       })
       vol.commit_provenance()
 
   return DeleteTaskIterator(bounds, shape)
-
-def create_skeletonizing_tasks(
-    cloudpath, mip, 
-    shape=Vec(512, 512, 512),
-    teasar_params={'scale':10, 'const': 10}, 
-    info=None, object_ids=None, mask_ids=None,
-    fix_branching=True, fix_borders=True, 
-    fix_avocados=False, fill_holes=False,
-    dust_threshold=1000, progress=False,
-    parallel=1, fill_missing=False, 
-    sharded=False, spatial_index=True,
-    synapses=None, num_synapses=None
-  ):
-  """
-  Assign tasks with one voxel overlap in a regular grid 
-  to be densely skeletonized. The default shape (512,512,512)
-  was designed to work within 6 GB of RAM on average at parallel=1 
-  but can exceed this amount for certain objects such as glia. 
-  4 GB is usually OK.
-
-  When this run completes, you'll follow up with create_skeleton_merge_tasks
-  to postprocess the generated fragments into single skeletons. 
-
-  WARNING: If you are processing hundreds of millions of labels or more and
-  are using Cloud Storage this can get expensive ($8 per million labels typically
-  accounting for fragment generation and postprocessing)! This scale is when 
-  the experimental sharded format generator becomes crucial to use.
-
-  cloudpath: cloudvolume path
-  mip: which mip level to skeletonize 
-    For a 4x4x40 dataset, mip 3 is good. Mip 4 starts introducing 
-    artifacts like snaking skeletons along the edge of thin objects.
-
-  teasar_params: 
-    NOTE: see github.com/seung-lab/kimimaro for an updated list
-          see https://github.com/seung-lab/kimimaro/wiki/Intuition-for-Setting-Parameters-const-and-scale
-          for help with setting these parameters.
-    NOTE: DBF = Distance from Boundary Field (i.e. euclidean distance transform)
-
-    scale: float, multiply invalidation radius by distance from boundary
-    const: float, add this physical distance to the invalidation radius
-    soma_detection_threshold: if object has a DBF value larger than this, 
-        root will be placed at largest DBF value and special one time invalidation
-        will be run over that root location (see soma_invalidation scale)
-        expressed in chosen physical units (i.e. nm) 
-    pdrf_scale: scale factor in front of dbf, used to weight DBF over euclidean distance (higher to pay more attention to dbf) 
-    pdrf_exponent: exponent in dbf formula on distance from edge, faster if factor of 2 (default 16)
-    soma_invalidation_scale: the 'scale' factor used in the one time soma root invalidation (default .5)
-    soma_invalidation_const: the 'const' factor used in the one time soma root invalidation (default 0)
-                           (units in chosen physical units (i.e. nm))    
-
-  info: supply your own info file 
-  object_ids: mask out all but these ids if specified
-  mask_ids: mask out these ids if specified
-  fix_branching: Trades speed for quality of branching at forks. You'll
-    almost always want this set to True.
-  fix_borders: Allows trivial merging of single overlap tasks. You'll only
-    want to set this to false if you're working on single or non-overlapping
-    volumes.
-  dust_threshold: don't skeletonize labels smaller than this number of voxels
-    as seen by a single task.
-  progress: show a progress bar
-  parallel: number of processes to deploy against a single task. parallelizes
-    over labels, it won't speed up a single complex label. You can be slightly
-    more memory efficient using a single big task with parallel than with seperate
-    tasks that add up to the same volume. Unless you know what you're doing, stick
-    with parallel=1 for cloud deployments.
-  fill_missing: passthrough to CloudVolume, fill missing image tiles with zeros
-    instead of throwing an error if True.
-  sharded: (bool) if true, output a single mapbuffer dict containing all skeletons
-    in a task, which will serve as input to a sharded format generator. You don't 
-    want this unless you know what you're doing. If False, generate a skeleton fragment
-    file per a label for later agglomeration using the SkeletonMergeTask.
-  spatial_index: (bool) Concurrently generate a json file that describes which
-    labels were skeletonized in a given task. This makes it possible to query for
-    skeletons by bounding box later on using CloudVolume.
-  synapses: If provided, after skeletonization of a label is complete, draw 
-    additional paths to one of the nearest voxels to synapse centroids.
-    (x,y,z) centroid is specified in physical coordinates.
-
-    Iterable yielding ((x,y,z),segid,swc_label)
-
-  num_synapses: If synapses is an iterator, you must provide the total number of synapses.
-  """
-  shape = Vec(*shape)
-  vol = CloudVolume(cloudpath, mip=mip, info=info)
-
-  kdtree, labelsmap = None, None
-  if synapses:
-    centroids, kdtree, labelsmap = synapses_in_space(synapses, N=num_synapses)
-  if not 'skeletons' in vol.info:
-    vol.info['skeletons'] = 'skeletons_mip_{}'.format(mip)
-    vol.commit_info()
-
-  if spatial_index:
-    if 'spatial_index' not in vol.skeleton.meta.info or not vol.skeleton.meta.info['spatial_index']:
-      vol.skeleton.meta.info['spatial_index'] = {}
-    vol.skeleton.meta.info['@type'] = 'neuroglancer_skeletons'
-    vol.skeleton.meta.info['spatial_index']['resolution'] = tuple(vol.resolution)
-    vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
-  
-  vol.skeleton.meta.info['mip'] = int(mip)
-  vol.skeleton.meta.info['vertex_attributes'] = vol.skeleton.meta.info['vertex_attributes'][:1]
-  vol.skeleton.meta.commit_info()
-
-  will_postprocess = bool(np.any(vol.bounds.size3() > shape))
-  bounds = vol.bounds.clone()
-
-  class SkeletonTaskIterator(FinelyDividedTaskIterator):
-    def task(self, shape, offset):
-      bbox_synapses = None
-      if synapses:
-        bbox_synapses = self.synapses_for_bbox(shape, offset)
-
-      return SkeletonTask(
-        cloudpath=cloudpath,
-        shape=(shape + 1).clone(), # 1px overlap on the right hand side
-        offset=offset.clone(),
-        mip=mip,
-        teasar_params=teasar_params,
-        will_postprocess=will_postprocess,
-        info=info,
-        object_ids=object_ids,
-        mask_ids=mask_ids,
-        fix_branching=fix_branching,
-        fix_borders=fix_borders,
-        fix_avocados=fix_avocados,
-        dust_threshold=dust_threshold,
-        progress=progress,
-        parallel=parallel,
-        fill_missing=bool(fill_missing),
-        sharded=bool(sharded),
-        spatial_index=bool(spatial_index),
-        spatial_grid_shape=shape.clone(), # used for writing index filenames
-        synapses=bbox_synapses,
-      )
-
-    def synapses_for_bbox(self, shape, offset):
-      """
-      Returns { seigd: [ ((x,y,z), swc_label), ... ] 
-      where x,y,z are in voxel coordinates with the
-      origin set to the bottom left corner of this cutout.
-      """
-      bbox = Bbox( offset, shape + offset ) * vol.resolution
-      center = bbox.center()
-      diagonal = Vec(*((bbox.maxpt - center)))
-      pts = [ centroids[i,:] for i in kdtree.query_ball_point(center, diagonal.length()) ]
-      pts = [ tuple(Vec(*pt, dtype=int)) for pt in pts if bbox.contains(pt) ]
-
-      synapses = defaultdict(list)
-      for pt in pts:
-        for label, swc_label in labelsmap[pt]:
-          voxel_pt = Vec(*pt, dtype=np.float32) / vol.resolution - offset
-          synapses[label].append(( tuple(voxel_pt.astype(int)), swc_label))
-      return synapses
-
-    def on_finish(self):
-      vol.provenance.processing.append({
-        'method': {
-          'task': 'SkeletonTask',
-          'cloudpath': cloudpath,
-          'mip': mip,
-          'shape': shape.tolist(),
-          'dust_threshold': dust_threshold,
-          'teasar_params': teasar_params,
-          'object_ids': object_ids,
-          'mask_ids': mask_ids,
-          'will_postprocess': will_postprocess,
-          'fix_branching': fix_branching,
-          'fix_borders': fix_borders,
-          'fix_avocados': fix_avocados,
-          'progress': progress,
-          'parallel': parallel,
-          'fill_missing': bool(fill_missing),
-          'sharded': bool(sharded),
-          'spatial_index': bool(spatial_index),
-          'synapses': bool(synapses),
-        },
-        'by': OPERATOR_CONTACT,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-      }) 
-      vol.commit_provenance()
-
-  return SkeletonTaskIterator(bounds, shape)
-
-def synapses_in_space(synapse_itr, N=None):
-  """
-  Compute a kD tree of synapse locations and 
-  a dictionary mapping centroid => labels
-
-  Input: [ ((x,y,z),segid,swc_label), ... ]
-  Output: centroids, kdtree, { centroid: (segid, swc_label) }
-  """
-  from scipy.spatial import cKDTree
-
-  if N is None:
-    N = len(synapse_itr)
-
-  centroids = np.zeros( (N+1,3), dtype=np.int32)
-  labels = defaultdict(list)
-
-  for idx, (centroid,segid,swc_label) in enumerate(synapse_itr):
-    centroid = tuple(Vec(*centroid, dtype=int))
-    labels[centroid].append((segid, swc_label))
-    centroids[idx,:] = centroid
-
-  return centroids, cKDTree(centroids), labels
-
-def create_flat_graphene_skeleton_merge_tasks(    
-    cloudpath, mip, crop=0,
-    dust_threshold=4000, 
-    tick_threshold=6000, 
-    delete_fragments=False
-  ):
-
-  prefixes = graphene_prefixes()
-
-  class GrapheneSkeletonMergeTaskIterator():
-    def __len__(self):
-      return len(prefixes)
-    def __iter__(self):
-      # For a prefix like 100, tasks 1-99 will be missed. Account for them by
-      # enumerating them individually with a suffixed ':' to limit matches to
-      # only those small numbers
-      for prefix in prefixes:
-        yield UnshardedSkeletonMergeTask(
-          cloudpath=cloudpath, 
-          prefix=str(prefix),
-          crop=crop,
-          mip=mip,
-          dust_threshold=dust_threshold,
-          tick_threshold=tick_threshold,
-          delete_fragments=delete_fragments,
-        )
-
-  return GrapheneSkeletonMergeTaskIterator()
-
-def create_sharded_skeleton_merge_tasks(
-    layer_path, dust_threshold, tick_threshold,
-    preshift_bits, minishard_bits, shard_bits,
-    minishard_index_encoding='gzip', data_encoding='gzip',
-    max_cable_length=None
-  ): 
-  spec = ShardingSpecification(
-    type='neuroglancer_uint64_sharded_v1',
-    preshift_bits=preshift_bits,
-    hash='murmurhash3_x86_128',
-    minishard_bits=minishard_bits,
-    shard_bits=shard_bits,
-    minishard_index_encoding=minishard_index_encoding,
-    data_encoding=data_encoding,
-  )
-
-  cv = CloudVolume(layer_path)
-  cv.skeleton.meta.info['sharding'] = spec.to_dict()
-  cv.skeleton.meta.commit_info()
-
-  cv = CloudVolume(layer_path, progress=True) # rebuild b/c sharding changes the skeleton object
-  cv.mip = cv.skeleton.meta.mip
-
-  # 17 sec to download for pinky100
-  all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
-  # perf: ~36k hashes/sec
-  shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
-
-  shard_labels = defaultdict(list)
-  for label in tqdm(all_labels, desc="Hashes"):
-    shard_labels[shardfn(label)].append(label)
-
-  cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
-  files = ( 
-    (str(shardno) + '.labels', labels) 
-    for shardno, labels in shard_labels.items() 
-  )
-  cf.put_jsons(
-    files, compress="gzip", 
-    cache_control="no-cache", total=len(shard_labels)
-  )
-  
-  cv.provenance.processing.append({
-    'method': {
-      'task': 'ShardedSkeletonMergeTask',
-      'cloudpath': layer_path,
-      'mip': cv.skeleton.meta.mip,
-      'dust_threshold': dust_threshold,
-      'tick_threshold': tick_threshold,
-      'max_cable_length': max_cable_length,
-      'preshift_bits': preshift_bits, 
-      'minishard_bits': minishard_bits, 
-      'shard_bits': shard_bits,
-    },
-    'by': OPERATOR_CONTACT,
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  cv.commit_provenance()
-
-  return (
-    ShardedSkeletonMergeTask(
-      layer_path, shard_no, 
-      dust_threshold, tick_threshold,
-      max_cable_length=max_cable_length
-    )
-    for shard_no in shard_labels.keys()
-  )
-
-# split the work up into ~1000 tasks (magnitude 3)
-def create_unsharded_skeleton_merge_tasks(    
-    layer_path, crop=0,
-    magnitude=3, dust_threshold=4000, max_cable_length=None,
-    tick_threshold=6000, delete_fragments=False
-  ):
-  assert int(magnitude) == magnitude
-
-  start = 10 ** (magnitude - 1)
-  end = 10 ** magnitude
-
-  class UnshardedSkeletonMergeTaskIterator():
-    def __len__(self):
-      return 10 ** magnitude
-    def __iter__(self):
-      # For a prefix like 100, tasks 1-99 will be missed. Account for them by
-      # enumerating them individually with a suffixed ':' to limit matches to
-      # only those small numbers
-      for prefix in range(1, start):
-        yield UnshardedSkeletonMergeTask(
-          cloudpath=layer_path, 
-          prefix=str(prefix) + ':',
-          crop=crop,
-          dust_threshold=dust_threshold,
-          max_cable_length=max_cable_length,
-          tick_threshold=tick_threshold,
-          delete_fragments=delete_fragments,
-        )
-
-      # enumerate from e.g. 100 to 999
-      for prefix in range(start, end):
-        yield UnshardedSkeletonMergeTask(
-          cloudpath=layer_path, 
-          prefix=prefix, 
-          crop=crop,
-          dust_threshold=dust_threshold, 
-          max_cable_length=max_cable_length,
-          tick_threshold=tick_threshold,
-          delete_fragments=delete_fragments,
-        )
-
-      vol = CloudVolume(layer_path)
-      vol.provenance.processing.append({
-        'method': {
-          'task': 'UnshardedSkeletonMergeTask',
-          'cloudpath': layer_path,
-          'crop': crop,
-          'dust_threshold': dust_threshold,
-          'tick_threshold': tick_threshold,
-          'delete_fragments': delete_fragments,
-          'max_cable_length': max_cable_length,
-        },
-        'by': OPERATOR_CONTACT,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-      }) 
-      vol.commit_provenance()
-
-  return UnshardedSkeletonMergeTaskIterator()
-
-def create_meshing_tasks(
-    layer_path, mip, shape=(448, 448, 448), 
-    simplification=True, max_simplification_error=40,
-    mesh_dir=None, cdn_cache=False, dust_threshold=None,
-    object_ids=None, progress=False, fill_missing=False,
-    encoding='precomputed', spatial_index=True, sharded=False,
-    compress='gzip'
-  ):
-  shape = Vec(*shape)
-
-  vol = CloudVolume(layer_path, mip)
-
-  if mesh_dir is None:
-    mesh_dir = 'mesh_mip_{}_err_{}'.format(mip, max_simplification_error)
-
-  if not 'mesh' in vol.info:
-    vol.info['mesh'] = mesh_dir
-    vol.commit_info()
-
-  cf = CloudFiles(layer_path)
-  info_filename = '{}/info'.format(mesh_dir)
-  mesh_info = cf.get_json(info_filename) or {}
-  mesh_info['@type'] = 'neuroglancer_legacy_mesh'
-  mesh_info['mip'] = int(vol.mip)
-  mesh_info['chunk_size'] = shape.tolist()
-  if spatial_index:
-    mesh_info['spatial_index'] = {
-        'resolution': vol.resolution.tolist(),
-        'chunk_size': (shape*vol.resolution).tolist(),
-    }
-  cf.put_json(info_filename, mesh_info)
-
-  class MeshTaskIterator(FinelyDividedTaskIterator):
-    def task(self, shape, offset):
-      return MeshTask(
-        shape=shape.clone(),
-        offset=offset.clone(),
-        layer_path=layer_path,
-        mip=vol.mip,
-        simplification_factor=(0 if not simplification else 100),
-        max_simplification_error=max_simplification_error,
-        mesh_dir=mesh_dir, 
-        cache_control=('' if cdn_cache else 'no-cache'),
-        dust_threshold=dust_threshold,
-        progress=progress,
-        object_ids=object_ids,
-        fill_missing=fill_missing,
-        encoding=encoding,
-        spatial_index=spatial_index,
-        sharded=sharded,
-        compress=compress,
-      )
-
-    def on_finish(self):
-      vol.provenance.processing.append({
-        'method': {
-          'task': 'MeshTask',
-          'layer_path': layer_path,
-          'mip': vol.mip,
-          'shape': shape.tolist(),
-          'simplification': simplification,
-          'max_simplification_error': max_simplification_error,
-          'mesh_dir': mesh_dir,
-          'fill_missing': fill_missing,
-          'cdn_cache': cdn_cache,
-          'dust_threshold': dust_threshold,
-          'encoding': encoding,
-          'object_ids': object_ids,
-          'spatial_index': spatial_index,
-          'sharded': sharded,
-          'compress': compress,
-        },
-        'by': OPERATOR_CONTACT,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-      }) 
-      vol.commit_provenance()
-
-  return MeshTaskIterator(vol.mip_bounds(mip), shape)
-
-def create_graphene_meshing_tasks(
-  cloudpath, timestamp, mip,
-  simplification=True, max_simplification_error=40,
-  mesh_dir=None, cdn_cache=False, object_ids=None, 
-  progress=False, fill_missing=False, sharding=None,
-  draco_compression_level=1, bounds=None
-):
-  cv = CloudVolume(cloudpath, mip=mip)
-
-  if mip < cv.meta.watershed_mip:
-    raise ValueError("Must mesh at or above the watershed mip level. Watershed MIP: {} Got: {}".format(
-      cv.meta.watershed_mip, mip
-    ))
-
-  if mesh_dir is None:
-    mesh_dir = 'meshes'
-
-  cv.info['mesh'] = mesh_dir # necessary to set the mesh.commit_info() dir right
-  if not 'mesh' in cv.info:
-    cv.commit_info()
-
-  watershed_downsample_ratio = cv.resolution // cv.meta.resolution(cv.meta.watershed_mip)
-  shape = Vec(*cv.meta.graph_chunk_size) // watershed_downsample_ratio
-
-  cv.mesh.meta.info['@type'] = 'neuroglancer_legacy_mesh'
-  cv.mesh.meta.info['mip'] = cv.mip
-  cv.mesh.meta.info['chunk_size'] = list(shape)
-  if sharding:
-    cv.mesh.meta.info['sharding'] = sharding
-  cv.mesh.meta.commit_info()
-
-  simplification = (0 if not simplification else 100)
-
-  class GrapheneMeshTaskIterator(FinelyDividedTaskIterator):
-    def task(self, shape, offset):
-      return GrapheneMeshTask(
-        cloudpath=cloudpath,
-        shape=shape.clone(),
-        offset=offset.clone(),
-        mip=int(mip),
-        simplification_factor=simplification,
-        max_simplification_error=max_simplification_error,
-        draco_compression_level=draco_compression_level,
-        mesh_dir=mesh_dir, 
-        cache_control=('' if cdn_cache else 'no-cache'),
-        progress=progress,
-        fill_missing=fill_missing,
-        timestamp=timestamp,
-      )
-
-    def on_finish(self):
-      cv.provenance.processing.append({
-        'method': {
-          'task': 'GrapheneMeshTask',
-          'cloudpath': cv.cloudpath,
-          'shape': cv.meta.graph_chunk_size,
-          'mip': int(mip),
-          'simplification': simplification,
-          'max_simplification_error': max_simplification_error,
-          'mesh_dir': mesh_dir,
-          'fill_missing': fill_missing,
-          'cdn_cache': cdn_cache,
-          'timestamp': timestamp,
-          'draco_compression_level': draco_compression_level,
-        },
-        'by': OPERATOR_CONTACT,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-      }) 
-      cv.commit_provenance()
-
-  if bounds is None:
-    bounds = cv.meta.bounds(mip).clone()
-  else:
-    bounds = cv.bbox_to_mip(bounds, mip=0, to_mip=mip)
-    bounds = Bbox.clamp(bounds, cv.bounds)
-
-  bounds = bounds.expand_to_chunk_size(shape, cv.voxel_offset)
-
-  return GrapheneMeshTaskIterator(bounds, shape)
 
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 
@@ -1284,7 +754,7 @@ def create_transfer_tasks(
           'factor': (tuple(factor) if factor else None),
           'sparse': bool(sparse),
         },
-        'by': OPERATOR_CONTACT,
+        'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       }
 
@@ -1362,7 +832,7 @@ def create_contrast_normalization_tasks(
             bounds.maxpt.tolist()
           ],
         },
-        'by': OPERATOR_CONTACT,
+        'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       }) 
       dvol.commit_provenance()
@@ -1444,48 +914,12 @@ def create_luminance_levels_tasks(
           'coverage_factor': coverage_factor,
           'mip': mip,
         },
-        'by': OPERATOR_CONTACT,
+        'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       }) 
       vol.commit_provenance()
 
   return LuminanceLevelsTaskIterator()
-
-def create_watershed_remap_tasks(
-    map_path, src_layer_path, dest_layer_path, 
-    shape=Vec(2048, 2048, 64)
-  ):
-  shape = Vec(*shape)
-  vol = CloudVolume(src_layer_path)
-
-  downsample_scales.create_downsample_scales(dest_layer_path, mip=0, ds_shape=shape)
-
-  class WatershedRemapTaskIterator(FinelyDividedTaskIterator):
-    def task(self, shape, offset):
-      return WatershedRemapTask(
-        map_path=map_path,
-        src_path=src_layer_path,
-        dest_path=dest_layer_path,
-        shape=shape.clone(),
-        offset=offset.clone(),
-      )
-    
-    def on_finish(self):
-      dvol = CloudVolume(dest_layer_path)
-      dvol.provenance.processing.append({
-        'method': {
-          'task': 'WatershedRemapTask',
-          'src': src_layer_path,
-          'dest': dest_layer_path,
-          'remap_file': map_path,
-          'shape': list(shape),
-        },
-        'by': OPERATOR_CONTACT,
-        'date': strftime('%Y-%m-%d %H:%M %Z'),
-      }) 
-      dvol.commit_provenance()
-
-  return WatershedRemapTaskIterator(vol.bounds, shape)
 
 def compute_fixup_offsets(vol, points, shape):
   pts = map(np.array, points)
@@ -1590,81 +1024,12 @@ def create_quantize_tasks(
           'fill_missing': fill_missing,
           'mip': mip,
         },
-        'by': OPERATOR_CONTACT,
+        'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
       }) 
       destvol.commit_provenance()
 
   return QuantizeTasksIterator(bounds, shape)
-
-# split the work up into ~1000 tasks (magnitude 3)
-def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
-  assert int(magnitude) == magnitude
-
-  start = 10 ** (magnitude - 1)
-  end = 10 ** magnitude
-
-  class MeshManifestTaskIterator(object):
-    def __len__(self):
-      return 10 ** magnitude
-    def __iter__(self):
-      for prefix in range(1, start):
-        yield MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':', mesh_dir=mesh_dir)
-
-      # enumerate from e.g. 100 to 999
-      for prefix in range(start, end):
-        yield MeshManifestTask(layer_path=layer_path, prefix=prefix, mesh_dir=mesh_dir)
-
-  return MeshManifestTaskIterator()
-
-
-def graphene_prefixes(
-    mip=1, mip_bits=8, 
-    coord_bits=(10, 10, 10), 
-    prefix_length=6
-  ):
-  """
-  Graphene structures segids as decimal numbers following
-  the below format:
-
-  mip x y z segid
-
-  Typical parameter values are 
-  mip_bits=4 or 8, x_bits=8 or 10, y_bits=8 or 10
-  """
-  coord_bits = Vec(*coord_bits)
-
-  mip_shift = 64 - mip_bits
-  x_shift = mip_shift - coord_bits.x
-  y_shift = x_shift - coord_bits.y
-  z_shift = y_shift - coord_bits.z
-
-  x_range = 2 ** coord_bits.x 
-  y_range = 2 ** coord_bits.y
-  z_range = 2 ** coord_bits.z
-
-  prefixes = set()
-  for x in range(x_range):
-    for y in range(y_range):
-      num = (mip << mip_shift) + (x << x_shift) + (y << y_shift)
-      num = str(num)[:prefix_length]
-      prefixes.add(num)
-
-  return prefixes
-
-def create_graphene_hybrid_mesh_manifest_tasks(
-  cloudpath, mip, mip_bits, x_bits, y_bits, z_bits
-):
-  prefixes = graphene_prefixes(mip, mip_bits, (x_bits, y_bits, z_bits))
-
-  class GrapheneHybridMeshManifestTaskIterator(object):
-    def __len__(self):
-      return len(prefixes)
-    def __iter__(self):
-      for prefix in prefixes:
-        yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix))
-
-  return GrapheneHybridMeshManifestTaskIterator()
 
 def create_hypersquare_ingest_tasks(
     hypersquare_bucket_name, dataset_name, 
@@ -1770,121 +1135,3 @@ def create_hypersquare_consensus_tasks(
         )
 
   return HyperSquareConsensusTaskIterator()
-
-def create_mask_affinity_map_tasks(
-    aff_input_layer_path, aff_output_layer_path, 
-    aff_mip, mask_layer_path, mask_mip, output_block_start, 
-    output_block_size, grid_size 
-  ):
-    """
-    affinity map masking block by block. The block coordinates should be aligned with 
-    cloud storage. 
-    """
-
-    class MaskAffinityMapTaskIterator():
-      def __len__(self):
-        return int(reduce(operator.mul, grid_size))
-      def __iter__(self):
-        for x, y, z in xyzrange(grid_size):
-          output_bounds = Bbox.from_slices(tuple(slice(s+x*b, s+x*b+b)
-                  for (s, x, b) in zip(output_block_start, (z, y, x), output_block_size)))
-          yield MaskAffinitymapTask(
-              aff_input_layer_path=aff_input_layer_path,
-              aff_output_layer_path=aff_output_layer_path,
-              aff_mip=aff_mip, 
-              mask_layer_path=mask_layer_path,
-              mask_mip=mask_mip,
-              output_bounds=output_bounds,
-          )
-
-        vol = CloudVolume(output_layer_path, mip=aff_mip)
-        vol.provenance.processing.append({
-            'method': {
-                'task': 'InferenceTask',
-                'aff_input_layer_path': aff_input_layer_path,
-                'aff_output_layer_path': aff_output_layer_path,
-                'aff_mip': aff_mip,
-                'mask_layer_path': mask_layer_path,
-                'mask_mip': mask_mip,
-                'output_block_start': output_block_start,
-                'output_block_size': output_block_size, 
-                'grid_size': grid_size,
-            },
-            'by': OPERATOR_CONTACT,
-            'date': strftime('%Y-%m-%d %H:%M %Z'),
-        })
-        vol.commit_provenance()
-
-    return MaskAffinityMapTaskIterator()
-
-def create_inference_tasks(
-    image_layer_path, convnet_path, 
-    mask_layer_path, output_layer_path, output_block_start, output_block_size, 
-    grid_size, patch_size, patch_overlap, cropping_margin_size,
-    output_key='output', num_output_channels=3, 
-    image_mip=1, output_mip=1, mask_mip=3
-  ):
-    """
-    convnet inference block by block. The block coordinates should be aligned with 
-    cloud storage. 
-    """
-    class InferenceTaskIterator():
-      def __len__(self):
-        return int(reduce(operator.mul, grid_size))
-      def __iter__(self):
-        for x, y, z in xyzrange(grid_size):
-          output_offset = tuple(s+x*b for (s, x, b) in 
-                                zip(output_block_start, (z, y, x), 
-                                    output_block_size))
-          yield InferenceTask(
-              image_layer_path=image_layer_path,
-              convnet_path=convnet_path,
-              mask_layer_path=mask_layer_path,
-              output_layer_path=output_layer_path,
-              output_offset=output_offset,
-              output_shape=output_block_size,
-              patch_size=patch_size, 
-              patch_overlap=patch_overlap,
-              cropping_margin_size=cropping_margin_size,
-              output_key=output_key,
-              num_output_channels=num_output_channels,
-              image_mip=image_mip,
-              output_mip=output_mip,
-              mask_mip=mask_mip
-          )
-
-
-        vol = CloudVolume(output_layer_path, mip=output_mip)
-        vol.provenance.processing.append({
-            'method': {
-                'task': 'InferenceTask',
-                'image_layer_path': image_layer_path,
-                'convnet_path': convnet_path,
-                'mask_layer_path': mask_layer_path,
-                'output_layer_path': output_layer_path,
-                'output_offset': output_offset,
-                'output_shape': output_block_size,
-                'patch_size': patch_size,
-                'patch_overlap': patch_overlap,
-                'cropping_margin_size': cropping_margin_size,
-                'output_key': output_key,
-                'num_output_channels': num_output_channels,
-                'image_mip': image_mip,
-                'output_mip': output_mip,
-                'mask_mip': mask_mip,
-            },
-            'by': OPERATOR_CONTACT,
-            'date': strftime('%Y-%m-%d %H:%M %Z'),
-        })
-        vol.commit_provenance()
-
-    return InferenceTaskIterator()
-
-def cascade(tq, fnlist):
-  for fn in fnlist:
-    fn(tq)
-    N = tq.enqueued
-    while N > 0:
-      N = tq.enqueued
-      print('\r {} remaining'.format(N), end='')
-      time.sleep(2)

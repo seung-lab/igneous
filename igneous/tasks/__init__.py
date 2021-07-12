@@ -1,6 +1,6 @@
-from .skeletonization import SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask
+from .skeleton import SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask
 from .mesh import MeshTask, MeshManifestTask, GrapheneMeshTask
-from .tasks import (
+from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,
   DownsampleTask, QuantizeTask, 
   TransferTask, WatershedRemapTask, DeleteTask, 

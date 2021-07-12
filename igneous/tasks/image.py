@@ -19,11 +19,7 @@ from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.frontends.precomputed import CloudVolumePrecomputed
 
 from taskqueue import RegisteredTask, queueable
-
-import DracoPy
-import fastremap
 import tinybrain
-import zmesh
 
 from igneous import downsample_scales
 
@@ -543,7 +539,6 @@ class ImageShardTransferTask(RegisteredTask):
       dst_vol.meta.chunk_size(self.mip), 
       offset=dst_vol.meta.voxel_offset(self.mip)
     )
-
     src_bbox = dst_bbox - self.translate
 
     s = time()

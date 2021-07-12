@@ -1,11 +1,9 @@
-from collections import defaultdict
 from collections.abc import Sequence
-from io import BytesIO
+
 import json
 import math
 import os
 import random
-import re
 from typing import Optional, Tuple, cast
 
 import numpy as np

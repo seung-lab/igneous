@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 os.environ['GOOGLE_CLOUD_DISABLE_GRPC'] = 'true'
 

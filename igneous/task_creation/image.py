@@ -481,7 +481,7 @@ def create_image_shard_transfer_tasks(
   if bounds is None:
     bounds = dst_vol.meta.bounds(mip)
 
-  class ShardTaskIterator(FinelyDividedTaskIterator):
+  class ImageShardTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       task_bbox = Bbox(offset, offset + shape, dtype=int)
       return ShardTask(
@@ -522,7 +522,7 @@ def create_image_shard_transfer_tasks(
       dvol.provenance.processing.append(job_details)
       dvol.commit_provenance()
 
-  return ShardTaskIterator(bounds, shape)
+  return ImageShardTaskIterator(bounds, shape)
 
 def create_deletion_tasks(
     layer_path, mip=0, num_mips=5, 

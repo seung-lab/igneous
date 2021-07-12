@@ -7,7 +7,6 @@ import os
 
 from cloudvolume import CloudVolume
 from cloudfiles import CloudFiles
-from igneous.task_creation import MockTaskQueue
 
 layer_path = '/tmp/removeme/'
 

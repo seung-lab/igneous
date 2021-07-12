@@ -27,7 +27,7 @@ import fastremap
 import tinybrain
 import zmesh
 
-from igneous import chunks, downsample_scales
+from igneous import downsample_scales
 
 from .obsolete import (
   HyperSquareConsensusTask, WatershedRemapTask,

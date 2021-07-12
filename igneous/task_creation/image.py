@@ -15,7 +15,7 @@ import cloudvolume.exceptions
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
 
-from igneous import downsample_scales, chunks
+from igneous import downsample_scales
 from igneous.tasks import (
   BlackoutTask, QuantizeTask, DeleteTask, 
   ContrastNormalizationTask, DownsampleTask,

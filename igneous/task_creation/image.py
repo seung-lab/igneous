@@ -22,11 +22,13 @@ from igneous.tasks import (
   TransferTask, TouchTask, LuminanceLevelsTask,
   HyperSquareConsensusTask, # HyperSquareTask,
 )
+from igneous.shards import image_shard_shape_from_spec
 
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
   get_bounds, num_tasks,
 )
+from .types import ShapeType
 
 __all__  = [
   "create_blackout_tasks",
@@ -244,8 +246,8 @@ def create_downsampling_tasks(
     return DownsampleTaskIterator(bounds, shape)
 
 def create_sharded_image_info(
-  dataset_size: Tuple[int,int,int],
-  chunk_size: Tuple[int,int,int],
+  dataset_size: ShapeType,
+  chunk_size: ShapeType,
   encoding: str,
   dtype: Any,
   uncompressed_shard_bytesize: int = 3.5e9, 
@@ -372,52 +374,24 @@ def create_sharded_image_info(
     "shard_bits": shard_bits,
   }
 
-def image_shard_shape_from_spec(spec, dataset_size, chunk_size):
-  # WARNING: Assumes data bounds are larger
-  # than the shard size. The compressed
-  # morton code logic changes if one of the
-  # axes is truncated.
-  chunk_size = Vec(*chunk_size, dtype=int)
-  preshift_bits = spec["preshift_bits"]
-
-  pot = preshift_bits // 3
-  x = 2 ** pot
-  y = 2 ** pot 
-  z = 2 ** pot
-
-  remainder = preshift_bits % 3
-  if remainder == 1:
-    x *= 2
-  elif remainder == 2:
-    x *= 2
-    y *= 2
-
-  shape = chunk_size * Vec(x,y,z)  
-  dataset_size = Vec(*dataset_size)
-
-  if np.any(shape > dataset_size):
-    raise ValueError(f"shape {shape} > {dataset_size} datset size.")
-
-  return shape
-
 def create_image_shard_transfer_tasks(
   src_layer_path: str,
   dst_layer_path: str,
   mip: int = 0,
   num_mips: int = 1,
-  chunk_size: Optional[Tuple[int,int,int]] = None,
+  chunk_size: Optional[ShapeType] = None,
   encoding: bool = None,
   bounds: Optional[Bbox] = None,
   fill_missing: bool = False,
   background_color: int = 0,
-  translate: Tuple[int, int, int] = (0, 0, 0),
-  dest_voxel_offset: Optional[Tuple[int, int, int]] = None,
+  translate: ShapeType = (0, 0, 0),
+  dest_voxel_offset: Optional[ShapeType] = None,
   skip_first_mip: bool = False,
   sparse: bool = False,
   agglomerate: bool = False, 
   timestamp: bool = None,
   memory_target: int = 3.5e9,
-  factor: Tuple[int,int,int] = None,
+  factor: ShapeType = None,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -456,15 +430,13 @@ def create_image_shard_transfer_tasks(
       dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
   dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
-
-  ds_factor = prod(factor) ** (num_mips - 1)
-
+  
   spec = create_sharded_image_info(
     dataset_size=dest_vol.scale["size"], 
     chunk_size=dest_vol.scale["chunk_size"][0], 
     encoding=dest_vol.scale["encoding"], 
     dtype=dest_vol.dtype,
-    uncompressed_shard_bytesize=memory_target // ds_factor,
+    uncompressed_shard_bytesize=memory_target,
   )
   dest_vol.scale["sharding"] = spec
   dest_vol.commit_info()
@@ -484,17 +456,13 @@ def create_image_shard_transfer_tasks(
   class ImageShardTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       task_bbox = Bbox(offset, offset + shape, dtype=int)
-      return ShardTask(
+      return partial(ShardTask,
         src_layer_path,
         dst_layer_path,
         task_bbox,
         fill_missing=fill_missing,
         translate=translate,
         mip=mip,
-        num_mips=num_mips,
-        background_color=background_color,
-        skip_first_mip=skip_first_mip,
-        sparse=sparse,
       )
 
     def on_finish(self):

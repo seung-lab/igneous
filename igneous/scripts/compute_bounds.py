@@ -19,6 +19,9 @@ Example Output to stdout:
   bounds=Bbox([10,10,10], [138,138,138]) (size: [128,128,128]); chunk_size=[64,64,64]
   
 """
+
+# this could be an igneous CLI command
+
 import sys
 import os
 

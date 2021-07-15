@@ -21,14 +21,15 @@ from igneous.tasks import (
   ContrastNormalizationTask, DownsampleTask,
   TransferTask, TouchTask, LuminanceLevelsTask,
   HyperSquareConsensusTask, # HyperSquareTask,
+  ImageShardTransferTask
 )
 from igneous.shards import image_shard_shape_from_spec
+from igneous.types import ShapeType
 
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
-  get_bounds, num_tasks,
+  get_bounds, num_tasks, prod
 )
-from .types import ShapeType
 
 __all__  = [
   "create_blackout_tasks",
@@ -36,6 +37,7 @@ __all__  = [
   "create_downsampling_tasks", 
   "create_deletion_tasks",
   "create_transfer_tasks",
+  "create_image_shard_transfer_tasks",
   "create_quantized_affinity_info",
   "create_quantize_tasks",
   "create_hypersquare_ingest_tasks",
@@ -378,20 +380,15 @@ def create_image_shard_transfer_tasks(
   src_layer_path: str,
   dst_layer_path: str,
   mip: int = 0,
-  num_mips: int = 1,
   chunk_size: Optional[ShapeType] = None,
   encoding: bool = None,
   bounds: Optional[Bbox] = None,
   fill_missing: bool = False,
-  background_color: int = 0,
   translate: ShapeType = (0, 0, 0),
   dest_voxel_offset: Optional[ShapeType] = None,
-  skip_first_mip: bool = False,
-  sparse: bool = False,
   agglomerate: bool = False, 
   timestamp: bool = None,
   memory_target: int = 3.5e9,
-  factor: ShapeType = None,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -400,18 +397,15 @@ def create_image_shard_transfer_tasks(
   else:
     dest_voxel_offset = src_vol.voxel_offset.clone()
 
-  if factor is None:
-    factor = (2,2,1)
-
   if not chunk_size:
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
 
   try:
-    dest_vol = CloudVolume(dest_layer_path, mip=mip)
+    dest_vol = CloudVolume(dst_layer_path, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
-    dest_vol = CloudVolume(dest_layer_path, info=info, mip=mip)
+    dest_vol = CloudVolume(dst_layer_path, info=info, mip=mip)
     dest_vol.commit_info()
 
   if dest_voxel_offset is not None:
@@ -430,10 +424,10 @@ def create_image_shard_transfer_tasks(
       dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
   dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
-  
+
   spec = create_sharded_image_info(
     dataset_size=dest_vol.scale["size"], 
-    chunk_size=dest_vol.scale["chunk_size"][0], 
+    chunk_size=dest_vol.scale["chunk_sizes"][0], 
     encoding=dest_vol.scale["encoding"], 
     dtype=dest_vol.dtype,
     uncompressed_shard_bytesize=memory_target,
@@ -441,45 +435,38 @@ def create_image_shard_transfer_tasks(
   dest_vol.scale["sharding"] = spec
   dest_vol.commit_info()
 
-  stop_mip = mip + num_mips
   shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
-  shape *= dst_vol.meta.downsample_ratio(stop_mip) // dst_vol.meta.downsample_ratio(mip)
-
-  if factor[2] == 1:
-    shape.z = int(dest_vol.chunk_size.z * round(shape.z / dest_vol.chunk_size.z))
 
   dest_bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
 
   if bounds is None:
-    bounds = dst_vol.meta.bounds(mip)
+    bounds = dest_vol.meta.bounds(mip)
 
-  class ImageShardTaskIterator(FinelyDividedTaskIterator):
+  class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       task_bbox = Bbox(offset, offset + shape, dtype=int)
-      return partial(ShardTask,
+      return partial(ImageShardTransferTask,
         src_layer_path,
         dst_layer_path,
         task_bbox,
         fill_missing=fill_missing,
         translate=translate,
         mip=mip,
+        agglomerate=agglomerate,
+        timestamp=timestamp,
       )
 
     def on_finish(self):
       job_details = {
         "method": {
-          "task": "ShardTask",
+          "task": "ImageShardTransferTask",
           "src": src_layer_path,
           "dest": dst_layer_path,
           "shape": list(map(int, shape)),
           "fill_missing": fill_missing,
           "translate": list(map(int, translate)),
-          "background_color": background_color,
           "bounds": [bounds.minpt.tolist(), bounds.maxpt.tolist()],
           "mip": mip,
-          "num_mips": num_mips,
-          "skip_first_mip": skip_first_mip,
-          "sparse": sparse,
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),
@@ -490,7 +477,7 @@ def create_image_shard_transfer_tasks(
       dvol.provenance.processing.append(job_details)
       dvol.commit_provenance()
 
-  return ImageShardTaskIterator(bounds, shape)
+  return ImageShardTransferTaskIterator(bounds, shape)
 
 def create_deletion_tasks(
     layer_path, mip=0, num_mips=5, 

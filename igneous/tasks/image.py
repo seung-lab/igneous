@@ -484,7 +484,6 @@ def ImageShardTransferTask(
   translate: ShapeType = (0, 0, 0),
   agglomerate: bool = False,
   timestamp: Optional[int] = None,
-  compress: Optional[str] = 'gzip',
 ):
   """
   Generates a sharded image volume from

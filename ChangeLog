@@ -1,11 +1,26 @@
 CHANGES
 =======
 
+0.4.1
+-----
+
+* fix(cli): --cseg was not working
+
+0.2.0
+-----
+
+* release(0.4.0): updates to xfer and adds design command
+* feat(TransferTask): fix bugs, increase performance, CLI updates (#101)
+* refactor(DeleteTask): change to use queuable functions
+* chore: fix deployment of README
+* refactor: move infrequently used tasks to obsolete.py
+
 0.1.0
 -----
 
 * refactor: remove [deflate] extra (it's standard nowadays)
 * feat: setting up pypi package
+* fix: mesh stealing bug (#96)
 * chore: dracopy version number in wrong position
 * chore: bump cloud-volume to match floating resolution release
 * feat: support floating point resolutions (#91)

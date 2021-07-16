@@ -500,9 +500,7 @@ def ImageShardTransferTask(
   offset = Vec(*offset)
   mip = int(mip)
   fill_missing = bool(fill_missing)
-  background_color = int(background_color)
   translate = Vec(*translate)
-  sparse = bool(sparse)
 
   src_vol = CloudVolume(
     src_path, fill_missing=fill_missing, 
@@ -512,7 +510,6 @@ def ImageShardTransferTask(
     dst_path,
     fill_missing=fill_missing,
     mip=mip,
-    background_color=background_color,
     compress=None
   )
 
@@ -531,9 +528,13 @@ def ImageShardTransferTask(
   img = src_vol.download(
     src_bbox, agglomerate=agglomerate, timestamp=timestamp
   )
-
   (filename, shard) = dst_vol.image.make_shard(
     img, dst_bbox, mip, progress=False
+  )
+  del img
+
+  basepath = dst_vol.meta.join(
+    dst_vol.cloudpath, dst_vol.meta.key(mip)
   )
 
   CloudFiles(basepath).put(filename, shard)

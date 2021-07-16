@@ -444,11 +444,11 @@ def create_image_shard_transfer_tasks(
 
   class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      task_bbox = Bbox(offset, offset + shape, dtype=int)
       return partial(ImageShardTransferTask,
         src_layer_path,
         dst_layer_path,
-        task_bbox,
+        shape=shape,
+        offset=offset,
         fill_missing=fill_missing,
         translate=translate,
         mip=mip,

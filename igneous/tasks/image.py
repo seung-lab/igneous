@@ -22,7 +22,6 @@ from taskqueue import RegisteredTask, queueable
 import tinybrain
 
 from igneous import downsample_scales
-from igneous.shards import image_shard_shape_from_spec
 from igneous.types import ShapeType
 
 from .obsolete import (
@@ -511,10 +510,6 @@ def ImageShardTransferTask(
     fill_missing=fill_missing,
     mip=mip,
     compress=None
-  )
-
-  shard_shape = image_shard_shape_from_spec(
-    dst_vol.scale["sharding"], dst_vol.volume_size, dst_vol.chunk_size
   )
 
   dst_bbox = Bbox(offset, offset + shape)

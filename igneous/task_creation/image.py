@@ -315,6 +315,9 @@ def create_sharded_image_info(
   chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))
   chunks_per_shard = 2 ** int(math.log2(chunks_per_shard))
 
+  if num_chunks < chunks_per_shard:
+    chunks_per_shard = 2 ** int(math.ceil(math.log2(num_chunks)))
+
   num_shards = num_chunks / chunks_per_shard
   
   def update_bits():

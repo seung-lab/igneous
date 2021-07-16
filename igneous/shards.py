@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 
 from cloudvolume import Vec
@@ -10,29 +12,24 @@ def image_shard_shape_from_spec(
   dataset_size: ShapeType, 
   chunk_size: ShapeType
 ) -> ShapeType:
-  # WARNING: Assumes data bounds are larger
-  # than the shard size. The compressed
-  # morton code logic changes if one of the
-  # axes is truncated.
-  chunk_size = Vec(*chunk_size, dtype=int)
-  preshift_bits = spec["preshift_bits"]
 
-  pot = preshift_bits // 3
-  x = 2 ** pot
-  y = 2 ** pot 
-  z = 2 ** pot
+  chunk_size = Vec(*chunk_size, dtype=np.uint64)
+  dataset_size = Vec(*dataset_size, dtype=np.uint64)
+  preshift_bits = np.uint64(spec["preshift_bits"])
 
-  remainder = preshift_bits % 3
-  if remainder == 1:
-    x *= 2
-  elif remainder == 2:
-    x *= 2
-    y *= 2
+  grid_size = np.ceil(dataset_size / chunk_size).astype(np.uint64)
 
-  shape = chunk_size * Vec(x,y,z)  
-  dataset_size = Vec(*dataset_size)
+  j = np.uint64(0)
+  one = np.uint64(1)
+  shape = Vec(0,0,0, dtype=np.uint64)
 
-  if np.any(shape > dataset_size):
-    raise ValueError(f"shape {shape} > {dataset_size} datset size.")
+  if preshift_bits >= 64:
+    raise ValueError(f"preshift_bits must be < 64. Got: {preshift_bits}")
 
-  return shape
+  for i in range(preshift_bits):
+    for dim in range(3):
+      if 2 ** i < grid_size[dim]:
+        shape[dim] += one
+ 
+  shape = Vec(2 ** shape.x, 2 ** shape.y, 2 ** shape.z, dtype=np.uint64)
+  return chunk_size * shape

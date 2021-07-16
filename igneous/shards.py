@@ -26,10 +26,16 @@ def image_shard_shape_from_spec(
   if preshift_bits >= 64:
     raise ValueError(f"preshift_bits must be < 64. Got: {preshift_bits}")
 
-  for i in range(preshift_bits):
+  while i < preshift_bits:
+    changed = False
     for dim in range(3):
       if 2 ** i < grid_size[dim]:
         shape[dim] += one
+        i += 1
+        changed = True
+    
+    if not changed:
+      break
  
   shape = Vec(2 ** shape.x, 2 ** shape.y, 2 ** shape.z, dtype=np.uint64)
   return chunk_size * shape

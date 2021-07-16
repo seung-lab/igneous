@@ -1,37 +1,36 @@
-from collections import defaultdict
 from collections.abc import Sequence
-
-from io import BytesIO
 
 import json
 import math
 import os
 import random
-import re
+from typing import Optional, Tuple, cast
 
 import numpy as np
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
+from taskqueue.registered_task import RegisteredTask
 
 from cloudvolume import CloudVolume
+from cloudvolume.exceptions import OutOfBoundsError
 from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
+from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
+from cloudvolume.frontends.precomputed import CloudVolumePrecomputed
+
 from taskqueue import RegisteredTask, queueable
-
-from igneous import chunks, downsample_scales
-
-import DracoPy
-import fastremap
 import tinybrain
-import zmesh
+
+from igneous import downsample_scales
+from igneous.types import ShapeType
 
 from .obsolete import (
-  HyperSquareConsensusTask, WatershedRemapTask, 
+  HyperSquareConsensusTask, WatershedRemapTask,
   MaskAffinitymapTask, InferenceTask
 )
 
 def downsample_and_upload(
-    image, bounds, vol, ds_shape, 
+    image, bounds, vol, ds_shape,
     mip=0, axis='z', skip_first=False,
     sparse=False, factor=None
   ):
@@ -62,14 +61,14 @@ def downsample_and_upload(
       mips = tinybrain.downsample_with_averaging(image, factors[0], num_mips=num_mips)
     elif vol.layer_type == 'segmentation':
       mips = tinybrain.downsample_segmentation(
-        image, factors[0], 
+        image, factors[0],
         num_mips=num_mips, sparse=sparse
       )
     else:
       mips = tinybrain.downsample_with_striding(image, factors[0], num_mips=num_mips)
 
     new_bounds = bounds.clone()
-   
+
     for factor3 in factors:
       vol.mip += 1
       new_bounds //= factor3
@@ -94,14 +93,14 @@ def DeleteTask(layer_path:str, shape, offset, mip=0, num_mips=5):
     bbox = bbox.round_to_chunk_size(vol.chunk_size, offset=vol.bounds.minpt)
     bbox = Bbox.clamp(bbox, vol.bounds)
 
-    if bbox.volume() == 0: 
+    if bbox.volume() == 0:
       continue
 
     vol.delete(bbox)
 
 @queueable
 def BlackoutTask(
-  cloudpath, mip, shape, offset, 
+  cloudpath, mip, shape, offset,
   value=0, non_aligned_writes=False
 ):
   shape = Vec(*shape)
@@ -115,7 +114,7 @@ def BlackoutTask(
 class TouchTask(RegisteredTask):
   def __init__(self, cloudpath, mip, shape, offset):
     super(TouchTask, self).__init__(cloudpath, mip, shape, offset)
-  
+
   def execute(self):
     # This could be made more sophisticated using exists
     vol = CloudVolume(self.cloudpath, self.mip, fill_missing=False)
@@ -152,13 +151,13 @@ class ContrastNormalizationTask(RegisteredTask):
   # translate = change of origin
 
   def __init__(
-    self, src_path, dest_path, levels_path, shape, 
-    offset, mip, clip_fraction, fill_missing, 
+    self, src_path, dest_path, levels_path, shape,
+    offset, mip, clip_fraction, fill_missing,
     translate, minval, maxval
   ):
 
     super(ContrastNormalizationTask, self).__init__(
-      src_path, dest_path, levels_path, shape, offset, 
+      src_path, dest_path, levels_path, shape, offset,
       mip, clip_fraction, fill_missing, translate,
       minval, maxval
     )
@@ -176,7 +175,7 @@ class ContrastNormalizationTask(RegisteredTask):
     else:
       self.lower_clip_fraction = self.upper_clip_fraction = float(clip_fraction)
 
-    self.minval = minval 
+    self.minval = minval
     self.maxval = maxval
 
     self.levels_path = levels_path if levels_path else self.src_path
@@ -259,11 +258,11 @@ class ContrastNormalizationTask(RegisteredTask):
       'levels/{}/{}'.format(self.mip, z) \
       for z in range(bounds.minpt.z, bounds.maxpt.z)
     ]
-    
+
     cf = CloudFiles(self.levels_path)
     levels = cf.get(levelfilenames)
 
-    errors = [ 
+    errors = [
       level['path'] \
       for level in levels if level['content'] == None
     ]
@@ -287,7 +286,7 @@ class LuminanceLevelsTask(RegisteredTask):
 
   def __init__(self, src_path, levels_path, shape, offset, coverage_factor, mip):
     super(LuminanceLevelsTask, self).__init__(
-      src_path, levels_path, shape, 
+      src_path, levels_path, shape,
       offset, coverage_factor, mip
     )
     self.src_path = src_path
@@ -339,7 +338,7 @@ class LuminanceLevelsTask(RegisteredTask):
     )
 
   def select_bounding_boxes(self, dataset_bounds):
-    # Sample patches until coverage factor is satisfied. 
+    # Sample patches until coverage factor is satisfied.
     # Ensure the patches are non-overlapping and random.
     sample_shape = Bbox((0, 0, 0), (2048, 2048, 1))
     area = self.shape.rectVolume()
@@ -369,13 +368,13 @@ class LuminanceLevelsTask(RegisteredTask):
 
 @queueable
 def TransferTask(
-  src_path, dest_path, 
-  mip, shape, offset, 
+  src_path, dest_path,
+  mip, shape, offset,
   translate=(0,0,0),
-  fill_missing=False, 
-  skip_first=False, 
+  fill_missing=False,
+  skip_first=False,
   skip_downsamples=False,
-  delete_black_uploads=False, 
+  delete_black_uploads=False,
   background_color=0,
   sparse=False,
   axis='z',
@@ -413,7 +412,7 @@ def TransferTask(
   dst_bbox = Bbox.clamp(dst_bbox, dest_cv.bounds)
 
   if (
-    skip_downsamples 
+    skip_downsamples
     and agglomerate == False
     and src_cv.scale == dest_cv.scale
     and src_cv.dtype == dest_cv.dtype
@@ -422,7 +421,7 @@ def TransferTask(
     # most efficient transfer type, just copy
     # files possibly without even decompressing
     src_cv.image.transfer_to(
-      dest_path, dst_bbox, mip, 
+      dest_path, dst_bbox, mip,
       compress=compress
     )
     return
@@ -445,13 +444,13 @@ def TransferTask(
 
 @queueable
 def DownsampleTask(
-  layer_path, mip, shape, offset, 
+  layer_path, mip, shape, offset,
   fill_missing=False, axis='z', sparse=False,
   delete_black_uploads=False, background_color=0,
   dest_path=None, compress="gzip", factor=None
 ):
   """
-  Downsamples a cutout of the volume. By default it performs 
+  Downsamples a cutout of the volume. By default it performs
   2x2x1 downsamples along the specified axis. The factor argument
   overrrides this functionality.
   """
@@ -459,13 +458,13 @@ def DownsampleTask(
     dest_path = layer_path
 
   return TransferTask(
-    layer_path, dest_path, 
-    mip, shape, offset, 
+    layer_path, dest_path,
+    mip, shape, offset,
     translate=(0,0,0),
-    fill_missing=fill_missing, 
-    skip_first=True, 
+    fill_missing=fill_missing,
+    skip_first=True,
     skip_downsamples=False,
-    delete_black_uploads=delete_black_uploads, 
+    delete_black_uploads=delete_black_uploads,
     background_color=background_color,
     sparse=sparse,
     axis=axis,
@@ -473,4 +472,64 @@ def DownsampleTask(
     factor=factor,
   )
 
+@queueable
+def ImageShardTransferTask(
+  src_path: str,
+  dst_path: str,
+  shape: ShapeType,
+  offset: ShapeType,
+  mip: int = 0,
+  fill_missing: bool = False,
+  translate: ShapeType = (0, 0, 0),
+  agglomerate: bool = False,
+  timestamp: Optional[int] = None,
+):
+  """
+  Generates a sharded image volume from
+  a preexisting CloudVolume readable data 
+  source. Downsamples are not generated.
 
+  The sharded specification can be read here:
+  Shard Container: 
+  https://github.com/google/neuroglancer/blob/056a3548abffc3c76c93c7a906f1603ce02b5fa3/src/neuroglancer/datasource/precomputed/sharded.md
+  Sharded Images:    
+  https://github.com/google/neuroglancer/blob/056a3548abffc3c76c93c7a906f1603ce02b5fa3/src/neuroglancer/datasource/precomputed/volume.md#unsharded-chunk-storage
+  """
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  mip = int(mip)
+  fill_missing = bool(fill_missing)
+  translate = Vec(*translate)
+
+  src_vol = CloudVolume(
+    src_path, fill_missing=fill_missing, 
+    mip=mip, bounded=False
+  )
+  dst_vol = CloudVolume(
+    dst_path,
+    fill_missing=fill_missing,
+    mip=mip,
+    compress=None
+  )
+
+  dst_bbox = Bbox(offset, offset + shape)
+  dst_bbox = Bbox.clamp(dst_bbox, dst_vol.meta.bounds(mip))
+  dst_bbox = dst_bbox.expand_to_chunk_size(
+    dst_vol.meta.chunk_size(mip), 
+    offset=dst_vol.meta.voxel_offset(mip)
+  )
+  src_bbox = dst_bbox - translate
+
+  img = src_vol.download(
+    src_bbox, agglomerate=agglomerate, timestamp=timestamp
+  )
+  (filename, shard) = dst_vol.image.make_shard(
+    img, dst_bbox, mip, progress=False
+  )
+  del img
+
+  basepath = dst_vol.meta.join(
+    dst_vol.cloudpath, dst_vol.meta.key(mip)
+  )
+
+  CloudFiles(basepath).put(filename, shard)

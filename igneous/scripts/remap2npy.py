@@ -17,6 +17,9 @@ Example Command Sequence:
   python remap2npy.py remap.h5 # outputs remap.npy
   gsutil cp -Z remap.npy gs://neuroglancer/DATASET/LAYER/
 """
+
+# This is obsolete
+
 from __future__ import print_function
 
 import sys

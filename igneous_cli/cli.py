@@ -37,7 +37,7 @@ class Tuple3(click.ParamType):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="0.4.0")
+@click.version_option(version="0.4.1")
 @click.pass_context
 def main(ctx, parallel):
   """
@@ -117,7 +117,7 @@ def downsample(
     encoding = "compressed_segmentation"
   elif compresso:
     encoding = "compresso"
-  
+
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
@@ -155,13 +155,16 @@ def downsample(
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
+@click.option('--sharded', is_flag=True, default=False, help="Generate a sharded dataset which reduces the number of files. Downsamples are not generated.")
+@click.option('--dest-voxel-offset', type=Tuple3(), default=None, help="Set the voxel offset for this mip level.")
 @click.pass_context
 def xfer(
-	ctx, src, dest, queue, translate, downsample, mip, 
-	fill_missing, memory, max_mips, 
-  shape, sparse, cseg, compresso,
-	chunk_size, compress, volumetric,
-	delete_bg, bg_color
+	ctx, src, dest, queue, translate, 
+  downsample, mip, fill_missing, 
+  memory, max_mips, shape, sparse, 
+  cseg, compresso, chunk_size, compress, 
+  volumetric, delete_bg, bg_color, sharded,
+  dest_voxel_offset
 ):
   """
   Transfer an image layer to another location.
@@ -198,15 +201,23 @@ def xfer(
   if compress and compress.lower() == "false":
     compress = False
 
-  tasks = tc.create_transfer_tasks(
-    src, dest, 
-    chunk_size=chunk_size, fill_missing=fill_missing, 
-    translate=translate, mip=mip, shape=shape,
-    encoding=encoding, skip_downsamples=(not downsample),
-    delete_black_uploads=delete_bg, background_color=bg_color,
-    compress=compress, factor=factor, sparse=sparse,
-    memory_target=memory, max_mips=max_mips
-  )
+  if sharded:
+    tasks = tc.create_image_shard_transfer_tasks(
+      src, dest,
+      chunk_size=chunk_size, fill_missing=fill_missing, mip=mip, 
+      dest_voxel_offset=dest_voxel_offset, translate=translate, 
+      encoding=encoding, memory_target=memory,
+    )
+  else:
+    tasks = tc.create_transfer_tasks(
+      src, dest, 
+      chunk_size=chunk_size, fill_missing=fill_missing, 
+      dest_voxel_offset=dest_voxel_offset, translate=translate, 
+      mip=mip, shape=shape, encoding=encoding, skip_downsamples=(not downsample),
+      delete_black_uploads=delete_bg, background_color=bg_color,
+      compress=compress, factor=factor, sparse=sparse,
+      memory_target=memory, max_mips=max_mips
+    )
 
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))

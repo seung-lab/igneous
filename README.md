@@ -294,10 +294,11 @@ provider's transfer service will suffice, even across providers.
 
 #### CLI Transfer
 
-Here's an example where we transfer from a source to destination dataset using blocks of 2048x2048x50. There are many options available, see `igneous xfer --help`.
+Here's an example where we transfer from a source to destination dataset. There are many options available, see `igneous xfer --help`.
 
 ```bash
-igneous xfer $SRC $DEST --shape 2048,2048,50 --queue $QUEUE
+igneous xfer $SRC $DEST --queue $QUEUE
+igneous xfer $SRC $DEST --queue $QUEUE --sharded
 igneous -p 4 execute $QUEUE
 ```
 
@@ -326,22 +327,46 @@ igneous design ds-memory gs://bucket/dataset 3.5e9 --verbose
 ```python3
 tasks = create_transfer_tasks(
   src_layer_path, dest_layer_path, 
-  chunk_size=None, shape=Vec(2048, 2048, 64),
-  fill_missing=False, translate=(0,0,0), 
+  chunk_size=None, shape=None, 
+  fill_missing=False, translate=None,
   bounds=None, mip=0, preserve_chunk_size=True,
   encoding=None, skip_downsamples=False,
-  delete_black_uploads=False, compress='gzip'
+  delete_black_uploads=False, background_color=0,
+  agglomerate=False, timestamp=None, compress='gzip',
+  factor=None, sparse=False, dest_voxel_offset=None,
+  memory_target=3.5e9, max_mips=5
+)
+
+# To create a sharded volume from a non-sharded volume
+tasks = create_image_shard_transfer_tasks(
+  src_layer_path, dst_layer_path,
+  mip=0, chunk_size=None,
+  encoding=None, bounds=None, fill_missing=False,
+  translate=(0, 0, 0), dest_voxel_offset=None,
+  agglomerate=False, timestamp=None,
+  memory_target=3.5e9,
 )
 ```
 
 Most of the options here are the same as for downsample. The major exceptions are `shape` and `skip_downsamples`. `shape` designates the size of a single transfer task and must be chunk aligned. The number of downsamples that will be generated can be computed as log2(`shape` / `chunk_size`). `skip_downsamples` will prevent downsamples from being generated. 
 
+Due to the memory requirements, sharded tasks do not automatically generate downsamples.
 
 ### Deletion (DeleteTask)  
 
-If you want to parallelize deletion of a data layer in a bucket beyond using e.g. `gsutil -m rm`, you can 
+If you want to parallelize deletion of an image layer in a bucket beyond using e.g. `gsutil -m rm`, you can 
 horizontally scale out deleting using these tasks. Note that the tasks assume that the information to be deleted
 is chunk aligned and named appropriately. 
+
+#### CLI 
+
+```python
+igneous rm image $LAYER --queue $QUEUE
+igneous execute $QUEUE
+```
+
+#### Scripting
+
 
 ```python3
 tasks = create_deletion_tasks(

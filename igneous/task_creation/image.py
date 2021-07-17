@@ -484,13 +484,45 @@ def create_image_shard_transfer_tasks(
 
 def create_image_shard_downsample_tasks(
   cloudpath, mip=0, fill_missing=False, 
-  num_mips=5, 
   sparse=False, chunk_size=None,
-  encoding=None, delete_black_uploads=False, 
-  background_color=0, compress=None,
-  factor=None
+  encoding=None
 ):
-  pass
+  factor = (2,2,1)
+  def ds_shape(mip, chunk_size=None, factor=None):
+    if chunk_size:
+      shape = Vec(*chunk_size)
+    else:
+      shape = cv.meta.chunk_size(mip)[:3]
+
+    if factor is None:
+      factor = downsample_scales.axis_to_factor(axis)
+
+    shape.x *= factor[0] ** num_mips
+    shape.y *= factor[1] ** num_mips
+    shape.z *= factor[2] ** num_mips
+    return shape
+
+  cv = CloudVolume(cloudpath, mip=mip)
+  shape = ds_shape(mip, chunk_size, factor)
+
+  cv = downsample_scales.create_downsample_scales(
+    layer_path, mip, shape, 
+    preserve_chunk_size=True, chunk_size=chunk_size,
+    encoding=encoding, factor=factor
+  )
+  spec = create_sharded_image_info(
+    dataset_size=cv.scales[mip + 1]["size"], 
+    chunk_size=cv.scales[mip + 1]["chunk_sizes"][0], 
+    encoding=cv.scales[mip + 1]["encoding"], 
+    dtype=cv.dtype,
+    uncompressed_shard_bytesize=memory_target,
+  )
+
+
+  if not preserve_chunk_size or chunk_size:
+    shape = ds_shape(mip + 1, chunk_size, factor)
+
+  bounds = get_bounds(vol, bounds, mip, vol.chunk_size)
 
 
 def create_deletion_tasks(

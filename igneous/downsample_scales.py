@@ -216,13 +216,35 @@ def create_downsample_scales(
   else:
     chunk_size = [ chunk_size ]
 
+  for i in range(mip + 1, mip + len(scales) + 1):
+    vol.scales[i]['chunk_sizes'] = chunk_size
+
+  vol.commit_info()
+  return vol
+
+def add_scale(
+  layer_path, mip,
+  preserve_chunk_size=True, chunk_size=None,
+  encoding=None, factor=None
+):
+  vol = CloudVolume(layer_path, mip=mip)
+
+  vol.meta.add_scale((2,2,1), encoding=encoding, chunk_size=chunk_size)
+
+  if chunk_size is None:
+    if preserve_chunk_size or len(scales) == 0:
+      chunk_size = vol.scales[mip]['chunk_sizes']
+    else:
+      chunk_size = vol.scales[mip + 1]['chunk_sizes']
+  else:
+    chunk_size = [ chunk_size ]
+
   if encoding is None:
     encoding = vol.scales[mip]['encoding']
 
   for i in range(mip + 1, mip + len(scales) + 1):
     vol.scales[i]['chunk_sizes'] = chunk_size
 
-  vol.commit_info()
   return vol
 
 

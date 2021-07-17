@@ -114,40 +114,32 @@ def BlackoutTask(
   img = np.zeros(bounds.size3(), dtype=vol.dtype) + value
   vol[bounds] = img
 
-class TouchTask(RegisteredTask):
-  def __init__(self, cloudpath, mip, shape, offset):
-    super(TouchTask, self).__init__(cloudpath, mip, shape, offset)
+@queueable
+def TouchTask(cloudpath, mip, shape, offset):
+  # This could be made more sophisticated using exists
+  vol = CloudVolume(cloudpath, mip, fill_missing=False)
+  bounds = Bbox(offset, shape + offset)
+  bounds = Bbox.clamp(bounds, vol.bounds)
+  image = vol[bounds]
 
-  def execute(self):
-    # This could be made more sophisticated using exists
-    vol = CloudVolume(self.cloudpath, self.mip, fill_missing=False)
-    bounds = Bbox(self.offset, self.shape + self.offset)
-    bounds = Bbox.clamp(bounds, vol.bounds)
-    image = vol[bounds]
+@queueable
+def QuantizeTask(
+  source_layer_path, dest_layer_path, 
+  shape, offset, mip, fill_missing=False
+):
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  srcvol = CloudVolume(self.source_layer_path, mip=self.mip,
+                       fill_missing=self.fill_missing)
 
-class QuantizeTask(RegisteredTask):
-  def __init__(self, source_layer_path, dest_layer_path, shape, offset, mip, fill_missing=False):
-    super(QuantizeTask, self).__init__(
-        source_layer_path, dest_layer_path, shape, offset, mip, fill_missing)
-    self.source_layer_path = source_layer_path
-    self.dest_layer_path = dest_layer_path
-    self.shape = Vec(*shape)
-    self.offset = Vec(*offset)
-    self.fill_missing = fill_missing
-    self.mip = mip
+  bounds = Bbox(self.offset, self.shape + self.offset)
+  bounds = Bbox.clamp(bounds, srcvol.bounds)
 
-  def execute(self):
-    srcvol = CloudVolume(self.source_layer_path, mip=self.mip,
-                         fill_missing=self.fill_missing)
+  image = srcvol[bounds.to_slices()][:, :, :, :1]  # only use x affinity
+  image = (image * 255.0).astype(np.uint8)
 
-    bounds = Bbox(self.offset, self.shape + self.offset)
-    bounds = Bbox.clamp(bounds, srcvol.bounds)
-
-    image = srcvol[bounds.to_slices()][:, :, :, :1]  # only use x affinity
-    image = (image * 255.0).astype(np.uint8)
-
-    destvol = CloudVolume(self.dest_layer_path, mip=self.mip)
-    downsample_and_upload(image, bounds, destvol, self.shape, mip=self.mip, axis='z')
+  destvol = CloudVolume(self.dest_layer_path, mip=self.mip)
+  downsample_and_upload(image, bounds, destvol, self.shape, mip=self.mip, axis='z')
 
 class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""

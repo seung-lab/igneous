@@ -115,7 +115,7 @@ def create_touch_tasks(
   class TouchTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       bounded_shape = min2(shape, vol.bounds.maxpt - offset)
-      return igneous.tasks.TouchTask(
+      return partial(igneous.tasks.TouchTask,
         cloudpath=cloudpath,
         shape=bounded_shape.clone(),
         offset=offset.clone(),
@@ -962,7 +962,7 @@ def create_quantize_tasks(
 
   class QuantizeTasksIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      return QuantizeTask(
+      return partial(QuantizeTask,
         source_layer_path=src_layer,
         dest_layer_path=dest_layer,
         shape=shape.tolist(),

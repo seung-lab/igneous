@@ -58,7 +58,10 @@ def downsample_and_upload(
 
     mips = []
     if vol.layer_type == 'image':
-      mips = tinybrain.downsample_with_averaging(image, factors[0], num_mips=num_mips)
+      mips = tinybrain.downsample_with_averaging(
+        image, factors[0], 
+        num_mips=num_mips, sparse=sparse
+      )
     elif vol.layer_type == 'segmentation':
       mips = tinybrain.downsample_segmentation(
         image, factors[0],

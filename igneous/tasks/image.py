@@ -21,6 +21,7 @@ from cloudvolume.frontends.precomputed import CloudVolumePrecomputed
 from taskqueue import RegisteredTask, queueable
 import tinybrain
 
+import igneous.shards
 from igneous import downsample_scales
 from igneous.types import ShapeType
 
@@ -532,4 +533,65 @@ def ImageShardTransferTask(
     dst_vol.cloudpath, dst_vol.meta.key(mip)
   )
 
+  CloudFiles(basepath).put(filename, shard)
+
+@queueable
+def ImageShardDownsampleTask(
+  src_path: str,
+  shape: ShapeType,
+  offset: ShapeType,
+  mip: int = 0,
+  fill_missing: bool = False,
+  sparse: bool = False,
+  agglomerate: bool = False,
+  timestamp: Optional[int] = None,
+):
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  mip = int(mip)
+  fill_missing = bool(fill_missing)
+
+  src_vol = CloudVolume(
+    src_path, fill_missing=fill_missing, 
+    mip=mip, bounded=False
+  )
+  chunk_size = src_vol.meta.chunk_size(mip)
+
+  bbox = Bbox(offset, offset + shape)
+  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
+  bbox = bbox.expand_to_chunk_size(
+    chunk_size, offset=src_vol.meta.voxel_offset(mip)
+  )
+
+  shard_shape = igneous.shards.image_shard_shape_from_spec(
+    src_vol.scales[mip + 1]["sharding"], 
+    src_vol.meta.volume_size(mip + 1), 
+    src_vol.meta.chunk_size(mip + 1)
+  )
+  output_img = np.zeros(shard_shape, dtype=src_vol.dtype)
+  nz = int(math.ceil(bbox.dz / chunk_size.z))
+
+  dsfn = tinybrain.downsample_with_averaging
+  if src_vol.layer_type == "segmentation":
+    dsfn = tinybrain.downsample_segmentation
+
+  zbox = bbox.clone()
+  zbox.maxpt.z = chunk_bbox.minpt.z + chunk_size.z
+  for z in range(nz):  
+    img = src_vol.download(
+      zbox, agglomerate=agglomerate, timestamp=timestamp
+    )
+    (ds_img,) = dsfn(img, (2,2,1), num_mips=1, sparse=sparse)
+    output_img[:,:,(z*chunk_size.z):(z+1)*chunk_size.z] = ds_img
+    del img
+    del ds_img
+    zbox.minpt.z += chunk_size.z
+    zbox.maxpt.z += chunk_size.z
+
+  (filename, shard) = src_vol.image.make_shard(
+    output_img, (bbox // 2), (mip + 1), progress=False
+  )
+  basepath = dst_vol.meta.join(
+    dst_vol.cloudpath, dst_vol.meta.key(mip + 1)
+  )
   CloudFiles(basepath).put(filename, shard)

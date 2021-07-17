@@ -482,6 +482,17 @@ def create_image_shard_transfer_tasks(
 
   return ImageShardTransferTaskIterator(bounds, shape)
 
+def create_image_shard_downsample_tasks(
+  cloudpath, mip=0, fill_missing=False, 
+  num_mips=5, 
+  sparse=False, chunk_size=None,
+  encoding=None, delete_black_uploads=False, 
+  background_color=0, compress=None,
+  factor=None
+):
+  pass
+
+
 def create_deletion_tasks(
     layer_path, mip=0, num_mips=5, 
     shape=None, bounds=None

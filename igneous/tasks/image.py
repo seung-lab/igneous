@@ -546,6 +546,12 @@ def ImageShardDownsampleTask(
   agglomerate: bool = False,
   timestamp: Optional[int] = None,
 ):
+  """
+  Generate a single downsample level for a shard.
+  Shards are usually hundreds of megabytes to several
+  gigabyte of data, so it is usually unrealistic from a
+  memory perspective to make more than one mip at a time.
+  """
   shape = Vec(*shape)
   offset = Vec(*offset)
   mip = int(mip)
@@ -591,7 +597,7 @@ def ImageShardDownsampleTask(
   (filename, shard) = src_vol.image.make_shard(
     output_img, (bbox // 2), (mip + 1), progress=False
   )
-  basepath = dst_vol.meta.join(
-    dst_vol.cloudpath, dst_vol.meta.key(mip + 1)
+  basepath = src_vol.meta.join(
+    src_vol.cloudpath, src_vol.meta.key(mip + 1)
   )
   CloudFiles(basepath).put(filename, shard)

@@ -6,5 +6,5 @@ from .image import (
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
   MaskAffinitymapTask, InferenceTask, BlackoutTask,
-  TouchTask, ImageShardTransferTask
+  TouchTask, ImageShardTransferTask, ImageShardDownsampleTask
 )

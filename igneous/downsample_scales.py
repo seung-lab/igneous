@@ -229,7 +229,13 @@ def add_scale(
 ):
   vol = CloudVolume(layer_path, mip=mip)
 
-  vol.meta.add_scale((2,2,1), encoding=encoding, chunk_size=chunk_size)
+  if factor is None:
+    factor = (2,2,1)
+
+  new_resolution = vol.resolution * Vec(*factor)
+  vol.meta.add_resolution(
+    new_resolution, encoding=encoding, chunk_size=chunk_size
+  )
 
   if chunk_size is None:
     if preserve_chunk_size or len(scales) == 0:
@@ -246,7 +252,6 @@ def add_scale(
     vol.scales[i]['chunk_sizes'] = chunk_size
 
   return vol
-
 
 def downsample_shape_from_memory_target(
   data_width, cx, cy, cz, 

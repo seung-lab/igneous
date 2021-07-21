@@ -21,7 +21,7 @@ from igneous.tasks import (
   ContrastNormalizationTask, DownsampleTask,
   TransferTask, TouchTask, LuminanceLevelsTask,
   HyperSquareConsensusTask, # HyperSquareTask,
-  ImageShardTransferTask
+  ImageShardTransferTask, ImageShardDownsampleTask
 )
 from igneous.shards import image_shard_shape_from_spec
 from igneous.types import ShapeType
@@ -485,45 +485,72 @@ def create_image_shard_transfer_tasks(
 def create_image_shard_downsample_tasks(
   cloudpath, mip=0, fill_missing=False, 
   sparse=False, chunk_size=None,
-  encoding=None
+  encoding=None, memory_target=3.5e9,
+  agglomerate=False, timestamp=None
 ):
-  factor = (2,2,1)
-  def ds_shape(mip, chunk_size=None, factor=None):
-    if chunk_size:
-      shape = Vec(*chunk_size)
-    else:
-      shape = cv.meta.chunk_size(mip)[:3]
-
-    if factor is None:
-      factor = downsample_scales.axis_to_factor(axis)
-
-    shape.x *= factor[0] ** num_mips
-    shape.y *= factor[1] ** num_mips
-    shape.z *= factor[2] ** num_mips
-    return shape
-
-  cv = CloudVolume(cloudpath, mip=mip)
-  shape = ds_shape(mip, chunk_size, factor)
-
-  cv = downsample_scales.create_downsample_scales(
-    layer_path, mip, shape, 
+  """
+  Downsamples an existing image layer that may be
+  sharded or unsharded to create a sharded layer.
+  
+  Only 2x2x1 downsamples are supported for now.
+  """
+  factor = Vec(2,2,1)
+  cv = downsample_scales.add_scale(
+    cloudpath, mip, 
     preserve_chunk_size=True, chunk_size=chunk_size,
     encoding=encoding, factor=factor
   )
-  spec = create_sharded_image_info(
-    dataset_size=cv.scales[mip + 1]["size"], 
-    chunk_size=cv.scales[mip + 1]["chunk_sizes"][0], 
-    encoding=cv.scales[mip + 1]["encoding"], 
+  cv.mip = mip + 1
+  cv.scale["sharding"] = create_sharded_image_info(
+    dataset_size=cv.scale["size"], 
+    chunk_size=cv.scale["chunk_sizes"][0], 
+    encoding=cv.scale["encoding"], 
     dtype=cv.dtype,
-    uncompressed_shard_bytesize=memory_target,
+    uncompressed_shard_bytesize=int(memory_target),
   )
+  cv.commit_info()
 
-
-  if not preserve_chunk_size or chunk_size:
-    shape = ds_shape(mip + 1, chunk_size, factor)
-
+  shape = image_shard_shape_from_spec(
+    cv.scale["sharding"], cv.volume_size, cv.chunk_size
+  )
+  shape = Vec(*shape) * factor
   bounds = get_bounds(vol, bounds, mip, vol.chunk_size)
 
+  class ImageShardDownsampleTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return partial(ImageShardDownsampleTask,
+        cloudpath,
+        shape=shape,
+        offset=offset,
+        mip=mip,
+        fill_missing=fill_missing,
+        sparse=sparse,
+        agglomerate=agglomerate,
+        timestamp=timestamp,
+      )
+
+    def on_finish(self):
+      job_details = {
+        "method": {
+          "task": "ImageShardDownsampleTask",
+          "cloudpath": cloudpath,
+          "shape": list(map(int, shape)),
+          "fill_missing": fill_missing,
+          "sparse": bool(sparse),
+          "bounds": [bounds.minpt.tolist(), bounds.maxpt.tolist()],
+          "mip": mip,
+          "agglomerate": agglomerate,
+          "timestamp": timestamp,
+        },
+        "by": operator_contact(),
+        "date": strftime("%Y-%m-%d %H:%M %Z"),
+      }
+
+      cv.provenance.sources = [cloudpath]
+      cv.provenance.processing.append(job_details)
+      cv.commit_provenance()
+
+  return ImageShardDownsampleTaskIterator(bounds, shape)
 
 def create_deletion_tasks(
     layer_path, mip=0, num_mips=5, 

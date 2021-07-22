@@ -35,6 +35,7 @@ __all__  = [
   "create_blackout_tasks",
   "create_touch_tasks",
   "create_downsampling_tasks", 
+  "create_image_shard_downsample_tasks",
   "create_deletion_tasks",
   "create_transfer_tasks",
   "create_image_shard_transfer_tasks",
@@ -45,6 +46,10 @@ __all__  = [
   "create_luminance_levels_tasks",
   "create_contrast_normalization_tasks",
 ]
+
+# A reasonable size for processing large
+# image chunks.
+MEMORY_TARGET = int(3.5e9)
 
 def create_blackout_tasks(
     cloudpath, bounds, 
@@ -252,7 +257,7 @@ def create_sharded_image_info(
   chunk_size: ShapeType,
   encoding: str,
   dtype: Any,
-  uncompressed_shard_bytesize: int = 3.5e9, 
+  uncompressed_shard_bytesize: int = MEMORY_TARGET, 
   max_shard_index_bytes: int = 8192, # 2^13
   max_minishard_index_bytes: int = 40000,
   max_labels_per_minishard: int = 4000
@@ -391,7 +396,7 @@ def create_image_shard_transfer_tasks(
   dest_voxel_offset: Optional[ShapeType] = None,
   agglomerate: bool = False, 
   timestamp: bool = None,
-  memory_target: int = 3.5e9,
+  memory_target: int = MEMORY_TARGET,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -485,8 +490,9 @@ def create_image_shard_transfer_tasks(
 def create_image_shard_downsample_tasks(
   cloudpath, mip=0, fill_missing=False, 
   sparse=False, chunk_size=None,
-  encoding=None, memory_target=3.5e9,
-  agglomerate=False, timestamp=None
+  encoding=None, memory_target=MEMORY_TARGET,
+  agglomerate=False, timestamp=None,
+  factor=(2,2,1)
 ):
   """
   Downsamples an existing image layer that may be
@@ -494,7 +500,6 @@ def create_image_shard_downsample_tasks(
   
   Only 2x2x1 downsamples are supported for now.
   """
-  factor = Vec(2,2,1)
   cv = downsample_scales.add_scale(
     cloudpath, mip, 
     preserve_chunk_size=True, chunk_size=chunk_size,
@@ -514,19 +519,22 @@ def create_image_shard_downsample_tasks(
     cv.scale["sharding"], cv.volume_size, cv.chunk_size
   )
   shape = Vec(*shape) * factor
-  bounds = get_bounds(vol, bounds, mip, vol.chunk_size)
+
+  cv.mip = mip
+  bounds = get_bounds(cv, None, mip, cv.meta.chunk_size(mip + 1))
 
   class ImageShardDownsampleTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       return partial(ImageShardDownsampleTask,
         cloudpath,
-        shape=shape,
-        offset=offset,
-        mip=mip,
-        fill_missing=fill_missing,
-        sparse=sparse,
-        agglomerate=agglomerate,
+        shape=tuple(shape),
+        offset=tuple(offset),
+        mip=int(mip),
+        fill_missing=bool(fill_missing),
+        sparse=bool(sparse),
+        agglomerate=bool(agglomerate),
         timestamp=timestamp,
+        factor=tuple(factor),
       )
 
     def on_finish(self):
@@ -604,7 +612,7 @@ def create_transfer_tasks(
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
     factor=None, sparse=False, dest_voxel_offset=None,
-    memory_target=3.5e9, max_mips=5
+    memory_target=MEMORY_TARGET, max_mips=5
   ):
   """
   Transfer data to a new data layer. You can use this operation

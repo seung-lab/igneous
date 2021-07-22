@@ -575,10 +575,11 @@ def ImageShardDownsampleTask(
     src_vol.meta.volume_size(mip + 1), 
     src_vol.meta.chunk_size(mip + 1)
   )
-  upper_offset = offset // 2
+  upper_offset = offset // Vec(*factor)
   shape_bbox = Bbox(upper_offset, upper_offset + shard_shape)
   shape_bbox = shape_bbox.astype(np.int64)
   shape_bbox = Bbox.clamp(shape_bbox, src_vol.meta.bounds(mip + 1))
+  shape_bbox = shape_bbox.expand_to_chunk_size(src_vol.meta.chunk_size(mip + 1))
 
   if shape_bbox.subvoxel():
     return
@@ -599,6 +600,8 @@ def ImageShardDownsampleTask(
       zbox, agglomerate=agglomerate, timestamp=timestamp
     )
     (ds_img,) = dsfn(img, factor, num_mips=1, sparse=sparse)
+    # ds_img[slc] b/c sometimes the size round up in tinybrain
+    # makes this too large by one voxel on an axis
     output_img[:,:,(z*chunk_size.z):(z+1)*chunk_size.z] = ds_img
 
     del img

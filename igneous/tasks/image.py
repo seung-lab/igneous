@@ -560,7 +560,7 @@ def ImageShardDownsampleTask(
 
   src_vol = CloudVolume(
     src_path, fill_missing=fill_missing, 
-    mip=mip, bounded=False, progress=True
+    mip=mip, bounded=False, progress=False
   )
   chunk_size = src_vol.meta.chunk_size(mip)
 

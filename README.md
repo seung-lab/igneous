@@ -1,4 +1,4 @@
-[![PyPI version](https://badge.fury.io/py/igneous-pipeline.svg)](https://badge.fury.io/py/igneous-pipeline) [![Build Status](https://travis-ci.org/seung-lab/igneous.svg?branch=master)](https://travis-ci.org/seung-lab/igneous) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi)
+[![PyPI version](https://badge.fury.io/py/igneous-pipeline.svg)](https://badge.fury.io/py/igneous-pipeline) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi)
 
 # Igneous
 

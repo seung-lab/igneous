@@ -239,9 +239,10 @@ Here we show an example where we insert the tasks to downsample 4 mip levels usi
 PATH=gs://mydataset/layer 
 QUEUE=fq://./my-queue # could also be sqs://
 
-igneous downsample $PATH --mip 0 --num-mips 4 --queue $QUEUE # downsample
+igneous downsample $PATH --mip 0 --num-mips 4 --queue $QUEUE # downsample 2x2x1
 igneous execute $QUEUE # process the queue
-igneous downsample $PATH --mip 4 --num-mips 3 --volumetric --sparse --queue $QUEUE # superdownsample
+igneous downsample $PATH --mip 4 --num-mips 3 --volumetric --sparse --queue $QUEUE # superdownsample w/ 2x2x2 sparse
+igneous downsample $PATH --mip 0 --queue $QUEUE --sharded # sharded downsample
 igneous execute $QUEUE # process the queue
 ```
 
@@ -264,6 +265,15 @@ tasks = create_downsampling_tasks(
     compress='gzip', # None, 'gzip', and 'br' (brotli) are options
     factor=(2,2,1), # common options are (2,2,1) and (2,2,2)
   )
+
+# for sharded downsample (only 1 mip at a time)
+tasks = create_image_shard_downsample_tasks(
+  cloudpath, mip=0, fill_missing=False, 
+  sparse=False, chunk_size=None,
+  encoding=None, memory_target=MEMORY_TARGET,
+  agglomerate=False, timestamp=None,
+  factor=(2,2,1)
+)
 ```
 
 | Variable             | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |

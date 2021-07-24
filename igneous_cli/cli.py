@@ -112,7 +112,11 @@ def downsample(
   """
   if cseg and compresso:
     print("igneous: must choose one of --cseg or --compresso")
-    sys.exit()
+    return
+
+  if sharded and num_mips != 1:
+    print("igneous: sharded downsamples only support producing one mip at a time.")
+    return
 
   encoding = None
   if cseg:

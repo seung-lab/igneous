@@ -3,7 +3,7 @@
 # Igneous
 
 ```bash
-# A few examples. The CLI tool is limited. Read on!
+# A few examples. You can also script Igneous. Read on!
 $ igneous xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
 $ igneous downsample file://./my-data --mip 0 --queue ./ds-queue
 $ igneous execute ./ds-queue

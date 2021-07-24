@@ -27,10 +27,13 @@ def image_shard_shape_from_spec(
     shape = Vec(0,0,0, dtype=np.uint64)
 
     i = 0
+    over = [ False, False, False ]
     while i < preshift_bits:
       changed = False
       for dim in range(3):
-        if 2 ** (shape[dim] + 1) <= grid_size[dim]:
+        if 2 ** (shape[dim] + 1) < grid_size[dim] * 2 and not over[dim]:
+          if 2 ** (shape[dim] + 1) >= grid_size[dim]:
+            over[dim] = True
           shape[dim] += one
           i += 1
           changed = True

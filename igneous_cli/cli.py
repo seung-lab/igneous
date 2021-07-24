@@ -87,12 +87,14 @@ def license():
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background. Default: 0")
+@click.option('--sharded', is_flag=True, default=False, help="Generate sharded downsamples which reduces the number of files.")
+@click.option('--memory', default=3.5e9, type=int, help="(sharded only) Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
 @click.pass_context
 def downsample(
 	ctx, path, queue, mip, fill_missing, 
 	num_mips, cseg, compresso, sparse, 
 	chunk_size, compress, volumetric,
-	delete_bg, bg_color
+	delete_bg, bg_color, sharded, memory
 ):
   """
   Create an image pyramid for grayscale or labeled images.
@@ -110,7 +112,11 @@ def downsample(
   """
   if cseg and compresso:
     print("igneous: must choose one of --cseg or --compresso")
-    sys.exit()
+    return
+
+  if sharded and num_mips != 1:
+    print("igneous: sharded downsamples only support producing one mip at a time.")
+    return
 
   encoding = None
   if cseg:
@@ -122,15 +128,23 @@ def downsample(
   if volumetric:
   	factor = (2,2,2)
 
-  tasks = tc.create_downsampling_tasks(
-    path, mip=mip, fill_missing=fill_missing, 
-    num_mips=num_mips, sparse=sparse, 
-    chunk_size=chunk_size, encoding=encoding, 
-    delete_black_uploads=delete_bg, 
-    background_color=bg_color, 
-    compress=compress,
-    factor=factor  	
-  )
+  if sharded:
+    tasks = tc.create_image_shard_downsample_tasks(
+      path, mip=mip, fill_missing=fill_missing, 
+      sparse=sparse, chunk_size=chunk_size,
+      encoding=encoding, memory_target=memory,
+      factor=factor,
+    )
+  else:
+    tasks = tc.create_downsampling_tasks(
+      path, mip=mip, fill_missing=fill_missing, 
+      num_mips=num_mips, sparse=sparse, 
+      chunk_size=chunk_size, encoding=encoding, 
+      delete_black_uploads=delete_bg, 
+      background_color=bg_color, 
+      compress=compress,
+      factor=factor  	
+    )
 
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))

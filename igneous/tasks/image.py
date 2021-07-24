@@ -21,6 +21,7 @@ from cloudvolume.frontends.precomputed import CloudVolumePrecomputed
 from taskqueue import RegisteredTask, queueable
 import tinybrain
 
+import igneous.shards
 from igneous import downsample_scales
 from igneous.types import ShapeType
 
@@ -527,4 +528,86 @@ def ImageShardTransferTask(
     dst_vol.cloudpath, dst_vol.meta.key(mip)
   )
 
+  CloudFiles(basepath).put(filename, shard)
+
+@queueable
+def ImageShardDownsampleTask(
+  src_path: str,
+  shape: ShapeType,
+  offset: ShapeType,
+  mip: int = 0,
+  fill_missing: bool = False,
+  sparse: bool = False,
+  agglomerate: bool = False,
+  timestamp: Optional[int] = None,
+  factor: ShapeType = (2,2,1)
+):
+  """
+  Generate a single downsample level for a shard.
+  Shards are usually hundreds of megabytes to several
+  gigabyte of data, so it is usually unrealistic from a
+  memory perspective to make more than one mip at a time.
+  """
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  mip = int(mip)
+  fill_missing = bool(fill_missing)
+
+  src_vol = CloudVolume(
+    src_path, fill_missing=fill_missing, 
+    mip=mip, bounded=False, progress=False
+  )
+  chunk_size = src_vol.meta.chunk_size(mip)
+
+  bbox = Bbox(offset, offset + shape)
+  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
+  bbox = bbox.expand_to_chunk_size(
+    chunk_size, offset=src_vol.meta.voxel_offset(mip)
+  )
+
+  shard_shape = igneous.shards.image_shard_shape_from_spec(
+    src_vol.scales[mip + 1]["sharding"], 
+    src_vol.meta.volume_size(mip + 1), 
+    src_vol.meta.chunk_size(mip + 1)
+  )
+  upper_offset = offset // Vec(*factor)
+  shape_bbox = Bbox(upper_offset, upper_offset + shard_shape)
+  shape_bbox = shape_bbox.astype(np.int64)
+  shape_bbox = Bbox.clamp(shape_bbox, src_vol.meta.bounds(mip + 1))
+  shape_bbox = shape_bbox.expand_to_chunk_size(src_vol.meta.chunk_size(mip + 1))
+
+  if shape_bbox.subvoxel():
+    return
+
+  shard_shape = list(shape_bbox.size3()) + [ 1 ]
+
+  output_img = np.zeros(shard_shape, dtype=src_vol.dtype)
+  nz = int(math.ceil(bbox.dz / chunk_size.z))
+
+  dsfn = tinybrain.downsample_with_averaging
+  if src_vol.layer_type == "segmentation":
+    dsfn = tinybrain.downsample_segmentation
+
+  zbox = bbox.clone()
+  zbox.maxpt.z = zbox.minpt.z + chunk_size.z
+  for z in range(nz):
+    img = src_vol.download(
+      zbox, agglomerate=agglomerate, timestamp=timestamp
+    )
+    (ds_img,) = dsfn(img, factor, num_mips=1, sparse=sparse)
+    # ds_img[slc] b/c sometimes the size round up in tinybrain
+    # makes this too large by one voxel on an axis
+    output_img[:,:,(z*chunk_size.z):(z+1)*chunk_size.z] = ds_img
+
+    del img
+    del ds_img
+    zbox.minpt.z += chunk_size.z
+    zbox.maxpt.z += chunk_size.z
+
+  (filename, shard) = src_vol.image.make_shard(
+    output_img, shape_bbox, (mip + 1), progress=False
+  )
+  basepath = src_vol.meta.join(
+    src_vol.cloudpath, src_vol.meta.key(mip + 1)
+  )
   CloudFiles(basepath).put(filename, shard)

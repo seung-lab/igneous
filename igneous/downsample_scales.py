@@ -200,16 +200,45 @@ def create_downsample_scales(
   ):
   vol = CloudVolume(layer_path, mip)
 
-  scales = compute_scales(vol, mip, ds_shape, axis, factor, chunk_size)
+  resolutions = compute_scales(vol, mip, ds_shape, axis, factor, chunk_size)
 
-  if len(scales) == 0:
+  if len(resolutions) == 0:
     print("WARNING: No scales generated.")
 
-  for scale in scales:
-    vol.meta.add_resolution(scale, encoding=encoding, chunk_size=chunk_size)
+  for res in resolutions:
+    vol.meta.add_resolution(res, encoding=encoding, chunk_size=chunk_size)
 
   if chunk_size is None:
-    if preserve_chunk_size or len(scales) == 0:
+    if preserve_chunk_size or len(resolutions) == 0:
+      chunk_size = vol.scales[mip]['chunk_sizes']
+    else:
+      chunk_size = vol.scales[mip + 1]['chunk_sizes']
+  else:
+    chunk_size = [ chunk_size ]
+
+  for i in range(mip + 1, mip + len(resolutions) + 1):
+    vol.scales[i]['chunk_sizes'] = chunk_size
+
+  vol.commit_info()
+  return vol
+
+def add_scale(
+  layer_path, mip,
+  preserve_chunk_size=True, chunk_size=None,
+  encoding=None, factor=None
+):
+  vol = CloudVolume(layer_path, mip=mip)
+
+  if factor is None:
+    factor = (2,2,1)
+
+  new_resolution = vol.resolution * Vec(*factor)
+  vol.meta.add_resolution(
+    new_resolution, encoding=encoding, chunk_size=chunk_size
+  )
+
+  if chunk_size is None:
+    if preserve_chunk_size:
       chunk_size = vol.scales[mip]['chunk_sizes']
     else:
       chunk_size = vol.scales[mip + 1]['chunk_sizes']
@@ -219,12 +248,9 @@ def create_downsample_scales(
   if encoding is None:
     encoding = vol.scales[mip]['encoding']
 
-  for i in range(mip + 1, mip + len(scales) + 1):
-    vol.scales[i]['chunk_sizes'] = chunk_size
+  vol.scales[mip + 1]['chunk_sizes'] = chunk_size
 
-  vol.commit_info()
   return vol
-
 
 def downsample_shape_from_memory_target(
   data_width, cx, cy, cz, 

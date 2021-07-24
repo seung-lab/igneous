@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+0.5.0
+-----
+
+* release(0.5.0): Adds --sharded to xfer task
+* chore: remove unused environment variables
+* docs: info on sharded scripting and delete CLI
+* chore: delete obsolete dockerfile
+* feat: create image shards (#105)
+
 0.4.1
 -----
 

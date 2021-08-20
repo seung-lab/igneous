@@ -492,7 +492,7 @@ def create_image_shard_downsample_tasks(
   sparse=False, chunk_size=None,
   encoding=None, memory_target=MEMORY_TARGET,
   agglomerate=False, timestamp=None,
-  factor=(2,2,1)
+  factor=(2,2,1), bounds=None
 ):
   """
   Downsamples an existing image layer that may be
@@ -521,7 +521,7 @@ def create_image_shard_downsample_tasks(
   shape = Vec(*shape) * factor
 
   cv.mip = mip
-  bounds = get_bounds(cv, None, mip, cv.meta.chunk_size(mip + 1))
+  bounds = get_bounds(cv, bounds, mip, cv.meta.chunk_size(mip + 1))
 
   class ImageShardDownsampleTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):

@@ -243,6 +243,7 @@ igneous downsample $PATH --mip 0 --num-mips 4 --queue $QUEUE # downsample 2x2x1
 igneous execute $QUEUE # process the queue
 igneous downsample $PATH --mip 4 --num-mips 3 --volumetric --sparse --queue $QUEUE # superdownsample w/ 2x2x2 sparse
 igneous downsample $PATH --mip 0 --queue $QUEUE --sharded # sharded downsample
+igneous downsample $PATH --queue $QUEUE --zrange 0,1 # downsample only a single slice 
 igneous execute $QUEUE # process the queue
 ```
 

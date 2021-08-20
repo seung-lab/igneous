@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+0.7.0
+-----
+
+* release(0.7.0): add xrange, yrange, and zrange to downsample
+* chore: delete travis
+* fix(cli): pass bounds the sharded downsampling
+* feat: add bounds to sharded downsamples
+* feat(cli): adds xrange, yrange, and zrange to downsample
+
 0.6.0
 -----
 

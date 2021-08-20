@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+0.6.0
+-----
+
+* release(0.6.0): adds igneous downsample --sharded
+* chore: remove travis ci badge (travis no longer does free open source builds)
+* docs: add igneous pypi badge
+* feat: shard downsampling (#106)
+* refactor: change TouchTask and QuantizeTask to use queuable
+* feat: add sparse support to image downsampling
+
 0.5.0
 -----
 

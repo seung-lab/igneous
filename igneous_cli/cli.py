@@ -34,6 +34,18 @@ class Tuple3(click.ParamType):
         self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
     return value
   
+class Tuple2(click.ParamType):
+  """A command line option type consisting of 2 comma-separated integers."""
+  name = 'tuple2'
+  def convert(self, value, param, ctx):
+    if isinstance(value, str):
+      try:
+        value = tuple(map(int, value.split(',')))
+      except ValueError:
+        self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
+      if len(value) != 2:
+        self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
+    return value
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
@@ -89,12 +101,16 @@ def license():
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background. Default: 0")
 @click.option('--sharded', is_flag=True, default=False, help="Generate sharded downsamples which reduces the number of files.")
 @click.option('--memory', default=3.5e9, type=int, help="(sharded only) Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for downsampling. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for downsampling. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for downsampling. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1", show_default=True)
 @click.pass_context
 def downsample(
-	ctx, path, queue, mip, fill_missing, 
-	num_mips, cseg, compresso, sparse, 
-	chunk_size, compress, volumetric,
-	delete_bg, bg_color, sharded, memory
+  ctx, path, queue, mip, fill_missing, 
+  num_mips, cseg, compresso, sparse, 
+  chunk_size, compress, volumetric,
+  delete_bg, bg_color, sharded, memory,
+  xrange, yrange, zrange
 ):
   """
   Create an image pyramid for grayscale or labeled images.
@@ -128,6 +144,20 @@ def downsample(
   if volumetric:
   	factor = (2,2,2)
 
+  bounds = None
+  if xrange or yrange or zrange:
+    bounds = CloudVolume(path).meta.bounds(mip)
+
+  if xrange:
+    bounds.minpt.x = xrange[0]
+    bounds.maxpt.x = xrange[1]
+  if yrange:
+    bounds.minpt.y = yrange[0]
+    bounds.maxpt.y = yrange[1]
+  if zrange:
+    bounds.minpt.z = zrange[0]
+    bounds.maxpt.z = zrange[1]
+
   if sharded:
     tasks = tc.create_image_shard_downsample_tasks(
       path, mip=mip, fill_missing=fill_missing, 
@@ -143,7 +173,7 @@ def downsample(
       delete_black_uploads=delete_bg, 
       background_color=bg_color, 
       compress=compress,
-      factor=factor  	
+      factor=factor, bounds=bounds
     )
 
   parallel = int(ctx.obj.get("parallel", 1))

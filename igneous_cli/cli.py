@@ -163,7 +163,7 @@ def downsample(
       path, mip=mip, fill_missing=fill_missing, 
       sparse=sparse, chunk_size=chunk_size,
       encoding=encoding, memory_target=memory,
-      factor=factor,
+      factor=factor, bounds=bounds
     )
   else:
     tasks = tc.create_downsampling_tasks(

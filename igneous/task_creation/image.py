@@ -397,6 +397,7 @@ def create_image_shard_transfer_tasks(
   agglomerate: bool = False, 
   timestamp: bool = None,
   memory_target: int = MEMORY_TARGET,
+  clean_info: bool = False
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -441,6 +442,8 @@ def create_image_shard_transfer_tasks(
     uncompressed_shard_bytesize=memory_target,
   )
   dest_vol.scale["sharding"] = spec
+  if clean_info:
+    dest_vol.info = clean_xfer_info(dest_vol.info)
   dest_vol.commit_info()
 
   shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
@@ -603,6 +606,13 @@ def create_deletion_tasks(
 
   return DeleteTaskIterator(bounds, shape)
 
+def clean_xfer_info(info):
+  """Removes fields that could interfere with additional processing."""
+  info.pop("mesh", None)
+  info.pop("meshing", None)
+  info.pop("skeletons", None)
+  return info
+
 def create_transfer_tasks(
     src_layer_path, dest_layer_path, 
     chunk_size=None, shape=None, 
@@ -612,7 +622,7 @@ def create_transfer_tasks(
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
     factor=None, sparse=False, dest_voxel_offset=None,
-    memory_target=MEMORY_TARGET, max_mips=5
+    memory_target=MEMORY_TARGET, max_mips=5, clean_info=False
   ):
   """
   Transfer data to a new data layer. You can use this operation
@@ -636,6 +646,8 @@ def create_transfer_tasks(
 
   background_color: Designates which color should be considered background.
   chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
+  clean_info: scrub additional fields from the info file that might interfere
+    with later processing (e.g. mesh and skeleton related info).
   compress: None, 'gzip', or 'br' Determines which compression algorithm to use 
     for new uploaded files.
   delete_black_uploads: issue delete commands instead of upload chunks
@@ -719,6 +731,10 @@ def create_transfer_tasks(
       dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
   dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
+
+  if clean_info:
+    dest_vol.info = clean_xfer_info(dest_vol.info)
+
   dest_vol.commit_info()
 
   if shape is None:

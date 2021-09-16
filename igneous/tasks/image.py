@@ -130,17 +130,17 @@ def QuantizeTask(
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
-  srcvol = CloudVolume(self.source_layer_path, mip=self.mip,
-                       fill_missing=self.fill_missing)
+  srcvol = CloudVolume(source_layer_path, mip=mip,
+                       fill_missing=fill_missing)
 
-  bounds = Bbox(self.offset, self.shape + self.offset)
+  bounds = Bbox(offset, shape + offset)
   bounds = Bbox.clamp(bounds, srcvol.bounds)
 
   image = srcvol[bounds.to_slices()][:, :, :, :1]  # only use x affinity
   image = (image * 255.0).astype(np.uint8)
 
-  destvol = CloudVolume(self.dest_layer_path, mip=self.mip)
-  downsample_and_upload(image, bounds, destvol, self.shape, mip=self.mip, axis='z')
+  destvol = CloudVolume(dest_layer_path, mip=mip)
+  downsample_and_upload(image, bounds, destvol, shape, mip=mip, axis='z')
 
 class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""

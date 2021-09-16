@@ -310,7 +310,7 @@ def test_quantize():
     data *= 255.0
     data = data.astype(np.uint8)
 
-    task = QuantizeTask(
+    task = partial(QuantizeTask,
         source_layer_path=cf.cloudpath,
         dest_layer_path=qpath,
         shape=shape,
@@ -327,7 +327,7 @@ def test_quantize():
 
     create_downsample_scales(qpath, mip=0, ds_shape=shape)
 
-    task.execute()
+    task()
 
     qcv.mip = 0
 

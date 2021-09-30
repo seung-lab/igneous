@@ -1,6 +1,20 @@
 CHANGES
 =======
 
+0.8.1
+-----
+
+* release(0.8.1): fixes bug in sharded transfers and downsamples
+* fix(transfer): sharding shape computation did not account for minishard bits
+
+0.8.0
+-----
+
+* release(0.8.0): adds --clean-info flag
+* fix: QuantizeTask was broken
+* feat(xfer): add --clean-info which removes skeleton and mesh metadata
+* docs: update how to use zrange
+
 0.7.0
 -----
 

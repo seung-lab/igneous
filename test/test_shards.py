@@ -78,6 +78,25 @@ def test_sharded_image_bits(scale):
 
   assert min_num_shards <= real_num_shards <= max_num_shards
 
+def test_broken_dataset():
+  scale = {
+    'chunk_sizes': [[128, 128, 20]],
+    'encoding': 'raw',
+    'key': '16_16_40',
+    'resolution': [16, 16, 40],
+    'size': [10240,10240,990],
+    'voxel_offset': [17408,9216,4855],
+  }
 
+  dataset_size = Vec(*scale["size"])
+  chunk_size = Vec(*scale["chunk_sizes"][0])
 
+  spec = create_sharded_image_info( 
+    dataset_size=dataset_size,
+    chunk_size=chunk_size,
+    encoding="jpeg",
+    dtype=np.uint8
+  )
+  total_bits = spec["shard_bits"] + spec["minishard_bits"] + spec["preshift_bits"]
+  assert total_bits == 20
 

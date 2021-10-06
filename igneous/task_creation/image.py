@@ -316,7 +316,10 @@ def create_sharded_image_info(
   # maximum amount of information in the morton codes
   grid_size = np.ceil(Vec(*dataset_size) / Vec(*chunk_size)).astype(np.int64)
   max_bits = sum([ math.ceil(math.log2(size)) for size in grid_size ])
-  max_bits = min(max_bits, 64)
+  if max_bits > 64:
+    raise ValueError(
+      f"{max_bits}, more than a 64-bit integer, would be required to describe the chunk positions in this dataset. Try increasing the chunk size."
+    )
 
   chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))
   chunks_per_shard = 2 ** int(math.log2(chunks_per_shard))

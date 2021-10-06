@@ -28,7 +28,7 @@ def prod(x):
 
 def get_bounds(vol, bounds, mip, chunk_size=None):
   if bounds is None:
-    bounds = vol.bounds.clone()
+    bounds = vol.meta.bounds(mip)
   else:
     bounds = Bbox.create(bounds)
     bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)

@@ -461,10 +461,7 @@ def create_image_shard_transfer_tasks(
 
   shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
 
-  dest_bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
-
-  if bounds is None:
-    bounds = dest_vol.meta.bounds(mip)
+  bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
 
   class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):

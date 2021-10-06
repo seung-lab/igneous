@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.8.2
+-----
+
+* release(0.8.2): fixes bug in computation of shard bits
+* fix: rounding errors in computing shard bits (#107)
+* chore: update CHANGELOG
+
 0.8.1
 -----
 

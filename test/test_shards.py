@@ -51,7 +51,7 @@ def test_sharded_image_bits(scale):
   spec = create_sharded_image_info( 
     dataset_size=dataset_size,
     chunk_size=chunk_size,
-    encoding="jpeg",
+    encoding=scale["encoding"],
     dtype=np.uint8
   )
 

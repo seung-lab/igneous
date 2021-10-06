@@ -311,11 +311,19 @@ def create_sharded_image_info(
 
   voxels = prod(dataset_size)
   chunk_voxels = prod(chunk_size)
-  num_chunks = voxels / chunk_voxels
+  num_chunks = Bbox([0,0,0], dataset_size).num_chunks(chunk_size)
 
-  # maximum amount of information in the volume
-  max_bits = math.ceil(math.log2(num_chunks))
-  max_bits = min(max_bits, 64)
+  # maximum amount of information in the morton codes
+  grid_size = np.ceil(Vec(*dataset_size) / Vec(*chunk_size)).astype(np.int64)
+  max_bits = sum([ math.ceil(math.log2(size)) for size in grid_size ])
+  if max_bits > 64:
+    raise ValueError(
+      f"{max_bits}, more than a 64-bit integer, "
+      "would be required to describe the chunk positions "
+      "in this dataset. Try increasing the chunk size or "
+      "increasing dataset bounds."
+      f"Dataset Size: {dataset_size} Chunk Size: {chunk_size}"
+    )
 
   chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))
   chunks_per_shard = 2 ** int(math.log2(chunks_per_shard))
@@ -323,7 +331,9 @@ def create_sharded_image_info(
   if num_chunks < chunks_per_shard:
     chunks_per_shard = 2 ** int(math.ceil(math.log2(num_chunks)))
 
-  num_shards = num_chunks / chunks_per_shard
+  # approximate, would need to account for rounding effects to be exact
+  # rounding is corrected for via max_bits - pre - mini below.
+  num_shards = num_chunks / chunks_per_shard 
   
   def update_bits():
     shard_bits = int(math.ceil(math.log2(num_shards)))
@@ -358,11 +368,14 @@ def create_sharded_image_info(
       num_shards *= 2
       shard_bits, preshift_bits = update_bits()
 
-  # Preshift bits + shard bits always equals the total information
-  # To have any space for minishard bits, we must steal from
-  # preshift bits, which is okay, because it doesn't affect
-  # which shard bits get read.
+  # preshift_bits + minishard_bits = number of indexable chunks
+  # Since we try to hold the number of indexable chunks fixed, we steal
+  # from preshift_bits to get space for the minishard bits.
+  # We need to make use of the maximum amount of information available
+  # in the morton codes, so if there's any slack from rounding, the
+  # remainder goes into shard bits.
   preshift_bits = preshift_bits - minishard_bits
+  shard_bits = max_bits - preshift_bits - minishard_bits
 
   if preshift_bits < 0:
     raise ValueError(f"Preshift bits cannot be negative. ({shard_bits}, {minishard_bits}, {preshift_bits}), total info: {max_bits} bits")
@@ -448,10 +461,7 @@ def create_image_shard_transfer_tasks(
 
   shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
 
-  dest_bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
-
-  if bounds is None:
-    bounds = dest_vol.meta.bounds(mip)
+  bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
 
   class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):

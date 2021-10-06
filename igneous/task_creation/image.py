@@ -311,10 +311,11 @@ def create_sharded_image_info(
 
   voxels = prod(dataset_size)
   chunk_voxels = prod(chunk_size)
-  num_chunks = voxels / chunk_voxels
+  num_chunks = Bbox([0,0,0], dataset_size).num_chunks(chunk_size)
 
-  # maximum amount of information in the volume
-  max_bits = math.ceil(math.log2(num_chunks))
+  # maximum amount of information in the morton codes
+  grid_size = np.ceil(Vec(*dataset_size) / Vec(*chunk_size)).astype(np.int64)
+  max_bits = sum([ math.ceil(math.log2(size)) for size in grid_size ])
   max_bits = min(max_bits, 64)
 
   chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))

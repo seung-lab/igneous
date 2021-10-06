@@ -324,7 +324,9 @@ def create_sharded_image_info(
   if num_chunks < chunks_per_shard:
     chunks_per_shard = 2 ** int(math.ceil(math.log2(num_chunks)))
 
-  num_shards = num_chunks / chunks_per_shard
+  # approximate, would need to account for rounding effects to be exact
+  # rounding is corrected for via max_bits - pre - mini below.
+  num_shards = num_chunks / chunks_per_shard 
   
   def update_bits():
     shard_bits = int(math.ceil(math.log2(num_shards)))
@@ -359,11 +361,14 @@ def create_sharded_image_info(
       num_shards *= 2
       shard_bits, preshift_bits = update_bits()
 
-  # Preshift bits + shard bits always equals the total information
-  # To have any space for minishard bits, we must steal from
-  # preshift bits, which is okay, because it doesn't affect
-  # which shard bits get read.
+  # preshift_bits + minishard_bits = number of indexable chunks
+  # Since we try to hold the number of indexable chunks fixed, we steal
+  # from preshift_bits to get space for the minishard bits.
+  # We need to make use of the maximum amount of information available
+  # in the morton codes, so if there's any slack from rounding, the
+  # remainder goes into shard bits.
   preshift_bits = preshift_bits - minishard_bits
+  shard_bits = max_bits - preshift_bits - minishard_bits
 
   if preshift_bits < 0:
     raise ValueError(f"Preshift bits cannot be negative. ({shard_bits}, {minishard_bits}, {preshift_bits}), total info: {max_bits} bits")

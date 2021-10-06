@@ -318,7 +318,11 @@ def create_sharded_image_info(
   max_bits = sum([ math.ceil(math.log2(size)) for size in grid_size ])
   if max_bits > 64:
     raise ValueError(
-      f"{max_bits}, more than a 64-bit integer, would be required to describe the chunk positions in this dataset. Try increasing the chunk size."
+      f"{max_bits}, more than a 64-bit integer, "
+      "would be required to describe the chunk positions "
+      "in this dataset. Try increasing the chunk size or "
+      "increasing dataset bounds."
+      f"Dataset Size: {dataset_size} Chunk Size: {chunk_size}"
     )
 
   chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))

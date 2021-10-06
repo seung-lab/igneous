@@ -79,6 +79,10 @@ def test_sharded_image_bits(scale):
   assert min_num_shards <= real_num_shards <= max_num_shards
 
 def test_broken_dataset():
+  """
+  This dataset was previously returning 19 total bits
+  when 20 were needed to cover all the morton codes.
+  """
   scale = {
     'chunk_sizes': [[128, 128, 20]],
     'encoding': 'raw',

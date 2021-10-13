@@ -825,7 +825,7 @@ def create_transfer_tasks(
       dest_vol.provenance.processing.append(job_details) 
       dest_vol.commit_provenance()
 
-      if src_vol.meta.path.protocol != 'boss':
+      if src_vol.meta.path.protocol in ('gs', 's3', 'file'):
         src_vol.provenance.processing.append(job_details)
         src_vol.commit_provenance()
 

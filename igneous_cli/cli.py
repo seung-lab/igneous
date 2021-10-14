@@ -202,6 +202,7 @@ def downsample(
 @click.option('--sharded', is_flag=True, default=False, help="Generate a sharded dataset which reduces the number of files. Downsamples are not generated.")
 @click.option('--dest-voxel-offset', type=Tuple3(), default=None, help="Set the voxel offset for this mip level.")
 @click.option('--clean-info', is_flag=True, default=False, help="Scrub info file of mesh and skeleton fields.", show_default=True)
+@click.option('--no-src-update', is_flag=True, default=False, help="Don't update the source provenance file with the transfer metadata.", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, 
@@ -209,7 +210,7 @@ def xfer(
   memory, max_mips, shape, sparse, 
   cseg, compresso, chunk_size, compress, 
   volumetric, delete_bg, bg_color, sharded,
-  dest_voxel_offset, clean_info
+  dest_voxel_offset, clean_info, no_src_update
 ):
   """
   Transfer an image layer to another location.
@@ -261,7 +262,8 @@ def xfer(
       mip=mip, shape=shape, encoding=encoding, skip_downsamples=(not downsample),
       delete_black_uploads=delete_bg, background_color=bg_color,
       compress=compress, factor=factor, sparse=sparse,
-      memory_target=memory, max_mips=max_mips, clean_info=clean_info
+      memory_target=memory, max_mips=max_mips, 
+      clean_info=clean_info, no_src_update=no_src_update
     )
 
   parallel = int(ctx.obj.get("parallel", 1))

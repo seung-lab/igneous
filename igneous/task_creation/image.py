@@ -632,7 +632,8 @@ def create_transfer_tasks(
     delete_black_uploads=False, background_color=0,
     agglomerate=False, timestamp=None, compress='gzip',
     factor=None, sparse=False, dest_voxel_offset=None,
-    memory_target=MEMORY_TARGET, max_mips=5, clean_info=False
+    memory_target=MEMORY_TARGET, max_mips=5, 
+    clean_info=False, no_src_update=False
   ):
   """
   Transfer data to a new data layer. You can use this operation
@@ -675,6 +676,7 @@ def create_transfer_tasks(
     if the memory budget is large enough for more.
   memory_target: given a task size in bytes, pick the task shape that will produce the 
     maximum number of downsamples. Only works for (2,2,1) or (2,2,2).
+  no_src_update: don't update the source's provenance file
   preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
     evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
     useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
@@ -825,7 +827,7 @@ def create_transfer_tasks(
       dest_vol.provenance.processing.append(job_details) 
       dest_vol.commit_provenance()
 
-      if src_vol.meta.path.protocol in ('gs', 's3', 'file'):
+      if not no_src_update and src_vol.meta.path.protocol in ('gs', 's3', 'file'):
         src_vol.provenance.processing.append(job_details)
         src_vol.commit_provenance()
 

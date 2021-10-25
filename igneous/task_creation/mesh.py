@@ -1,5 +1,8 @@
 from functools import reduce, partial
-from typing import Any, Dict, Tuple, cast
+from typing import (
+  Any, Dict, Optional, 
+  Union, Tuple, cast
+)
 
 from time import strftime
 
@@ -12,7 +15,8 @@ from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_diviso
 from cloudfiles import CloudFiles
 
 from igneous.tasks import (
-  MeshTask, MeshManifestTask, GrapheneMeshTask
+  MeshTask, MeshManifestTask, GrapheneMeshTask,
+  MeshSpatialIndex
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -24,6 +28,7 @@ __all__ = [
   "create_mesh_manifest_tasks",
   "create_graphene_meshing_tasks",
   "create_graphene_hybrid_mesh_manifest_tasks",
+  "create_spatial_index_mesh_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -219,3 +224,142 @@ def create_graphene_hybrid_mesh_manifest_tasks(
         yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix))
 
   return GrapheneHybridMeshManifestTaskIterator()
+
+def create_spatial_index_mesh_tasks(
+  cloudpath:str, 
+  shape:Tuple[int,int,int] = (448,448,448), 
+  mip:int = 0, 
+  fill_missing:bool = False, 
+  compress:Optional[Union[str,bool]] = 'gzip', 
+  mesh_dir:Optional[str] = None
+):
+  shape = Vec(*shape)
+
+  vol = CloudVolume(layer_path, mip=mip)
+
+  if mesh_dir is None:
+    mesh_dir = f"mesh_mip_{mip}_err_40"
+
+  if not "mesh" in vol.info:
+    vol.info['mesh'] = mesh_dir
+    vol.commit_info()
+
+  cf = CloudFiles(layer_path)
+  info_filename = '{}/info'.format(mesh_dir)
+  mesh_info = cf.get_json(info_filename) or {}
+  new_mesh_info = copy.deepcopy(mesh_info)
+  new_mesh_info['@type'] = new_mesh_info.get('@type', 'neuroglancer_legacy_mesh') 
+  new_mesh_info['mip'] = new_mesh_info.get("mip", int(vol.mip))
+  new_mesh_info['chunk_size'] = shape.tolist()
+  new_mesh_info['spatial_index'] = {
+    'resolution': vol.resolution.tolist(),
+    'chunk_size': (shape * vol.resolution).tolist(),
+  }
+  if new_mesh_info != mesh_info:
+    cf.put_json(info_filename, new_mesh_info)
+
+  class SpatialIndexMeshTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return MeshSpatialIndex(
+        cloudpath=cloudpath,
+        shape=shape,
+        offset=offset,
+        mip=int(mip),
+        fill_missing=bool(fill_missing),
+        compress=compress,
+        mesh_dir=mesh_dir,
+      )
+
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'MeshSpatialIndex',
+          'cloudpath': vol.cloudpath,
+          'shape': list(shape),
+          'mip': int(mip),
+          'mesh_dir': mesh_dir,
+          'fill_missing': fill_missing,
+          'compress': compress,
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
+
+  return SpatialIndexMeshTaskIterator(vol.bounds, shape)
+
+# def create_unsharded_multires_mesh_tasks(
+#   cloudpath, mip, num_lod=1
+# ):
+
+# # def create_sharded_skeleton_merge_tasks(
+# #     layer_path, dust_threshold, tick_threshold,
+# #     preshift_bits, minishard_bits, shard_bits,
+# #     minishard_index_encoding='gzip', data_encoding='gzip',
+# #     max_cable_length=None
+# #   ): 
+# #   spec = ShardingSpecification(
+# #     type='neuroglancer_uint64_sharded_v1',
+# #     preshift_bits=preshift_bits,
+# #     hash='murmurhash3_x86_128',
+# #     minishard_bits=minishard_bits,
+# #     shard_bits=shard_bits,
+# #     minishard_index_encoding=minishard_index_encoding,
+# #     data_encoding=data_encoding,
+# #   )
+
+# #   cv = CloudVolume(layer_path)
+# #   cv.skeleton.meta.info['sharding'] = spec.to_dict()
+# #   cv.skeleton.meta.commit_info()
+
+# #   cv = CloudVolume(layer_path, progress=True) # rebuild b/c sharding changes the skeleton object
+# #   cv.mip = cv.skeleton.meta.mip
+
+# #   # 17 sec to download for pinky100
+# #   all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
+# #   # perf: ~36k hashes/sec
+# #   shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
+
+# #   shard_labels = defaultdict(list)
+# #   for label in tqdm(all_labels, desc="Hashes"):
+# #     shard_labels[shardfn(label)].append(label)
+
+# #   cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
+# #   files = ( 
+# #     (str(shardno) + '.labels', labels) 
+# #     for shardno, labels in shard_labels.items() 
+# #   )
+# #   cf.put_jsons(
+# #     files, compress="gzip", 
+# #     cache_control="no-cache", total=len(shard_labels)
+# #   )
+  
+# #   cv.provenance.processing.append({
+# #     'method': {
+# #       'task': 'ShardedSkeletonMergeTask',
+# #       'cloudpath': layer_path,
+# #       'mip': cv.skeleton.meta.mip,
+# #       'dust_threshold': dust_threshold,
+# #       'tick_threshold': tick_threshold,
+# #       'max_cable_length': max_cable_length,
+# #       'preshift_bits': preshift_bits, 
+# #       'minishard_bits': minishard_bits, 
+# #       'shard_bits': shard_bits,
+# #     },
+# #     'by': operator_contact(),
+# #     'date': strftime('%Y-%m-%d %H:%M %Z'),
+# #   }) 
+# #   cv.commit_provenance()
+
+# #   return (
+# #     ShardedSkeletonMergeTask(
+# #       layer_path, shard_no, 
+# #       dust_threshold, tick_threshold,
+# #       max_cable_length=max_cable_length
+# #     )
+# #     for shard_no in shard_labels.keys()
+# #   )
+  
+  
+
+

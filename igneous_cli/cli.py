@@ -336,11 +336,11 @@ def meshgroup():
 @meshgroup.command("forge")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid. Default: 0")
-@click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels. Default: 448,448,448")
-@click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification. Default: True")
+@click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid.", show_default=True)
+@click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels.", show_default=True)
+@click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
-@click.option('--max-error', default=40, help="Maximum simplification error in physical units. Default: 40 nm")
+@click.option('--max-error', default=40, help="Maximum simplification error in physical units.", show_default=True)
 @click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
@@ -403,6 +403,22 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@meshgroup.command("spatial-index")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
+@click.pass_context
+def mesh_spatial_index(ctx, path, queue, mip):
+  """
+  Create a spatial index on a pre-existing mesh.
+
+  Sometimes datasets were meshes without a
+  spatial index or need it to be updated.
+  This function provides a more efficient
+  way to accomplish that than remeshing.
+  """
+
 
 @main.group("skeleton")
 def skeletongroup():
@@ -420,23 +436,23 @@ def skeletongroup():
 @skeletongroup.command("forge")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid. Default: 0")
-@click.option('--shape', type=Tuple3(), default=(512, 512, 512), help="Set the task shape in voxels. Default: 512,512,512")
-@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid.", show_default=True)
+@click.option('--shape', type=Tuple3(), default=(512, 512, 512), help="Set the task shape in voxels.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--fix-branching', is_flag=True, default=True, help="Trades speed for quality of branching at forks. Default: True")
-@click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task. Default: True")
-@click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations. Default: False")
-@click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions. Default: False")
-@click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout. Default: 1000.", type=int)
-@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.")
-@click.option('--scale', default=4, help="Multiplies invalidation radius by distance from boundary.", type=float)
-@click.option('--const', default=10, help="Adds constant amount to invalidation radius in physical units.", type=float)
-@click.option('--soma-detect', default=1100, help="Consider objects with peak distances to boundary larger than this soma candidates. Physical units. Default: 1100 nm", type=float)
-@click.option('--soma-accept', default=3500, help="Accept soma candidates over this threshold and perform a one-time spherical invalidation around their peak value. Physical units. Default: 3500 nm", type=float)
-@click.option('--soma-scale', default=1.0, help="Scale factor for soma invalidation.", type=float)
-@click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float)
+@click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task.", show_default=True)
+@click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
+@click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions.", show_default=True)
+@click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
+@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
+@click.option('--scale', default=4, help="Multiplies invalidation radius by distance from boundary.", type=float, show_default=True)
+@click.option('--const', default=10, help="Adds constant amount to invalidation radius in physical units.", type=float, show_default=True)
+@click.option('--soma-detect', default=1100, help="Consider objects with peak distances to boundary larger than this soma candidates. Physical units.", type=float, show_default=True)
+@click.option('--soma-accept', default=3500, help="Accept soma candidates over this threshold and perform a one-time spherical invalidation around their peak value. Physical units.", type=float, show_default=True)
+@click.option('--soma-scale', default=1.0, help="Scale factor for soma invalidation.", type=float, show_default=True)
+@click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float, show_default=True)
 @click.option('--max-paths', default=None, help="Abort skeletonizing an object after this many paths have been traced.", type=float)
-@click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.")
+@click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 

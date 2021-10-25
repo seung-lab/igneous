@@ -1,5 +1,11 @@
-from .skeleton import SkeletonTask, UnshardedSkeletonMergeTask, ShardedSkeletonMergeTask
-from .mesh import MeshTask, MeshManifestTask, GrapheneMeshTask
+from .skeleton import (
+  SkeletonTask, UnshardedSkeletonMergeTask, 
+  ShardedSkeletonMergeTask
+)
+from .mesh import (
+  MeshTask, MeshManifestTask, 
+  GrapheneMeshTask, MeshSpatialIndex
+)
 from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,
   DownsampleTask, QuantizeTask, 

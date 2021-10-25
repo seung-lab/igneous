@@ -276,7 +276,7 @@ def create_spatial_index_mesh_tasks(
         'method': {
           'task': 'MeshSpatialIndex',
           'cloudpath': vol.cloudpath,
-          'shape': list(shape),
+          'shape': shape.tolist(),
           'mip': int(mip),
           'mesh_dir': mesh_dir,
           'fill_missing': fill_missing,

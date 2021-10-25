@@ -37,7 +37,7 @@ def find_objects(labels):
   ordered arrays, so we just do it that way and convert
   the results if it's in F order.
   """
-  if labels.flags['C_CONTIGUOUS']:
+  if labels.flags.c_contiguous:
     return scipy.ndimage.find_objects(labels)
   else:
     all_slices = scipy.ndimage.find_objects(labels.T)

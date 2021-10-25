@@ -409,7 +409,7 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
-def mesh_spatial_index(ctx, path, queue, mip):
+def mesh_spatial_index(ctx, path, queue, mip, fill_missing):
   """
   Create a spatial index on a pre-existing mesh.
 
@@ -418,7 +418,15 @@ def mesh_spatial_index(ctx, path, queue, mip):
   This function provides a more efficient
   way to accomplish that than remeshing.
   """
+  tasks = tc.create_spatial_index_mesh_tasks(
+    cloudpath=path, 
+    mip=mip, 
+    fill_missing=fill_missing, 
+  )
 
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
 
 @main.group("skeleton")
 def skeletongroup():

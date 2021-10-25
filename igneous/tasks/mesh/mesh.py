@@ -584,7 +584,7 @@ def MeshSpatialIndex(
     mesh_bounds = Bbox.from_slices(slc)
     mesh_bounds += Vec(*offset)
     mesh_bounds *= Vec(*resolution, dtype=np.float32)
-    bboxes[reverse_map[label+1]] = mesh_bounds.astype(resolution.dtype)
+    bboxes[reverse_map[label+1]] = mesh_bounds.astype(resolution.dtype).to_list()
 
   bounds = bounds.astype(resolution.dtype) * resolution
 

@@ -574,6 +574,7 @@ def MeshSpatialIndex(
 
   # remap: old img -> img
   img, remap = cv.download(bounds, renumber=True)
+  img = img[...,0]
   slcs = find_objects(img)
   del img
   reverse_map = { v:k for k,v in remap.items() } # img -> old img

@@ -261,7 +261,7 @@ def create_spatial_index_mesh_tasks(
 
   class SpatialIndexMeshTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      return MeshSpatialIndex(
+      return partial(MeshSpatialIndex, 
         cloudpath=cloudpath,
         shape=shape,
         offset=offset,

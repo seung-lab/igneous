@@ -235,7 +235,7 @@ def create_spatial_index_mesh_tasks(
 ):
   shape = Vec(*shape)
 
-  vol = CloudVolume(layer_path, mip=mip)
+  vol = CloudVolume(cloudpath, mip=mip)
 
   if mesh_dir is None:
     mesh_dir = f"mesh_mip_{mip}_err_40"
@@ -244,7 +244,7 @@ def create_spatial_index_mesh_tasks(
     vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
-  cf = CloudFiles(layer_path)
+  cf = CloudFiles(cloudpath)
   info_filename = '{}/info'.format(mesh_dir)
   mesh_info = cf.get_json(info_filename) or {}
   new_mesh_info = copy.deepcopy(mesh_info)

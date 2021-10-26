@@ -581,13 +581,15 @@ def MeshSpatialIndex(
 
   bboxes = {}
   for label, slc in enumerate(slcs):
+    if slc is None:
+      continue
     mesh_bounds = Bbox.from_slices(slc)
     mesh_bounds += Vec(*offset)
     mesh_bounds *= Vec(*resolution, dtype=np.float32)
-    bboxes[reverse_map[label+1]] = mesh_bounds.astype(resolution.dtype).to_list()
+    bboxes[str(reverse_map[label+1])] = \
+      mesh_bounds.astype(resolution.dtype).to_list()
 
   bounds = bounds.astype(resolution.dtype) * resolution
-
   cf.put_json(
     f"{mesh_dir}/{bounds.to_filename(precision)}.spatial",
     bboxes,

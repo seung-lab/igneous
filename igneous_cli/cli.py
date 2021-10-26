@@ -270,9 +270,9 @@ def xfer(
 
 @main.command()
 @click.argument("queue", type=str)
-@click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides. Default: {SQS_REGION_NAME}")
-@click.option('--lease-sec', default=LEASE_SECONDS, help=f"Seconds to lease a task for. Default: {LEASE_SECONDS}", type=int)
-@click.option('--tally/--no-tally', is_flag=True, default=True, help="Tally completed fq tasks. Does not apply to SQS.")
+@click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
+@click.option('--lease-sec', default=LEASE_SECONDS, help=f"Seconds to lease a task for.", type=int, show_default=True)
+@click.option('--tally/--no-tally', is_flag=True, default=True, help="Tally completed fq tasks. Does not apply to SQS.", show_default=True)
 @click.option('--min-sec', default=-1, help='Execute for at least this many seconds and quit after the last task finishes. Special values: (0) Run at most a single task. (-1) Loop forever (default).', type=float)
 @click.pass_context
 def execute(ctx, queue, aws_region, lease_sec, tally, min_sec):

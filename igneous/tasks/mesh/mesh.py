@@ -564,7 +564,9 @@ def MeshSpatialIndex(
 
   bounds = Bbox(Vec(*offset), Vec(*shape) + Vec(*offset))
   bounds = Bbox.clamp(bounds, cv.bounds)
-  bounds.maxpt += 1 # match typical Marching Cubes overlap
+
+  data_bounds = bounds.clone()
+  data_bounds.maxpt += 1 # match typical Marching Cubes overlap
 
   precision = cv.mesh.spatial_index.precision
   resolution = cv.resolution 
@@ -573,7 +575,7 @@ def MeshSpatialIndex(
     mesh_dir = cv.info["mesh"]
 
   # remap: old img -> img
-  img, remap = cv.download(bounds, renumber=True)
+  img, remap = cv.download(data_bounds, renumber=True)
   img = img[...,0]
   slcs = find_objects(img)
   del img

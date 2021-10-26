@@ -406,10 +406,11 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @meshgroup.command("spatial-index")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--shape', default="448,448,448", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
-def mesh_spatial_index(ctx, path, queue, mip, fill_missing):
+def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
   """
   Create a spatial index on a pre-existing mesh.
 
@@ -419,9 +420,10 @@ def mesh_spatial_index(ctx, path, queue, mip, fill_missing):
   way to accomplish that than remeshing.
   """
   tasks = tc.create_spatial_index_mesh_tasks(
-    cloudpath=path, 
+    cloudpath=path,
+    shape=shape,
     mip=mip, 
-    fill_missing=fill_missing, 
+    fill_missing=fill_missing,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

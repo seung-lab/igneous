@@ -26,12 +26,24 @@ def operator_contact():
 def prod(x):
   return reduce(operator.mul, x, 1)
 
-def get_bounds(vol, bounds, mip, chunk_size=None):
+def get_bounds(vol, bounds, mip, bounds_mip=0, chunk_size=None):
+  """Return bounds of vol at mip, or snap bounds at src_mip to chunk_size
+
+  Args:
+    vol (CloudVolume)
+    bounds (Bbox-like object)
+    mip (int): mip level of returned bounds
+    bounds_mip (int): mip level of input bounds
+    chunk_size (Vec-like object): if bounds are set, can set chunk_size for snapping
+
+  Returns:
+    Bbox for bounds
+  """
   if bounds is None:
     bounds = vol.meta.bounds(mip)
   else:
     bounds = Bbox.create(bounds)
-    bounds = vol.bbox_to_mip(bounds, mip=0, to_mip=mip)
+    bounds = vol.bbox_to_mip(bounds, mip=bounds_mip, to_mip=mip)
     if chunk_size is not None:
       bounds = bounds.expand_to_chunk_size(chunk_size, vol.meta.voxel_offset(mip))
     bounds = Bbox.clamp(bounds, vol.meta.bounds(mip))

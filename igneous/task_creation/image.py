@@ -905,7 +905,7 @@ def create_contrast_normalization_tasks(
 
 def create_luminance_levels_tasks(
     layer_path, levels_path=None, coverage_factor=0.01, 
-    shape=None, offset=(0,0,0), mip=0, bounds=None
+    shape=None, offset=(0,0,0), mip=0, bounds_mip=0, bounds=None
   ):
   """
   Compute per slice luminance level histogram and write them as
@@ -918,24 +918,27 @@ def create_luminance_levels_tasks(
     "coverage_ratio": 0.011, # actual sampled area on this slice normalized by ROI size.
   }
 
-  layer_path: source image to sample from
-  levels_path: which path to write ./levels/ to (default: $layer_path)
-  coverage_factor: what fraction of the image to sample
+  Args:
+    layer_path: source image to sample from
+    levels_path: which path to write ./levels/ to (default: $layer_path)
+    coverage_factor: what fraction of the image to sample
 
-  offset & shape: Allows you to specify an ROI if much of
-    the edges are black. Defaults to entire image.
-  mip: int, which mip to work with, default maximum resolution
+    offset & shape: Allows you to specify an ROI if much of
+      the edges are black. Defaults to entire image.
+    mip (int): which mip to work with, default maximum resolution
+    bounds_mip (int): mip of the input bounds
+    bounds (Bbox-like)
   """
   vol = CloudVolume(layer_path, mip=mip)
 
-  if shape == None:
+  if shape is None:
     shape = Vec(*vol.shape)
     shape.z = 1
 
   offset = Vec(*offset)
   zoffset = offset.clone()
 
-  bounds = get_bounds(vol, bounds, mip)
+  bounds = get_bounds(vol, bounds, mip, bounds_mip=bounds_mip)
   protocol = vol.meta.path.protocol
 
   class LuminanceLevelsTaskIterator(object):

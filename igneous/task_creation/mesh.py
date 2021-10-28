@@ -234,6 +234,12 @@ def create_spatial_index_mesh_tasks(
   compress:Optional[Union[str,bool]] = 'gzip', 
   mesh_dir:Optional[str] = None
 ):
+  """
+  The main way to add a spatial index is to use the MeshTask,
+  but old datasets or broken datasets may need it to be 
+  reconstituted. An alternative use is create the spatial index
+  over a different area size than the mesh task.
+  """
   shape = Vec(*shape)
 
   vol = CloudVolume(cloudpath, mip=mip)

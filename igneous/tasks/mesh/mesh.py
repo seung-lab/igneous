@@ -252,7 +252,7 @@ class MeshTask(RegisteredTask):
       f"{self._mesh_dir}/{bbox.to_filename()}.frags",
       content=mbuf.tobytes(),
       compress=None,
-      content_type="application/x-mapbuffer",
+      content_type="application/x.mapbuffer",
       cache_control=False,
     )
 

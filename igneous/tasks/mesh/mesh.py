@@ -258,6 +258,11 @@ class MeshTask(RegisteredTask):
 
   def _upload_individuals(self, mesh_binaries, generate_manifests):
     cf = CloudFiles(self.layer_path)
+
+    content_type = "application/octet-stream"
+    if self.options["encoding"] == "draco":
+      content_type = "application/x.draco"
+
     cf.puts(
       ( 
         (
@@ -268,6 +273,7 @@ class MeshTask(RegisteredTask):
       ),
       compress=self._encoding_to_compression_dict[self.options['encoding']],
       cache_control=self.options['cache_control'],
+      content_type=content_type,
     )
 
     if generate_manifests:

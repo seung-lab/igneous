@@ -295,9 +295,36 @@ def create_spatial_index_mesh_tasks(
 
   return SpatialIndexMeshTaskIterator(vol.bounds, shape)
 
-# def create_unsharded_multires_mesh_tasks(
-#   cloudpath, mip, num_lod=1
-# ):
+def create_unsharded_multires_mesh_tasks(
+  cloudpath:str, mip:int, num_lod:int = 1, 
+  magnitude:int = 3, mesh_dir:str = None
+) -> Iterator:
+  # split the work up into ~1000 tasks (magnitude 3)
+  assert int(magnitude) == magnitude
+
+  start = 10 ** (magnitude - 1)
+  end = 10 ** magnitude
+
+  class UnshardedMultiResTaskIterator(object):
+    def __len__(self):
+      return 10 ** magnitude
+    def __iter__(self):
+      for prefix in range(1, start):
+        yield partial(MeshManifestTask, 
+          cloudpath=cloudpath, 
+          prefix=str(prefix) + ':', 
+          mesh_dir=mesh_dir
+        )
+
+      # enumerate from e.g. 100 to 999
+      for prefix in range(start, end):
+        yield partial(MeshManifestTask, 
+          cloudpath=cloudpath, 
+          prefix=prefix, 
+          mesh_dir=mesh_dir
+        )
+
+  return MeshManifestTaskIterator()
 
 # # def create_sharded_skeleton_merge_tasks(
 # #     layer_path, dust_threshold, tick_threshold,

@@ -30,6 +30,10 @@ import zmesh
 
 from .draco import draco_encoding_settings
 
+__all__ = [
+  "MultiResUnshardedMeshMergeTask",
+]
+
 @queueable
 def MultiResUnshardedMeshMergeTask(
   cloudpath:str, 

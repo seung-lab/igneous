@@ -4,7 +4,8 @@ from .skeleton import (
 )
 from .mesh import (
   MeshTask, MeshManifestTask, 
-  GrapheneMeshTask, MeshSpatialIndex
+  GrapheneMeshTask, MeshSpatialIndex,
+  MultiResUnshardedMeshMergeTask,
 )
 from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,

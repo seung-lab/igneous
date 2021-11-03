@@ -56,19 +56,18 @@ def MultiResUnshardedMeshMergeTask(
 
   draco_settings = draco_encoding_settings(
     shape=cv.bounds.size3(),
-    offset=offset,
+    offset=cv.bounds.minpt,
     resolution=cv.resolution,
     compression_level=draco_compression_level,
     create_metadata=True,
   )
 
-  cf = CloudFiles(cloudpath)
+  cf = CloudFiles(cv.meta.join(cloudpath, mesh_dir))
   for label, filenames in files_per_label.items():
-    # filenames = prepend mesh_dir
     files = cf.get(filenames)
     # we should handle draco as well
     files = [ Mesh.from_precomputed(f["content"]) for f in files ]
-    mesh = Mesh.concatenate(files)
+    mesh = Mesh.concatenate(*files)
     
     mesh = DracoPy.encode_mesh_to_buffer(
       mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 

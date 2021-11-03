@@ -415,7 +415,7 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @click.pass_context
 def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
   """
-  Create a spatial index on a pre-existing mesh.
+  (optional) Create a spatial index on a pre-existing mesh.
 
   Sometimes datasets were meshes without a
   spatial index or need it to be updated.

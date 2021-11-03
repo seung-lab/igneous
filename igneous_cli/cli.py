@@ -343,8 +343,8 @@ def meshgroup():
 @click.option('--max-error', default=40, help="Maximum simplification error in physical units.", show_default=True)
 @click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
-@click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
-@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.")
+@click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
+@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
 @click.pass_context
 def mesh_forge(
   ctx, path, queue, mip, shape, 
@@ -367,6 +367,9 @@ def mesh_forge(
 
   Sharded format not currently supports. Coming soon.
   """
+  if compress.lower() == "none":
+    compress = False
+
   tasks = tc.create_meshing_tasks(
     path, mip, shape, 
     simplification=simplify, max_simplification_error=max_error,

@@ -43,7 +43,7 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
 
   class MeshManifestTaskIterator(object):
     def __len__(self):
-      return 10 ** magnitude
+      return (10 ** magnitude) - 1
     def __iter__(self):
       for prefix in range(1, start):
         yield MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':', mesh_dir=mesh_dir)
@@ -309,7 +309,7 @@ def create_unsharded_multires_mesh_tasks(
 
   class UnshardedMultiResTaskIterator(object):
     def __len__(self):
-      return 10 ** magnitude
+      return (10 ** magnitude) - 1
     def __iter__(self):
       for prefix in range(1, start):
         yield partial(MultiResUnshardedMeshMergeTask, 
@@ -328,7 +328,7 @@ def create_unsharded_multires_mesh_tasks(
           num_lod=num_lod,
         )
 
-  return MeshManifestTaskIterator()
+  return UnshardedMultiResTaskIterator()
 
 # # def create_sharded_skeleton_merge_tasks(
 # #     layer_path, dust_threshold, tick_threshold,

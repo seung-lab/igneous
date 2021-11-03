@@ -32,25 +32,14 @@ from .draco import draco_encoding_settings
 
 @queueable
 def MultiResUnshardedMeshMergeTask(
-  cloudpath:str, prefix:str,
+  cloudpath:str, 
+  prefix:str,
   cache_control:bool = False,
   draco_compression_level:int = 1,
-  draco_create_metadata:bool = False,
-  dust_threshold:Optional[int] = None,
-  encoding:str = 'precomputed',
-  fill_missing:bool = False,
-  max_simplification_error:int = 40,
-  simplification_factor:int = 100,
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
-  progress:bool = False,
-  remap_table:Optional[dict] = None,
-  spatial_index:bool = False,
-  sharded:bool = False,
-  timestamp:Optional[int] = None,
-  agglomerate:Optional[bool] = True,
-  stop_layer:Optional[int] = 2,
-  compress:str = 'gzip',
+  # progress:bool = False,
+  # sharded:bool = False,
 ):
   cv = CloudVolume(cloudpath)
   
@@ -65,6 +54,7 @@ def MultiResUnshardedMeshMergeTask(
     shape=cv.bounds.size3(),
     offset=offset,
     resolution=cv.resolution,
+    compression_level=draco_compression_level,
     create_metadata=True,
   )
 

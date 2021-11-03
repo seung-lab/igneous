@@ -2,7 +2,8 @@ import copy
 from functools import reduce, partial
 from typing import (
   Any, Dict, Optional, 
-  Union, Tuple, cast
+  Union, Tuple, cast,
+  Iterator
 )
 
 from time import strftime
@@ -17,7 +18,7 @@ from cloudfiles import CloudFiles
 
 from igneous.tasks import (
   MeshTask, MeshManifestTask, GrapheneMeshTask,
-  MeshSpatialIndex
+  MeshSpatialIndex, MultiResUnshardedMeshMergeTask
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -30,6 +31,7 @@ __all__ = [
   "create_graphene_meshing_tasks",
   "create_graphene_hybrid_mesh_manifest_tasks",
   "create_spatial_index_mesh_tasks",
+  "create_unsharded_multires_mesh_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -310,18 +312,20 @@ def create_unsharded_multires_mesh_tasks(
       return 10 ** magnitude
     def __iter__(self):
       for prefix in range(1, start):
-        yield partial(MeshManifestTask, 
+        yield partial(MultiResUnshardedMeshMergeTask, 
           cloudpath=cloudpath, 
           prefix=str(prefix) + ':', 
-          mesh_dir=mesh_dir
+          mesh_dir=mesh_dir,
+          num_lod=num_lod,
         )
 
       # enumerate from e.g. 100 to 999
       for prefix in range(start, end):
-        yield partial(MeshManifestTask, 
+        yield partial(MultiResUnshardedMeshMergeTask, 
           cloudpath=cloudpath, 
           prefix=prefix, 
-          mesh_dir=mesh_dir
+          mesh_dir=mesh_dir,
+          num_lod=num_lod,
         )
 
   return MeshManifestTaskIterator()

@@ -1,10 +1,14 @@
+from typing import Tuple, Dict, Any
+
 import numpy as np
 
+Triple = Tuple[int,int,int]
+
 def draco_encoding_settings(
-  shape, offset, resolution,
-  compression_level, create_metadata,
+  shape:Triple, offset:Triple, resolution:Triple,
+  compression_level:int, create_metadata:bool,
   uses_new_draco_bin_size=False
-):
+) -> Dict[str,Any]:
   chunk_offset_nm = offset * resolution
   
   min_quantization_range = max(shape * resolution)

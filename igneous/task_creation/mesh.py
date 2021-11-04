@@ -319,15 +319,18 @@ def create_unsharded_multires_mesh_tasks(
   new_mesh_info = copy.deepcopy(mesh_info)
   new_mesh_info['@type'] = "neuroglancer_multilod_draco"
   new_mesh_info['vertex_quantization_bits'] = 10 # or 16
-  new_mesh_info['transform'] = [ # identity for now
-    [1, 0, 0, 0],
-    [0, 1, 0, 0],
-    [0, 0, 1, 0],
+  new_mesh_info['transform'] = [ 
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
   ]
-  new_mesh_info['lod_scale_multiplier'] = []
+  new_mesh_info['lod_scale_multiplier'] = 2.0
 
   if new_mesh_info != mesh_info:
-    cf.put_json(info_filename, new_mesh_info)
+    cf.put_json(
+      info_filename, new_mesh_info, 
+      cache_control="no-cache"
+    )
 
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude

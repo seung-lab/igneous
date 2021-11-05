@@ -17,7 +17,7 @@ from cloudfiles import CloudFiles
 from cloudvolume import CloudVolume, Mesh, view
 from cloudvolume.lib import Vec, Bbox, jsonify
 from cloudvolume.datasource.precomputed.mesh.multilod \
-  import MultiLevelPrecomputedMeshManifest
+  import MultiLevelPrecomputedMeshManifest, to_stored_model_space
 import mapbuffer
 from mapbuffer import MapBuffer
 from taskqueue import queueable
@@ -68,11 +68,6 @@ def MultiResUnshardedMeshMergeTask(
     # we should handle draco as well
     files = [ Mesh.from_precomputed(f["content"]) for f in files ]
     mesh = Mesh.concatenate(*files)
-    
-    mesh = DracoPy.encode_mesh_to_buffer(
-      mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
-      **draco_settings
-    )
 
     manifest = MultiLevelPrecomputedMeshManifest(
       segment_id=label, 
@@ -84,6 +79,18 @@ def MultiResUnshardedMeshMergeTask(
       num_fragments_per_lod=[1], 
       fragment_positions=[[0,0,0]], 
       fragment_offsets=[0],
+    )
+
+    mesh.vertices = to_stored_model_space(
+      mesh.vertices, manifest, 
+      lod=0, 
+      vertex_quantization_bits=int(cv.mesh.meta.info["vertex_quantization_bits"]),
+      frag=0
+    )
+
+    mesh = DracoPy.encode_mesh_to_buffer(
+      mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
+      **draco_settings
     )
 
     cf.put(f"{label}.index", manifest.to_binary(), cache_control="no-cache")

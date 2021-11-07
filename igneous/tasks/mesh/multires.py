@@ -72,15 +72,16 @@ def MultiResUnshardedMeshMergeTask(
     manifest = MultiLevelPrecomputedMeshManifest(
       segment_id=label, 
       chunk_shape=cv.bounds.size3(),
-      grid_origin=[0,0,0], 
+      grid_origin=cv.bounds.minpt, 
       num_lods=1, 
       lod_scales=2, 
       vertex_offsets=[[0,0,0]],
       num_fragments_per_lod=[1], 
-      fragment_positions=[[0,0,0]], 
+      fragment_positions=[[[0,0,0]]], 
       fragment_offsets=[0],
     )
 
+    mesh.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
     mesh.vertices = to_stored_model_space(
       mesh.vertices, manifest, 
       lod=0, 

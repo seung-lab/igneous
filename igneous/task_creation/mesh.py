@@ -313,16 +313,18 @@ def create_unsharded_multires_mesh_tasks(
     vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
+  res = vol.meta.resolution(vol.mesh.meta.mip)
+
   cf = CloudFiles(cloudpath)
   info_filename = f'{mesh_dir}/info'
   mesh_info = cf.get_json(info_filename) or {}
   new_mesh_info = copy.deepcopy(mesh_info)
   new_mesh_info['@type'] = "neuroglancer_multilod_draco"
-  new_mesh_info['vertex_quantization_bits'] = 10 # or 16
+  new_mesh_info['vertex_quantization_bits'] = 16 # or 10
   new_mesh_info['transform'] = [ 
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
+    res[0], 0,      0,      0,
+    0,      res[1], 0,      0,
+    0,      0,      res[2], 0,
   ]
   new_mesh_info['lod_scale_multiplier'] = 2.0
 

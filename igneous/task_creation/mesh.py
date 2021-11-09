@@ -326,7 +326,7 @@ def create_unsharded_multires_mesh_tasks(
     0,      res[1], 0,      0,
     0,      0,      res[2], 0,
   ]
-  new_mesh_info['lod_scale_multiplier'] = 2.0
+  new_mesh_info['lod_scale_multiplier'] = 1.0
 
   if new_mesh_info != mesh_info:
     cf.put_json(

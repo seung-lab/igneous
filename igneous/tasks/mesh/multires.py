@@ -54,14 +54,6 @@ def MultiResUnshardedMeshMergeTask(
     cloudpath, mesh_dir, prefix
   )
 
-  draco_settings = draco_encoding_settings(
-    shape=cv.bounds.size3(),
-    offset=cv.bounds.minpt,
-    resolution=cv.resolution,
-    compression_level=draco_compression_level,
-    create_metadata=True,
-  )
-
   cf = CloudFiles(cv.meta.join(cloudpath, mesh_dir))
   for label, filenames in files_per_label.items():
     files = cf.get(filenames)
@@ -74,25 +66,32 @@ def MultiResUnshardedMeshMergeTask(
       chunk_shape=cv.bounds.size3(),
       grid_origin=cv.bounds.minpt, 
       num_lods=1, 
-      lod_scales=2, 
+      lod_scales=[ 1 ], 
       vertex_offsets=[[0,0,0]],
       num_fragments_per_lod=[1], 
       fragment_positions=[[[0,0,0]]], 
-      fragment_offsets=[0],
+      fragment_offsets=[0], # needs to be set when we have the final value
     )
+
+    vqb = int(cv.mesh.meta.info["vertex_quantization_bits"])
 
     mesh.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
     mesh.vertices = to_stored_model_space(
       mesh.vertices, manifest, 
       lod=0, 
-      vertex_quantization_bits=int(cv.mesh.meta.info["vertex_quantization_bits"]),
+      vertex_quantization_bits=vqb,
       frag=0
     )
 
     mesh = DracoPy.encode_mesh_to_buffer(
       mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
-      **draco_settings
+      quantization_bits=vqb,
+      compression_level=draco_compression_level,
+      quantization_range=np.max(mesh.vertices),
+      quantization_origin=[0,0,0],
+      create_metadata=True,
     )
+    manifest.fragment_offsets = [ len(mesh) ]
 
     cf.put(f"{label}.index", manifest.to_binary(), cache_control="no-cache")
     cf.put(f"{label}", mesh, cache_control="no-cache")

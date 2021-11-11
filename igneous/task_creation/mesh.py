@@ -299,10 +299,12 @@ def create_spatial_index_mesh_tasks(
 
 def create_unsharded_multires_mesh_tasks(
   cloudpath:str, mip:int, num_lod:int = 1, 
-  magnitude:int = 3, mesh_dir:str = None
+  magnitude:int = 3, mesh_dir:str = None,
+  vertex_quantization_bits:int = 16
 ) -> Iterator:
   # split the work up into ~1000 tasks (magnitude 3)
   assert int(magnitude) == magnitude
+  assert vertex_quantization_bits in (10, 16)
 
   vol = CloudVolume(cloudpath, mip=mip)
 
@@ -320,7 +322,7 @@ def create_unsharded_multires_mesh_tasks(
   mesh_info = cf.get_json(info_filename) or {}
   new_mesh_info = copy.deepcopy(mesh_info)
   new_mesh_info['@type'] = "neuroglancer_multilod_draco"
-  new_mesh_info['vertex_quantization_bits'] = 16 # or 10
+  new_mesh_info['vertex_quantization_bits'] = vertex_quantization_bits
   new_mesh_info['transform'] = [ 
     res[0], 0,      0,      0,
     0,      res[1], 0,      0,

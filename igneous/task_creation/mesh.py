@@ -1,5 +1,10 @@
+import copy
 from functools import reduce, partial
-from typing import Any, Dict, Tuple, cast
+from typing import (
+  Any, Dict, Optional, 
+  Union, Tuple, cast,
+  Iterator
+)
 
 from time import strftime
 
@@ -12,7 +17,8 @@ from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_diviso
 from cloudfiles import CloudFiles
 
 from igneous.tasks import (
-  MeshTask, MeshManifestTask, GrapheneMeshTask
+  MeshTask, MeshManifestTask, GrapheneMeshTask,
+  MeshSpatialIndex, MultiResUnshardedMeshMergeTask
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -24,6 +30,8 @@ __all__ = [
   "create_mesh_manifest_tasks",
   "create_graphene_meshing_tasks",
   "create_graphene_hybrid_mesh_manifest_tasks",
+  "create_spatial_index_mesh_tasks",
+  "create_unsharded_multires_mesh_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -35,7 +43,7 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
 
   class MeshManifestTaskIterator(object):
     def __len__(self):
-      return 10 ** magnitude
+      return (10 ** magnitude) - 1
     def __iter__(self):
       for prefix in range(1, start):
         yield MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':', mesh_dir=mesh_dir)
@@ -219,3 +227,141 @@ def create_graphene_hybrid_mesh_manifest_tasks(
         yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix))
 
   return GrapheneHybridMeshManifestTaskIterator()
+
+def create_spatial_index_mesh_tasks(
+  cloudpath:str, 
+  shape:Tuple[int,int,int] = (448,448,448), 
+  mip:int = 0, 
+  fill_missing:bool = False, 
+  compress:Optional[Union[str,bool]] = 'gzip', 
+  mesh_dir:Optional[str] = None
+):
+  """
+  The main way to add a spatial index is to use the MeshTask,
+  but old datasets or broken datasets may need it to be 
+  reconstituted. An alternative use is create the spatial index
+  over a different area size than the mesh task.
+  """
+  shape = Vec(*shape)
+
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  if mesh_dir is None:
+    mesh_dir = f"mesh_mip_{mip}_err_40"
+
+  if not "mesh" in vol.info:
+    vol.info['mesh'] = mesh_dir
+    vol.commit_info()
+
+  cf = CloudFiles(cloudpath)
+  info_filename = '{}/info'.format(mesh_dir)
+  mesh_info = cf.get_json(info_filename) or {}
+  new_mesh_info = copy.deepcopy(mesh_info)
+  new_mesh_info['@type'] = new_mesh_info.get('@type', 'neuroglancer_legacy_mesh') 
+  new_mesh_info['mip'] = new_mesh_info.get("mip", int(vol.mip))
+  new_mesh_info['chunk_size'] = shape.tolist()
+  new_mesh_info['spatial_index'] = {
+    'resolution': vol.resolution.tolist(),
+    'chunk_size': (shape * vol.resolution).tolist(),
+  }
+  if new_mesh_info != mesh_info:
+    cf.put_json(info_filename, new_mesh_info)
+
+  class SpatialIndexMeshTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return partial(MeshSpatialIndex, 
+        cloudpath=cloudpath,
+        shape=shape,
+        offset=offset,
+        mip=int(mip),
+        fill_missing=bool(fill_missing),
+        compress=compress,
+        mesh_dir=mesh_dir,
+      )
+
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'MeshSpatialIndex',
+          'cloudpath': vol.cloudpath,
+          'shape': shape.tolist(),
+          'mip': int(mip),
+          'mesh_dir': mesh_dir,
+          'fill_missing': fill_missing,
+          'compress': compress,
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
+
+  return SpatialIndexMeshTaskIterator(vol.bounds, shape)
+
+def create_unsharded_multires_mesh_tasks(
+  cloudpath:str, mip:int, num_lod:int = 1, 
+  magnitude:int = 3, mesh_dir:str = None,
+  vertex_quantization_bits:int = 16
+) -> Iterator:
+  """
+  vertex_quantization_bits: 10 or 16. Adjusts the precision
+    of mesh vertices.
+  """
+  # split the work up into ~1000 tasks (magnitude 3)
+  assert int(magnitude) == magnitude
+  assert vertex_quantization_bits in (10, 16)
+
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  if mesh_dir is None:
+    mesh_dir = f"mesh_mip_{mip}_err_40"
+
+  if not "mesh" in vol.info:
+    vol.info['mesh'] = mesh_dir
+    vol.commit_info()
+
+  res = vol.meta.resolution(vol.mesh.meta.mip)
+
+  cf = CloudFiles(cloudpath)
+  info_filename = f'{mesh_dir}/info'
+  mesh_info = cf.get_json(info_filename) or {}
+  new_mesh_info = copy.deepcopy(mesh_info)
+  new_mesh_info['@type'] = "neuroglancer_multilod_draco"
+  new_mesh_info['vertex_quantization_bits'] = vertex_quantization_bits
+  new_mesh_info['transform'] = [ 
+    res[0], 0,      0,      0,
+    0,      res[1], 0,      0,
+    0,      0,      res[2], 0,
+  ]
+  new_mesh_info['lod_scale_multiplier'] = 1.0
+
+  if new_mesh_info != mesh_info:
+    cf.put_json(
+      info_filename, new_mesh_info, 
+      cache_control="no-cache"
+    )
+
+  start = 10 ** (magnitude - 1)
+  end = 10 ** magnitude
+
+  class UnshardedMultiResTaskIterator(object):
+    def __len__(self):
+      return (10 ** magnitude) - 1
+    def __iter__(self):
+      for prefix in range(1, start):
+        yield partial(MultiResUnshardedMeshMergeTask, 
+          cloudpath=cloudpath, 
+          prefix=str(prefix) + ':', 
+          mesh_dir=mesh_dir,
+          num_lod=num_lod,
+        )
+
+      # enumerate from e.g. 100 to 999
+      for prefix in range(start, end):
+        yield partial(MultiResUnshardedMeshMergeTask, 
+          cloudpath=cloudpath, 
+          prefix=prefix, 
+          mesh_dir=mesh_dir,
+          num_lod=num_lod,
+        )
+
+  return UnshardedMultiResTaskIterator()

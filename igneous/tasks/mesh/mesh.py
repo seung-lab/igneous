@@ -1,12 +1,13 @@
 from collections import defaultdict
-
 import json
 import math
 import os
 import random
 import re
+from typing import Optional, Tuple, Union
 
 import numpy as np
+import scipy.ndimage
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
@@ -15,34 +16,32 @@ from cloudvolume import CloudVolume, view
 from cloudvolume.lib import Vec, Bbox, jsonify
 import mapbuffer
 from mapbuffer import MapBuffer
-from taskqueue import RegisteredTask
+from taskqueue import RegisteredTask, queueable
 
 import cc3d
 import DracoPy
 import fastremap
 import zmesh
 
+from .draco import calculate_draco_quantization_bits_and_range, draco_encoding_settings
 from . import mesh_graphene_remap
 
-def calculate_draco_quantization_bits_and_range(
-  min_quantization_range, max_draco_bin_size, draco_quantization_bits=None
-):
-  if draco_quantization_bits is None:
-    draco_quantization_bits = np.ceil(
-      np.log2(min_quantization_range / max_draco_bin_size + 1)
-    )
-  num_draco_bins = 2 ** draco_quantization_bits - 1
-  draco_bin_size = np.ceil(min_quantization_range / num_draco_bins)
-  draco_quantization_range = draco_bin_size * num_draco_bins
-  if draco_quantization_range < min_quantization_range + draco_bin_size:
-    if draco_bin_size == max_draco_bin_size:
-      return calculate_quantization_bits_and_range(
-        min_quantization_range, max_draco_bin_size, draco_quantization_bits + 1
-      )
-    else:
-      draco_bin_size = draco_bin_size + 1
-      draco_quantization_range = draco_quantization_range + num_draco_bins
-  return draco_quantization_bits, draco_quantization_range, draco_bin_size
+__all__ = [
+  "MeshTask", "GrapheneMeshTask", "MeshManifestTask",
+  "MeshSpatialIndex"
+]
+
+def find_objects(labels):
+  """  
+  scipy.ndimage.find_objects performs about 7-8x faster on C 
+  ordered arrays, so we just do it that way and convert
+  the results if it's in F order.
+  """
+  if labels.flags.c_contiguous:
+    return scipy.ndimage.find_objects(labels)
+  else:
+    all_slices = scipy.ndimage.find_objects(labels.T)
+    return [ (slcs and slcs[::-1]) for slcs in all_slices ]
 
 class MeshTask(RegisteredTask):
   def __init__(self, shape, offset, layer_path, **kwargs):
@@ -155,7 +154,14 @@ class MeshTask(RegisteredTask):
     self._mesh_dir = self.get_mesh_dir()
 
     if self.options['encoding'] == 'draco':
-      self.draco_encoding_settings = self._compute_draco_encoding_settings()
+      self.draco_encoding_settings = draco_encoding_settings(
+        shape=(self.shape + self.options['low_padding'] + self.options['high_padding']),
+        offset=self.offset,
+        resolution=self._volume.resolution,
+        compression_level=self.options["draco_compression_level"],
+        create_metadata=self.options['draco_create_metadata'],
+        uses_new_draco_bin_size=False,
+      )
 
     # chunk_position includes the overlap specified by low_padding/high_padding
     # agglomerate, timestamp, stop_layer only applies to graphene volumes, 
@@ -189,20 +195,6 @@ class MeshTask(RegisteredTask):
       return self._volume.info['mesh']
     else:
       raise ValueError("The mesh destination is not present in the info file.")
-
-  def _compute_draco_encoding_settings(self):
-    min_quantization_range = max((self.shape + self.options['low_padding'] + self.options['high_padding']) * self._volume.resolution)
-    max_draco_bin_size = np.floor(min(self._volume.resolution) / np.sqrt(2))
-    draco_quantization_bits, draco_quantization_range, draco_bin_size = \
-      calculate_draco_quantization_bits_and_range(min_quantization_range, max_draco_bin_size)
-    draco_quantization_origin = self.offset - (self.offset % draco_bin_size)
-    return {
-      'quantization_bits': draco_quantization_bits,
-      'compression_level': self.options['draco_compression_level'],
-      'quantization_range': draco_quantization_range,
-      'quantization_origin': draco_quantization_origin,
-      'create_metadata': self.options['draco_create_metadata']
-    }
 
   def _remove_dust(self, data, dust_threshold):
     if dust_threshold:
@@ -260,12 +252,17 @@ class MeshTask(RegisteredTask):
       f"{self._mesh_dir}/{bbox.to_filename()}.frags",
       content=mbuf.tobytes(),
       compress=None,
-      content_type="application/x-mapbuffer",
+      content_type="application/x.mapbuffer",
       cache_control=False,
     )
 
   def _upload_individuals(self, mesh_binaries, generate_manifests):
     cf = CloudFiles(self.layer_path)
+
+    content_type = "model/mesh"
+    if self.options["encoding"] == "draco":
+      content_type = "model/x.draco"
+    
     cf.puts(
       ( 
         (
@@ -276,6 +273,7 @@ class MeshTask(RegisteredTask):
       ),
       compress=self._encoding_to_compression_dict[self.options['encoding']],
       cache_control=self.options['cache_control'],
+      content_type=content_type,
     )
 
     if generate_manifests:
@@ -404,7 +402,14 @@ class GrapheneMeshTask(RegisteredTask):
     # data_bounds.maxpt += self.overlap_vx
 
     self.mesh_dir = self.get_mesh_dir()
-    self.draco_encoding_settings = self.compute_draco_encoding_settings()
+    self.draco_encoding_settings = draco_encoding_settings(
+      shape=(self.shape + self.overlap_vx),
+      offset=self.offset,
+      resolution=self.cv.resolution,
+      compression_level=1,
+      create_metadata=True,
+      uses_new_draco_bin_size=self.cv.meta.uses_new_draco_bin_size,
+    )
 
     chunk_pos = self.cv.meta.point_to_chunk_position(self.bounds.center(), mip=self.mip)
     
@@ -481,34 +486,6 @@ class GrapheneMeshTask(RegisteredTask):
 
     return mesh_binary
 
-  def compute_draco_encoding_settings(self):
-    resolution = self.cv.resolution
-    chunk_offset_nm = self.offset * resolution
-    
-    min_quantization_range = max(
-      (self.shape + self.overlap_vx) * resolution
-    )
-    if self.cv.meta.uses_new_draco_bin_size:
-      max_draco_bin_size = np.floor(min(resolution) / 2)
-    else:
-      max_draco_bin_size = np.floor(min(resolution) / np.sqrt(2))
-
-    (
-      draco_quantization_bits,
-      draco_quantization_range,
-      draco_bin_size,
-    ) = calculate_draco_quantization_bits_and_range(
-      min_quantization_range, max_draco_bin_size
-    )
-    draco_quantization_origin = chunk_offset_nm - (chunk_offset_nm % draco_bin_size)
-    return {
-      "quantization_bits": draco_quantization_bits,
-      "compression_level": 1,
-      "quantization_range": draco_quantization_range,
-      "quantization_origin": draco_quantization_origin,
-      "create_metadata": True,
-    }
-
 class MeshManifestTask(RegisteredTask):
   """
   Finalize mesh generation by post-processing chunk fragment
@@ -568,3 +545,63 @@ class MeshManifestTask(RegisteredTask):
       ) for segid, frags in segids.items() )
 
     cf.puts(items, content_type='application/json')
+
+@queueable
+def MeshSpatialIndex(
+  cloudpath:str, 
+  shape:Tuple[int,int,int], 
+  offset:Tuple[int,int,int], 
+  mip:int = 0, 
+  fill_missing:bool=False, 
+  compress:Optional[Union[str,bool]] = 'gzip', 
+  mesh_dir:Optional[str] = None
+) -> None:
+  """
+  The main way to add a spatial index is to use the MeshTask,
+  but old datasets or broken datasets may need it to be 
+  reconstituted. An alternative use is create the spatial index
+  over a different area size than the mesh task.
+  """
+  cv = CloudVolume(
+    cloudpath, mip=mip, 
+    bounded=False, fill_missing=fill_missing
+  )
+  cf = CloudFiles(cloudpath)
+
+  bounds = Bbox(Vec(*offset), Vec(*shape) + Vec(*offset))
+  bounds = Bbox.clamp(bounds, cv.bounds)
+
+  data_bounds = bounds.clone()
+  data_bounds.maxpt += 1 # match typical Marching Cubes overlap
+
+  precision = cv.mesh.spatial_index.precision
+  resolution = cv.resolution 
+
+  if not mesh_dir:
+    mesh_dir = cv.info["mesh"]
+
+  # remap: old img -> img
+  img, remap = cv.download(data_bounds, renumber=True)
+  img = img[...,0]
+  slcs = find_objects(img)
+  del img
+  reverse_map = { v:k for k,v in remap.items() } # img -> old img
+
+  bboxes = {}
+  for label, slc in enumerate(slcs):
+    if slc is None:
+      continue
+    mesh_bounds = Bbox.from_slices(slc)
+    mesh_bounds += Vec(*offset)
+    mesh_bounds *= Vec(*resolution, dtype=np.float32)
+    bboxes[str(reverse_map[label+1])] = \
+      mesh_bounds.astype(resolution.dtype).to_list()
+
+  bounds = bounds.astype(resolution.dtype) * resolution
+  cf.put_json(
+    f"{mesh_dir}/{bounds.to_filename(precision)}.spatial",
+    bboxes,
+    compress=compress,
+    cache_control=False,
+  )
+

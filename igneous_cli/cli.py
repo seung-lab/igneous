@@ -272,12 +272,17 @@ def xfer(
 
 @main.command()
 @click.argument("queue", type=str)
-@click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides. Default: {SQS_REGION_NAME}")
-@click.option('--lease-sec', default=LEASE_SECONDS, help=f"Seconds to lease a task for. Default: {LEASE_SECONDS}", type=int)
-@click.option('--tally/--no-tally', is_flag=True, default=True, help="Tally completed fq tasks. Does not apply to SQS.")
+@click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
+@click.option('--lease-sec', default=LEASE_SECONDS, help=f"Seconds to lease a task for.", type=int, show_default=True)
+@click.option('--tally/--no-tally', is_flag=True, default=True, help="Tally completed fq tasks. Does not apply to SQS.", show_default=True)
 @click.option('--min-sec', default=-1, help='Execute for at least this many seconds and quit after the last task finishes. Special values: (0) Run at most a single task. (-1) Loop forever (default).', type=float)
+@click.option('-x', '--exit-on-empty', is_flag=True, default=False, help="Exit immediately when the queue is empty. Not reliable for SQS as measurements are approximate.", show_default=True)
 @click.pass_context
-def execute(ctx, queue, aws_region, lease_sec, tally, min_sec):
+def execute(
+  ctx, queue, aws_region,
+  lease_sec, tally, min_sec,
+  exit_on_empty
+):
   """Execute igneous tasks from a queue.
 
   The queue must be an AWS SQS queue or a FileQueue directory. 
@@ -287,7 +292,7 @@ def execute(ctx, queue, aws_region, lease_sec, tally, min_sec):
   See https://github.com/seung-lab/python-task-queue
   """
   parallel = int(ctx.obj.get("parallel", 1))
-  args = (queue, aws_region, lease_sec, tally, min_sec)
+  args = (queue, aws_region, lease_sec, tally, min_sec, exit_on_empty)
 
   if parallel == 1:
     execute_helper(*args)
@@ -304,10 +309,16 @@ def execute(ctx, queue, aws_region, lease_sec, tally, min_sec):
     pool.terminate()
     pool.join()
 
-def execute_helper(queue, aws_region, lease_sec, tally, min_sec):
+def execute_helper(
+  queue, aws_region, lease_sec, 
+  tally, min_sec, exit_on_empty
+):
   tq = TaskQueue(normalize_path(queue), region_name=aws_region)
 
-  def stop_after_elapsed_time(elapsed_time):
+  def stop_after_elapsed_time(tries, elapsed_time):
+    if exit_on_empty and tq.is_empty():
+      return True
+
     if min_sec < 0:
       return False
     return min_sec < elapsed_time
@@ -338,15 +349,15 @@ def meshgroup():
 @meshgroup.command("forge")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid. Default: 0")
-@click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels. Default: 448,448,448")
-@click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification. Default: True")
+@click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid.", show_default=True)
+@click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels.", show_default=True)
+@click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
-@click.option('--max-error', default=40, help="Maximum simplification error in physical units. Default: 40 nm")
+@click.option('--max-error', default=40, help="Maximum simplification error in physical units.", show_default=True)
 @click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
-@click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
-@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.")
+@click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
+@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
 @click.pass_context
 def mesh_forge(
   ctx, path, queue, mip, shape, 
@@ -369,6 +380,9 @@ def mesh_forge(
 
   Sharded format not currently supports. Coming soon.
   """
+  if compress.lower() == "none":
+    compress = False
+
   tasks = tc.create_meshing_tasks(
     path, mip, shape, 
     simplification=simplify, max_simplification_error=max_error,
@@ -405,6 +419,32 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@meshgroup.command("spatial-index")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--shape', default="448,448,448", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
+@click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
+@click.pass_context
+def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
+  """
+  (optional) Create a spatial index on a pre-existing mesh.
+
+  Sometimes datasets were meshes without a
+  spatial index or need it to be updated.
+  This function provides a more efficient
+  way to accomplish that than remeshing.
+  """
+  tasks = tc.create_spatial_index_mesh_tasks(
+    cloudpath=path,
+    shape=shape,
+    mip=mip, 
+    fill_missing=fill_missing,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
 
 @main.group("skeleton")
 def skeletongroup():
@@ -422,23 +462,23 @@ def skeletongroup():
 @skeletongroup.command("forge")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid. Default: 0")
-@click.option('--shape', type=Tuple3(), default=(512, 512, 512), help="Set the task shape in voxels. Default: 512,512,512")
-@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid.", show_default=True)
+@click.option('--shape', type=Tuple3(), default=(512, 512, 512), help="Set the task shape in voxels.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--fix-branching', is_flag=True, default=True, help="Trades speed for quality of branching at forks. Default: True")
-@click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task. Default: True")
-@click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations. Default: False")
-@click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions. Default: False")
-@click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout. Default: 1000.", type=int)
-@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.")
-@click.option('--scale', default=4, help="Multiplies invalidation radius by distance from boundary.", type=float)
-@click.option('--const', default=10, help="Adds constant amount to invalidation radius in physical units.", type=float)
-@click.option('--soma-detect', default=1100, help="Consider objects with peak distances to boundary larger than this soma candidates. Physical units. Default: 1100 nm", type=float)
-@click.option('--soma-accept', default=3500, help="Accept soma candidates over this threshold and perform a one-time spherical invalidation around their peak value. Physical units. Default: 3500 nm", type=float)
-@click.option('--soma-scale', default=1.0, help="Scale factor for soma invalidation.", type=float)
-@click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float)
+@click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task.", show_default=True)
+@click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
+@click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions.", show_default=True)
+@click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
+@click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
+@click.option('--scale', default=4, help="Multiplies invalidation radius by distance from boundary.", type=float, show_default=True)
+@click.option('--const', default=10, help="Adds constant amount to invalidation radius in physical units.", type=float, show_default=True)
+@click.option('--soma-detect', default=1100, help="Consider objects with peak distances to boundary larger than this soma candidates. Physical units.", type=float, show_default=True)
+@click.option('--soma-accept', default=3500, help="Accept soma candidates over this threshold and perform a one-time spherical invalidation around their peak value. Physical units.", type=float, show_default=True)
+@click.option('--soma-scale', default=1.0, help="Scale factor for soma invalidation.", type=float, show_default=True)
+@click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float, show_default=True)
 @click.option('--max-paths', default=None, help="Abort skeletonizing an object after this many paths have been traced.", type=float)
-@click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.")
+@click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 

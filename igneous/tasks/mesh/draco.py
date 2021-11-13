@@ -50,7 +50,7 @@ def calculate_draco_quantization_bits_and_range(
   draco_quantization_range = draco_bin_size * num_draco_bins
   if draco_quantization_range < min_quantization_range + draco_bin_size:
     if draco_bin_size == max_draco_bin_size:
-      return calculate_quantization_bits_and_range(
+      return calculate_draco_quantization_bits_and_range(
         min_quantization_range, max_draco_bin_size, draco_quantization_bits + 1
       )
     else:

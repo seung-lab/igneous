@@ -6,6 +6,7 @@ from .mesh import (
   MeshTask, MeshManifestTask, 
   GrapheneMeshTask, MeshSpatialIndex,
   MultiResUnshardedMeshMergeTask,
+  MultiResShardedMeshMergeTask,
 )
 from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,

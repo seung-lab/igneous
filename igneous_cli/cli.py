@@ -1,14 +1,18 @@
+from functools import reduce
 import math
 import multiprocessing as mp
 import os
 import sys
 
 import click
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, Bbox
+from cloudvolume.lib import max2
+from cloudfiles import CloudFiles
 import numpy as np
 from taskqueue import TaskQueue
 from taskqueue.lib import toabs
 from taskqueue.paths import get_protocol
+from tqdm import tqdm
 
 from igneous import task_creation as tc
 from igneous import downsample_scales
@@ -645,6 +649,28 @@ def designgroup():
   """
   pass
 
+@designgroup.command("bounds")
+@click.argument("path")
+@click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
+def dsbounds(path, mip):
+  """
+  Detects the volume bounds and chunk size for
+  an unsharded image volume. Useful when there
+  is a corrupted info file.
+  """
+  cv = CloudVolume(path, mip=mip)
+  cf = CloudFiles(path)
+
+  bboxes = []
+  for filename in tqdm(cf.list(prefix=cv.key), desc="Computing Bounds"):
+    bboxes.append( Bbox.from_filename(filename) )
+
+  bounds = Bbox.expand(*bboxes)
+  chunk_size = list(reduce(max2, map(lambda bbox: bbox.size3(), bboxes)))
+
+  print(f"Bounds: {bounds}")
+  print(f"Volume: {list(bounds.size3())}")
+  print(f"Chunks: {chunk_size}")
 
 @designgroup.command("ds-memory")
 @click.argument("path")

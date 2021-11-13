@@ -24,6 +24,7 @@ Example Output to stdout:
 
 import sys
 import os
+from functools import reduce
 
 from tqdm import tqdm
 

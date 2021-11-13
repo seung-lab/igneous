@@ -434,12 +434,14 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @click.option('--shard-bits', default=2, help="2^bits number of shard files to generate.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
 @click.option('--data-encoding', default="gzip", help="Shard data can be compressed. gzip or raw.", show_default=True)
+@click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
 @click.pass_context
 def mesh_sharded_merge(
   ctx, path, queue, 
   vqb, compress_level,
   preshift_bits, minishard_bits, shard_bits,
-  minishard_index_encoding, data_encoding
+  minishard_index_encoding, data_encoding,
+  spatial_index_db
 ):
   """
   (2) Postprocess fragments into finished sharded multires meshes.
@@ -459,6 +461,7 @@ def mesh_sharded_merge(
     shard_bits=shard_bits,
     minishard_index_encoding=minishard_index_encoding, 
     data_encoding=data_encoding,
+    spatial_index_db=spatial_index_db,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -622,13 +625,15 @@ def skeleton_merge(
 @click.option('--shard-bits', default=2, help="2^bits number of shard files to generate.", type=int)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw. Default: gzip")
 @click.option('--data-encoding', default="gzip", help="Shard data can be compressed. gzip or raw. Default: gzip")
+@click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
 @click.pass_context
 def skeleton_sharded_merge(
   ctx, path, queue, 
   min_cable_length, max_cable_length, 
   tick_threshold, 
   preshift_bits, minishard_bits, shard_bits,
-  minishard_index_encoding, data_encoding
+  minishard_index_encoding, data_encoding,
+  spatial_index_db
 ):
   """
   (2) Postprocess fragments into finished skeletons.
@@ -649,6 +654,7 @@ def skeleton_sharded_merge(
     shard_bits=shard_bits,
     minishard_index_encoding=minishard_index_encoding, 
     data_encoding=data_encoding,
+    spatial_index_db=spatial_index_db,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

@@ -269,7 +269,7 @@ def create_sharded_skeleton_merge_tasks(
     layer_path, dust_threshold, tick_threshold,
     preshift_bits, minishard_bits, shard_bits,
     minishard_index_encoding='gzip', data_encoding='gzip',
-    max_cable_length=None
+    max_cable_length=None, spatial_index_db=None
   ): 
   spec = ShardingSpecification(
     type='neuroglancer_uint64_sharded_v1',
@@ -285,7 +285,8 @@ def create_sharded_skeleton_merge_tasks(
   cv.skeleton.meta.info['sharding'] = spec.to_dict()
   cv.skeleton.meta.commit_info()
 
-  cv = CloudVolume(layer_path, progress=True) # rebuild b/c sharding changes the skeleton object
+  # rebuild b/c sharding changes the skeleton object
+  cv = CloudVolume(layer_path, progress=True, spatial_index_db=spatial_index_db) 
   cv.mip = cv.skeleton.meta.mip
 
   # 17 sec to download for pinky100

@@ -392,7 +392,7 @@ def create_sharded_multires_mesh_tasks(
   minishard_index_encoding='gzip', 
   data_encoding='gzip',
   mesh_dir:Optional[str] = None, 
-  sql_db:Optional[str] = None
+  spatial_index_db:Optional[str] = None
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
 
   configure_multires_info(
@@ -416,7 +416,7 @@ def create_sharded_multires_mesh_tasks(
   cv.mesh.meta.commit_info()
 
   # rebuild b/c sharding changes the mesh source class
-  cv = CloudVolume(cloudpath, progress=True) 
+  cv = CloudVolume(cloudpath, progress=True, spatial_index_db=spatial_index_db) 
   cv.mip = cv.mesh.meta.mip
 
   # 17 sec to download for pinky100

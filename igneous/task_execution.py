@@ -9,7 +9,6 @@ import click
 from taskqueue import TaskQueue
 
 from igneous import EmptyVolumeException
-# from igneous import logger
 
 from igneous.secrets import SQS_URL, SQS_REGION_NAME, SQS_ENDPOINT_URL, LEASE_SECONDS
 

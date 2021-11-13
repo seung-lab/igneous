@@ -18,7 +18,8 @@ from cloudfiles import CloudFiles
 
 from igneous.tasks import (
   MeshTask, MeshManifestTask, GrapheneMeshTask,
-  MeshSpatialIndex, MultiResUnshardedMeshMergeTask
+  MeshSpatialIndex, MultiResShardedMeshMergeTask,
+  MultiResUnshardedMeshMergeTask
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -383,15 +384,15 @@ def create_unsharded_multires_mesh_tasks(
   return UnshardedMultiResTaskIterator()
 
 def create_sharded_multires_mesh_tasks(
-    cloudpath:str, mip:int, 
-    preshift_bits:int, minishard_bits:int, shard_bits:int,
-    num_lod:int = 1, 
-    vertex_quantization_bits:int = 16,
-    minishard_index_encoding='gzip', 
-    data_encoding='gzip',
-    mesh_dir:Optional[str] = None, 
-    sql_db:Optional[str] = None
-  ): 
+  cloudpath:str, mip:int, 
+  preshift_bits:int, minishard_bits:int, shard_bits:int,
+  num_lod:int = 1, 
+  vertex_quantization_bits:int = 16,
+  minishard_index_encoding='gzip', 
+  data_encoding='gzip',
+  mesh_dir:Optional[str] = None, 
+  sql_db:Optional[str] = None
+) -> Iterator[MultiResShardedMeshMergeTask]: 
 
   configure_multires_info(
     cloudpath, mip, 
@@ -452,7 +453,7 @@ def create_sharded_multires_mesh_tasks(
   }) 
   cv.commit_provenance()
 
-  return (
+  return [
     ShardedMultiResMeshMergeTask(
       cloudpath, shard_no, 
       num_lod=num_lod,
@@ -460,4 +461,4 @@ def create_sharded_multires_mesh_tasks(
       sql_db=sql_db,
     )
     for shard_no in shard_labels.keys()
-  )
+  ]

@@ -362,12 +362,13 @@ def meshgroup():
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
+@click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.pass_context
 def mesh_forge(
   ctx, path, queue, mip, shape, 
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
-  spatial_index
+  spatial_index, sharded
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -393,7 +394,7 @@ def mesh_forge(
     mesh_dir=dir, cdn_cache=False, dust_threshold=dust_threshold,
     object_ids=None, progress=False, fill_missing=fill_missing,
     encoding='precomputed', spatial_index=spatial_index, 
-    sharded=False, compress=compress
+    sharded=sharded, compress=compress
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -417,6 +418,47 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   """
   tasks = tc.create_mesh_manifest_tasks(
     path, magnitude=magnitude, mesh_dir=dir
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+@meshgroup.command("merge-sharded")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--vqb', default=16, help="Vertex quantization bits. Can be 10 or 16.", type=int, show_default=True)
+@click.option('--compress-level', default=1, help="Draco compression level.", type=int, show_default=True)
+@click.option('--preshift-bits', default=3, help="Shift LSB to try to increase number of hash collisions.", type=int, show_default=True)
+@click.option('--minishard-bits', default=10, help="2^bits number of bays holding variable numbers of labels per shard.", type=int, show_default=True)
+@click.option('--shard-bits', default=2, help="2^bits number of shard files to generate.", type=int, show_default=True)
+@click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
+@click.option('--data-encoding', default="gzip", help="Shard data can be compressed. gzip or raw.", show_default=True)
+@click.pass_context
+def mesh_sharded_merge(
+  ctx, path, queue, 
+  vqb, compress_level,
+  preshift_bits, minishard_bits, shard_bits,
+  minishard_index_encoding, data_encoding
+):
+  """
+  (2) Postprocess fragments into finished sharded multires meshes.
+
+  Only use this command if you used the --sharded flag
+  during the forging step. Some reasonable defaults
+  are selected for a dataset with a few million labels,
+  but for smaller or larger datasets they may not be
+  appropriate.
+  """
+  tasks = tc.create_sharded_multires_mesh_tasks(
+    path, 
+    draco_compression_level=compress_level,
+    vertex_quantization_bits=vqb,
+    preshift_bits=preshift_bits, 
+    minishard_bits=minishard_bits, 
+    shard_bits=shard_bits,
+    minishard_index_encoding=minishard_index_encoding, 
+    data_encoding=data_encoding,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

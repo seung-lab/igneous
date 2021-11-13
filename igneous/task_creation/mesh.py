@@ -299,8 +299,9 @@ def create_spatial_index_mesh_tasks(
   return SpatialIndexMeshTaskIterator(vol.bounds, shape)
 
 def configure_multires_info(
-  cloudpath:str, mip:int, 
-  vertex_quantization_bits:int, mesh_dir:str
+  cloudpath:str,
+  vertex_quantization_bits:int, 
+  mesh_dir:str
 ):
   """
   Computes properties and uploads a multires 
@@ -310,8 +311,7 @@ def configure_multires_info(
 
   vol = CloudVolume(cloudpath, mip=mip)
 
-  if mesh_dir is None:
-    mesh_dir = f"mesh_mip_{mip}_err_40"
+  mesh_dir = mesh_dir or vol.info.get("mesh", None)
 
   if not "mesh" in vol.info:
     vol.info['mesh'] = mesh_dir
@@ -339,7 +339,7 @@ def configure_multires_info(
     )
 
 def create_unsharded_multires_mesh_tasks(
-  cloudpath:str, mip:int, num_lod:int = 1, 
+  cloudpath:str, num_lod:int = 1, 
   magnitude:int = 3, mesh_dir:str = None,
   vertex_quantization_bits:int = 16
 ) -> Iterator:
@@ -351,8 +351,9 @@ def create_unsharded_multires_mesh_tasks(
   assert int(magnitude) == magnitude
 
   configure_multires_info(
-    cloudpath, mip, 
-    vertex_quantization_bits, mesh_dir
+    cloudpath, 
+    vertex_quantization_bits, 
+    mesh_dir
   )
 
   vol = CloudVolume(cloudpath, mip=mip)
@@ -384,7 +385,7 @@ def create_unsharded_multires_mesh_tasks(
   return UnshardedMultiResTaskIterator()
 
 def create_sharded_multires_mesh_tasks(
-  cloudpath:str, mip:int, 
+  cloudpath:str, 
   preshift_bits:int, minishard_bits:int, shard_bits:int,
   num_lod:int = 1, 
   vertex_quantization_bits:int = 16,
@@ -395,8 +396,9 @@ def create_sharded_multires_mesh_tasks(
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
 
   configure_multires_info(
-    cloudpath, mip, 
-    vertex_quantization_bits, mesh_dir
+    cloudpath, 
+    vertex_quantization_bits, 
+    mesh_dir
   )
 
   spec = ShardingSpecification(

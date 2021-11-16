@@ -141,11 +141,11 @@ def get_mesh_filenames_subset(
 
 @queueable
 def MultiResShardedMeshMergeTask(
-  cloudpath:str, 
+  cloudpath:str,
   shard_no:str,
   draco_compression_level:int = 1,
   mesh_dir:Optional[str] = None,
-  num_lod:int = 1,  
+  num_lod:int = 1,
   spatial_index_db:Optional[str] = None,
   progress:bool = False
 ):
@@ -165,32 +165,44 @@ def MultiResShardedMeshMergeTask(
   meshes = collect_mesh_fragments(cv, labels, filenames)
   del labels
   del filenames
-  meshes = [ 
-    process_mesh(
-      cv, label, mesh_frags, 
+  meshes = {
+    label: process_mesh(
+      cv, label, mesh_frags,
       num_lod, draco_compression_level
     )
     for label, mesh_frags in tqdm(meshes.items(), disable=(not progress))
-  ]
+  }
+  data_offset = { 
+    label: len(mesh) 
+    for label, (manifest, mesh) in meshes.items() 
+  }
+  meshes = {
+    label: mesh + manifest.to_binary()
+    for label, (manifest, mesh) in meshes.items()
+  }
 
   if len(meshes) == 0:
     return
 
-  shard_files = synthesize_shard_files(cv.mesh.reader.spec, meshes)
+  shard_files = synthesize_shard_files(
+    cv.mesh.reader.spec, meshes, data_offset
+  )
   del meshes
+  del data_offset
 
   if len(shard_files) != 1:
     raise ValueError(
-      "Only one shard file should be generated per task. Expected: {} Got: {} ".format(
+      "Only one shard file should be generated per task. "
+      "Expected: {} Got: {} ".format(
         str(shard_no), ", ".join(shard_files.keys())
     ))
 
   cf = CloudFiles(cv.mesh.meta.layerpath, progress=progress)
-  cf.puts( 
+  cf.puts(
     ( (fname, data) for fname, data in shard_files.items() ),
     compress=False,
     content_type='application/octet-stream',
-    cache_control='no-cache',      
+    cache_control='no-cache',
   )
 
 def collect_mesh_fragments(
@@ -218,8 +230,7 @@ def collect_mesh_fragments(
       all_files = {}
       prefix = cv.cloudpath.replace("file://", "")
       for filename in filenames_block:
-        f = open(os.path.join(prefix, filename), "rb")
-        all_files[filename] = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
+        all_files[filename] = open(os.path.join(prefix, filename), "rb")
     else:
       all_files = cv.mesh.cache.download(filenames_block, progress=progress)
     

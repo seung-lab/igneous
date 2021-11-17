@@ -177,7 +177,7 @@ def MultiResShardedMeshMergeTask(
     for label, mesh_frags in tqdm(meshes.items(), disable=(not progress))
   }
   data_offset = { 
-    label: len(manifest.to_binary())
+    label: len(manifest)
     for label, (manifest, mesh) in meshes.items() 
   }
   meshes = {

@@ -157,9 +157,9 @@ def MultiResShardedMeshMergeTask(
     mesh_dir = cv.info['mesh']
 
   # This looks messy because we are trying to avoid retaining
-  # unnecessary memory. In the original iteration, this was 
-  # using 50 GB+ memory on minnie65. With changes to this
-  # and the spatial_index, we are getting it down to something reasonable.
+  # unnecessary memory. In the original skeleton iteration, this was 
+  # using 50 GB+ memory on minnie65. So it makes sense to be just
+  # as careful with a heavier type of object.
   locations = locations_for_labels(cv, labels_for_shard(cv, shard_no))
   filenames = set(itertools.chain(*locations.values()))
   labels = set(locations.keys())

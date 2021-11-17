@@ -438,16 +438,15 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--vqb', default=16, help="Vertex quantization bits. Can be 10 or 16.", type=int, show_default=True)
 @click.option('--compress-level', default=1, help="Draco compression level.", type=int, show_default=True)
-@click.option('--preshift-bits', default=3, help="Shift LSB to try to increase number of hash collisions.", type=int, show_default=True)
-@click.option('--minishard-bits', default=10, help="2^bits number of bays holding variable numbers of labels per shard.", type=int, show_default=True)
-@click.option('--shard-bits', default=2, help="2^bits number of shard files to generate.", type=int, show_default=True)
+@click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
+@click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
 @click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
 @click.pass_context
 def mesh_sharded_merge(
   ctx, path, queue, 
   vqb, compress_level,
-  preshift_bits, minishard_bits, shard_bits,
+  shard_index_bytes, minishard_index_bytes,
   minishard_index_encoding, spatial_index_db
 ):
   """
@@ -458,15 +457,17 @@ def mesh_sharded_merge(
   are selected for a dataset with a few million labels,
   but for smaller or larger datasets they may not be
   appropriate.
+
+  The shard and minishard index default sizes are set to
+  accomodate efficient access for a 100 Mbps connection.
   """
   path = cloudfiles.paths.normalize(path)
   tasks = tc.create_sharded_multires_mesh_tasks(
     path, 
     draco_compression_level=compress_level,
     vertex_quantization_bits=vqb,
-    preshift_bits=preshift_bits,
-    minishard_bits=minishard_bits,
-    shard_bits=shard_bits,
+    shard_index_bytes=shard_index_bytes,
+    minishard_index_bytes=minishard_index_bytes,
     minishard_index_encoding=minishard_index_encoding,
     spatial_index_db=spatial_index_db,
   )

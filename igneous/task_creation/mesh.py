@@ -388,9 +388,52 @@ def create_unsharded_multires_mesh_tasks(
 
   return UnshardedMultiResTaskIterator()
 
+def compute_shard_params_for_hashed(
+  num_labels, shard_index_bytes=2**13, minishard_index_bytes=2**15
+):
+  """
+  Computes the shard parameters for objects that
+  have been randomly hashed (e.g. murmurhash) so
+  that the keys are evenly distributed. This is
+  applicable to skeletons and meshes.
+
+  The equations come from the following assumptions.
+  a. The keys are approximately uniformly randomly distributed.
+  b. Preshift bits aren't useful for random keys so are zero.
+  c. Our goal is to optimize the size of the shard index and
+    the minishard indices to be reasonably sized. The default
+    values are set for a 100 Mbps connection.
+  d. The equations below come from finding a solution to 
+    these equations given the constraints provided.
+
+      num_shards * num_minishards_per_shard 
+        = 2^(shard_bits) * 2^(minishard_bits) 
+        = num_labels_in_dataset / labels_per_minishard
+
+      # from defininition of minishard_bits assuming fixed capacity
+      labels_per_minishard = minishard_index_bytes / 3 / 8
+
+      # from definition of minishard bits
+      minishard_bits = ceil(log2(shard_index_bytes / 2 / 8)) 
+
+  Returns: (shard_bits, minishard_bits, preshift_bits)
+  """
+  labels_per_minishard = minishard_index_bytes / 3 / 8
+  minishard_bits = np.ceil(np.log2(
+    shard_index_bytes / 2 / 8
+  ))
+  shard_bits = np.ceil(np.log2(
+    num_labels / (labels_per_minishard * (2 ** minishard_bits))
+  ))
+  minishard_bits = max(minishard_bits, 0)
+  shard_bits = max(shard_bits, 0)
+
+  return (int(shard_bits), int(minishard_bits), 0)
+
 def create_sharded_multires_mesh_tasks(
   cloudpath:str, 
-  preshift_bits:int, minishard_bits:int, shard_bits:int,
+  shard_index_bytes=2**13, 
+  minishard_index_bytes=2**15,
   num_lod:int = 1, 
   draco_compression_level:int = 1,
   vertex_quantization_bits:int = 16,
@@ -405,6 +448,20 @@ def create_sharded_multires_mesh_tasks(
     mesh_dir
   )
 
+  # rebuild b/c sharding changes the mesh source class
+  cv = CloudVolume(cloudpath, progress=True, spatial_index_db=spatial_index_db) 
+  cv.mip = cv.mesh.meta.mip
+
+  # 17 sec to download for pinky100
+  all_labels = cv.mesh.spatial_index.query(cv.bounds * cv.resolution)
+  
+  (shard_bits, minishard_bits, preshift_bits) = \
+    compute_shard_params_for_hashed(
+      num_labels=len(all_labels),
+      shard_index_bytes=int(shard_index_bytes),
+      minishard_index_bytes=int(minishard_index_bytes),
+    )
+
   spec = ShardingSpecification(
     type='neuroglancer_uint64_sharded_v1',
     preshift_bits=preshift_bits,
@@ -415,22 +472,18 @@ def create_sharded_multires_mesh_tasks(
     data_encoding="raw", # draco encoded meshes
   )
 
-  cv = CloudVolume(cloudpath)
   cv.mesh.meta.info['sharding'] = spec.to_dict()
   cv.mesh.meta.commit_info()
 
-  # rebuild b/c sharding changes the mesh source class
-  cv = CloudVolume(cloudpath, progress=True, spatial_index_db=spatial_index_db) 
-  cv.mip = cv.mesh.meta.mip
+  cv = CloudVolume(cloudpath)
 
-  # 17 sec to download for pinky100
-  all_labels = cv.mesh.spatial_index.query(cv.bounds * cv.resolution)
   # perf: ~36k hashes/sec
   shardfn = lambda lbl: cv.mesh.reader.spec.compute_shard_location(lbl).shard_number
 
   shard_labels = defaultdict(list)
   for label in tqdm(all_labels, desc="Hashes"):
     shard_labels[shardfn(label)].append(label)
+  del all_labels
 
   cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
   files = ( 

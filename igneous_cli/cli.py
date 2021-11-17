@@ -3,11 +3,14 @@ import math
 import multiprocessing as mp
 import os
 import sys
+import time
+import webbrowser
 
 import click
 from cloudvolume import CloudVolume, Bbox
 from cloudvolume.lib import max2
 from cloudfiles import CloudFiles
+import cloudfiles.paths
 import numpy as np
 from taskqueue import TaskQueue
 from taskqueue.lib import toabs
@@ -797,3 +800,20 @@ def memory_used(data_width, shape, factor):
     memory_bytes *= constant / (constant - 1)
 
   return memory_bytes
+
+@main.command("view")
+@click.argument("path")
+@click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
+@click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
+def view(path, browser, port):
+  """
+  Open an on-disk dataset for viewing in neuroglancer.
+  """
+  # later improvements: 
+  #   could use local neuroglancer
+  #   modify the url to autopopulate params to avoid a click
+
+  url = f"https://neuroglancer-demo.appspot.com/#!%7B%22layers%22:%5B%7B%22type%22:%22new%22%2C%22source%22:%22precomputed://http://localhost:{port}%22%2C%22tab%22:%22source%22%2C%22name%22:%22localhost:{port}%22%7D%5D%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22localhost:{port}%22%7D%2C%22layout%22:%224panel%22%7D"
+  if browser:
+    webbrowser.open(url, new=2)
+  CloudVolume(cloudfiles.paths.normalize(path)).viewer(port=port)

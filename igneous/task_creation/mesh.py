@@ -1,4 +1,5 @@
 import copy
+from collections import defaultdict
 from functools import reduce, partial
 from typing import (
   Any, Dict, Optional, 
@@ -9,11 +10,13 @@ from typing import (
 from time import strftime
 
 import numpy as np
+from tqdm import tqdm
 
 import cloudvolume
 import cloudvolume.exceptions
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
+from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudfiles import CloudFiles
 
 from igneous.tasks import (
@@ -33,6 +36,7 @@ __all__ = [
   "create_graphene_hybrid_mesh_manifest_tasks",
   "create_spatial_index_mesh_tasks",
   "create_unsharded_multires_mesh_tasks",
+  "create_sharded_multires_mesh_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -309,7 +313,7 @@ def configure_multires_info(
   """
   assert vertex_quantization_bits in (10, 16)
 
-  vol = CloudVolume(cloudpath, mip=mip)
+  vol = CloudVolume(cloudpath)
 
   mesh_dir = mesh_dir or vol.info.get("mesh", None)
 
@@ -388,6 +392,7 @@ def create_sharded_multires_mesh_tasks(
   cloudpath:str, 
   preshift_bits:int, minishard_bits:int, shard_bits:int,
   num_lod:int = 1, 
+  draco_compression_level:int = 1,
   vertex_quantization_bits:int = 16,
   minishard_index_encoding='gzip', 
   data_encoding='gzip',
@@ -440,7 +445,7 @@ def create_sharded_multires_mesh_tasks(
 
   cv.provenance.processing.append({
     'method': {
-      'task': 'ShardedMultiResMeshMergeTask',
+      'task': 'MultiResShardedMeshMergeTask',
       'cloudpath': cloudpath,
       'mip': cv.mesh.meta.mip,
       'num_lod': num_lod,
@@ -449,6 +454,7 @@ def create_sharded_multires_mesh_tasks(
       'minishard_bits': minishard_bits, 
       'shard_bits': shard_bits,
       'mesh_dir': mesh_dir,
+      'draco_compression_level': draco_compression_level,
     },
     'by': operator_contact(),
     'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -456,11 +462,12 @@ def create_sharded_multires_mesh_tasks(
   cv.commit_provenance()
 
   return [
-    ShardedMultiResMeshMergeTask(
+    partial(MultiResShardedMeshMergeTask,
       cloudpath, shard_no, 
       num_lod=num_lod,
       mesh_dir=mesh_dir, 
-      sql_db=sql_db,
+      spatial_index_db=spatial_index_db,
+      draco_compression_level=draco_compression_level,
     )
     for shard_no in shard_labels.keys()
   ]

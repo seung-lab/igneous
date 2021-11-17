@@ -133,6 +133,8 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
+  path = cloudfiles.paths.normalize(path)
+
   if cseg and compresso:
     print("igneous: must choose one of --cseg or --compresso")
     return
@@ -237,6 +239,9 @@ def xfer(
   Use the --memory flag to automatically compute the
   a reasonable task shape based on your memory limits.
   """
+  src = cloudfiles.paths.normalize(src)
+  dest = cloudfiles.paths.normalize(dest)
+
   if cseg and compresso:
     print("igneous: must choose one of --cseg or --compresso")
     sys.exit()
@@ -388,6 +393,7 @@ def mesh_forge(
 
   Sharded format not currently supports. Coming soon.
   """
+  path = cloudfiles.paths.normalize(path)
   if compress.lower() == "none":
     compress = False
 
@@ -455,6 +461,7 @@ def mesh_sharded_merge(
   but for smaller or larger datasets they may not be
   appropriate.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_sharded_multires_mesh_tasks(
     path, 
     draco_compression_level=compress_level,
@@ -487,6 +494,7 @@ def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
   This function provides a more efficient
   way to accomplish that than remeshing.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_spatial_index_mesh_tasks(
     cloudpath=path,
     shape=shape,
@@ -559,6 +567,7 @@ def skeleton_forge(
 
   - https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People
   """
+  path = cloudfiles.paths.normalize(path)
   teasar_params = {
     'scale': scale,
     'const': const, # physical units
@@ -604,6 +613,7 @@ def skeleton_merge(
   """
   (2) Postprocess fragments into finished skeletons.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_unsharded_skeleton_merge_tasks(
     path, 
     magnitude=magnitude, 
@@ -686,6 +696,7 @@ def delete_images(
   """
   Delete the image layer of a dataset.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_deletion_tasks(
     path, mip, num_mips=num_mips, shape=shape
   )
@@ -709,6 +720,7 @@ def dsbounds(path, mip):
   an unsharded image volume. Useful when there
   is a corrupted info file.
   """
+  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path, mip=mip)
   cf = CloudFiles(path)
 
@@ -735,6 +747,7 @@ def dsmemory(path, memory_bytes, mip, factor, verbose, max_mips):
   Compute the task shape that maximizes the number of
   downsamples for a given amount of memory.
   """ 
+  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path, mip=mip)
 
   data_width = np.dtype(cv.dtype).itemsize
@@ -782,6 +795,7 @@ def dsshape(path, shape, mip, factor):
   Compute the approximate memory usage for a
   given downsample task shape.
   """ 
+  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path, mip=mip)
   data_width = np.dtype(cv.dtype).itemsize
   memory_bytes = memory_used(data_width, shape, factor)  
@@ -812,8 +826,8 @@ def view(path, browser, port):
   # later improvements: 
   #   could use local neuroglancer
   #   modify the url to autopopulate params to avoid a click
-
+  path = cloudfiles.paths.normalize(path)
   url = f"https://neuroglancer-demo.appspot.com/#!%7B%22layers%22:%5B%7B%22type%22:%22new%22%2C%22source%22:%22precomputed://http://localhost:{port}%22%2C%22tab%22:%22source%22%2C%22name%22:%22localhost:{port}%22%7D%5D%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22localhost:{port}%22%7D%2C%22layout%22:%224panel%22%7D"
   if browser:
     webbrowser.open(url, new=2)
-  CloudVolume(cloudfiles.paths.normalize(path)).viewer(port=port)
+  CloudVolume(path).viewer(port=port)

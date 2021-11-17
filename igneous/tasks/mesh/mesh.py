@@ -243,10 +243,7 @@ class MeshTask(RegisteredTask):
   def _upload_batch(self, meshes, bbox):
     cf = CloudFiles(self.layer_path, progress=self.options['progress'])
 
-    mbuf = MapBuffer(
-      meshes, compress="br", 
-      tobytesfn=lambda mesh: mesh.to_precomputed()
-    )
+    mbuf = MapBuffer(meshes, compress="br")
 
     cf.put(
       f"{self._mesh_dir}/{bbox.to_filename()}.frags",

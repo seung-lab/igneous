@@ -253,6 +253,9 @@ def collect_mesh_fragments(
         except KeyError:
           continue
 
+      if hasattr(content, "close"):
+        content.close()
+
   return all_meshes
 
 def locations_for_labels(

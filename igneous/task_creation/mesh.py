@@ -394,8 +394,7 @@ def create_sharded_multires_mesh_tasks(
   num_lod:int = 1, 
   draco_compression_level:int = 1,
   vertex_quantization_bits:int = 16,
-  minishard_index_encoding='gzip', 
-  data_encoding='gzip',
+  minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 
   spatial_index_db:Optional[str] = None
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
@@ -413,7 +412,7 @@ def create_sharded_multires_mesh_tasks(
     minishard_bits=minishard_bits,
     shard_bits=shard_bits,
     minishard_index_encoding=minishard_index_encoding,
-    data_encoding=data_encoding,
+    data_encoding="raw", # draco encoded meshes
   )
 
   cv = CloudVolume(cloudpath)

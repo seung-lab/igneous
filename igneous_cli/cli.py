@@ -819,7 +819,8 @@ def memory_used(data_width, shape, factor):
 @click.argument("path")
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
-def view(path, browser, port):
+@click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
+def view(path, browser, port, ng):
   """
   Open an on-disk dataset for viewing in neuroglancer.
   """
@@ -827,7 +828,7 @@ def view(path, browser, port):
   #   could use local neuroglancer
   #   modify the url to autopopulate params to avoid a click
   path = cloudfiles.paths.normalize(path)
-  url = f"https://neuroglancer-demo.appspot.com/#!%7B%22layers%22:%5B%7B%22type%22:%22new%22%2C%22source%22:%22precomputed://http://localhost:{port}%22%2C%22tab%22:%22source%22%2C%22name%22:%22localhost:{port}%22%7D%5D%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22localhost:{port}%22%7D%2C%22layout%22:%224panel%22%7D"
+  url = f"{ng}#!%7B%22layers%22:%5B%7B%22type%22:%22new%22%2C%22source%22:%22precomputed://http://localhost:{port}%22%2C%22tab%22:%22source%22%2C%22name%22:%22localhost:{port}%22%7D%5D%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22localhost:{port}%22%7D%2C%22layout%22:%224panel%22%7D"
   if browser:
     webbrowser.open(url, new=2)
   CloudVolume(path).viewer(port=port)

@@ -239,11 +239,8 @@ def collect_mesh_fragments(
       all_files = cv.mesh.cache.download(filenames_block, progress=progress)
     
     for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not progress)):
-      try:
-        fragment = MapBuffer(content, frombytesfn=Mesh.from_precomputed)
-        fragment.validate()
-      except mapbuffer.ValidationError:
-        fragment = pickle.loads(content)
+      fragment = MapBuffer(content, frombytesfn=Mesh.from_precomputed)
+      fragment.validate()
 
       for label in labels:
         try:

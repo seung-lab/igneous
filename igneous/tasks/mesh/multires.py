@@ -19,6 +19,8 @@ from cloudvolume import CloudVolume, Mesh, view
 from cloudvolume.lib import Vec, Bbox, jsonify, sip
 from cloudvolume.datasource.precomputed.mesh.multilod \
   import MultiLevelPrecomputedMeshManifest, to_stored_model_space
+from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
+
 import mapbuffer
 from mapbuffer import MapBuffer
 from taskqueue import queueable
@@ -77,7 +79,7 @@ def process_mesh(
   draco_compression_level:int = 1,
 ) -> Tuple[MultiLevelPrecomputedMeshManifest, Mesh]:
   
-  mesh = Mesh.concatenate(*files)
+  mesh = Mesh.concatenate(*mesh_fragments)
 
   manifest = MultiLevelPrecomputedMeshManifest(
     segment_id=label, 
@@ -162,7 +164,9 @@ def MultiResShardedMeshMergeTask(
   filenames = set(itertools.chain(*locations.values()))
   labels = set(locations.keys())
   del locations
-  meshes = collect_mesh_fragments(cv, labels, filenames)
+  meshes = collect_mesh_fragments(
+    cv, labels, filenames, mesh_dir, progress
+  )
   del labels
   del filenames
   meshes = {

@@ -24,7 +24,6 @@ from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 import mapbuffer
 from mapbuffer import MapBuffer
 from taskqueue import queueable
-import trimesh
 
 import cc3d
 import DracoPy

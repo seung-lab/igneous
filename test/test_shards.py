@@ -178,7 +178,3 @@ def test_shard_bits_calculation_for_hashed():
   assert msb == 9
   assert sb == 13
 
-
-
-
-

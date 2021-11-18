@@ -19,7 +19,7 @@ from igneous.tasks import (
 
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
-  get_bounds, num_tasks
+  get_bounds, num_tasks, compute_shard_params_for_hashed
 )
 
 __all__ = [
@@ -267,10 +267,24 @@ def create_flat_graphene_skeleton_merge_tasks(
 
 def create_sharded_skeleton_merge_tasks(
     layer_path, dust_threshold, tick_threshold,
-    preshift_bits, minishard_bits, shard_bits,
+    shard_index_bytes=2**13,
+    minishard_index_bytes=2**15,
     minishard_index_encoding='gzip', data_encoding='gzip',
     max_cable_length=None, spatial_index_db=None
   ): 
+  cv = CloudVolume(layer_path, progress=True, spatial_index_db=spatial_index_db) 
+  cv.mip = cv.skeleton.meta.mip
+
+  # 17 sec to download for pinky100
+  all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
+  
+  (shard_bits, minishard_bits, preshift_bits) = \
+    compute_shard_params_for_hashed(
+      num_labels=len(all_labels),
+      shard_index_bytes=int(shard_index_bytes),
+      minishard_index_bytes=int(minishard_index_bytes),
+    )
+
   spec = ShardingSpecification(
     type='neuroglancer_uint64_sharded_v1',
     preshift_bits=preshift_bits,
@@ -280,17 +294,13 @@ def create_sharded_skeleton_merge_tasks(
     minishard_index_encoding=minishard_index_encoding,
     data_encoding=data_encoding,
   )
-
-  cv = CloudVolume(layer_path)
   cv.skeleton.meta.info['sharding'] = spec.to_dict()
   cv.skeleton.meta.commit_info()
 
-  # rebuild b/c sharding changes the skeleton object
+  # rebuild b/c sharding changes the skeleton source
   cv = CloudVolume(layer_path, progress=True, spatial_index_db=spatial_index_db) 
   cv.mip = cv.skeleton.meta.mip
 
-  # 17 sec to download for pinky100
-  all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
   # perf: ~36k hashes/sec
   shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
 
@@ -325,14 +335,14 @@ def create_sharded_skeleton_merge_tasks(
   }) 
   cv.commit_provenance()
 
-  return (
+  return [
     ShardedSkeletonMergeTask(
       layer_path, shard_no, 
       dust_threshold, tick_threshold,
       max_cable_length=max_cable_length
     )
     for shard_no in shard_labels.keys()
-  )
+  ]
 
 # split the work up into ~1000 tasks (magnitude 3)
 def create_unsharded_skeleton_merge_tasks(    

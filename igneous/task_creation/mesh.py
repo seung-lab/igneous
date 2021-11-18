@@ -418,6 +418,9 @@ def compute_shard_params_for_hashed(
 
   Returns: (shard_bits, minishard_bits, preshift_bits)
   """
+  if num_labels <= 0:
+    return (0,0,0)
+
   num_minishards_per_shard = shard_index_bytes / 2 / 8
   labels_per_minishard = minishard_index_bytes / 3 / 8
   labels_per_shard = num_minishards_per_shard * labels_per_minishard

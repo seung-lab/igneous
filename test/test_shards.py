@@ -10,8 +10,8 @@ from cloudvolume.datasource.precomputed.image.common import (
 )
 from cloudvolume.datasource.precomputed.sharding import ShardReader, ShardingSpecification
 
+from igneous.task_creation.common import compute_shard_params_for_hashed
 from igneous.task_creation.image import create_sharded_image_info
-from igneous.task_creation.mesh import compute_shard_params_for_hashed
 from igneous.shards import image_shard_shape_from_spec
 
 def prod(x):

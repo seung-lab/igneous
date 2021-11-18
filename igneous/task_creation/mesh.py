@@ -439,6 +439,14 @@ def compute_shard_params_for_hashed(
     minishard_bits = 0
     shard_bits = 0
 
+  capacity = labels_per_shard * (2 ** shard_bits)
+  utilized_capacity = num_labels / capacity
+
+  # Try to pack shards to capacity, allow going
+  # about 10% over the input level.
+  if utilized_capacity <= 0.55:
+    shard_bits -= 1
+
   minishard_bits = max(minishard_bits, 0)
   shard_bits = max(shard_bits, 0)
 

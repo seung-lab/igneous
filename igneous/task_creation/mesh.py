@@ -418,13 +418,24 @@ def compute_shard_params_for_hashed(
 
   Returns: (shard_bits, minishard_bits, preshift_bits)
   """
+  num_minishards_per_shard = shard_index_bytes / 2 / 8
   labels_per_minishard = minishard_index_bytes / 3 / 8
-  minishard_bits = np.ceil(np.log2(
-    shard_index_bytes / 2 / 8
-  ))
-  shard_bits = np.ceil(np.log2(
-    num_labels / (labels_per_minishard * (2 ** minishard_bits))
-  ))
+  labels_per_shard = num_minishards_per_shard * labels_per_minishard
+
+  if num_labels >= labels_per_shard:
+    minishard_bits = np.ceil(np.log2(num_minishards_per_shard))
+    shard_bits = np.ceil(np.log2(
+      num_labels / (labels_per_minishard * (2 ** minishard_bits))
+    ))
+  elif num_labels >= labels_per_minishard:
+    minishard_bits = np.ceil(np.log2(
+      num_labels / labels_per_minishard
+    ))
+    shard_bits = 0
+  else:
+    minishard_bits = 0
+    shard_bits = 0
+
   minishard_bits = max(minishard_bits, 0)
   shard_bits = max(shard_bits, 0)
 

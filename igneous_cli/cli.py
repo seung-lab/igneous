@@ -425,6 +425,7 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   a list of fragment files and uploading a "mesh manifest"
   file that is an index for locating the fragments.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_mesh_manifest_tasks(
     path, magnitude=magnitude, mesh_dir=dir
   )

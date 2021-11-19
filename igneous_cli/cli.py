@@ -476,16 +476,24 @@ def mesh_sharded_merge(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
-@meshgroup.command("spatial-index")
+
+@meshgroup.group("spatial-index")
+def spatialindexgroup():
+  """
+  (subgroup) Create or download mesh spatial indices.
+  """
+  pass
+
+@spatialindexgroup.command("create")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--shape', default="448,448,448", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
-def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
+def mesh_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
   """
-  (optional) Create a spatial index on a pre-existing mesh.
+  Create a spatial index on a pre-existing mesh.
 
   Sometimes datasets were meshes without a
   spatial index or need it to be updated.
@@ -503,6 +511,21 @@ def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
+
+@spatialindexgroup.command("db")
+@click.argument("path")
+@click.argument("database")
+@click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
+def mesh_spatial_index_download(path, database, progress):
+  """
+  Download the mesh spatial index into a database.
+
+  sqlite paths: sqlite://filename.db (prefix optional)
+  mysql paths: mysql://{user}:{pwd}@{host}/{database}
+  """
+  path = cloudfiles.paths.normalize(path)
+  cv = CloudVolume(path)
+  cv.mesh.spatial_index.to_sql(database, progress=progress)
 
 @main.group("skeleton")
 def skeletongroup():

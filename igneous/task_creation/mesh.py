@@ -436,7 +436,7 @@ def create_sharded_multires_mesh_tasks(
 
   cv = CloudVolume(cloudpath)
 
-  # perf: ~36k hashes/sec
+  # perf: ~66.5k hashes/sec on M1 ARM64
   shardfn = lambda lbl: cv.mesh.reader.spec.compute_shard_location(lbl).shard_number
 
   shard_labels = defaultdict(list)

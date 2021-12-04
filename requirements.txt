@@ -1,6 +1,6 @@
 click>=6.7
 cloud-files>=4.4.0
-cloud-volume>=6.0.0
+cloud-volume>=6.1.0
 DracoPy>=0.0.19
 fastremap>=1.10.0
 google-cloud-logging

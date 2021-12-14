@@ -1,6 +1,28 @@
 CHANGES
 =======
 
+0.9.0
+-----
+
+* release(0.9.0): sharding upgrades, mesh spatial index gen, CLI updates
+* feat: sharded meshes (single res using trivial multi-res) (#112)
+* chore: add test-suite workflow (#115)
+* chore: add trimesh, bump cloud-volume in requirements
+* (fix): Add kwarg for updated get\_bounds (#113)
+* refactor: moved compute\_bounds script to CLI
+* feat(cli): adds "igneous design bounds" command
+* refactor: remove dead logger code
+* fix: missing declaration for reduce
+* fix: missed change of function name in refactoring
+* feat: bare-bones unsharded single-res multi-resolution meshes (#111)
+* (feature): Add bounds\_mip to get\_bounds (#108)
+* feat(xfer): add no\_src\_update flag
+* fix: don't try to write provenance files to http
+* docs: add description of broken test
+* fixtest: use the right content encoding
+* test: check that broken dataset sums to 20 bits
+* chore: update changelog
+
 0.8.2
 -----
 

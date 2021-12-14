@@ -554,7 +554,7 @@ tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip
 
 ## Conclusion
 
-It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks/tasks.py` for the most current information.  
+It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks/` for the most current information.  
 
 Please post an issue or PR if you think something needs to be addressed.  
 
@@ -565,4 +565,10 @@ Please post an issue or PR if you think something needs to be addressed.
 - [zmesh](https://github.com/seung-lab/zmesh) - Mesh generation and simplification for dense volumetric labels.
 - [CloudVolume](https://github.com/seung-lab/cloud-volume) - IO for images, meshes, and skeletons.
 - [python-task-queue](https://github.com/seung-lab/python-task-queue) - Parallelized dependency-free cloud task management.
+- [DracoPy](https://github.com/seung-lab/DracoPy) - Encode/Decode Draco compressed meshes in Python 
+
+## Acknowledgements
+
+Special thanks to everyone that has contributed to Igneous! I'll fill this section in more fully later, but in particular recent thanks to Jeremy Maitin-Shepard, David Ackermann, and Sridhar Jagannathan for giving advice and sharing code for producing sharded meshes. Thanks to Chris Roat for improving the CLI's typing. Thanks to Nico Kemnitz for improving the original mesh task. Of course, thanks to lab alumni Ignacio Tartavull who started the project with me and provided its initial impetus.
+
 

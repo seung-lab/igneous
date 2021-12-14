@@ -1,10 +1,11 @@
 click>=6.7
-cloud-volume>=6.1.1
-DracoPy>=0.0.19
+cloud-files>=4.4.0
+cloud-volume>=7.0.0
+DracoPy~=1.0.0
 fastremap>=1.10.0
 google-cloud-logging
 kimimaro>=0.5.0
-mapbuffer>=0.1.1
+mapbuffer>=0.4.0
 networkx
 numpy>=1.14.2
 pathos

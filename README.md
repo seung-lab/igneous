@@ -395,20 +395,37 @@ tasks = create_deletion_tasks(
 
 Meshing is a two stage process. First, the dataset is divided up into a regular grid of tasks that will be meshed independently of
 each other using the `MeshTask`. The resulting mesh fragments are uploaded to the destination layer's meshing directory 
-(named something like `mesh_mip_3_err_40`). Without additional processing, Neuroglancer has no way of 
+(named something like `mesh_mip_3_err_40`). 
+
+There are two ways do conduct meshing. The standard "unsharded" way can generate a lot of mesh fragment files. It scales to about 100M labels before it starts incurring unreasonable costs on cloud systems. To handle larger volumes, there is the somwhat more difficult to use sharded meshing process that condenses the number of files by orders of magnitude.
+
+#### Unsharded Meshing
+
+Without additional processing, Neuroglancer has no way of 
 knowing the names of these chunks (which will be named something like `$SEGID:0:$BOUNDING_BOX` e.g. `1052:0:0-512_0-512_0-512`). 
 The `$BOUNDING_BOX` part of the name is arbitrary and is the convention used by igneous because it is convenient for debugging.
 
-The manually actuated second stage runs the `MeshManifestTask` which generates files named `$SEGID:0` which contains a short JSON snippet like `{ "fragments": [ "1052:0:0-512_0-512_0-512" ] }`. This file tells Neuroglancer and CloudVolume which mesh files to download when accessing a given segment ID.  
+The manually actuated second stage runs the `MeshManifestTask` which generates files named `$SEGID:0` which contains a short JSON snippet like `{ "fragments": [ "1052:0:0-512_0-512_0-512" ] }`. This file tells Neuroglancer and CloudVolume which mesh files to download when accessing a given segment ID.
+
+#### Sharded Meshing
+
+Sharded Meshes are not only condensed, but also draco encoded with an integer position attribute. The files must be initially meshed and then a set of meshes gathered into the memory of a single machine which can then synthesize the shard file. This requires more time and memory to generate than unsharded meshes, but simplifies management of the resultant data set by creating far fewer files. The shard files have names like `a31.shard`. A sharded dataset is indicated by the info file in the mesh directory having `{ "@type": "neuroglancer_multilod_draco" }`. In the future, multiscale meshes will be supported, but for now we only generate a single resolution.
 
 #### CLI Meshing
 
 The CLI supports only standard Precomputed. Graphene is not currently supported. There are many more options, check out `igneous mesh --help`, `igneous mesh forge --help`, and `igneous mesh merge --help`.
 
 ```bash
+# Standard Unsharded Meshing
 igneous mesh forge $PATH --mip 2 --queue $QUEUE
 igneous execute $QUEUE
 igneous mesh merge $PATH --magnitude 2 --queue $QUEUE
+igneous execute $QUEUE
+
+# Sharded Meshing
+igneous mesh forge $PATH --mip 2 --queue $QUEUE --sharded
+igneous execute $QUEUE
+igneous mesh merge-sharded $PATH --queue $QUEUE
 igneous execute $QUEUE
 ```
 
@@ -440,7 +457,7 @@ an additional 10^magnitude. A high magnitude (3-5+) is appropriate for horizonta
 
 In the future, a third stage might be introduced that fuses all the small fragments into a single file.  
 
-Of note: Meshing is a memory intensive operation. The underlying zmesh library has an optimization for meshing volumes smaller than 512 voxels on the X and Y dimensions which could be helpful to take advantage of. Meshing time scales with the number of labels contained in the volume.
+Of note: Meshing is a memory intensive operation. The underlying zmesh library has an optimization for meshing volumes smaller than 1024 voxels on the X and Y dimensions which could be helpful to take advantage of. Meshing time scales with the number of labels contained in the volume.
 
 ### Skeletonization (SkeletonTask, SkeletonMergeTask)
 

@@ -10,6 +10,7 @@ from cloudvolume.datasource.precomputed.image.common import (
 )
 from cloudvolume.datasource.precomputed.sharding import ShardReader, ShardingSpecification
 
+from igneous.task_creation.common import compute_shard_params_for_hashed
 from igneous.task_creation.image import create_sharded_image_info
 from igneous.shards import image_shard_shape_from_spec
 
@@ -103,4 +104,77 @@ def test_broken_dataset():
   )
   total_bits = spec["shard_bits"] + spec["minishard_bits"] + spec["preshift_bits"]
   assert total_bits == 20
+
+def test_shard_bits_calculation_for_hashed():
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=10**9, 
+    shard_index_bytes=2**13, 
+    minishard_index_bytes=2**15
+  )
+  assert psb == 0
+  assert msb == 9
+  assert sb == 11
+
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=10**6, 
+    shard_index_bytes=2**13, 
+    minishard_index_bytes=2**15
+  )
+  assert psb == 0
+  assert msb == 9
+  assert sb == 1
+
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=10**7, 
+    shard_index_bytes=2**13, 
+    minishard_index_bytes=2**15
+  )
+  assert psb == 0
+  assert msb == 9
+  assert sb == 4
+
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=1000, 
+    shard_index_bytes=2**13, 
+    minishard_index_bytes=2**15
+  )
+  assert psb == 0
+  assert msb == 0
+  assert sb == 0
+
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=0, 
+    shard_index_bytes=0, 
+    minishard_index_bytes=0
+  )
+  assert psb == 0
+  assert msb == 0
+  assert sb == 0
+
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=10000, 
+    shard_index_bytes=2**13, 
+    minishard_index_bytes=2**15
+  )
+  assert psb == 0
+  assert msb == 3
+  assert sb == 0
+
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=10**9, 
+    shard_index_bytes=2**10, 
+    minishard_index_bytes=2**15
+  )
+  assert psb == 0
+  assert msb == 6
+  assert sb == 14
+
+  sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=10**9, 
+    shard_index_bytes=2**13, 
+    minishard_index_bytes=2**13
+  )
+  assert psb == 0
+  assert msb == 9
+  assert sb == 13
 

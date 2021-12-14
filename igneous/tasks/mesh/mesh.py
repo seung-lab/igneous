@@ -243,10 +243,7 @@ class MeshTask(RegisteredTask):
   def _upload_batch(self, meshes, bbox):
     cf = CloudFiles(self.layer_path, progress=self.options['progress'])
 
-    mbuf = MapBuffer(
-      meshes, compress="br", 
-      tobytesfn=lambda mesh: mesh.to_precomputed()
-    )
+    mbuf = MapBuffer(meshes, compress="br")
 
     cf.put(
       f"{self._mesh_dir}/{bbox.to_filename()}.frags",
@@ -308,8 +305,8 @@ class MeshTask(RegisteredTask):
     )
 
     if self.options['encoding'] == 'draco':
-      mesh_binary = DracoPy.encode_mesh_to_buffer(
-        mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
+      mesh_binary = DracoPy.encode(
+        mesh.vertices, mesh.faces, 
         **self.draco_encoding_settings
       )
     elif self.options['encoding'] == 'precomputed':
@@ -479,8 +476,8 @@ class GrapheneMeshTask(RegisteredTask):
     self.mesher.erase(obj_id)
     mesh.vertices[:] += self.bounds.minpt * self.cv.resolution
 
-    mesh_binary = DracoPy.encode_mesh_to_buffer(
-      mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
+    mesh_binary = DracoPy.encode(
+      mesh.vertices, mesh.faces, 
       **self.draco_encoding_settings
     )
 

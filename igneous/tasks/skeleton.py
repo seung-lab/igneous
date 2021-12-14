@@ -403,8 +403,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         all_files = {}
         prefix = cv.cloudpath.replace("file://", "")
         for filename in filenames_block:
-          f = open(os.path.join(prefix, filename), "rb")
-          all_files[filename] = mmap.mmap(f.fileno(), 0, prot=mmap.PROT_READ)
+          all_files[filename] = open(os.path.join(prefix, filename), "rb")
       else:
         all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)
       
@@ -422,6 +421,9 @@ class ShardedSkeletonMergeTask(RegisteredTask):
             all_skels[label].append(skel)
           except KeyError:
             continue
+
+        if hasattr(content, "close"):
+          content.close()
 
     return all_skels
 

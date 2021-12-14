@@ -3,11 +3,14 @@ import math
 import multiprocessing as mp
 import os
 import sys
+import time
+import webbrowser
 
 import click
 from cloudvolume import CloudVolume, Bbox
 from cloudvolume.lib import max2
 from cloudfiles import CloudFiles
+import cloudfiles.paths
 import numpy as np
 from taskqueue import TaskQueue
 from taskqueue.lib import toabs
@@ -130,6 +133,8 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
+  path = cloudfiles.paths.normalize(path)
+
   if cseg and compresso:
     print("igneous: must choose one of --cseg or --compresso")
     return
@@ -234,6 +239,9 @@ def xfer(
   Use the --memory flag to automatically compute the
   a reasonable task shape based on your memory limits.
   """
+  src = cloudfiles.paths.normalize(src)
+  dest = cloudfiles.paths.normalize(dest)
+
   if cseg and compresso:
     print("igneous: must choose one of --cseg or --compresso")
     sys.exit()
@@ -362,12 +370,13 @@ def meshgroup():
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
+@click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.pass_context
 def mesh_forge(
   ctx, path, queue, mip, shape, 
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
-  spatial_index
+  spatial_index, sharded
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -384,6 +393,7 @@ def mesh_forge(
 
   Sharded format not currently supports. Coming soon.
   """
+  path = cloudfiles.paths.normalize(path)
   if compress.lower() == "none":
     compress = False
 
@@ -393,7 +403,7 @@ def mesh_forge(
     mesh_dir=dir, cdn_cache=False, dust_threshold=dust_threshold,
     object_ids=None, progress=False, fill_missing=fill_missing,
     encoding='precomputed', spatial_index=spatial_index, 
-    sharded=False, compress=compress
+    sharded=sharded, compress=compress
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -415,6 +425,7 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   a list of fragment files and uploading a "mesh manifest"
   file that is an index for locating the fragments.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_mesh_manifest_tasks(
     path, magnitude=magnitude, mesh_dir=dir
   )
@@ -423,22 +434,74 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
-@meshgroup.command("spatial-index")
+@meshgroup.command("merge-sharded")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--vqb', default=16, help="Vertex quantization bits. Can be 10 or 16.", type=int, show_default=True)
+@click.option('--compress-level', default=1, help="Draco compression level.", type=int, show_default=True)
+@click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
+@click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
+@click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
+@click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
+@click.pass_context
+def mesh_sharded_merge(
+  ctx, path, queue, 
+  vqb, compress_level,
+  shard_index_bytes, minishard_index_bytes,
+  minishard_index_encoding, spatial_index_db
+):
+  """
+  (2) Postprocess fragments into finished sharded multires meshes.
+
+  Only use this command if you used the --sharded flag
+  during the forging step. Some reasonable defaults
+  are selected for a dataset with a few million labels,
+  but for smaller or larger datasets they may not be
+  appropriate.
+
+  The shard and minishard index default sizes are set to
+  accomodate efficient access for a 100 Mbps connection.
+  """
+  path = cloudfiles.paths.normalize(path)
+  tasks = tc.create_sharded_multires_mesh_tasks(
+    path, 
+    draco_compression_level=compress_level,
+    vertex_quantization_bits=vqb,
+    shard_index_bytes=shard_index_bytes,
+    minishard_index_bytes=minishard_index_bytes,
+    minishard_index_encoding=minishard_index_encoding,
+    spatial_index_db=spatial_index_db,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+
+@meshgroup.group("spatial-index")
+def spatialindexgroup():
+  """
+  (subgroup) Create or download mesh spatial indices.
+  """
+  pass
+
+@spatialindexgroup.command("create")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--shape', default="448,448,448", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
-def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
+def mesh_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
   """
-  (optional) Create a spatial index on a pre-existing mesh.
+  Create a spatial index on a pre-existing mesh.
 
   Sometimes datasets were meshes without a
   spatial index or need it to be updated.
   This function provides a more efficient
   way to accomplish that than remeshing.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_spatial_index_mesh_tasks(
     cloudpath=path,
     shape=shape,
@@ -449,6 +512,21 @@ def mesh_spatial_index(ctx, path, queue, shape, mip, fill_missing):
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
+
+@spatialindexgroup.command("db")
+@click.argument("path")
+@click.argument("database")
+@click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
+def mesh_spatial_index_download(path, database, progress):
+  """
+  Download the mesh spatial index into a database.
+
+  sqlite paths: sqlite://filename.db (prefix optional)
+  mysql paths: mysql://{user}:{pwd}@{host}/{database}
+  """
+  path = cloudfiles.paths.normalize(path)
+  cv = CloudVolume(path)
+  cv.mesh.spatial_index.to_sql(database, progress=progress)
 
 @main.group("skeleton")
 def skeletongroup():
@@ -511,6 +589,7 @@ def skeleton_forge(
 
   - https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People
   """
+  path = cloudfiles.paths.normalize(path)
   teasar_params = {
     'scale': scale,
     'const': const, # physical units
@@ -556,6 +635,7 @@ def skeleton_merge(
   """
   (2) Postprocess fragments into finished skeletons.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_unsharded_skeleton_merge_tasks(
     path, 
     magnitude=magnitude, 
@@ -572,21 +652,22 @@ def skeleton_merge(
 @skeletongroup.command("merge-sharded")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option('--min-cable-length', default=1000, help="Skip objects smaller than this physical path length. Default: 1000 nm", type=float)
+@click.option('--min-cable-length', default=1000, help="Skip objects smaller than this physical path length.", type=float, show_default=True)
 @click.option('--max-cable-length', default=None, help="Skip objects larger than this physical path length. Default: no limit", type=float)
 @click.option('--tick-threshold', default=0, help="Remove small \"ticks\", or branches from the main skeleton one at a time from smallest to largest. Branches larger than this are preserved. Default: no elimination", type=float)
-@click.option('--preshift-bits', default=3, help="Shift LSB to try to increase number of hash collisions.", type=int)
-@click.option('--minishard-bits', default=10, help="2^bits number of bays holding variable numbers of labels per shard.", type=int)
-@click.option('--shard-bits', default=2, help="2^bits number of shard files to generate.", type=int)
+@click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
+@click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw. Default: gzip")
 @click.option('--data-encoding', default="gzip", help="Shard data can be compressed. gzip or raw. Default: gzip")
+@click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
 @click.pass_context
 def skeleton_sharded_merge(
   ctx, path, queue, 
   min_cable_length, max_cable_length, 
   tick_threshold, 
-  preshift_bits, minishard_bits, shard_bits,
-  minishard_index_encoding, data_encoding
+  shard_index_bytes, minishard_index_bytes,
+  minishard_index_encoding, data_encoding,
+  spatial_index_db
 ):
   """
   (2) Postprocess fragments into finished skeletons.
@@ -596,17 +677,20 @@ def skeleton_sharded_merge(
   are selected for a dataset with a few million labels,
   but for smaller or larger datasets they may not be
   appropriate.
+
+  The shard and minishard index default sizes are set to
+  accomodate efficient access for a 100 Mbps connection.
   """
   tasks = tc.create_sharded_skeleton_merge_tasks(
     path, 
     dust_threshold=min_cable_length,
     max_cable_length=max_cable_length,
     tick_threshold=tick_threshold,
-    preshift_bits=preshift_bits, 
-    minishard_bits=minishard_bits, 
-    shard_bits=shard_bits,
+    shard_index_bytes=shard_index_bytes,
+    minishard_index_bytes=minishard_index_bytes,
     minishard_index_encoding=minishard_index_encoding, 
     data_encoding=data_encoding,
+    spatial_index_db=spatial_index_db,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -635,6 +719,7 @@ def delete_images(
   """
   Delete the image layer of a dataset.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_deletion_tasks(
     path, mip, num_mips=num_mips, shape=shape
   )
@@ -658,6 +743,7 @@ def dsbounds(path, mip):
   an unsharded image volume. Useful when there
   is a corrupted info file.
   """
+  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path, mip=mip)
   cf = CloudFiles(path)
 
@@ -684,6 +770,7 @@ def dsmemory(path, memory_bytes, mip, factor, verbose, max_mips):
   Compute the task shape that maximizes the number of
   downsamples for a given amount of memory.
   """ 
+  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path, mip=mip)
 
   data_width = np.dtype(cv.dtype).itemsize
@@ -731,6 +818,7 @@ def dsshape(path, shape, mip, factor):
   Compute the approximate memory usage for a
   given downsample task shape.
   """ 
+  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path, mip=mip)
   data_width = np.dtype(cv.dtype).itemsize
   memory_bytes = memory_used(data_width, shape, factor)  
@@ -749,3 +837,21 @@ def memory_used(data_width, shape, factor):
     memory_bytes *= constant / (constant - 1)
 
   return memory_bytes
+
+@main.command("view")
+@click.argument("path")
+@click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
+@click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
+@click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
+def view(path, browser, port, ng):
+  """
+  Open an on-disk dataset for viewing in neuroglancer.
+  """
+  # later improvements: 
+  #   could use local neuroglancer
+  #   modify the url to autopopulate params to avoid a click
+  path = cloudfiles.paths.normalize(path)
+  url = f"{ng}#!%7B%22layers%22:%5B%7B%22type%22:%22new%22%2C%22source%22:%22precomputed://http://localhost:{port}%22%2C%22tab%22:%22source%22%2C%22name%22:%22localhost:{port}%22%7D%5D%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22localhost:{port}%22%7D%2C%22layout%22:%224panel%22%7D"
+  if browser:
+    webbrowser.open(url, new=2)
+  CloudVolume(path).viewer(port=port)

@@ -1,4 +1,5 @@
 import copy
+from collections import defaultdict
 from functools import reduce, partial
 from typing import (
   Any, Dict, Optional, 
@@ -9,20 +10,24 @@ from typing import (
 from time import strftime
 
 import numpy as np
+from tqdm import tqdm
 
 import cloudvolume
 import cloudvolume.exceptions
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
+from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudfiles import CloudFiles
 
 from igneous.tasks import (
   MeshTask, MeshManifestTask, GrapheneMeshTask,
-  MeshSpatialIndex, MultiResUnshardedMeshMergeTask
+  MeshSpatialIndex, MultiResShardedMeshMergeTask,
+  MultiResUnshardedMeshMergeTask
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
-  get_bounds, num_tasks, graphene_prefixes
+  get_bounds, num_tasks, graphene_prefixes,
+  compute_shard_params_for_hashed
 )
 
 __all__ = [
@@ -32,6 +37,7 @@ __all__ = [
   "create_graphene_hybrid_mesh_manifest_tasks",
   "create_spatial_index_mesh_tasks",
   "create_unsharded_multires_mesh_tasks",
+  "create_sharded_multires_mesh_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -297,23 +303,20 @@ def create_spatial_index_mesh_tasks(
 
   return SpatialIndexMeshTaskIterator(vol.bounds, shape)
 
-def create_unsharded_multires_mesh_tasks(
-  cloudpath:str, mip:int, num_lod:int = 1, 
-  magnitude:int = 3, mesh_dir:str = None,
-  vertex_quantization_bits:int = 16
-) -> Iterator:
+def configure_multires_info(
+  cloudpath:str,
+  vertex_quantization_bits:int, 
+  mesh_dir:str
+):
   """
-  vertex_quantization_bits: 10 or 16. Adjusts the precision
-    of mesh vertices.
+  Computes properties and uploads a multires 
+  mesh info file
   """
-  # split the work up into ~1000 tasks (magnitude 3)
-  assert int(magnitude) == magnitude
   assert vertex_quantization_bits in (10, 16)
 
-  vol = CloudVolume(cloudpath, mip=mip)
+  vol = CloudVolume(cloudpath)
 
-  if mesh_dir is None:
-    mesh_dir = f"mesh_mip_{mip}_err_40"
+  mesh_dir = mesh_dir or vol.info.get("mesh", None)
 
   if not "mesh" in vol.info:
     vol.info['mesh'] = mesh_dir
@@ -340,6 +343,26 @@ def create_unsharded_multires_mesh_tasks(
       cache_control="no-cache"
     )
 
+def create_unsharded_multires_mesh_tasks(
+  cloudpath:str, num_lod:int = 1, 
+  magnitude:int = 3, mesh_dir:str = None,
+  vertex_quantization_bits:int = 16
+) -> Iterator:
+  """
+  vertex_quantization_bits: 10 or 16. Adjusts the precision
+    of mesh vertices.
+  """
+  # split the work up into ~1000 tasks (magnitude 3)
+  assert int(magnitude) == magnitude
+
+  configure_multires_info(
+    cloudpath, 
+    vertex_quantization_bits, 
+    mesh_dir
+  )
+
+  vol = CloudVolume(cloudpath, mip=mip)
+
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
 
@@ -365,3 +388,97 @@ def create_unsharded_multires_mesh_tasks(
         )
 
   return UnshardedMultiResTaskIterator()
+
+def create_sharded_multires_mesh_tasks(
+  cloudpath:str, 
+  shard_index_bytes=2**13, 
+  minishard_index_bytes=2**15,
+  num_lod:int = 1, 
+  draco_compression_level:int = 1,
+  vertex_quantization_bits:int = 16,
+  minishard_index_encoding="gzip", 
+  mesh_dir:Optional[str] = None, 
+  spatial_index_db:Optional[str] = None
+) -> Iterator[MultiResShardedMeshMergeTask]: 
+
+  configure_multires_info(
+    cloudpath, 
+    vertex_quantization_bits, 
+    mesh_dir
+  )
+
+  # rebuild b/c sharding changes the mesh source class
+  cv = CloudVolume(cloudpath, progress=True, spatial_index_db=spatial_index_db) 
+  cv.mip = cv.mesh.meta.mip
+
+  # 17 sec to download for pinky100
+  all_labels = cv.mesh.spatial_index.query(cv.bounds * cv.resolution)
+  
+  (shard_bits, minishard_bits, preshift_bits) = \
+    compute_shard_params_for_hashed(
+      num_labels=len(all_labels),
+      shard_index_bytes=int(shard_index_bytes),
+      minishard_index_bytes=int(minishard_index_bytes),
+    )
+
+  spec = ShardingSpecification(
+    type='neuroglancer_uint64_sharded_v1',
+    preshift_bits=preshift_bits,
+    hash='murmurhash3_x86_128',
+    minishard_bits=minishard_bits,
+    shard_bits=shard_bits,
+    minishard_index_encoding=minishard_index_encoding,
+    data_encoding="raw", # draco encoded meshes
+  )
+
+  cv.mesh.meta.info['sharding'] = spec.to_dict()
+  cv.mesh.meta.commit_info()
+
+  cv = CloudVolume(cloudpath)
+
+  # perf: ~66.5k hashes/sec on M1 ARM64
+  shardfn = lambda lbl: cv.mesh.reader.spec.compute_shard_location(lbl).shard_number
+
+  shard_labels = defaultdict(list)
+  for label in tqdm(all_labels, desc="Hashes"):
+    shard_labels[shardfn(label)].append(label)
+  del all_labels
+
+  cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
+  files = ( 
+    (str(shardno) + '.labels', labels) 
+    for shardno, labels in shard_labels.items() 
+  )
+  cf.put_jsons(
+    files, compress="gzip", 
+    cache_control="no-cache", total=len(shard_labels)
+  )
+
+  cv.provenance.processing.append({
+    'method': {
+      'task': 'MultiResShardedMeshMergeTask',
+      'cloudpath': cloudpath,
+      'mip': cv.mesh.meta.mip,
+      'num_lod': num_lod,
+      'vertex_quantization_bits': vertex_quantization_bits,
+      'preshift_bits': preshift_bits, 
+      'minishard_bits': minishard_bits, 
+      'shard_bits': shard_bits,
+      'mesh_dir': mesh_dir,
+      'draco_compression_level': draco_compression_level,
+    },
+    'by': operator_contact(),
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  cv.commit_provenance()
+
+  return [
+    partial(MultiResShardedMeshMergeTask,
+      cloudpath, shard_no, 
+      num_lod=num_lod,
+      mesh_dir=mesh_dir, 
+      spatial_index_db=spatial_index_db,
+      draco_compression_level=draco_compression_level,
+    )
+    for shard_no in shard_labels.keys()
+  ]

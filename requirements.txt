@@ -1,5 +1,5 @@
 click>=6.7
-cloud-volume>=4.2.0
+cloud-volume>=6.1.1
 DracoPy>=0.0.19
 fastremap>=1.10.0
 google-cloud-logging
@@ -16,4 +16,4 @@ tinybrain
 task-queue>=2.4.0
 tqdm
 zmesh>=0.5.0
-
+trimesh

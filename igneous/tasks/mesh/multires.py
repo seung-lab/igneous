@@ -105,6 +105,8 @@ def process_mesh(
   quantization_range = np.max(mesh.vertices, axis=0) - np.min(mesh.vertices, axis=0)
   quantization_range = np.max(quantization_range)
 
+  # mesh.vertices must be integer type or mesh will display
+  # distored in neuroglancer.
   mesh = DracoPy.encode_mesh_to_buffer(
     mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
     quantization_bits=vqb,

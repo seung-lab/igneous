@@ -6,12 +6,12 @@
 # A few examples. You can also script Igneous. Read on!
 $ igneous xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
 $ igneous downsample file://./my-data --mip 0 --queue ./ds-queue
-$ igneous execute ./ds-queue
+$ igneous execute -x ./ds-queue # -x exit when finished
 $ igneous mesh forge s3://my-data/seg --mip 2 --queue sqs://mesh-queue
 $ igneous --parallel 4 execute sqs://mesh-queue
 $ igneous skeleton forge s3://my-data/seg --mip 2 --queue sqs://mesh-queue
 $ igneous skeleton merge s3://my-data/seg --queue sqs://mesh-queue
-$ igneous execute sqs://mesh-queue
+$ igneous execute sqs://mesh-queue # -x unreliable for sqs://
 
 $ igneous --help
 ```

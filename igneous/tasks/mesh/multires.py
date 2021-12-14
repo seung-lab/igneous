@@ -107,8 +107,8 @@ def process_mesh(
 
   # mesh.vertices must be integer type or mesh will display
   # distored in neuroglancer.
-  mesh = DracoPy.encode_mesh_to_buffer(
-    mesh.vertices.flatten('C'), mesh.faces.flatten('C'), 
+  mesh = DracoPy.encode(
+    mesh.vertices, mesh.faces, 
     quantization_bits=vqb,
     compression_level=draco_compression_level,
     quantization_range=quantization_range,

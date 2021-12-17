@@ -1,6 +1,7 @@
 import copy
 from collections import defaultdict
 from functools import reduce, partial
+import re
 from typing import (
   Any, Dict, Optional, 
   Union, Tuple, cast,
@@ -22,7 +23,8 @@ from cloudfiles import CloudFiles
 from igneous.tasks import (
   MeshTask, MeshManifestTask, GrapheneMeshTask,
   MeshSpatialIndex, MultiResShardedMeshMergeTask,
-  MultiResUnshardedMeshMergeTask
+  MultiResUnshardedMeshMergeTask, 
+  MultiResShardedFromUnshardedMeshMergeTask
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -38,6 +40,7 @@ __all__ = [
   "create_spatial_index_mesh_tasks",
   "create_unsharded_multires_mesh_tasks",
   "create_sharded_multires_mesh_tasks",
+  "create_sharded_multires_mesh_from_unsharded_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -389,6 +392,108 @@ def create_unsharded_multires_mesh_tasks(
 
   return UnshardedMultiResTaskIterator()
 
+def create_sharded_multires_mesh_from_unsharded_tasks(
+  src:str, 
+  dest:str,
+  shard_index_bytes=2**13, 
+  minishard_index_bytes=2**15,
+  num_lod:int = 1, 
+  draco_compression_level:int = 1,
+  vertex_quantization_bits:int = 16,
+  minishard_index_encoding="gzip", 
+  mesh_dir:Optional[str] = None, 
+) -> Iterator[MultiResShardedMeshMergeTask]: 
+  
+  configure_multires_info(
+    dest, 
+    vertex_quantization_bits, 
+    mesh_dir
+  )
+
+  cv_src = CloudVolume(src)
+  cf = CloudFiles(cv_src.mesh.meta.layerpath)
+
+  all_labels = []
+  SEGID_RE = re.compile(r'(\d+):0(?:\.gz|\.br|\.zstd)?$')
+  for path in cf.list():
+    match = SEGID_RE.search(path)
+    if match is None:
+      continue
+    (segid,) = match.groups()
+    all_labels.append(int(segid))
+
+  (shard_bits, minishard_bits, preshift_bits) = \
+    compute_shard_params_for_hashed(
+      num_labels=len(all_labels),
+      shard_index_bytes=int(shard_index_bytes),
+      minishard_index_bytes=int(minishard_index_bytes),
+    )
+
+  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir)
+
+  spec = ShardingSpecification(
+    type='neuroglancer_uint64_sharded_v1',
+    preshift_bits=preshift_bits,
+    hash='murmurhash3_x86_128',
+    minishard_bits=minishard_bits,
+    shard_bits=shard_bits,
+    minishard_index_encoding=minishard_index_encoding,
+    data_encoding="raw", # draco encoded meshes
+  )
+
+  cv_dest.mesh.meta.info['sharding'] = spec.to_dict()
+  cv_dest.mesh.meta.commit_info()
+
+  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir)
+
+  # perf: ~66.5k hashes/sec on M1 ARM64
+  shardfn = lambda lbl: cv_dest.mesh.reader.spec.compute_shard_location(lbl).shard_number
+
+  shard_labels = defaultdict(list)
+  for label in tqdm(all_labels, desc="Hashes"):
+    shard_labels[shardfn(label)].append(label)
+  del all_labels
+
+  cf = CloudFiles(cv_dest.mesh.meta.layerpath, progress=True)
+  files = ( 
+    (str(shardno) + '.labels', labels) 
+    for shardno, labels in shard_labels.items() 
+  )
+  cf.put_jsons(
+    files, compress="gzip", 
+    cache_control="no-cache", total=len(shard_labels)
+  )
+
+  cv_dest.provenance.processing.append({
+    'method': {
+      'task': 'MultiResShardedFromUnshardedMeshMergeTask',
+      'src': src,
+      'dest': dest,
+      'num_lod': num_lod,
+      'vertex_quantization_bits': vertex_quantization_bits,
+      'preshift_bits': preshift_bits, 
+      'minishard_bits': minishard_bits, 
+      'shard_bits': shard_bits,
+      'mesh_dir': mesh_dir,
+      'draco_compression_level': draco_compression_level,
+    },
+    'by': operator_contact(),
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  cv_dest.commit_provenance()
+
+  return [
+    partial(MultiResShardedFromUnshardedMeshMergeTask,
+      src=src, 
+      dest=dest, 
+      shard_no=shard_no, 
+      num_lod=num_lod,
+      mesh_dir=mesh_dir, 
+      draco_compression_level=draco_compression_level,
+    )
+    for shard_no in shard_labels.keys()
+  ]
+
 def create_sharded_multires_mesh_tasks(
   cloudpath:str, 
   shard_index_bytes=2**13, 
@@ -444,7 +549,7 @@ def create_sharded_multires_mesh_tasks(
     shard_labels[shardfn(label)].append(label)
   del all_labels
 
-  cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
+  cf = CloudFiles(cv.mesh.meta.layerpath, progress=True)
   files = ( 
     (str(shardno) + '.labels', labels) 
     for shardno, labels in shard_labels.items() 

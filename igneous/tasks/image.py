@@ -41,7 +41,7 @@ def downsample_and_upload(
 
     if factor is None:
       factor = downsample_scales.axis_to_factor(axis)
-    factors = downsample_scales.compute_factors(ds_shape, factor, chunk_size)
+    factors = downsample_scales.compute_factors(ds_shape, factor, chunk_size, vol.volume_size)
 
     if len(factors) == 0:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(

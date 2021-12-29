@@ -132,7 +132,8 @@ def compute_plane_downsampling_scales(size, preserve_axis='z',
 
     return scales
     
-def compute_factors(ds_shape, factor, chunk_size):
+def compute_factors(ds_shape, factor, chunk_size, volume_size):
+  chunk_size = np.array(chunk_size)
   grid_size = Vec(*ds_shape, dtype=np.float32) / Vec(*chunk_size, dtype=np.float32)
   # find the dimension which will tolerate the smallest number of downsamples and 
   # return the number it will accept. + 0.0001 then truncate to compensate for FP errors
@@ -156,10 +157,19 @@ def compute_factors(ds_shape, factor, chunk_size):
 
   if N < epsilon:
     return []
-  elif 0 < N < 1:
-    return [ factor ]
-  else:
-    return [ factor ] * int(N)
+
+  dsvol = np.array(volume_size) / (np.array(factor) ** int(np.ceil(N)))
+  dsvol = np.array([ dsvol[i] for i,f in enumerate(factor) if f != 1 ])
+  chunk_size = np.array([ chunk_size[i] for i,f in enumerate(factor) if f != 1 ])
+
+  N, fract = int(N), (N - float(int(N)))
+
+  # incomplete downsamples are only legal when the
+  # volume size is smaller than the chunk size.
+  if all(dsvol < chunk_size) and fract > epsilon:
+    N += 1
+
+  return [ factor ] * N
 
 def axis_to_factor(axis):
   if axis == 'x':

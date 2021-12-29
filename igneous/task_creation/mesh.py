@@ -361,8 +361,6 @@ def create_unsharded_multires_mesh_tasks(
     mesh_dir
   )
 
-  vol = CloudVolume(cloudpath, mip=mip)
-
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
 

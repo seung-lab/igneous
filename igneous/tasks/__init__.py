@@ -8,6 +8,7 @@ from .mesh import (
   MultiResUnshardedMeshMergeTask,
   MultiResShardedMeshMergeTask,
   MultiResShardedFromUnshardedMeshMergeTask,
+  TransferMeshFilesTask,
 )
 from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,

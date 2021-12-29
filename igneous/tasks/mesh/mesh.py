@@ -28,7 +28,7 @@ from . import mesh_graphene_remap
 
 __all__ = [
   "MeshTask", "GrapheneMeshTask", "MeshManifestTask",
-  "MeshSpatialIndex"
+  "MeshSpatialIndex", "TransferMeshFilesTask"
 ]
 
 def find_objects(labels):
@@ -601,4 +601,33 @@ def MeshSpatialIndex(
     compress=compress,
     cache_control=False,
   )
+
+@queueable
+def TransferMeshFilesTask(
+  src:str,
+  dest:str,
+  prefix:str,
+  mesh_dir:Optional[str] = None
+):
+  cv_src = CloudVolume(src)
+  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir)
+
+  cf_src = CloudFiles(cv_src.mesh.meta.layerpath)
+  cf_dest = CloudFiles(cv_dest.mesh.meta.layerpath)
+
+  cf_src.transfer_to(cf_dest, paths=cf_src.list(prefix=prefix))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

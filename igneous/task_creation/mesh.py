@@ -1,6 +1,7 @@
 import copy
 from collections import defaultdict
 from functools import reduce, partial
+import itertools
 import re
 from typing import (
   Any, Dict, Optional, 
@@ -24,7 +25,8 @@ from igneous.tasks import (
   MeshTask, MeshManifestTask, GrapheneMeshTask,
   MeshSpatialIndex, MultiResShardedMeshMergeTask,
   MultiResUnshardedMeshMergeTask, 
-  MultiResShardedFromUnshardedMeshMergeTask
+  MultiResShardedFromUnshardedMeshMergeTask,
+  TransferMeshFilesTask
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -391,6 +393,36 @@ def create_unsharded_multires_mesh_tasks(
         )
 
   return UnshardedMultiResTaskIterator()
+
+def create_xfer_meshes_tasks(
+  src:str,
+  dest:str,
+  mesh_dir:Optional[str] = None, 
+  magnitude=2,
+):
+  cv_src = CloudVolume(src)
+
+  alphabet = [ str(i) for i in range(10) ]
+  if cv_src.mesh.meta.is_sharded():
+    alphabet += [ 'a', 'b', 'c', 'd', 'e', 'f' ]
+
+  prefixes = itertools.product(*([ alphabet ] * magnitude))
+  prefixes = [ "".join(x) for x in prefixes ]
+
+  if cv_src.mesh.meta.is_sharded():
+    prefixes += [ f"{x}." for x in alphabet ]
+  else:
+    prefixes += [ f"{x}:0" for x in alphabet ]
+  
+  return [
+    TransferMeshFilesTask(
+      src=src,
+      dest=dest,
+      prefix=prefix,
+      mesh_dir=mesh_dir,
+    )
+    for prefix in prefixes
+  ]
 
 def create_sharded_multires_mesh_from_unsharded_tasks(
   src:str, 

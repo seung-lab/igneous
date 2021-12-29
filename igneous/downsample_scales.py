@@ -149,9 +149,17 @@ def compute_factors(ds_shape, factor, chunk_size):
   if len(factor_div) == 0:
     return []
 
+  epsilon = 0.0001
   N = np.log(grid_size) / np.log(factor_div)
-  N += 0.0001
-  return [ factor ] * int(min(N))
+  N += epsilon
+  N = min(N)
+
+  if N < epsilon:
+    return []
+  elif 0 < N < 1:
+    return [ factor ]
+  else:
+    return [ factor ] * int(N)
 
 def axis_to_factor(axis):
   if axis == 'x':

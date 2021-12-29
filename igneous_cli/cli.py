@@ -172,7 +172,7 @@ def downsample(
       path, mip=mip, fill_missing=fill_missing, 
       sparse=sparse, chunk_size=chunk_size,
       encoding=encoding, memory_target=memory,
-      factor=factor, bounds=bounds
+      factor=factor, bounds=bounds, bounds_mip=mip
     )
   else:
     tasks = tc.create_downsampling_tasks(
@@ -182,7 +182,8 @@ def downsample(
       delete_black_uploads=delete_bg, 
       background_color=bg_color, 
       compress=compress,
-      factor=factor, bounds=bounds
+      factor=factor, bounds=bounds,
+      bounds_mip=mip
     )
 
   parallel = int(ctx.obj.get("parallel", 1))

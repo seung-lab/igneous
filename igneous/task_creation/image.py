@@ -1,6 +1,6 @@
 from functools import reduce, partial
 import operator
-from typing import Any, Dict, Tuple, cast, Optional
+from typing import Any, Dict, Union, Tuple, cast, Optional, Iterator
 
 import copy
 import json
@@ -52,10 +52,10 @@ __all__  = [
 MEMORY_TARGET = int(3.5e9)
 
 def create_blackout_tasks(
-    cloudpath, bounds, 
-    mip=0, shape=(2048, 2048, 64), 
-    value=0, non_aligned_writes=False
-  ):
+  cloudpath:str, bounds:Bbox,
+  mip:int = 0, shape:ShapeType = (2048, 2048, 64), 
+  value:int = 0, non_aligned_writes:bool = False
+):
 
   vol = CloudVolume(cloudpath, mip=mip)
 
@@ -151,7 +151,7 @@ def create_downsampling_tasks(
     sparse=False, bounds=None, chunk_size=None,
     encoding=None, delete_black_uploads=False, 
     background_color=0, dest_path=None, compress=None,
-    factor=None
+    factor=None, bounds_mip=0
   ):
     """
     mip: Download this mip level, writes to mip levels greater than this one.
@@ -205,7 +205,11 @@ def create_downsampling_tasks(
     if not preserve_chunk_size or chunk_size:
       shape = ds_shape(mip + 1, chunk_size, factor)
 
-    bounds = get_bounds(vol, bounds, mip, chunk_size=vol.chunk_size)
+    bounds = get_bounds(
+      vol, bounds, mip,
+      bounds_mip=bounds_mip,
+      chunk_size=vol.chunk_size,
+    )
     
     class DownsampleTaskIterator(FinelyDividedTaskIterator):
       def task(self, shape, offset):
@@ -404,6 +408,7 @@ def create_image_shard_transfer_tasks(
   chunk_size: Optional[ShapeType] = None,
   encoding: bool = None,
   bounds: Optional[Bbox] = None,
+  bounds_mip : int = 0,
   fill_missing: bool = False,
   translate: ShapeType = (0, 0, 0),
   dest_voxel_offset: Optional[ShapeType] = None,
@@ -461,7 +466,11 @@ def create_image_shard_transfer_tasks(
 
   shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
 
-  bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
+  bounds = get_bounds(
+    dest_vol, bounds, mip, 
+    bounds_mip=bounds_mip, 
+    chunk_size=chunk_size,
+  )
 
   class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -505,7 +514,7 @@ def create_image_shard_downsample_tasks(
   sparse=False, chunk_size=None,
   encoding=None, memory_target=MEMORY_TARGET,
   agglomerate=False, timestamp=None,
-  factor=(2,2,1), bounds=None
+  factor=(2,2,1), bounds=None, bounds_mip=0
 ):
   """
   Downsamples an existing image layer that may be
@@ -534,7 +543,11 @@ def create_image_shard_downsample_tasks(
   shape = Vec(*shape) * factor
 
   cv.mip = mip
-  bounds = get_bounds(cv, bounds, mip, cv.meta.chunk_size(mip + 1))
+  bounds = get_bounds(
+    cv, bounds, mip, 
+    bounds_mip=bounds_mip, 
+    chunk_size=cv.meta.chunk_size(mip + 1)
+  )
 
   class ImageShardDownsampleTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -624,17 +637,30 @@ def clean_xfer_info(info):
   return info
 
 def create_transfer_tasks(
-    src_layer_path, dest_layer_path, 
-    chunk_size=None, shape=None, 
-    fill_missing=False, translate=None,
-    bounds=None, mip=0, preserve_chunk_size=True,
-    encoding=None, skip_downsamples=False,
-    delete_black_uploads=False, background_color=0,
-    agglomerate=False, timestamp=None, compress='gzip',
-    factor=None, sparse=False, dest_voxel_offset=None,
-    memory_target=MEMORY_TARGET, max_mips=5, 
-    clean_info=False, no_src_update=False
-  ):
+  src_layer_path:str, dest_layer_path:str, 
+  chunk_size:ShapeType = None, 
+  shape:ShapeType = None, 
+  fill_missing:bool = False, 
+  translate:ShapeType = None,
+  bounds:Optional[Bbox] = None, 
+  mip:int = 0, 
+  preserve_chunk_size:bool = True,
+  encoding=None, 
+  skip_downsamples:bool = False,
+  delete_black_uploads:bool = False, 
+  background_color:int = 0,
+  agglomerate:bool = False, 
+  timestamp:Optional[int] = None, 
+  compress:Union[str,bool] = 'gzip',
+  factor:ShapeType = None, 
+  sparse:bool = False, 
+  dest_voxel_offset:ShapeType = None,
+  memory_target:int = MEMORY_TARGET, 
+  max_mips:int = 5, 
+  clean_info:bool = False, 
+  no_src_update:bool = False, 
+  bounds_mip:int = 0,
+) -> Iterator:
   """
   Transfer data to a new data layer. You can use this operation
   to make changes to the dataset representation as well. For 
@@ -771,7 +797,11 @@ def create_transfer_tasks(
       encoding=encoding
     )
 
-  dest_bounds = get_bounds(dest_vol, bounds, mip, chunk_size)
+  dest_bounds = get_bounds(
+    dest_vol, bounds, mip, 
+    bounds_mip=bounds_mip,
+    chunk_size=chunk_size
+  )
 
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  
@@ -837,7 +867,8 @@ def create_contrast_normalization_tasks(
     src_path, dest_path, levels_path=None,
     shape=None, mip=0, clip_fraction=0.01, 
     fill_missing=False, translate=(0,0,0),
-    minval=None, maxval=None, bounds=None
+    minval=None, maxval=None, bounds=None,
+    bounds_mip=0
   ):
 
   srcvol = CloudVolume(src_path, mip=mip)
@@ -860,7 +891,7 @@ def create_contrast_normalization_tasks(
   downsample_scales.create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
   dvol.refresh_info()
 
-  bounds = get_bounds(srcvol, bounds, mip)
+  bounds = get_bounds(srcvol, bounds, mip, bounds_mip=bounds_mip)
 
   class ContrastNormalizationTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -905,7 +936,8 @@ def create_contrast_normalization_tasks(
 
 def create_luminance_levels_tasks(
     layer_path, levels_path=None, coverage_factor=0.01, 
-    shape=None, offset=(0,0,0), mip=0, bounds_mip=0, bounds=None
+    shape=None, offset=(0,0,0), mip=0, 
+    bounds_mip=0, bounds=None
   ):
   """
   Compute per slice luminance level histogram and write them as

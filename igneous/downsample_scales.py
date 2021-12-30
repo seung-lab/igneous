@@ -166,7 +166,7 @@ def compute_factors(ds_shape, factor, chunk_size, volume_size):
 
   # incomplete downsamples are only legal when the
   # volume size is smaller than the chunk size.
-  if all(dsvol < chunk_size) and fract > epsilon:
+  if all(dsvol < chunk_size) and fract > 0.05:
     N += 1
 
   return [ factor ] * N
@@ -195,7 +195,7 @@ def compute_scales(vol, mip, shape, axis, factor, chunk_size=None):
   if factor is None:
     factor = axis_to_factor(axis)
 
-  factors = compute_factors(shape, factor, scale_chunk_size)
+  factors = compute_factors(shape, factor, scale_chunk_size, vol.meta.volume_size(mip))
   scales = [ vol.meta.resolution(mip) ]
 
   precision = max(map(getprecision, vol.meta.resolution(mip)))

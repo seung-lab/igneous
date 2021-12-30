@@ -82,12 +82,14 @@ def test_transfer_task_vanilla(tq, src_cv, transfer_data):
   rmdest()
 
 def test_transfer_task_rechunk(tq, src_cv, transfer_data):
-  tasks = tc.create_transfer_tasks(src_cv.cloudpath, destpath, chunk_size=(50,50,50))
+  tasks = tc.create_transfer_tasks(
+    src_cv.cloudpath, destpath, chunk_size=(50,50,50)
+  )
   tq.insert_all(tasks)
   dest_cv = CloudVolume(destpath)
-  assert len(dest_cv.scales) == 4
+  assert len(dest_cv.scales) == 5
   assert np.all(src_cv[:] == dest_cv[:])
-  for mip in range(1, 4):
+  for mip in range(1, 5):
     dest_cv.mip = mip
     assert np.all(dest_cv[:] == transfer_data[mip])
   rmsrc()
@@ -114,11 +116,11 @@ def test_transfer_task_dest_offset(tq, src_cv, transfer_data):
   )
   tq.insert_all(tasks)
   dest_cv = CloudVolume(destpath)
-  assert len(dest_cv.scales) == 4
+  assert len(dest_cv.scales) == 5
   assert tuple(dest_cv.voxel_offset) == (100, 100, 100)
   assert tuple(src_cv.voxel_offset) == (0, 0, 0)
   assert np.all(src_cv[:] == dest_cv[:])
-  for mip in range(1, 4):
+  for mip in range(1, 5):
     dest_cv.mip = mip
     assert np.all(dest_cv[:] == transfer_data[mip])
   rmsrc()

@@ -376,14 +376,12 @@ def mesh_xfer(
   cv_src = CloudVolume(src)
 
   if not cv_src.mesh.meta.is_sharded() and sharded:
-    print("there")
     tasks = tc.create_sharded_multires_mesh_from_unsharded_tasks(
       src, dest,
       num_lod=1, 
       mesh_dir=mesh_dir, 
     )
   else:
-    print("here")
     tasks = tc.create_xfer_meshes_tasks(
       src, dest, 
       mesh_dir=mesh_dir, 

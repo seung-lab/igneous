@@ -473,6 +473,8 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
     )
 
   cv_dest = CloudVolume(dest, mesh_dir=mesh_dir)
+  cv_dest.mesh.meta.info["mip"] = cv_src.mesh.meta.mip
+  cv_dest.commit_info()
 
   spec = ShardingSpecification(
     type='neuroglancer_uint64_sharded_v1',

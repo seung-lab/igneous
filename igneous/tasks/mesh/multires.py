@@ -16,7 +16,7 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles
 
 from cloudvolume import CloudVolume, Mesh, view
-from cloudvolume.lib import Vec, Bbox, jsonify, sip
+from cloudvolume.lib import Vec, Bbox, jsonify, sip, toiter, first
 from cloudvolume.datasource.precomputed.mesh.multilod \
   import MultiLevelPrecomputedMeshManifest, to_stored_model_space
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
@@ -35,6 +35,7 @@ from .draco import draco_encoding_settings
 __all__ = [
   "MultiResShardedMeshMergeTask",
   "MultiResUnshardedMeshMergeTask",
+  "MultiResShardedFromUnshardedMeshMergeTask",
 ]
 
 @queueable
@@ -73,12 +74,10 @@ def MultiResUnshardedMeshMergeTask(
 def process_mesh(
   cv:CloudVolume,
   label:int,
-  mesh_fragments: List[Mesh],
+  mesh: Mesh,
   num_lod:int = 1,
   draco_compression_level:int = 1,
 ) -> Tuple[MultiLevelPrecomputedMeshManifest, Mesh]:
-  
-  mesh = Mesh.concatenate(*mesh_fragments)
 
   manifest = MultiLevelPrecomputedMeshManifest(
     segment_id=label, 
@@ -171,8 +170,77 @@ def MultiResShardedMeshMergeTask(
   meshes = collect_mesh_fragments(
     cv, labels, filenames, mesh_dir, progress
   )
-  del labels
   del filenames
+
+  # important to iterate this way to avoid
+  # creating a copy of meshes vs. { ... for in }
+  for label in labels:
+    meshes[label] = Mesh.concatenate(*meshes[label])
+  del labels
+
+  fname, shard = create_mesh_shard(
+    cv, meshes, 
+    num_lod, draco_compression_level,
+    progress, shard_no
+  )
+  del meshes
+
+  if shard is None:
+    return
+
+  cf = CloudFiles(cv.mesh.meta.layerpath)
+  cf.put(
+    fname, shard,
+    compress=False,
+    content_type='application/octet-stream',
+    cache_control='no-cache',
+  )
+
+@queueable
+def MultiResShardedFromUnshardedMeshMergeTask(
+  src:str,
+  dest:str,
+  shard_no:str,
+  cache_control:bool = False,
+  draco_compression_level:int = 1,
+  mesh_dir:Optional[str] = None,
+  num_lod:int = 1,
+  progress:bool = False,
+):
+  cv_src = CloudVolume(src)
+
+  if mesh_dir is None and 'mesh' in cv.info:
+    mesh_dir = cv.info['mesh']
+
+  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir, progress=True)
+
+  labels = labels_for_shard(cv_dest, shard_no)
+  meshes = cv_src.mesh.get(labels, fuse=False)
+  del labels
+    
+  fname, shard = create_mesh_shard(
+    cv_dest, meshes, 
+    num_lod, draco_compression_level,
+    progress, shard_no
+  )
+  del meshes
+
+  if shard is None:
+    return
+
+  cf = CloudFiles(cv_dest.mesh.meta.layerpath)
+  cf.put(
+    fname, shard, # fname, data
+    compress=False,
+    content_type='application/octet-stream',
+    cache_control='no-cache',
+  )
+
+def create_mesh_shard(
+  cv:CloudVolume, meshes:dict, 
+  num_lod:int, draco_compression_level:int,
+  progress:bool, shard_no:str
+):
   meshes = {
     label: process_mesh(
       cv, label, mesh_frags,
@@ -190,13 +258,11 @@ def MultiResShardedMeshMergeTask(
   }
 
   if len(meshes) == 0:
-    return
+    return None, None
 
   shard_files = synthesize_shard_files(
     cv.mesh.reader.spec, meshes, data_offset
   )
-  del meshes
-  del data_offset
 
   if len(shard_files) != 1:
     raise ValueError(
@@ -205,13 +271,8 @@ def MultiResShardedMeshMergeTask(
         str(shard_no), ", ".join(shard_files.keys())
     ))
 
-  cf = CloudFiles(cv.mesh.meta.layerpath, progress=progress)
-  cf.puts(
-    ( (fname, data) for fname, data in shard_files.items() ),
-    compress=False,
-    content_type='application/octet-stream',
-    cache_control='no-cache',
-  )
+  filename = first(shard_files.keys())
+  return filename, shard_files[filename]
 
 def collect_mesh_fragments(
   cv:CloudVolume, 

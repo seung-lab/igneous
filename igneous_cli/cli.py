@@ -359,6 +359,41 @@ def meshgroup():
   """
   pass
 
+@meshgroup.command("xfer")
+@click.argument("src")
+@click.argument("dest")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
+@click.option("--dir", "mesh_dir", type=str, default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
+@click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
+@click.pass_context
+def mesh_xfer(
+  ctx, src, dest, queue,
+  sharded, mesh_dir, magnitude
+):
+  src = cloudfiles.paths.normalize(src)
+  dest = cloudfiles.paths.normalize(dest)
+  cv_src = CloudVolume(src)
+
+  if not cv_src.mesh.meta.is_sharded() and sharded:
+    print("there")
+    tasks = tc.create_sharded_multires_mesh_from_unsharded_tasks(
+      src, dest,
+      num_lod=1, 
+      mesh_dir=mesh_dir, 
+    )
+  else:
+    print("here")
+    tasks = tc.create_xfer_meshes_tasks(
+      src, dest, 
+      mesh_dir=mesh_dir, 
+      magnitude=magnitude,
+    )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
 @meshgroup.command("forge")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)

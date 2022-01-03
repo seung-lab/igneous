@@ -38,7 +38,7 @@ def downsample_and_upload(
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
     chunk_size = vol.meta.chunk_size(underlying_mip).astype(np.float32)
-
+    
     if factor is None:
       factor = downsample_scales.axis_to_factor(axis)
     factors = downsample_scales.compute_factors(ds_shape, factor, chunk_size, vol.volume_size)

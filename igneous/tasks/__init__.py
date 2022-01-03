@@ -7,6 +7,8 @@ from .mesh import (
   GrapheneMeshTask, MeshSpatialIndex,
   MultiResUnshardedMeshMergeTask,
   MultiResShardedMeshMergeTask,
+  MultiResShardedFromUnshardedMeshMergeTask,
+  TransferMeshFilesTask,
 )
 from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,

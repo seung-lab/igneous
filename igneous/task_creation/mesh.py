@@ -43,6 +43,7 @@ __all__ = [
   "create_unsharded_multires_mesh_tasks",
   "create_sharded_multires_mesh_tasks",
   "create_sharded_multires_mesh_from_unsharded_tasks",
+  "create_xfer_meshes_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -401,6 +402,14 @@ def create_xfer_meshes_tasks(
   magnitude=2,
 ):
   cv_src = CloudVolume(src)
+  cf_dest = CloudFiles(dest)
+
+  if not mesh_dir:
+    info = cf_dest.get_json("info")
+    if info.get("mesh", None):
+      mesh_dir = info.get("mesh")
+
+  cf_dest.put_json(f"{mesh_dir}/info", cv_src.mesh.meta.info)
 
   alphabet = [ str(i) for i in range(10) ]
   if cv_src.mesh.meta.is_sharded():
@@ -409,13 +418,17 @@ def create_xfer_meshes_tasks(
   prefixes = itertools.product(*([ alphabet ] * magnitude))
   prefixes = [ "".join(x) for x in prefixes ]
 
-  if cv_src.mesh.meta.is_sharded():
-    prefixes += [ f"{x}." for x in alphabet ]
-  else:
-    prefixes += [ f"{x}:0" for x in alphabet ]
-  
+  # explicitly enumerate all prefixes smaller than the magnitude.
+  for i in range(1, magnitude):
+    explicit_prefix = itertools.product(*([ alphabet ] * i))
+    explicit_prefix = [ "".join(x) for x in explicit_prefix ]
+    if cv_src.mesh.meta.is_sharded():
+      prefixes += [ f"{x}." for x in explicit_prefix ]
+    else:
+      prefixes += [ f"{x}:0" for x in explicit_prefix ]
+
   return [
-    TransferMeshFilesTask(
+    partial(TransferMeshFilesTask,
       src=src,
       dest=dest,
       prefix=prefix,

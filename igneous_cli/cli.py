@@ -371,6 +371,11 @@ def mesh_xfer(
   ctx, src, dest, queue,
   sharded, mesh_dir, magnitude
 ):
+  """
+  Transfer meshes to another location.
+  Enables conversion of unsharded to sharded
+  as well.
+  """
   src = cloudfiles.paths.normalize(src)
   dest = cloudfiles.paths.normalize(dest)
   cv_src = CloudVolume(src)

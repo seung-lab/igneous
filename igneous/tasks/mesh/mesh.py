@@ -520,6 +520,7 @@ def MeshManifestFilesystemTask(
     if mlod != lod:
       continue
 
+    filename, ext = os.path.splitext(filename)
     segids[segid].append(filename)
 
   items = ( 

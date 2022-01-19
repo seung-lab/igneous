@@ -11,6 +11,7 @@ import scipy.ndimage
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
+import cloudfiles.paths
 
 from cloudvolume import CloudVolume, view
 from cloudvolume.lib import Vec, Bbox, jsonify
@@ -27,8 +28,9 @@ from .draco import calculate_draco_quantization_bits_and_range, draco_encoding_s
 from . import mesh_graphene_remap
 
 __all__ = [
-  "MeshTask", "GrapheneMeshTask", "MeshManifestTask",
-  "MeshSpatialIndex", "TransferMeshFilesTask"
+  "MeshTask", "GrapheneMeshTask", 
+  "MeshManifestPrefixTask", "MeshManifestFilesystemTask",
+  "MeshSpatialIndex", "TransferMeshFilesTask",
 ]
 
 def find_objects(labels):
@@ -483,7 +485,61 @@ class GrapheneMeshTask(RegisteredTask):
 
     return mesh_binary
 
-class MeshManifestTask(RegisteredTask):
+@queueable
+def MeshManifestFilesystemTask(
+  layer_path:str,
+  lod:int = 0,
+  mesh_dir:Optional[str] = None,
+):
+  cf = CloudFiles(layer_path)
+  info = cf.get_json('info')
+
+  if mesh_dir is None and 'mesh' in info:
+    mesh_dir = info['mesh']
+
+  filepath = cloudfiles.paths.asfilepath(
+    cf.join(layer_path, mesh_dir)
+  )
+  segids = defaultdict(list)
+
+  regexp = re.compile(r'(\d+):(\d+):')
+  for entry in os.scandir(filepath):
+    if not entry.is_file():
+      continue
+
+    filename = os.path.basename(entry.name)
+    # `match` implies the beginning (^). `search` matches whole string
+    matches = re.search(regexp, filename)
+
+    if not matches:
+      continue
+
+    segid, mlod = matches.groups()
+    segid, mlod = int(segid), int(mlod)
+
+    if mlod != lod:
+      continue
+
+    filename, ext = os.path.splitext(filename)
+    segids[segid].append(filename)
+
+  items = ( 
+    (
+      f"{mesh_dir}/{segid}:{lod}", 
+      { "fragments": frags }
+    ) 
+    for segid, frags in segids.items() 
+  )
+
+  cf.put_jsons(items)
+
+@queueable
+def MeshManifestPrefixTask(
+  layer_path:str, 
+  prefix:str,
+  lod:int = 0, 
+  mesh_dir:Optional[str] = None
+):
   """
   Finalize mesh generation by post-processing chunk fragment
   lists into mesh fragment manifests.
@@ -495,53 +551,41 @@ class MeshManifestTask(RegisteredTask):
   processed and need to be handle specifically by creating tasks that will process
   a single mesh ['0:','1:',..'9:']
   """
+  cf = CloudFiles(layer_path)
+  info = cf.get_json('info')
 
-  def __init__(self, layer_path, prefix, lod=0, mesh_dir=None):
-    super(MeshManifestTask, self).__init__(layer_path, prefix)
-    self.layer_path = layer_path
-    self.lod = lod
-    self.prefix = prefix
-    self.mesh_dir = mesh_dir
+  if mesh_dir is None and 'mesh' in info:
+    mesh_dir = info['mesh']
 
-  def execute(self):
-    cf = CloudFiles(self.layer_path)
-    self._info = cf.get_json('info')
+  prefix = cf.join(mesh_dir, prefix)
+  segids = defaultdict(list)
 
-    if self.mesh_dir is None and 'mesh' in self._info:
-      self.mesh_dir = self._info['mesh']
+  regexp = re.compile(r'(\d+):(\d+):')
+  for filename in cf.list(prefix=prefix):
+    filename = os.path.basename(filename)
+    # `match` implies the beginning (^). `search` matches whole string
+    matches = re.search(regexp, filename)
 
-    self._generate_manifests(cf)
+    if not matches:
+      continue
 
-  def _get_mesh_filenames_subset(self, cf):
-    prefix = '{}/{}'.format(self.mesh_dir, self.prefix)
-    segids = defaultdict(list)
+    segid, mlod = matches.groups()
+    segid, mlod = int(segid), int(mlod)
 
-    for filename in cf.list(prefix=prefix):
-      filename = os.path.basename(filename)
-      # `match` implies the beginning (^). `search` matches whole string
-      matches = re.search(r'(\d+):(\d+):', filename)
+    if mlod != lod:
+      continue
 
-      if not matches:
-        continue
+    segids[segid].append(filename)
 
-      segid, lod = matches.groups()
-      segid, lod = int(segid), int(lod)
+  items = ( 
+    (
+      f"{mesh_dir}/{segid}:{lod}", 
+      { "fragments": frags }
+    ) 
+    for segid, frags in segids.items() 
+  )
 
-      if lod != self.lod:
-        continue
-
-      segids[segid].append(filename)
-
-    return segids
-
-  def _generate_manifests(self, cf):
-    segids = self._get_mesh_filenames_subset(cf)
-    items = ( (
-        f"{self.mesh_dir}/{segid}:{self.lod}",
-        json.dumps({ "fragments": frags })
-      ) for segid, frags in segids.items() )
-
-    cf.puts(items, content_type='application/json')
+  cf.put_jsons(items)
 
 @queueable
 def MeshSpatialIndex(

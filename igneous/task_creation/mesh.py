@@ -20,9 +20,11 @@ from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudfiles import CloudFiles
+import cloudfiles.paths
 
 from igneous.tasks import (
-  MeshTask, MeshManifestTask, GrapheneMeshTask,
+  MeshTask, MeshManifestPrefixTask, 
+  MeshManifestFilesystemTask, GrapheneMeshTask,
   MeshSpatialIndex, MultiResShardedMeshMergeTask,
   MultiResUnshardedMeshMergeTask, 
   MultiResShardedFromUnshardedMeshMergeTask,
@@ -49,6 +51,16 @@ __all__ = [
 # split the work up into ~1000 tasks (magnitude 3)
 def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
   assert int(magnitude) == magnitude
+  assert magnitude >= 0
+
+  protocol = cloudfiles.paths.get_protocol(layer_path)
+  if protocol == "file":
+    return [
+      partial(MeshManifestFilesystemTask, 
+        layer_path=layer_path,
+        mesh_dir=mesh_dir,
+      )
+    ]
 
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
@@ -58,11 +70,19 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
       return (10 ** magnitude) - 1
     def __iter__(self):
       for prefix in range(1, start):
-        yield MeshManifestTask(layer_path=layer_path, prefix=str(prefix) + ':', mesh_dir=mesh_dir)
+        yield partial(MeshManifestPrefixTask, 
+          layer_path=layer_path, 
+          prefix=str(prefix) + ':', 
+          mesh_dir=mesh_dir
+        )
 
       # enumerate from e.g. 100 to 999
       for prefix in range(start, end):
-        yield MeshManifestTask(layer_path=layer_path, prefix=prefix, mesh_dir=mesh_dir)
+        yield partial(MeshManifestPrefixTask, 
+          layer_path=layer_path, 
+          prefix=str(prefix),
+          mesh_dir=mesh_dir
+        )
 
   return MeshManifestTaskIterator()
 
@@ -236,7 +256,7 @@ def create_graphene_hybrid_mesh_manifest_tasks(
       return len(prefixes)
     def __iter__(self):
       for prefix in prefixes:
-        yield MeshManifestTask(layer_path=cloudpath, prefix=str(prefix))
+        yield partial(MeshManifestPrefixTask, layer_path=cloudpath, prefix=str(prefix))
 
   return GrapheneHybridMeshManifestTaskIterator()
 

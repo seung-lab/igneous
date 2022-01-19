@@ -3,7 +3,8 @@ from .skeleton import (
   ShardedSkeletonMergeTask
 )
 from .mesh import (
-  MeshTask, MeshManifestTask, 
+  MeshTask, MeshManifestPrefixTask, 
+  MeshManifestFilesystemTask,
   GrapheneMeshTask, MeshSpatialIndex,
   MultiResUnshardedMeshMergeTask,
   MultiResShardedMeshMergeTask,

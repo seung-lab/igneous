@@ -201,11 +201,16 @@ class MeshTask(RegisteredTask):
     self.compute_meshes(renumbermap, left_offset)
 
   def _handle_dataset_boundary(self, data, bbox):
+    """
+    This logic is used to add a black border along sides
+    of the image that touch the dataset boundary which
+    results in the closure of the mesh faces on that side.
+    """
     if (
       (not np.any(bbox.minpt == self._volume.bounds.minpt))
       and (not np.any(bbox.maxpt == self._volume.bounds.maxpt))
     ):
-      return data
+      return data, Vec(0,0,0)
 
     shape = Vec(*data.shape, dtype=np.int64)
     offset = Vec(0,0,0,0)

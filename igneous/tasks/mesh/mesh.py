@@ -122,6 +122,7 @@ class MeshTask(RegisteredTask):
       'agglomerate': kwargs.get('agglomerate', True),
       'stop_layer': kwargs.get('stop_layer', 2),
       'compress': kwargs.get('compress', 'gzip'),
+      'closed_dataset_edges': kwargs.get('closed_dataset_edges', True),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -180,6 +181,10 @@ class MeshTask(RegisteredTask):
         self._upload_spatial_index(self._bounds, {})
       return
 
+    left_offset = Vec(0,0,0)
+    if self.options["closed_dataset_edges"]:
+      data, left_offset = self._handle_dataset_boundary(data, data_bounds)
+
     data = self._remove_dust(data, self.options['dust_threshold'])
     data = self._remap(data)
 
@@ -188,7 +193,50 @@ class MeshTask(RegisteredTask):
 
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
-    self.compute_meshes(data, renumbermap)
+
+    data = fastremap.ascontiguousarray(data[..., 0].T)
+    self._mesher.mesh(data)
+    del data
+
+    self.compute_meshes(renumbermap, left_offset)
+
+  def _handle_dataset_boundary(self, data, bbox):
+    """
+    This logic is used to add a black border along sides
+    of the image that touch the dataset boundary which
+    results in the closure of the mesh faces on that side.
+    """
+    if (
+      (not np.any(bbox.minpt == self._volume.bounds.minpt))
+      and (not np.any(bbox.maxpt == self._volume.bounds.maxpt))
+    ):
+      return data, Vec(0,0,0)
+
+    shape = Vec(*data.shape, dtype=np.int64)
+    offset = Vec(0,0,0,0)
+    for i in range(3):
+      if bbox.minpt[i] == self._volume.voxel_offset[i]:
+        offset[i] += 1
+        shape[i] += 1
+      if bbox.maxpt[i] == self._volume.bounds.maxpt[i]:
+        shape[i] += 1
+
+    slices = (
+      slice(offset.x, offset.x + data.shape[0]),
+      slice(offset.y, offset.y + data.shape[1]),
+      slice(offset.z, offset.z + data.shape[2]),
+    )
+
+    mirror_data = np.zeros(shape, dtype=data.dtype, order="F")
+    mirror_data[slices] = data
+    if offset[0]:
+      mirror_data[0,:,:] = 0
+    if offset[1]:
+      mirror_data[:,0,:] = 0
+    if offset[2]:
+      mirror_data[:,:,0] = 0
+
+    return mirror_data, offset[:3]
 
   def get_mesh_dir(self):
     if self.options['mesh_dir'] is not None:
@@ -220,17 +268,13 @@ class MeshTask(RegisteredTask):
     data = fastremap.mask_except(data, list(remap.keys()), in_place=True)
     return fastremap.remap(data, remap, in_place=True)
 
-  def compute_meshes(self, data, renumbermap):
-    data = data[:, :, :, 0].T
-    self._mesher.mesh(data)
-    del data
-
+  def compute_meshes(self, renumbermap, offset):
     bounding_boxes = {}
     meshes = {}
 
     for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
       remapped_id = renumbermap[obj_id]
-      mesh_binary, mesh_bounds = self._create_mesh(obj_id)
+      mesh_binary, mesh_bounds = self._create_mesh(obj_id, offset)
       bounding_boxes[remapped_id] = mesh_bounds.to_list()
       meshes[remapped_id] = mesh_binary
 
@@ -288,18 +332,19 @@ class MeshTask(RegisteredTask):
         cache_control=self.options['cache_control'],
       )
 
-  def _create_mesh(self, obj_id):
+  def _create_mesh(self, obj_id, left_bound_offset):
     mesh = self._mesher.get_mesh(
       obj_id,
       simplification_factor=self.options['simplification_factor'],
-      max_simplification_error=self.options['max_simplification_error']
+      max_simplification_error=self.options['max_simplification_error'],
+      voxel_centered=True,
     )
 
     self._mesher.erase(obj_id)
 
     resolution = self._volume.resolution
-    offset = self._bounds.minpt - self.options['low_padding']
-    mesh.vertices[:] += offset * resolution
+    offset = (self._bounds.minpt - self.options['low_padding']).astype(np.float32)
+    mesh.vertices[:] += (offset - left_bound_offset) * resolution
 
     mesh_bounds = Bbox(
       np.amin(mesh.vertices, axis=0), 

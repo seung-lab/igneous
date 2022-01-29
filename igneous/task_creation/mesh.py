@@ -93,7 +93,7 @@ def create_meshing_tasks(
     mesh_dir=None, cdn_cache=False, dust_threshold=None,
     object_ids=None, progress=False, fill_missing=False,
     encoding='precomputed', spatial_index=True, sharded=False,
-    compress='gzip'
+    compress='gzip', closed_dataset_edges=True
   ):
   shape = Vec(*shape)
 
@@ -138,6 +138,7 @@ def create_meshing_tasks(
         spatial_index=spatial_index,
         sharded=sharded,
         compress=compress,
+        closed_dataset_edges=closed_dataset_edges,
       )
 
     def on_finish(self):
@@ -158,6 +159,7 @@ def create_meshing_tasks(
           'spatial_index': spatial_index,
           'sharded': sharded,
           'compress': compress,
+          'closed_dataset_edges': closed_dataset_edges,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

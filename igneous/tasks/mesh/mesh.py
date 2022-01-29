@@ -517,7 +517,10 @@ class GrapheneMeshTask(RegisteredTask):
     mesh = self.mesher.get_mesh(
       obj_id,
       simplification_factor=self.options['simplification_factor'],
-      max_simplification_error=self.options['max_simplification_error']
+      max_simplification_error=self.options['max_simplification_error'],
+      # Graphene meshes were created before we fixed the offset problem
+      # so unless otherwise specificed, keep this set to False
+      voxel_centered=False, 
     )
 
     self.mesher.erase(obj_id)

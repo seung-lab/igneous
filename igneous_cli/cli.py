@@ -98,8 +98,7 @@ def license():
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
-@click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
-@click.option('--compresso', is_flag=True, default=False, help="Use the compresso image chunk encoding scheme. Segmentation only.")
+@click.option('--encoding', default="raw", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
@@ -114,7 +113,7 @@ def license():
 @click.pass_context
 def downsample(
   ctx, path, queue, mip, fill_missing, 
-  num_mips, cseg, compresso, sparse, 
+  num_mips, encoding, sparse, 
   chunk_size, compress, volumetric,
   delete_bg, bg_color, sharded, memory,
   xrange, yrange, zrange
@@ -135,19 +134,12 @@ def downsample(
   """
   path = cloudfiles.paths.normalize(path)
 
-  if cseg and compresso:
-    print("igneous: must choose one of --cseg or --compresso")
-    return
-
   if sharded and num_mips != 1:
     print("igneous: sharded downsamples only support producing one mip at a time.")
     return
 
-  encoding = None
-  if cseg:
+  if encoding == "cseg":
     encoding = "compressed_segmentation"
-  elif compresso:
-    encoding = "compresso"
 
   factor = (2,2,1)
   if volumetric:

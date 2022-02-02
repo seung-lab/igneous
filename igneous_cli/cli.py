@@ -200,8 +200,7 @@ def downsample(
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--memory', default=3.5e9, type=int, help="Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
 @click.option('--max-mips', default=5, help="Maximum number of additional pyramid levels.", show_default=True)
-@click.option('--cseg', is_flag=True, default=False, help="Use the compressed_segmentation image chunk encoding scheme. Segmentation only.")
-@click.option('--compresso', is_flag=True, default=False, help="Use the compresso image chunk encoding scheme. Segmentation only.")
+@click.option('--encoding', default="raw", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
@@ -218,7 +217,7 @@ def xfer(
 	ctx, src, dest, queue, translate, 
   downsample, mip, fill_missing, 
   memory, max_mips, shape, sparse, 
-  cseg, compresso, chunk_size, compress, 
+  encoding, chunk_size, compress, 
   volumetric, delete_bg, bg_color, sharded,
   dest_voxel_offset, clean_info, no_src_update
 ):
@@ -243,15 +242,8 @@ def xfer(
   src = cloudfiles.paths.normalize(src)
   dest = cloudfiles.paths.normalize(dest)
 
-  if cseg and compresso:
-    print("igneous: must choose one of --cseg or --compresso")
-    sys.exit()
-
-  encoding = None
-  if cseg:
+  if encoding == "cseg":
     encoding = "compressed_segmentation"
-  elif compresso:
-    encoding = "compresso"
 
   factor = (2,2,1)
   if volumetric:

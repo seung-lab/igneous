@@ -1,6 +1,31 @@
 CHANGES
 =======
 
+2.0.0
+-----
+
+* release(2.0.0): offsets meshes to align with neuroglancer, closes faces
+* docs: discuss why voxel\_centered=False is set for graphene
+* fix(meshes): closed faces on boundary and +0.5 voxels (#121)
+* perf: streamlined manifest generation on filesystem (#119)
+* docs: add comment to mesh xfer
+
+1.0.0
+-----
+
+* release(1.0.0): Adds mesh xfer command
+* feat: transfer unsharded meshes to sharded meshes (#116)
+* fix: save mip level of meshing during transfer
+* feat: adds igenous mesh xfer to CLI
+* chore: credentials.tar.enc is no longer used
+
+0.9.3
+-----
+
+* fixtest: accomodate additional generated mip levels
+* release(0.9.3): fixed a more general version of vol < chunk size
+* fix: handle vol size < chunk\_size more generally
+
 0.9.2
 -----
 
@@ -14,6 +39,8 @@ CHANGES
 
 * release(0.9.1): can downsample when vol size < chunk size
 * fix: generate downsamples where the volume size < chunk\_size
+* wip: unsharded to sharded transfer
+* feat: transfer unsharded meshes to sharded meshes
 * docs: examples of igneous execute -x
 * docs: acks, minor bugs, mention DracoPy as a related project
 

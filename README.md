@@ -566,6 +566,7 @@ Please post an issue or PR if you think something needs to be addressed.
 - [CloudVolume](https://github.com/seung-lab/cloud-volume) - IO for images, meshes, and skeletons.
 - [python-task-queue](https://github.com/seung-lab/python-task-queue) - Parallelized dependency-free cloud task management.
 - [DracoPy](https://github.com/seung-lab/DracoPy) - Encode/Decode Draco compressed meshes in Python 
+- [MapBuffer](https://github.com/seung-lab/mapbuffer) - Zero decode random access to uint64 keyed byte streams (useful for shard construction)
 
 ## Acknowledgements
 

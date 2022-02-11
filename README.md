@@ -554,7 +554,7 @@ tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip
 
 ## Conclusion
 
-It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation.py` and `igneous/tasks/` for the most current information.  
+It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation/` and `igneous/tasks/` for the most current information.  
 
 Please post an issue or PR if you think something needs to be addressed.  
 

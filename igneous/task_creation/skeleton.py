@@ -1,6 +1,6 @@
 from collections import defaultdict
 from functools import reduce, partial
-from typing import Any, Dict, Tuple, cast
+from typing import Any, Dict, Tuple, cast, Optional
 
 from time import strftime
 

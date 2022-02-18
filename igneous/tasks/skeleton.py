@@ -1,4 +1,4 @@
-import six
+from typing import Optional
 
 from functools import reduce
 import itertools
@@ -26,7 +26,7 @@ from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 import fastremap
 import kimimaro
 
-from taskqueue import RegisteredTask
+from taskqueue import RegisteredTask, queueable
 
 SEGIDRE = re.compile(r'/(\d+):.*?$')
 
@@ -117,11 +117,11 @@ class SkeletonTask(RegisteredTask):
       extra_targets_after=extra_targets_after.keys(),
     )    
 
-    for segid, skel in six.iteritems(skeletons):
+    for segid, skel in skeletons.items():
       skel.vertices[:] += bbox.minpt * vol.resolution
 
     if self.synapses:
-      for segid, skel in six.iteritems(skeletons):
+      for segid, skel in skeletons.items():
         terminal_nodes = skel.vertices[ skel.terminals() ]
 
         for i, vert in enumerate(terminal_nodes):

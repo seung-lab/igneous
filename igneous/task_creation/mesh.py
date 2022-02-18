@@ -97,6 +97,9 @@ def create_mesh_deletion_tasks(
 
   cv = CloudVolume(layer_path, mesh_dir=mesh_dir)
 
+  cf = CloudFiles(cv.mesh.meta.layerpath)
+  cf.delete('info')
+
   try:
     if cv.mesh.meta.is_sharded():
       return [ 
@@ -116,7 +119,7 @@ def create_mesh_deletion_tasks(
       def __iter__(self):
         for prefix in range(1, start):
           yield partial(DeleteMeshFilesTask, 
-            layer_path=layer_path, 
+            cloudpath=layer_path, 
             prefix=str(prefix) + ':', 
             mesh_dir=mesh_dir
           )
@@ -124,7 +127,7 @@ def create_mesh_deletion_tasks(
         # enumerate from e.g. 100 to 999
         for prefix in range(start, end):
           yield partial(DeleteMeshFilesTask, 
-            layer_path=layer_path, 
+            cloudpath=layer_path, 
             prefix=str(prefix),
             mesh_dir=mesh_dir
           )

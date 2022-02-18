@@ -115,8 +115,16 @@ def create_mesh_deletion_tasks(
 
     class MeshDeleteTaskIterator:
       def __len__(self):
-        return (10 ** magnitude) - 1
+        return (10 ** magnitude)
       def __iter__(self):
+        # get spatial index files that start
+        # with 0 too.
+        yield partial(DeleteMeshFilesTask, 
+          cloudpath=layer_path,
+          prefix="0",
+          mesh_dir=mesh_dir,
+        )
+
         for prefix in range(1, start):
           yield partial(DeleteMeshFilesTask, 
             cloudpath=layer_path, 

@@ -722,10 +722,3 @@ def DeleteMeshFilesTask(
   cf = CloudFiles(cv.mesh.meta.layerpath)
   cf.delete(cf.list(prefix=prefix))
 
-
-
-
-
-
-
-

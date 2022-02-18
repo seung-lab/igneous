@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+3.0.0
+-----
+
+* release(3.0.0): update xfer and downsample commands to have --encoding
+* chore: update ChangeLog
+* redesign(cli): change --cseg and --compresso flags to --encoding (#123)
+
 2.0.0
 -----
 

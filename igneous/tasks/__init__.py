@@ -1,6 +1,6 @@
 from .skeleton import (
   SkeletonTask, UnshardedSkeletonMergeTask, 
-  ShardedSkeletonMergeTask
+  ShardedSkeletonMergeTask, DeleteSkeletonFilesTask
 )
 from .mesh import (
   MeshTask, MeshManifestPrefixTask, 

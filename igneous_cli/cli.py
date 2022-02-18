@@ -769,6 +769,25 @@ def delete_images(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@skeletongroup.command("rm")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
+@click.option('--dir', 'skel_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
+@click.pass_context
+def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
+  """
+  Delete skeleton files.
+  """
+  path = cloudfiles.paths.normalize(path)
+  tasks = tc.create_skeleton_deletion_tasks(
+    path, magnitude=magnitude, skel_dir=skel_dir
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
 @main.group("design")
 def designgroup():
   """

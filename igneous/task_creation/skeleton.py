@@ -14,7 +14,7 @@ from cloudfiles import CloudFiles
 
 from igneous.tasks import ( 
   SkeletonTask, UnshardedSkeletonMergeTask, 
-  ShardedSkeletonMergeTask,
+  ShardedSkeletonMergeTask, DeleteSkeletonFilesTask
 )
 
 from .common import (
@@ -27,6 +27,7 @@ __all__ = [
   "create_unsharded_skeleton_merge_tasks",
   "create_sharded_skeleton_merge_tasks",
   "create_flat_graphene_skeleton_merge_tasks",
+  "create_skeleton_deletion_tasks",
 ]
 
 def create_skeletonizing_tasks(
@@ -402,3 +403,69 @@ def create_unsharded_skeleton_merge_tasks(
       vol.commit_provenance()
 
   return UnshardedSkeletonMergeTaskIterator()
+
+def create_skeleton_deletion_tasks(
+  cloudpath:str, 
+  magnitude:int = 2,
+  skel_dir:Optional[str] = None
+):
+  assert int(magnitude) == magnitude
+  assert magnitude >= 0
+
+  cv = CloudVolume(cloudpath, skel_dir=skel_dir)
+
+  cf = CloudFiles(cv.skeleton.meta.layerpath)
+  cf.delete('info')
+
+  try:
+    if cv.skeleton.meta.is_sharded():
+      return [ 
+        partial(DeleteSkeletonFilesTask, 
+          cloudpath=cloudpath,
+          prefix="",
+          skel_dir=skel_dir,
+        ) 
+      ]
+
+    start = 10 ** (magnitude - 1)
+    end = 10 ** magnitude
+
+    class SkeletonDeleteTaskIterator:
+      def __len__(self):
+        return (10 ** magnitude)
+      def __iter__(self):
+        # get spatial index files that start
+        # with 0 too.
+        yield partial(DeleteMeshFilesTask, 
+          cloudpath=cloudpath,
+          prefix="0",
+          skel_dir=skel_dir,
+        )
+
+        for prefix in range(1, start):
+          yield partial(DeleteMeshFilesTask, 
+            cloudpath=cloudpath, 
+            prefix=str(prefix) + ':', 
+            skel_dir=skel_dir
+          )
+
+        # enumerate from e.g. 100 to 999
+        for prefix in range(start, end):
+          yield partial(DeleteMeshFilesTask, 
+            cloudpath=cloudpath, 
+            prefix=str(prefix),
+            skel_dir=skel_dir
+          )
+
+    return SkeletonDeleteTaskIterator()
+  finally:
+    cv.provenance.processing.append({
+      'method': {
+        'task': 'DeleteSkeletonFilesTask',
+        'cloudpath': cloudpath,
+        'skel_dir': skel_dir,
+      },
+      'by': operator_contact(),
+      'date': strftime('%Y-%m-%d %H:%M %Z'),
+    }) 
+    cv.commit_provenance()

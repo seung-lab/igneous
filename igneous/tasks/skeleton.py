@@ -455,3 +455,15 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       lbl for lbl in tqdm(labels, desc="Computing Shard Numbers", disable=(not self.progress))  \
       if spec.compute_shard_location(lbl).shard_number == self.shard_no 
     ]
+
+@queueable
+def DeleteSkeletonFilesTask(
+  cloudpath:str,
+  prefix:str,
+  skel_dir:Optional[str] = None
+):
+  cv = CloudVolume(cloudpath, skel_dir=skel_dir)
+  cf = CloudFiles(cv.skeleton.meta.layerpath)
+  cf.delete(cf.list(prefix=prefix))
+
+

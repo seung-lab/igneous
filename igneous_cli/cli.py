@@ -509,7 +509,7 @@ def mesh_sharded_merge(
 @click.pass_context
 def mesh_rm(ctx, path, queue, magnitude, mesh_dir):
   """
-  Parallelize the deletion of mesh files.
+  Delete mesh files.
   """
   path = cloudfiles.paths.normalize(path)
   tasks = tc.create_mesh_deletion_tasks(

@@ -27,9 +27,13 @@ from .draco import calculate_draco_quantization_bits_and_range, draco_encoding_s
 from . import mesh_graphene_remap
 
 __all__ = [
-  "MeshTask", "GrapheneMeshTask", 
-  "MeshManifestPrefixTask", "MeshManifestFilesystemTask",
-  "MeshSpatialIndex", "TransferMeshFilesTask",
+  "MeshTask", 
+  "GrapheneMeshTask", 
+  "MeshManifestPrefixTask", 
+  "MeshManifestFilesystemTask",
+  "MeshSpatialIndex", 
+  "TransferMeshFilesTask", 
+  "DeleteMeshFilesTask"
 ]
 
 def find_objects(labels):
@@ -708,12 +712,15 @@ def TransferMeshFilesTask(
 
   cf_src.transfer_to(cf_dest, paths=cf_src.list(prefix=prefix))
 
-
-
-
-
-
-
+@queueable
+def DeleteMeshFilesTask(
+  cloudpath:str,
+  prefix:str,
+  mesh_dir:Optional[str] = None
+):
+  cv = CloudVolume(cloudpath, mesh_dir=mesh_dir)
+  cf = CloudFiles(cv.mesh.meta.layerpath)
+  cf.delete(cf.list(prefix=prefix))
 
 
 

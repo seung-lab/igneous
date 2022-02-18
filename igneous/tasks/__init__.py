@@ -9,7 +9,7 @@ from .mesh import (
   MultiResUnshardedMeshMergeTask,
   MultiResShardedMeshMergeTask,
   MultiResShardedFromUnshardedMeshMergeTask,
-  TransferMeshFilesTask,
+  TransferMeshFilesTask, DeleteMeshFilesTask
 )
 from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,

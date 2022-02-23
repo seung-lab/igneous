@@ -1,6 +1,6 @@
 from .skeleton import (
   SkeletonTask, UnshardedSkeletonMergeTask, 
-  ShardedSkeletonMergeTask
+  ShardedSkeletonMergeTask, DeleteSkeletonFilesTask
 )
 from .mesh import (
   MeshTask, MeshManifestPrefixTask, 
@@ -9,7 +9,7 @@ from .mesh import (
   MultiResUnshardedMeshMergeTask,
   MultiResShardedMeshMergeTask,
   MultiResShardedFromUnshardedMeshMergeTask,
-  TransferMeshFilesTask,
+  TransferMeshFilesTask, DeleteMeshFilesTask
 )
 from .image import (
   HyperSquareConsensusTask, #HyperSquareTask,

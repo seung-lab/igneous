@@ -28,7 +28,7 @@ from igneous.tasks import (
   MeshSpatialIndex, MultiResShardedMeshMergeTask,
   MultiResUnshardedMeshMergeTask, 
   MultiResShardedFromUnshardedMeshMergeTask,
-  TransferMeshFilesTask
+  TransferMeshFilesTask, DeleteMeshFilesTask
 )
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -46,6 +46,7 @@ __all__ = [
   "create_sharded_multires_mesh_tasks",
   "create_sharded_multires_mesh_from_unsharded_tasks",
   "create_xfer_meshes_tasks",
+  "create_mesh_deletion_tasks",
 ]
 
 # split the work up into ~1000 tasks (magnitude 3)
@@ -85,6 +86,72 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
         )
 
   return MeshManifestTaskIterator()
+
+def create_mesh_deletion_tasks(
+  layer_path:str, 
+  magnitude:int = 3, 
+  mesh_dir:Optional[str] = None
+):
+  assert int(magnitude) == magnitude
+  assert magnitude >= 0
+
+  cv = CloudVolume(layer_path, mesh_dir=mesh_dir)
+
+  cf = CloudFiles(cv.mesh.meta.layerpath)
+  cf.delete('info')
+
+  try:
+    if cv.mesh.meta.is_sharded():
+      return [ 
+        partial(DeleteMeshFilesTask, 
+          cloudpath=layer_path,
+          prefix="",
+          mesh_dir=mesh_dir,
+        ) 
+      ]
+
+    start = 10 ** (magnitude - 1)
+    end = 10 ** magnitude
+
+    class MeshDeleteTaskIterator:
+      def __len__(self):
+        return (10 ** magnitude)
+      def __iter__(self):
+        # get spatial index files that start
+        # with 0 too.
+        yield partial(DeleteMeshFilesTask, 
+          cloudpath=layer_path,
+          prefix="0",
+          mesh_dir=mesh_dir,
+        )
+
+        for prefix in range(1, start):
+          yield partial(DeleteMeshFilesTask, 
+            cloudpath=layer_path, 
+            prefix=str(prefix) + ':', 
+            mesh_dir=mesh_dir
+          )
+
+        # enumerate from e.g. 100 to 999
+        for prefix in range(start, end):
+          yield partial(DeleteMeshFilesTask, 
+            cloudpath=layer_path, 
+            prefix=str(prefix),
+            mesh_dir=mesh_dir
+          )
+
+    return MeshDeleteTaskIterator()
+  finally:
+    cv.provenance.processing.append({
+      'method': {
+        'task': 'DeleteMeshFilesTask',
+        'layer_path': layer_path,
+        'mesh_dir': mesh_dir,
+      },
+      'by': operator_contact(),
+      'date': strftime('%Y-%m-%d %H:%M %Z'),
+    }) 
+    cv.commit_provenance()
 
 
 def create_meshing_tasks(

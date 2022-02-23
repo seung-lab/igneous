@@ -436,14 +436,14 @@ def create_skeleton_deletion_tasks(
       def __iter__(self):
         # get spatial index files that start
         # with 0 too.
-        yield partial(DeleteMeshFilesTask, 
+        yield partial(DeleteSkeletonFilesTask, 
           cloudpath=cloudpath,
           prefix="0",
           skel_dir=skel_dir,
         )
 
         for prefix in range(1, start):
-          yield partial(DeleteMeshFilesTask, 
+          yield partial(DeleteSkeletonFilesTask, 
             cloudpath=cloudpath, 
             prefix=str(prefix) + ':', 
             skel_dir=skel_dir
@@ -451,7 +451,7 @@ def create_skeleton_deletion_tasks(
 
         # enumerate from e.g. 100 to 999
         for prefix in range(start, end):
-          yield partial(DeleteMeshFilesTask, 
+          yield partial(DeleteSkeletonFilesTask, 
             cloudpath=cloudpath, 
             prefix=str(prefix),
             skel_dir=skel_dir

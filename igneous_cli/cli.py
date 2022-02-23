@@ -501,6 +501,24 @@ def mesh_sharded_merge(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@meshgroup.command("rm")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
+@click.option('--dir', 'mesh_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
+@click.pass_context
+def mesh_rm(ctx, path, queue, magnitude, mesh_dir):
+  """
+  Delete mesh files.
+  """
+  path = cloudfiles.paths.normalize(path)
+  tasks = tc.create_mesh_deletion_tasks(
+    path, magnitude=magnitude, mesh_dir=mesh_dir
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
 
 @meshgroup.group("spatial-index")
 def spatialindexgroup():
@@ -747,6 +765,25 @@ def delete_images(
   tasks = tc.create_deletion_tasks(
     path, mip, num_mips=num_mips, shape=shape
   )
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+@skeletongroup.command("rm")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
+@click.option('--dir', 'skel_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
+@click.pass_context
+def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
+  """
+  Delete skeleton files.
+  """
+  path = cloudfiles.paths.normalize(path)
+  tasks = tc.create_skeleton_deletion_tasks(
+    path, magnitude=magnitude, skel_dir=skel_dir
+  )
+
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)

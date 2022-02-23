@@ -25,7 +25,6 @@ import mapbuffer
 from mapbuffer import MapBuffer
 from taskqueue import queueable
 
-import cc3d
 import DracoPy
 import fastremap
 import zmesh

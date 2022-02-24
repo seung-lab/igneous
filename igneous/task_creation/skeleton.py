@@ -1,6 +1,8 @@
 from collections import defaultdict
+import copy
 from functools import reduce, partial
-from typing import Any, Dict, Tuple, cast, Optional
+import re
+from typing import Any, Dict, Tuple, cast, Optional, Iterator
 
 from time import strftime
 
@@ -14,7 +16,8 @@ from cloudfiles import CloudFiles
 
 from igneous.tasks import ( 
   SkeletonTask, UnshardedSkeletonMergeTask, 
-  ShardedSkeletonMergeTask, DeleteSkeletonFilesTask
+  ShardedSkeletonMergeTask, DeleteSkeletonFilesTask,
+  ShardedFromUnshardedSkeletonMergeTask
 )
 
 from .common import (
@@ -28,6 +31,8 @@ __all__ = [
   "create_sharded_skeleton_merge_tasks",
   "create_flat_graphene_skeleton_merge_tasks",
   "create_skeleton_deletion_tasks",
+  "create_xfer_skeleton_tasks",
+  "create_sharded_skeletons_from_unsharded_tasks",
 ]
 
 def create_skeletonizing_tasks(
@@ -469,3 +474,137 @@ def create_skeleton_deletion_tasks(
       'date': strftime('%Y-%m-%d %H:%M %Z'),
     }) 
     cv.commit_provenance()
+
+def create_sharded_skeletons_from_unsharded_tasks(
+  src:str, 
+  dest:str,
+  shard_index_bytes=2**13, 
+  minishard_index_bytes=2**15,
+  minishard_index_encoding='gzip', 
+  data_encoding='gzip',
+  skel_dir:Optional[str] = None, 
+) -> Iterator[ShardedFromUnshardedSkeletonMergeTask]: 
+  cv_src = CloudVolume(src) 
+  cv_src.mip = cv_src.skeleton.meta.mip
+
+  cf = CloudFiles(cv_src.skeleton.meta.layerpath)
+
+  all_labels = []
+  SEGID_RE = re.compile(r'(\d+)(?:\.gz|\.br|\.zstd)?$')
+  for path in cf.list():
+    match = SEGID_RE.search(path)
+    if match is None:
+      continue
+    (segid,) = match.groups()
+    all_labels.append(int(segid))
+
+  cv_dest = CloudVolume(dest, skel_dir=skel_dir)
+  cv_dest.skeleton.meta.info = copy.deepcopy(cv_src.skeleton.meta.info)
+  cv_dest.skeleton.meta.info["vertex_attributes"] = [
+    attr for attr in cv_dest.skeleton.meta.info["vertex_attributes"]
+    if attr["data_type"] in ("float32", "float64")
+  ]
+
+  (shard_bits, minishard_bits, preshift_bits) = \
+    compute_shard_params_for_hashed(
+      num_labels=len(all_labels),
+      shard_index_bytes=int(shard_index_bytes),
+      minishard_index_bytes=int(minishard_index_bytes),
+    )
+
+  spec = ShardingSpecification(
+    type='neuroglancer_uint64_sharded_v1',
+    preshift_bits=preshift_bits,
+    hash='murmurhash3_x86_128',
+    minishard_bits=minishard_bits,
+    shard_bits=shard_bits,
+    minishard_index_encoding=minishard_index_encoding,
+    data_encoding=data_encoding,
+  )
+
+  cv_dest.skeleton.meta.info['sharding'] = spec.to_dict()
+  cv_dest.skeleton.meta.commit_info()
+
+  cv_dest = CloudVolume(dest, skel_dir=skel_dir)
+
+  # perf: ~66.5k hashes/sec on M1 ARM64
+  shardfn = lambda lbl: cv_dest.skeleton.reader.spec.compute_shard_location(lbl).shard_number
+
+  shard_labels = defaultdict(list)
+  for label in tqdm(all_labels, desc="Hashes"):
+    shard_labels[shardfn(label)].append(label)
+  del all_labels
+
+  cf = CloudFiles(cv_dest.skeleton.meta.layerpath, progress=True)
+  files = ( 
+    (str(shardno) + '.labels', labels) 
+    for shardno, labels in shard_labels.items() 
+  )
+  cf.put_jsons(
+    files, compress="gzip", 
+    cache_control="no-cache", total=len(shard_labels)
+  )
+
+  cv_dest.provenance.processing.append({
+    'method': {
+      'task': 'ShardedFromUnshardedSkeletonMergeTask',
+      'src': src,
+      'dest': dest,
+      'preshift_bits': preshift_bits, 
+      'minishard_bits': minishard_bits, 
+      'shard_bits': shard_bits,
+      'skel_dir': skel_dir,
+    },
+    'by': operator_contact(),
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  cv_dest.commit_provenance()
+
+  return [
+    partial(ShardedFromUnshardedSkeletonMergeTask,
+      src=src, 
+      dest=dest, 
+      shard_no=shard_no, 
+      skel_dir=skel_dir, 
+    )
+    for shard_no in shard_labels.keys()
+  ]
+
+def create_xfer_skeleton_tasks(
+  src:str,
+  dest:str,
+  skel_dir:Optional[str] = None, 
+  magnitude=2,
+):
+  cv_src = CloudVolume(src)
+  cf_dest = CloudFiles(dest)
+
+  if not skel_dir:
+    info = cf_dest.get_json("info")
+    if info.get("skeletons", None):
+      skel_dir = info.get("skeletons")
+
+  cf_dest.put_json(f"{skel_dir}/info", cv_src.skeleton.meta.info)
+
+  alphabet = [ str(i) for i in range(10) ]
+  if cv_src.skeleton.meta.is_sharded():
+    alphabet += [ 'a', 'b', 'c', 'd', 'e', 'f' ]
+
+  prefixes = itertools.product(*([ alphabet ] * magnitude))
+  prefixes = [ "".join(x) for x in prefixes ]
+
+  # explicitly enumerate all prefixes smaller than the magnitude.
+  for i in range(1, magnitude):
+    explicit_prefix = itertools.product(*([ alphabet ] * i))
+    explicit_prefix = [ "".join(x) for x in explicit_prefix ]
+    prefixes += [ f"{x}" for x in explicit_prefix ]
+    
+  return [
+    partial(TransferSkeletonFilesTask,
+      src=src,
+      dest=dest,
+      prefix=prefix,
+      skel_dir=skel_dir,
+    )
+    for prefix in prefixes
+  ]

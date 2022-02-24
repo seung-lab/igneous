@@ -47,6 +47,14 @@ def skeldir(cloudpath):
     skel_dir = info['skeletons']
   return skel_dir
 
+def strip_integer_attributes(skeletons):
+  for skel in skeletons:
+    skel.extra_attributes = [ 
+    attr for attr in skel.extra_attributes 
+    if attr['data_type'] in ('float32', 'float64')
+  ]
+  return skeletons
+
 class SkeletonTask(RegisteredTask):
   """
   Stage 1 of skeletonization.
@@ -131,7 +139,7 @@ class SkeletonTask(RegisteredTask):
             skel.vertex_types[i] = extra_targets_after[vert]
     
     # neuroglancer doesn't support int attributes
-    self.strip_integer_attributes(skeletons.values())
+    strip_integer_attributes(skeletons.values())
 
     if self.sharded:
       self.upload_batch(vol, path, index_bbox, skeletons)
@@ -141,14 +149,6 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
   
-  def strip_integer_attributes(self, skeletons):
-    for skel in skeletons:
-      skel.extra_attributes = [ 
-      attr for attr in skel.extra_attributes 
-      if attr['data_type'] in ('float32', 'float64')
-    ]
-    return skeletons
-
   def upload_batch(self, vol, path, bbox, skeletons):
     mbuf = MapBuffer(
       skeletons, compress="br", 
@@ -332,7 +332,10 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     # unnecessary memory. In the original iteration, this was 
     # using 50 GB+ memory on minnie65. With changes to this
     # and the spatial_index, we are getting it down to something reasonable.
-    locations = self.locations_for_labels(self.labels_for_shard(cv), cv)
+    locations = self.locations_for_labels(
+      labels_for_shard(cv, self.shard_no, self.progress), 
+      cv
+    )
     filenames = set(itertools.chain(*locations.values()))
     labels = set(locations.keys())
     del locations
@@ -439,22 +442,63 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         index_filenames[label][i] = bbx.to_filename() + '.frags'
     return index_filenames
 
-  def labels_for_shard(self, cv):
-    """
-    Try to fetch precalculated labels from `$shardno.labels` (faster) otherwise, 
-    compute which labels are applicable to this shard from the shard index (much slower).
-    """
-    labels = CloudFiles(cv.skeleton.meta.layerpath).get_json(self.shard_no + '.labels')
-    if labels is not None:
-      return labels
+def labels_for_shard(cv, shard_no, progress):
+  """
+  Try to fetch precalculated labels from `$shardno.labels` (faster) otherwise, 
+  compute which labels are applicable to this shard from the shard index (much slower).
+  """
+  labels = CloudFiles(cv.skeleton.meta.layerpath).get_json(shard_no + '.labels')
+  if labels is not None:
+    return labels
 
-    labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
-    spec = cv.skeleton.reader.spec
+  labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
+  spec = cv.skeleton.reader.spec
 
-    return [ 
-      lbl for lbl in tqdm(labels, desc="Computing Shard Numbers", disable=(not self.progress))  \
-      if spec.compute_shard_location(lbl).shard_number == self.shard_no 
-    ]
+  return [ 
+    lbl for lbl in tqdm(labels, desc="Computing Shard Numbers", disable=(not progress))  \
+    if spec.compute_shard_location(lbl).shard_number == shard_no 
+  ]
+
+@queueable
+def ShardedFromUnshardedSkeletonMergeTask(
+  src:str,
+  dest:str,
+  shard_no:str,
+  cache_control:bool = False,
+  skel_dir:Optional[str] = None,
+  progress:bool = False,
+):
+  cv_src = CloudVolume(src)
+
+  if skel_dir is None and 'skeletons' in cv.info:
+    skel_dir = cv.info['skeletons']
+
+  cv_dest = CloudVolume(dest, skel_dir=skel_dir, progress=progress)
+
+  labels = labels_for_shard(cv_dest, shard_no, progress)
+  skeletons = cv_src.skeleton.get(labels)
+  del labels
+
+  if len(skeletons) == 0:
+    return
+
+  skeletons = strip_integer_attributes(skeletons)
+  skeletons = { skel.id: skel.to_precomputed() for skel in skeletons }
+  shard_files = synthesize_shard_files(cv_dest.skeleton.reader.spec, skeletons)
+
+  if len(shard_files) != 1:
+    raise ValueError(
+      "Only one shard file should be generated per task. Expected: {} Got: {} ".format(
+        str(shard_no), ", ".join(shard_files.keys())
+    ))
+
+  cf = CloudFiles(cv_dest.skeleton.meta.layerpath, progress=progress)
+  cf.puts( 
+    ( (fname, data) for fname, data in shard_files.items() ),
+    compress=False,
+    content_type='application/octet-stream',
+    cache_control='no-cache',      
+  )
 
 @queueable
 def DeleteSkeletonFilesTask(
@@ -467,3 +511,17 @@ def DeleteSkeletonFilesTask(
   cf.delete(cf.list(prefix=prefix))
 
 
+@queueable
+def TransferSkeletonFilesTask(
+  src:str,
+  dest:str,
+  prefix:str,
+  skel_dir:Optional[str] = None
+):
+  cv_src = CloudVolume(src)
+  cv_dest = CloudVolume(dest, skel_dir=skel_dir)
+
+  cf_src = CloudFiles(cv_src.mesh.meta.layerpath)
+  cf_dest = CloudFiles(cv_dest.mesh.meta.layerpath)
+
+  cf_src.transfer_to(cf_dest, paths=cf_src.list(prefix=prefix))

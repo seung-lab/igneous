@@ -788,6 +788,43 @@ def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+
+@skeletongroup.command("xfer")
+@click.argument("src")
+@click.argument("dest")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
+@click.option("--dir", "skel_dir", type=str, default=None, help="Write skeletons into this directory instead of the one indicated in the info file.")
+@click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
+@click.pass_context
+def skel_xfer(
+  ctx, src, dest, queue,
+  sharded, skel_dir, magnitude
+):
+  """
+  Transfer skeletons to another location.
+  Enables conversion of unsharded to sharded
+  as well.
+  """
+  src = cloudfiles.paths.normalize(src)
+  dest = cloudfiles.paths.normalize(dest)
+  cv_src = CloudVolume(src)
+
+  if not cv_src.skeleton.meta.is_sharded() and sharded:
+    tasks = tc.create_sharded_skeletons_from_unsharded_tasks(
+      src, dest, skel_dir=skel_dir,
+    )
+  else:
+    tasks = tc.create_xfer_skeleton_tasks(
+      src, dest,
+      skel_dir=skel_dir, 
+      magnitude=magnitude,
+    )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
 @main.group("design")
 def designgroup():
   """

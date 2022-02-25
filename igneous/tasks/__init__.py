@@ -6,7 +6,7 @@ from .skeleton import (
 from .mesh import (
   MeshTask, MeshManifestPrefixTask, 
   MeshManifestFilesystemTask,
-  GrapheneMeshTask, MeshSpatialIndex,
+  GrapheneMeshTask,
   MultiResUnshardedMeshMergeTask,
   MultiResShardedMeshMergeTask,
   MultiResShardedFromUnshardedMeshMergeTask,
@@ -20,3 +20,4 @@ from .image import (
   MaskAffinitymapTask, InferenceTask, BlackoutTask,
   TouchTask, ImageShardTransferTask, ImageShardDownsampleTask
 )
+from .spatial_index import SpatialIndexTask

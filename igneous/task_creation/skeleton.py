@@ -2,7 +2,7 @@ from collections import defaultdict
 import copy
 from functools import reduce, partial
 import re
-from typing import Any, Dict, Tuple, cast, Optional, Iterator
+from typing import Any, Dict, Tuple, cast, Optional, Iterator, Union
 
 from time import strftime
 
@@ -17,7 +17,7 @@ from cloudfiles import CloudFiles
 from igneous.tasks import ( 
   SkeletonTask, UnshardedSkeletonMergeTask, 
   ShardedSkeletonMergeTask, DeleteSkeletonFilesTask,
-  ShardedFromUnshardedSkeletonMergeTask
+  ShardedFromUnshardedSkeletonMergeTask, SpatialIndexTask
 )
 
 from .common import (
@@ -33,6 +33,7 @@ __all__ = [
   "create_skeleton_deletion_tasks",
   "create_xfer_skeleton_tasks",
   "create_sharded_skeletons_from_unsharded_tasks",
+  "create_spatial_index_skeleton_tasks",
 ]
 
 def create_skeletonizing_tasks(
@@ -608,3 +609,78 @@ def create_xfer_skeleton_tasks(
     )
     for prefix in prefixes
   ]
+
+def create_spatial_index_skeleton_tasks(
+  cloudpath:str, 
+  shape:Tuple[int,int,int] = (448,448,448), 
+  mip:int = 0, 
+  fill_missing:bool = False, 
+  compress:Optional[Union[str,bool]] = 'gzip', 
+  skel_dir:Optional[str] = None
+):
+  """
+  The main way to add a spatial index is to use the SkeletonTask,
+  but old datasets or broken datasets may need it to be 
+  reconstituted. An alternative use is create the spatial index
+  over a different area size than the skeleton task.
+  """
+  shape = Vec(*shape)
+
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  if skel_dir is None and not vol.info.get("skeletons", None):
+    skel_dir = f"skeletons_mip_{mip}"
+  elif skel_dir is None and vol.info.get("skeletons", None):
+    skel_dir = vol.info["skeletons"]
+
+  if not "skeletons" in vol.info:
+    vol.info['skeletons'] = skel_dir
+    vol.commit_info()
+
+  cf = CloudFiles(cloudpath)
+  info_filename = cf.join(skel_dir, 'info')
+  skel_info = cf.get_json(info_filename) or {}
+  new_skel_info = copy.deepcopy(skel_info)
+  new_skel_info['@type'] = new_skel_info.get('@type', 'neuroglancer_skeletons') 
+  new_skel_info['mip'] = new_skel_info.get("mip", int(vol.mip))
+  new_skel_info['chunk_size'] = shape.tolist()
+  new_skel_info['spatial_index'] = {
+    'resolution': vol.resolution.tolist(),
+    'chunk_size': (shape * vol.resolution).tolist(),
+  }
+  if new_skel_info != skel_info:
+    cf.put_json(info_filename, new_skel_info)
+
+  vol = CloudVolume(cloudpath, mip=mip) # reload spatial_index
+
+  class SpatialIndexSkeletonTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return partial(SpatialIndexTask, 
+        cloudpath=cloudpath,
+        shape=shape,
+        offset=offset,
+        subdir=skel_dir,
+        precision=vol.skeleton.spatial_index.precision,
+        mip=int(mip),
+        fill_missing=bool(fill_missing),
+        compress=compress,
+      )
+
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'SpatialIndexTask',
+          'cloudpath': vol.cloudpath,
+          'shape': shape.tolist(),
+          'mip': int(mip),
+          'subdir': skel_dir,
+          'fill_missing': fill_missing,
+          'compress': compress,
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      vol.commit_provenance()
+
+  return SpatialIndexSkeletonTaskIterator(vol.bounds, shape)
+

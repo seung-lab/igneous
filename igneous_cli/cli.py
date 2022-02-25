@@ -825,6 +825,56 @@ def skel_xfer(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@skeletongroup.group("spatial-index")
+def spatialindexgroupskel():
+  """
+  (subgroup) Create or download mesh spatial indices.
+  """
+  pass
+
+@spatialindexgroupskel.command("create")
+@click.argument("path")
+@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--shape', default="512,512,512", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
+@click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
+@click.pass_context
+def skel_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
+  """
+  Create a spatial index on a pre-existing mesh.
+
+  Sometimes datasets were meshes without a
+  spatial index or need it to be updated.
+  This function provides a more efficient
+  way to accomplish that than remeshing.
+  """
+  path = cloudfiles.paths.normalize(path)
+  tasks = tc.create_spatial_index_skeleton_tasks(
+    cloudpath=path,
+    shape=shape,
+    mip=mip, 
+    fill_missing=fill_missing,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+@spatialindexgroupskel.command("db")
+@click.argument("path")
+@click.argument("database")
+@click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
+def skel_spatial_index_download(path, database, progress):
+  """
+  Download the skeleton spatial index into a database.
+
+  sqlite paths: sqlite://filename.db (prefix optional)
+  mysql paths: mysql://{user}:{pwd}@{host}/{database}
+  """
+  path = cloudfiles.paths.normalize(path)
+  cv = CloudVolume(path)
+  cv.skeleton.spatial_index.to_sql(database, progress=progress)
+
 @main.group("design")
 def designgroup():
   """

@@ -7,7 +7,6 @@ import re
 from typing import Optional, Tuple, Union
 
 import numpy as np
-import scipy.ndimage
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
@@ -31,22 +30,9 @@ __all__ = [
   "GrapheneMeshTask", 
   "MeshManifestPrefixTask", 
   "MeshManifestFilesystemTask",
-  "MeshSpatialIndex", 
   "TransferMeshFilesTask", 
   "DeleteMeshFilesTask"
 ]
-
-def find_objects(labels):
-  """  
-  scipy.ndimage.find_objects performs about 7-8x faster on C 
-  ordered arrays, so we just do it that way and convert
-  the results if it's in F order.
-  """
-  if labels.flags.c_contiguous:
-    return scipy.ndimage.find_objects(labels)
-  else:
-    all_slices = scipy.ndimage.find_objects(labels.T)
-    return [ (slcs and slcs[::-1]) for slcs in all_slices ]
 
 class MeshTask(RegisteredTask):
   def __init__(self, shape, offset, layer_path, **kwargs):
@@ -637,65 +623,6 @@ def MeshManifestPrefixTask(
   )
 
   cf.put_jsons(items)
-
-@queueable
-def MeshSpatialIndex(
-  cloudpath:str, 
-  shape:Tuple[int,int,int], 
-  offset:Tuple[int,int,int], 
-  mip:int = 0, 
-  fill_missing:bool=False, 
-  compress:Optional[Union[str,bool]] = 'gzip', 
-  mesh_dir:Optional[str] = None
-) -> None:
-  """
-  The main way to add a spatial index is to use the MeshTask,
-  but old datasets or broken datasets may need it to be 
-  reconstituted. An alternative use is create the spatial index
-  over a different area size than the mesh task.
-  """
-  cv = CloudVolume(
-    cloudpath, mip=mip, 
-    bounded=False, fill_missing=fill_missing
-  )
-  cf = CloudFiles(cloudpath)
-
-  bounds = Bbox(Vec(*offset), Vec(*shape) + Vec(*offset))
-  bounds = Bbox.clamp(bounds, cv.bounds)
-
-  data_bounds = bounds.clone()
-  data_bounds.maxpt += 1 # match typical Marching Cubes overlap
-
-  precision = cv.mesh.spatial_index.precision
-  resolution = cv.resolution 
-
-  if not mesh_dir:
-    mesh_dir = cv.info["mesh"]
-
-  # remap: old img -> img
-  img, remap = cv.download(data_bounds, renumber=True)
-  img = img[...,0]
-  slcs = find_objects(img)
-  del img
-  reverse_map = { v:k for k,v in remap.items() } # img -> old img
-
-  bboxes = {}
-  for label, slc in enumerate(slcs):
-    if slc is None:
-      continue
-    mesh_bounds = Bbox.from_slices(slc)
-    mesh_bounds += Vec(*offset)
-    mesh_bounds *= Vec(*resolution, dtype=np.float32)
-    bboxes[str(reverse_map[label+1])] = \
-      mesh_bounds.astype(resolution.dtype).to_list()
-
-  bounds = bounds.astype(resolution.dtype) * resolution
-  cf.put_json(
-    f"{mesh_dir}/{bounds.to_filename(precision)}.spatial",
-    bboxes,
-    compress=compress,
-    cache_control=False,
-  )
 
 @queueable
 def TransferMeshFilesTask(

@@ -25,7 +25,7 @@ import cloudfiles.paths
 from igneous.tasks import (
   MeshTask, MeshManifestPrefixTask, 
   MeshManifestFilesystemTask, GrapheneMeshTask,
-  MeshSpatialIndex, MultiResShardedMeshMergeTask,
+  SpatialIndexTask, MultiResShardedMeshMergeTask,
   MultiResUnshardedMeshMergeTask, 
   MultiResShardedFromUnshardedMeshMergeTask,
   TransferMeshFilesTask, DeleteMeshFilesTask
@@ -347,8 +347,10 @@ def create_spatial_index_mesh_tasks(
 
   vol = CloudVolume(cloudpath, mip=mip)
 
-  if mesh_dir is None:
+  if mesh_dir is None and not vol.info.get("mesh", None):
     mesh_dir = f"mesh_mip_{mip}_err_40"
+  elif mesh_dir is None and vol.info.get("mesh", None):
+    mesh_dir = vol.info["mesh"]
 
   if not "mesh" in vol.info:
     vol.info['mesh'] = mesh_dir
@@ -368,26 +370,29 @@ def create_spatial_index_mesh_tasks(
   if new_mesh_info != mesh_info:
     cf.put_json(info_filename, new_mesh_info)
 
+  vol = CloudVolume(cloudpath, mip=mip) # reload spatial index
+
   class SpatialIndexMeshTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      return partial(MeshSpatialIndex, 
+      return partial(SpatialIndexTask, 
         cloudpath=cloudpath,
         shape=shape,
         offset=offset,
+        subdir=mesh_dir,
+        precision=vol.mesh.spatial_index.precision,
         mip=int(mip),
         fill_missing=bool(fill_missing),
         compress=compress,
-        mesh_dir=mesh_dir,
       )
 
     def on_finish(self):
       vol.provenance.processing.append({
         'method': {
-          'task': 'MeshSpatialIndex',
+          'task': 'SpatialIndexTask',
           'cloudpath': vol.cloudpath,
           'shape': shape.tolist(),
           'mip': int(mip),
-          'mesh_dir': mesh_dir,
+          'subdir': mesh_dir,
           'fill_missing': fill_missing,
           'compress': compress,
         },

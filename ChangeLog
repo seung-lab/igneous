@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+3.1.0
+-----
+
+* release(3.1.0): adds delete for meshes and skels, xfer for skels
+* feat: add skeleton xfer (#125)
+* feat: delete meshes (#124)
+* refactor: remove unnecessary imports
+* chore: update ChangeLog
+* docs: update the MacOS reference
+* docs: update obsolete reference to task\_creation.py
+* docs: mention MapBuffer in related projects
+
 3.0.0
 -----
 

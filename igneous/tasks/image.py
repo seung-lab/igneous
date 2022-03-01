@@ -214,7 +214,10 @@ class ContrastNormalizationTask(RegisteredTask):
     image = np.clip(image, minval, maxval).astype(destcv.dtype)
 
     bounds += self.translate
-    downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
+    if downsample:
+      downsample_and_upload(image, bounds, destcv, self.shape, mip=self.mip)
+    else:
+      destcv[bounds.to_slices()] = image
 
   def find_section_clamping_values(self, zlevel, lowerfract, upperfract):
     filtered = np.copy(zlevel)

@@ -881,6 +881,8 @@ def create_contrast_normalization_tasks(
     dvol.info['scales'] = dvol.info['scales'][:mip+1]
     dvol.commit_info()
 
+  bounds = get_bounds(srcvol, bounds, mip, bounds_mip=bounds_mip)
+  
   if shape == None:
     shape = Bbox( (0,0,0), (2048, 2048, 64) )
     shape = shape.shrink_to_chunk_size(dvol.underlying).size3()
@@ -890,9 +892,7 @@ def create_contrast_normalization_tasks(
 
   downsample_scales.create_downsample_scales(dest_path, mip=mip, ds_shape=shape, preserve_chunk_size=True)
   dvol.refresh_info()
-
-  bounds = get_bounds(srcvol, bounds, mip, bounds_mip=bounds_mip)
-
+  
   class ContrastNormalizationTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
       task_shape = min2(shape.clone(), srcvol.bounds.maxpt - offset)

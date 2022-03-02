@@ -870,7 +870,11 @@ def create_contrast_normalization_tasks(
     minval=None, maxval=None, bounds=None,
     bounds_mip=0
   ):
-
+  """
+  Use the output of luminence levels to contrast
+  correct the image by stretching the histogram
+  to cover the full range of the data type.
+  """
   srcvol = CloudVolume(src_path, mip=mip)
   
   try:
@@ -881,7 +885,10 @@ def create_contrast_normalization_tasks(
     dvol.info['scales'] = dvol.info['scales'][:mip+1]
     dvol.commit_info()
 
-  if shape == None:
+  if bounds is None:
+    bounds = srcvol.bounds.clone()
+
+  if shape is None:
     shape = Bbox( (0,0,0), (2048, 2048, 64) )
     shape = shape.shrink_to_chunk_size(dvol.underlying).size3()
     shape = Vec.clamp(shape, (1,1,1), bounds.size3() )

@@ -18,7 +18,7 @@ from igneous import (
     DownsampleTask, MeshTask, 
     MeshManifestPrefixTask, MeshManifestFilesystemTask,
     QuantizeTask, HyperSquareConsensusTask,
-    DeleteTask, BlackoutTask
+    DeleteTask, BlackoutTask, ContrastNormalizationTask
 )
 import igneous.task_creation as tc
 from igneous.task_creation import create_downsampling_tasks, create_quantized_affinity_info
@@ -464,6 +464,45 @@ def test_luminance_levels_task():
     levels = json.loads(levels)
     assert levels['coverage_ratio'] == 1.0
     assert levels['levels'] == gt
+
+def test_contrast_normalization_task():
+    directory = '/tmp/removeme/contrast_normalization/'
+    src_path = 'file://' + directory
+    dest_path = src_path[:-1] + '2'
+
+    delete_layer(src_path)
+    delete_layer(dest_path)
+
+    cf, imgd = create_layer(
+        size=(256,256,128,1), offset=(0,0,0), 
+        layer_type="image", layer_name='contrast_normalization'
+    )
+    tq = MockTaskQueue()
+    tasks = tc.create_luminance_levels_tasks( 
+        layer_path=src_path,
+        coverage_factor=0.01, 
+        shape=None, 
+        offset=(0,0,0), 
+        mip=0
+    )
+    tq.insert_all(tasks)
+
+    tasks = tc.create_contrast_normalization_tasks( 
+        src_path=src_path, 
+        dest_path=dest_path, 
+        levels_path=None,
+        shape=None, 
+        mip=0, 
+        clip_fraction=0.01, 
+        fill_missing=False, 
+        translate=(0,0,0),
+        minval=None, 
+        maxval=None, 
+        bounds=None,
+        bounds_mip=0,
+    )
+    tq.insert_all(tasks)
+
 
 def test_skeletonization_task():
     directory = '/tmp/removeme/skeleton/'

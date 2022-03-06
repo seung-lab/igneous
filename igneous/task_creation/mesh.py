@@ -638,7 +638,7 @@ def create_sharded_multires_mesh_tasks(
   shard_index_bytes=2**13, 
   minishard_index_bytes=2**15,
   num_lod:int = 1, 
-  draco_compression_level:int = 1,
+  draco_compression_level:int = 7,
   vertex_quantization_bits:int = 16,
   minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 

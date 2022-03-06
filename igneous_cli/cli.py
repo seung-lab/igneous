@@ -462,7 +462,7 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--vqb', default=16, help="Vertex quantization bits. Can be 10 or 16.", type=int, show_default=True)
-@click.option('--compress-level', default=1, help="Draco compression level.", type=int, show_default=True)
+@click.option('--compress-level', default=7, help="Draco compression level.", type=int, show_default=True)
 @click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
 @click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)

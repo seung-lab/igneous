@@ -527,11 +527,12 @@ tasks = tc.create_sharded_skeleton_merge_tasks(
   layer_path, # mip is automatically derived from info file
   dust_threshold=1000, 
   tick_threshold=3500, 
-  preshift_bits=9,
-  minishard_bits=4, 
-  shard_bits=11, 
+  shard_index_bytes=2**13,
+  minishard_index_bytes=2**15,
   minishard_index_encoding='gzip', # or None 
   data_encoding='gzip' # or None
+  max_cable_length=None, 
+  spatial_index_db=None
 )
 ```
 

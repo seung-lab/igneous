@@ -92,7 +92,20 @@ def license():
   with open(path, 'rt') as f:
     print(f.read())
 
-@main.command()
+@main.group("image")
+def imagegroup():
+  """
+  Manipulate image volumes. (subgroup)
+
+  Images are the base datastructure in
+  Neuroglancer. This subgroup offers
+  methods for downsampling, transfers,
+  reencoding, rechunking, sharding,
+  and contrast correction.
+  """
+  pass
+
+@imagegroup.command()
 @click.argument("path")
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
@@ -182,7 +195,7 @@ def downsample(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
-@main.command()
+@imagegroup.command()
 @click.argument("src")
 @click.argument("dest")
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
@@ -214,7 +227,7 @@ def xfer(
   dest_voxel_offset, clean_info, no_src_update
 ):
   """
-  Transfer an image layer to another location.
+  Copy, re-encode, or shard an image layer.
 
   It is crucial to choose a good task shape. The task
   shape must be a multiple of two of the destination
@@ -739,15 +752,7 @@ def skeleton_sharded_merge(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
-@main.group("rm")
-def deletegroup():
-  """
-  Parallelize the deletion process for
-  different kinds of data.
-  """
-  pass
-
-@deletegroup.command("image")
+@imagegroup.command("rm")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Which mip level to start deleting from. Default: 0")

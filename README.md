@@ -4,8 +4,8 @@
 
 ```bash
 # A few examples. You can also script Igneous. Read on!
-$ igneous xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
-$ igneous downsample file://./my-data --mip 0 --queue ./ds-queue
+$ igneous image xfer gs://other-lab/data file://./my-data --queue ./xfer-queue --shape 2048,2048,64
+$ igneous image downsample file://./my-data --mip 0 --queue ./ds-queue
 $ igneous execute -x ./ds-queue # -x exit when finished
 $ igneous mesh forge s3://my-data/seg --mip 2 --queue sqs://mesh-queue
 $ igneous --parallel 4 execute sqs://mesh-queue
@@ -192,7 +192,7 @@ The principle of the CLI is specify a source layer, a destination layer (if appl
 The CLI is intended to handle typical tasks that aren't too complex. If your task gets weird, it's time to try scripting!
 
 ```bash
-igneous downsample gs://my-lab/data --mip 0 --queue ./my-queue
+igneous image downsample gs://my-lab/data --mip 0 --queue ./my-queue
 igneous execute ./my-queue
 
 igneous --help 
@@ -239,11 +239,11 @@ Here we show an example where we insert the tasks to downsample 4 mip levels usi
 PATH=gs://mydataset/layer 
 QUEUE=fq://./my-queue # could also be sqs://
 
-igneous downsample $PATH --mip 0 --num-mips 4 --queue $QUEUE # downsample 2x2x1
+igneous image downsample $PATH --mip 0 --num-mips 4 --queue $QUEUE # downsample 2x2x1
 igneous execute $QUEUE # process the queue
-igneous downsample $PATH --mip 4 --num-mips 3 --volumetric --sparse --queue $QUEUE # superdownsample w/ 2x2x2 sparse
-igneous downsample $PATH --mip 0 --queue $QUEUE --sharded # sharded downsample
-igneous downsample $PATH --queue $QUEUE --zrange 0,1 # downsample only a single slice 
+igneous image downsample $PATH --mip 4 --num-mips 3 --volumetric --sparse --queue $QUEUE # superdownsample w/ 2x2x2 sparse
+igneous image downsample $PATH --mip 0 --queue $QUEUE --sharded # sharded downsample
+igneous image downsample $PATH --queue $QUEUE --zrange 0,1 # downsample only a single slice 
 igneous execute $QUEUE # process the queue
 ```
 
@@ -308,8 +308,8 @@ provider's transfer service will suffice, even across providers.
 Here's an example where we transfer from a source to destination dataset. There are many options available, see `igneous xfer --help`.
 
 ```bash
-igneous xfer $SRC $DEST --queue $QUEUE
-igneous xfer $SRC $DEST --queue $QUEUE --sharded
+igneous image xfer $SRC $DEST --queue $QUEUE
+igneous image xfer $SRC $DEST --queue $QUEUE --sharded
 igneous -p 4 execute $QUEUE
 ```
 
@@ -372,7 +372,7 @@ is chunk aligned and named appropriately.
 #### CLI 
 
 ```python
-igneous rm image $LAYER --queue $QUEUE
+igneous image rm $LAYER --queue $QUEUE
 igneous execute $QUEUE
 ```
 

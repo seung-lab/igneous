@@ -546,10 +546,21 @@ Teravoxel or Petavoxel dataset.
 The object of these tasks are to first create a representative sample of the luminance levels of a dataset per a Z slice (i.e. a frequency count of gray values). This levels information is then used to perform per Z section contrast normalization. In the future, perhaps we will attempt global normalization. The algorithm currently in use reads the levels files for a given Z slice,
 determines how much of the ends of the distribution to lop off, perhaps 1% on each side (you should plot the levels files for your own data as this is configurable, perhaps you might choose 0.5% or 0.25%). The low value is recentered at 0, and the high value is stretched to 255 (in the case of uint8s) or 65,535 (in the case of uint16).
 
-```python3
-# First Pass: Generate $layer_path/levels/$mip/
+#### CLI Contrast Normalization
+
+```bash
+# first pass: create per z-slice histogram
+igneous image contrast histogam $PATH --queue $QUEUE --coverage 0.01 --mip 0
+# second pass: apply histogram equalization
+igneous image contrast equalize $PATH --queue $QUEUE --clip-fraction 0.01 --mip 0
+```
+
+#### Scripting Contrast Normalization
+
+```python
+# first pass: create per z-slice histogram
 tasks = create_luminance_levels_tasks(layer_path, coverage_factor=0.01, shape=None, offset=(0,0,0), mip=0) 
-# Second Pass: Read Levels to stretch value distribution to full coverage
+# second pass: apply histogram equalization
 tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0))
 ```
 

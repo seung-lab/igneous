@@ -942,10 +942,10 @@ def create_contrast_normalization_tasks(
   return ContrastNormalizationTaskIterator(bounds, shape)
 
 def create_luminance_levels_tasks(
-    layer_path, levels_path=None, coverage_factor=0.01, 
-    shape=None, offset=(0,0,0), mip=0, 
-    bounds_mip=0, bounds=None
-  ):
+  layer_path, levels_path=None, coverage_factor=0.01, 
+  shape=None, offset=None, mip=0, 
+  bounds_mip=0, bounds=None
+):
   """
   Compute per slice luminance level histogram and write them as
   $layer_path/levels/$z. Each z file looks like:
@@ -968,16 +968,32 @@ def create_luminance_levels_tasks(
     bounds_mip (int): mip of the input bounds
     bounds (Bbox-like)
   """
+  if shape or offset:
+    print(yellow(
+      "Create Luminance Levels Tasks: Deprecation Notice: "
+      "shape and offset parameters are deprecated in favor of the bounds argument."
+    ))
+
   vol = CloudVolume(layer_path, mip=mip)
 
-  if shape is None:
+  if bounds is None:
+    bounds = vol.bounds.clone()
+
+  bounds = get_bounds(vol, bounds, mip, bounds_mip=bounds_mip)
+
+  if shape is None and bounds is None:
     shape = Vec(*vol.shape)
     shape.z = 1
+  elif bounds is not None:
+    shape = Vec(*bounds.size3())
+    shape.z = 1
+
+  if not offset:
+    offset = bounds.minpt
 
   offset = Vec(*offset)
   zoffset = offset.clone()
 
-  bounds = get_bounds(vol, bounds, mip, bounds_mip=bounds_mip)
   protocol = vol.meta.path.protocol
 
   class LuminanceLevelsTaskIterator(object):

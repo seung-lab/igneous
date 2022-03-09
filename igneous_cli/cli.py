@@ -280,6 +280,105 @@ def xfer(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@imagegroup.group("contrast")
+def contrastgroup():
+  """Perform contrast correction on the image."""
+  pass
+
+@contrastgroup.command()
+@click.argument("path")
+@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--mip', default=0, help="Build histogram from this level of the image pyramid.", show_default=True)
+@click.option('--coverage', default=0.01, type=float, help="Fraction of the image to sample. Range: [0,1]", show_default=True)
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
+@click.option('--bounds-mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
+@click.pass_context
+def histogram(
+  ctx, path, queue, mip, coverage,
+  xrange, yrange, zrange, bounds_mip
+):
+  """(1) Compute the histogram for each z-slice."""
+  
+  bounds = None
+  if xrange or yrange or zrange:
+    bounds = CloudVolume(path).meta.bounds(mip)
+
+  if xrange:
+    bounds.minpt.x = xrange[0]
+    bounds.maxpt.x = xrange[1]
+  if yrange:
+    bounds.minpt.y = yrange[0]
+    bounds.maxpt.y = yrange[1]
+  if zrange:
+    bounds.minpt.z = zrange[0]
+    bounds.maxpt.z = zrange[1]
+
+  tasks = tc.create_luminance_levels_tasks(
+    path, 
+    levels_path=None, 
+    coverage_factor=coverage, 
+    mip=mip, 
+    bounds_mip=bounds_mip, 
+    bounds=bounds,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+@contrastgroup.command()
+@click.argument("src")
+@click.argument("dest")
+@click.option('--shape', default="2048,2048,64", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
+@click.option('--translate', type=Tuple3(), default=(0, 0, 0), help="Translate the bounding box by X,Y,Z voxels in the new location.")
+@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--mip', default=0, help="Apply normalization to this level of the image pyramid.", show_default=True)
+@click.option('--clip-fraction', default=0.01, type=float, help="Fraction of histogram on left and right sides to clip. Range: [0,1]", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--minval', default=None, help="Set left side of histogram as this value. (must be in range of datatype)", show_default=True)
+@click.option('--maxval', default=None, help="Set right side of histogram as this value. (must be in range of datatype)", show_default=True)
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
+@click.option('--bounds-mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
+@click.pass_context
+def equalize(
+  ctx, src, dest,
+  shape, mip, clip_fraction,
+  fill_missing, translate,
+  minval, maxval,
+  xrange, yrange, zrange, bounds_mip
+):
+  """(2) Apply histogram equalization to z-slices."""
+  
+  bounds = None
+  if xrange or yrange or zrange:
+    bounds = CloudVolume(path).meta.bounds(mip)
+
+  if xrange:
+    bounds.minpt.x = xrange[0]
+    bounds.maxpt.x = xrange[1]
+  if yrange:
+    bounds.minpt.y = yrange[0]
+    bounds.maxpt.y = yrange[1]
+  if zrange:
+    bounds.minpt.z = zrange[0]
+    bounds.maxpt.z = zrange[1]
+
+  tasks = tc.create_contrast_normalization_tasks(
+    src, dest, levels_path=None,
+    shape=shape, mip=mip, clip_fraction=clip_fraction,
+    fill_missing=fill_missing, translate=translate,
+    minval=minval, maxval=maxval, bounds=bounds,
+    bounds_mip=bounds_mip
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
 @main.command()
 @click.argument("queue", type=str)
 @click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)

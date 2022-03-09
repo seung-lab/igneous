@@ -902,12 +902,11 @@ def create_contrast_normalization_tasks(
 
   class ContrastNormalizationTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      task_shape = min2(shape.clone(), srcvol.bounds.maxpt - offset)
       return ContrastNormalizationTask( 
         src_path=src_path, 
         dest_path=dest_path,
         levels_path=levels_path,
-        shape=task_shape, 
+        shape=shape.clone(), 
         offset=offset.clone(), 
         clip_fraction=clip_fraction,
         mip=mip,

@@ -190,7 +190,7 @@ class ContrastNormalizationTask(RegisteredTask):
     bounds = Bbox.clamp(bounds, srccv.bounds)
     image = srccv[bounds.to_slices()].astype(np.float32)
 
-    zlevels = self.fetch_z_levels()
+    zlevels = self.fetch_z_levels(bounds)
 
     nbits = np.dtype(srccv.dtype).itemsize * 8
     maxval = float(2 ** nbits - 1)
@@ -247,15 +247,14 @@ class ContrastNormalizationTask(RegisteredTask):
 
     return (lower, upper)
 
-  def fetch_z_levels(self):
-    bounds = Bbox(self.offset, self.shape[:3] + self.offset)
+  def fetch_z_levels(self, bounds):
+    cf = CloudFiles(self.levels_path)
 
     levelfilenames = [
-      'levels/{}/{}'.format(self.mip, z) \
+      cf.join('levels', f"{self.mip}", f"{z}")
       for z in range(bounds.minpt.z, bounds.maxpt.z)
     ]
 
-    cf = CloudFiles(self.levels_path)
     levels = cf.get(levelfilenames)
 
     errors = [

@@ -474,7 +474,7 @@ def test_contrast_normalization_task():
     delete_layer(dest_path)
 
     cf, imgd = create_layer(
-        size=(256,256,128,1), offset=(0,0,0), 
+        size=(300,300,129,1), offset=(0,0,0), 
         layer_type="image", layer_name='contrast_normalization'
     )
     tq = MockTaskQueue()

@@ -300,7 +300,8 @@ def histogram(
   xrange, yrange, zrange, bounds_mip
 ):
   """(1) Compute the histogram for each z-slice."""
-  
+  path = cloudfiles.paths.normalize(path)
+
   bounds = None
   if xrange or yrange or zrange:
     bounds = CloudVolume(path).meta.bounds(mip)
@@ -345,14 +346,16 @@ def histogram(
 @click.option('--bounds-mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
 @click.pass_context
 def equalize(
-  ctx, src, dest,
+  ctx, src, dest, queue,
   shape, mip, clip_fraction,
   fill_missing, translate,
   minval, maxval,
   xrange, yrange, zrange, bounds_mip
 ):
   """(2) Apply histogram equalization to z-slices."""
-  
+  src = cloudfiles.paths.normalize(src)
+  dest = cloudfiles.paths.normalize(dest)
+
   bounds = None
   if xrange or yrange or zrange:
     bounds = CloudVolume(path).meta.bounds(mip)

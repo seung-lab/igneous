@@ -209,7 +209,7 @@ def downsample(
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
-@click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'gzip', 'br'", show_default=True)
+@click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
@@ -254,7 +254,7 @@ def xfer(
   if volumetric:
   	factor = (2,2,2)
 
-  if compress and compress.lower() == "false":
+  if compress and compress.lower() in ("none", "false"):
     compress = False
 
   if sharded:

@@ -840,6 +840,7 @@ def skeleton_sharded_merge(
   The shard and minishard index default sizes are set to
   accomodate efficient access for a 100 Mbps connection.
   """
+  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_sharded_skeleton_merge_tasks(
     path, 
     dust_threshold=min_cable_length,

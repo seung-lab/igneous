@@ -1,6 +1,27 @@
 CHANGES
 =======
 
+4.0.0
+-----
+
+* release(4.0.0): reorganizes CLI, fixes contrast tasks, adds to CLI
+* fix(cli): missing argument and path normalization for contrast
+* fix: contrast normalization task wouldn't handle non-chunk aligned tails
+* docs: add contrast commands to cli
+* docs: update image based commands
+* feat(cli): add "igneous image contrast" menu
+* BREAKING: redesign: reoganize the image CLI commands
+* docs: update sharded skeleton example
+* fix: draco compression level was set too low by default
+* fix: set bounds for contrast normalization task
+
+3.2.0
+-----
+
+* release(3.2.0): Adds spatial index operations for skeletons
+* chore: update ChangeLog
+* feat: add spatial-index command to skeletons
+
 3.1.0
 -----
 

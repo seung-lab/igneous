@@ -582,13 +582,14 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @click.option('--compress-level', default=7, help="Draco compression level.", type=int, show_default=True)
 @click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
 @click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
+@click.option('--min-shards', default=1, help="Minimum number of shards to generate. Excess shards can make it easier to parallelize the merge process.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
 @click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
 @click.pass_context
 def mesh_sharded_merge(
   ctx, path, queue, 
   vqb, compress_level,
-  shard_index_bytes, minishard_index_bytes,
+  shard_index_bytes, minishard_index_bytes, min_shards,
   minishard_index_encoding, spatial_index_db
 ):
   """
@@ -611,6 +612,7 @@ def mesh_sharded_merge(
     shard_index_bytes=shard_index_bytes,
     minishard_index_bytes=minishard_index_bytes,
     minishard_index_encoding=minishard_index_encoding,
+    min_shards=min_shards,
     spatial_index_db=spatial_index_db,
   )
 
@@ -816,6 +818,7 @@ def skeleton_merge(
 @click.option('--tick-threshold', default=0, help="Remove small \"ticks\", or branches from the main skeleton one at a time from smallest to largest. Branches larger than this are preserved. Default: no elimination", type=float)
 @click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
 @click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
+@click.option('--min-shards', default=1, help="Minimum number of shards to generate. Excess shards can make it easier to parallelize the merge process.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw. Default: gzip")
 @click.option('--data-encoding', default="gzip", help="Shard data can be compressed. gzip or raw. Default: gzip")
 @click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
@@ -824,7 +827,7 @@ def skeleton_sharded_merge(
   ctx, path, queue, 
   min_cable_length, max_cable_length, 
   tick_threshold, 
-  shard_index_bytes, minishard_index_bytes,
+  shard_index_bytes, minishard_index_bytes, min_shards,
   minishard_index_encoding, data_encoding,
   spatial_index_db
 ):
@@ -848,6 +851,7 @@ def skeleton_sharded_merge(
     tick_threshold=tick_threshold,
     shard_index_bytes=shard_index_bytes,
     minishard_index_bytes=minishard_index_bytes,
+    min_shards=min_shards,
     minishard_index_encoding=minishard_index_encoding, 
     data_encoding=data_encoding,
     spatial_index_db=spatial_index_db,

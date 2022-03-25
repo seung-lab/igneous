@@ -534,6 +534,7 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
   dest:str,
   shard_index_bytes=2**13, 
   minishard_index_bytes=2**15,
+  min_shards:int = 1,
   num_lod:int = 1, 
   draco_compression_level:int = 1,
   vertex_quantization_bits:int = 16,
@@ -564,6 +565,7 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
       num_labels=len(all_labels),
       shard_index_bytes=int(shard_index_bytes),
       minishard_index_bytes=int(minishard_index_bytes),
+      min_shards=int(min_shards),
     )
 
   cv_dest = CloudVolume(dest, mesh_dir=mesh_dir)
@@ -637,6 +639,7 @@ def create_sharded_multires_mesh_tasks(
   cloudpath:str, 
   shard_index_bytes=2**13, 
   minishard_index_bytes=2**15,
+  min_shards:int = 1,
   num_lod:int = 1, 
   draco_compression_level:int = 7,
   vertex_quantization_bits:int = 16,
@@ -663,6 +666,7 @@ def create_sharded_multires_mesh_tasks(
       num_labels=len(all_labels),
       shard_index_bytes=int(shard_index_bytes),
       minishard_index_bytes=int(minishard_index_bytes),
+      min_shards=min_shards,
     )
 
   spec = ShardingSpecification(

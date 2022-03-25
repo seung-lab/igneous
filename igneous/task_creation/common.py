@@ -138,7 +138,10 @@ def graphene_prefixes(
   return prefixes
 
 def compute_shard_params_for_hashed(
-  num_labels, shard_index_bytes=2**13, minishard_index_bytes=2**15
+  num_labels:int, 
+  shard_index_bytes:int = 2**13, 
+  minishard_index_bytes:int = 2**15,
+  min_shards:int = 1
 ):
   """
   Computes the shard parameters for objects that
@@ -167,6 +170,7 @@ def compute_shard_params_for_hashed(
 
   Returns: (shard_bits, minishard_bits, preshift_bits)
   """
+  assert min_shards >= 1
   if num_labels <= 0:
     return (0,0,0)
 
@@ -196,7 +200,14 @@ def compute_shard_params_for_hashed(
   if utilized_capacity <= 0.55:
     shard_bits -= 1
 
-  minishard_bits = max(minishard_bits, 0)
   shard_bits = max(shard_bits, 0)
+  min_shard_bits = np.round(np.log2(min_shards))
+
+  delta = max(min_shard_bits - shard_bits, 0)
+  shard_bits += delta
+  minishard_bits -= delta
+
+  shard_bits = max(shard_bits, min_shard_bits)
+  minishard_bits = max(minishard_bits, 0)
 
   return (int(shard_bits), int(minishard_bits), 0)

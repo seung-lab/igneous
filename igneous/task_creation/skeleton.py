@@ -273,12 +273,14 @@ def create_flat_graphene_skeleton_merge_tasks(
   return GrapheneSkeletonMergeTaskIterator()
 
 def create_sharded_skeleton_merge_tasks(
-    layer_path, dust_threshold, tick_threshold,
-    shard_index_bytes=2**13,
-    minishard_index_bytes=2**15,
-    minishard_index_encoding='gzip', data_encoding='gzip',
-    max_cable_length=None, spatial_index_db=None
-  ): 
+  layer_path, dust_threshold, tick_threshold,
+  shard_index_bytes=2**13,
+  minishard_index_bytes=2**15,
+  min_shards=1,
+  minishard_index_encoding='gzip', 
+  data_encoding='gzip',
+  max_cable_length=None, spatial_index_db=None
+):
   cv = CloudVolume(layer_path, progress=True, spatial_index_db=spatial_index_db) 
   cv.mip = cv.skeleton.meta.mip
 
@@ -290,6 +292,7 @@ def create_sharded_skeleton_merge_tasks(
       num_labels=len(all_labels),
       shard_index_bytes=int(shard_index_bytes),
       minishard_index_bytes=int(minishard_index_bytes),
+      min_shards=int(min_shards),
     )
 
   spec = ShardingSpecification(
@@ -481,6 +484,7 @@ def create_sharded_skeletons_from_unsharded_tasks(
   dest:str,
   shard_index_bytes=2**13, 
   minishard_index_bytes=2**15,
+  min_shards:int = 1,
   minishard_index_encoding='gzip', 
   data_encoding='gzip',
   skel_dir:Optional[str] = None, 
@@ -511,6 +515,7 @@ def create_sharded_skeletons_from_unsharded_tasks(
       num_labels=len(all_labels),
       shard_index_bytes=int(shard_index_bytes),
       minishard_index_bytes=int(minishard_index_bytes),
+      min_shards=int(min_shards),
     )
 
   spec = ShardingSpecification(

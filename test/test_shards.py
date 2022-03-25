@@ -143,6 +143,16 @@ def test_shard_bits_calculation_for_hashed():
   assert sb == 0
 
   sb, msb, psb = compute_shard_params_for_hashed(
+    num_labels=1000, 
+    shard_index_bytes=2**13, 
+    minishard_index_bytes=2**15,
+    min_shards=1000,
+  )
+  assert psb == 0
+  assert msb == 0
+  assert sb == 10
+
+  sb, msb, psb = compute_shard_params_for_hashed(
     num_labels=0, 
     shard_index_bytes=0, 
     minishard_index_bytes=0

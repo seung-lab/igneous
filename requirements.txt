@@ -1,7 +1,7 @@
 click>=6.7
 cloud-files>=4.7.0
 cloud-volume>=7.0.0
-DracoPy~=1.0.0
+DracoPy~=1.0
 fastremap>=1.10.0
 google-cloud-logging
 kimimaro>=0.5.0
@@ -16,5 +16,5 @@ scipy
 tinybrain
 task-queue>=2.4.0
 tqdm
-zmesh~=1.0.0
+zmesh~=1.0
 trimesh

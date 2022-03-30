@@ -349,7 +349,8 @@ def create_sharded_skeleton_merge_tasks(
     ShardedSkeletonMergeTask(
       layer_path, shard_no, 
       dust_threshold, tick_threshold,
-      max_cable_length=max_cable_length
+      max_cable_length=max_cable_length,
+      spatial_index_db=spatial_index_db,
     )
     for shard_no in shard_labels.keys()
   ]

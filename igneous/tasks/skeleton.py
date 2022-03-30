@@ -313,11 +313,11 @@ class ShardedSkeletonMergeTask(RegisteredTask):
   def __init__(
     self, cloudpath, shard_no, 
     dust_threshold=4000, tick_threshold=6000,
-    sqlite_db=None, max_cable_length=None
+    spatial_index_db=None, max_cable_length=None
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
-      dust_threshold, tick_threshold, sqlite_db,
+      dust_threshold, tick_threshold, spatial_index_db,
       max_cable_length
     )
     self.progress = False
@@ -326,7 +326,11 @@ class ShardedSkeletonMergeTask(RegisteredTask):
   def execute(self):
     # cache is necessary for local computation, but on GCE download is very fast
     # so cache isn't necessary.
-    cv = CloudVolume(self.cloudpath, cache=False, progress=self.progress)
+    cv = CloudVolume(
+      self.cloudpath, 
+      progress=self.progress,
+      spatial_index_db=self.spatial_index_db
+    )
 
     # This looks messy because we are trying to avoid retaining
     # unnecessary memory. In the original iteration, this was 
@@ -432,8 +436,6 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
   def locations_for_labels(self, labels, cv):
     SPATIAL_EXT = re.compile(r'\.spatial$')
-    if self.sqlite_db:
-      cv.skeleton.spatial_index.sqlite_db = self.sqlite_db
     index_filenames = cv.skeleton.spatial_index.file_locations_per_label(labels)
     for label, locations in index_filenames.items():
       for i, location in enumerate(locations):

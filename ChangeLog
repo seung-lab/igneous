@@ -1,6 +1,23 @@
 CHANGES
 =======
 
+4.1.1
+-----
+
+* release(4.1.1): fixes dependency logic for DracoPy and zmesh
+* chore: allow igneous to upgrade zmesh and dracopy for feature releases
+
+4.1.0
+-----
+
+* release(4.1.0): adds min\_shards parameter
+* feat: add min\_shards parameter to shard generation
+* chore: update changelog
+* fix(cli): normalize path for sharded skeleton merge
+* refactor: correct type annotation
+* feat: add --quiet option to igneous execute
+* fix: add "none" to compress options
+
 4.0.0
 -----
 

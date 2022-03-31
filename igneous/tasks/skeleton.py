@@ -261,8 +261,7 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     skeletons = defaultdict(list)
     for skel in skels:
       try:
-        skel['filename'] = skel['path']
-        segid = filename_to_segid(skel['filename'])
+        segid = filename_to_segid(skel['path'])
       except ValueError:
         # Typically this is due to preexisting fully
         # formed skeletons e.g. skeletons_mip_3/1588494
@@ -270,7 +269,7 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 
       skeletons[segid].append( 
         (
-          Bbox.from_filename(skel['filename']),
+          Bbox.from_filename(skel['path']),
           pickle.loads(skel['content'])
         )
       )

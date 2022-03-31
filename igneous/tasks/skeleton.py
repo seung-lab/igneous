@@ -235,7 +235,7 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     skeletons = []
     for segid, frags in skels.items():
       skeleton = self.fuse_skeletons(frags)
-      if self.max_cable_length is None or skel.cable_length() <= self.max_cable_length:
+      if self.max_cable_length is None or skeleton.cable_length() <= self.max_cable_length:
         skeleton = kimimaro.postprocess(
           skeleton, self.dust_threshold, self.tick_threshold
         )
@@ -255,13 +255,13 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     return [ _ for _ in cf.list(prefix=prefix) ]
 
   def get_skeletons_by_segid(self, filenames):
-    cf = CloudFiles(self.cloudpath, progress=True)
+    cf = CloudFiles(self.cloudpath, progress=False)
     skels = cf.get(filenames)
 
     skeletons = defaultdict(list)
     for skel in skels:
       try:
-        segid = filename_to_segid(skel['filename'])
+        segid = filename_to_segid(skel['path'])
       except ValueError:
         # Typically this is due to preexisting fully
         # formed skeletons e.g. skeletons_mip_3/1588494
@@ -269,7 +269,7 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 
       skeletons[segid].append( 
         (
-          Bbox.from_filename(skel['filename']),
+          Bbox.from_filename(skel['path']),
           pickle.loads(skel['content'])
         )
       )

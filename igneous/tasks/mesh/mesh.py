@@ -183,8 +183,7 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
 
-    data = fastremap.ascontiguousarray(data[..., 0].T)
-    self._mesher.mesh(data)
+    self._mesher.mesh(data[..., 0].T)
     del data
 
     self.compute_meshes(renumbermap, left_offset)

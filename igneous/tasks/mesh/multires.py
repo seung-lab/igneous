@@ -313,12 +313,18 @@ def collect_mesh_fragments(
         try:
           mesh = fragment[label]
           mesh.id = label
-          all_meshes[label].append(mesh)
+          all_meshes[label].append((filename, mesh))
         except KeyError:
           continue
 
       if hasattr(content, "close"):
         content.close()
+
+  # ensure consistent results across multiple runs
+  # by sorting mesh fragments by filename
+  for label in all_meshes:
+    all_meshes[label].sort(key=lambda pair: pair[0])
+    all_meshes[label] = [ pair[1] for pair in all_meshes[label] ]
 
   return all_meshes
 

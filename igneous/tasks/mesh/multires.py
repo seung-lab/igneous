@@ -78,12 +78,17 @@ def process_mesh(
   draco_compression_level:int = 1,
 ) -> Tuple[MultiLevelPrecomputedMeshManifest, Mesh]:
 
+  mesh.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
+
+  grid_origin = np.floor(np.min(mesh.vertices, axis=0))
+  chunk_shape = np.ceil(np.max(mesh.vertices, axis=0) - grid_origin)
+
   manifest = MultiLevelPrecomputedMeshManifest(
-    segment_id=label, 
-    chunk_shape=cv.bounds.size3(),
-    grid_origin=cv.bounds.minpt, 
-    num_lods=1, 
-    lod_scales=[ 1 ], 
+    segment_id=label,
+    chunk_shape=chunk_shape,
+    grid_origin=grid_origin, 
+    num_lods=int(num_lod), 
+    lod_scales=[ 1 ] * int(num_lod),
     vertex_offsets=[[0,0,0]],
     num_fragments_per_lod=[1], 
     fragment_positions=[[[0,0,0]]], 
@@ -91,8 +96,6 @@ def process_mesh(
   )
 
   vqb = int(cv.mesh.meta.info["vertex_quantization_bits"])
-
-  mesh.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
   mesh.vertices = to_stored_model_space(
     mesh.vertices, manifest, 
     lod=0, 

@@ -108,7 +108,7 @@ def process_mesh(
 
   vqb = int(cv.mesh.meta.info["vertex_quantization_bits"])
 
-  mesh_binary = b''
+  mesh_binaries = []
   for lod, submeshes in enumerate(lods):
     for frag_no, submesh in enumerate(submeshes):
       submesh.vertices = to_stored_model_space(
@@ -131,11 +131,10 @@ def process_mesh(
         quantization_origin=np.min(submesh.vertices, axis=0),
         create_metadata=True,
       )
-      manifest.fragment_offsets.append(len(mesh_binary))
-      mesh_binary += submesh
+      manifest.fragment_offsets.append(len(submesh))
+      mesh_binaries.append(submesh)
 
-  print(len(mesh_binary), manifest.fragment_offsets)
-  return (manifest, mesh_binary)
+  return (manifest, b''.join(mesh_binaries))
 
 def get_mesh_filenames_subset(
   cloudpath:str, mesh_dir:str, prefix:str

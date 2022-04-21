@@ -84,7 +84,7 @@ def process_mesh(
   highres.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
 
   grid_origin = np.floor(np.min(highres.vertices, axis=0))
-  chunk_shape = np.ceil(np.max(highres.vertices, axis=0) - grid_origin)
+  chunk_shape = np.ceil((np.max(highres.vertices, axis=0) - grid_origin) / (2 ** (len(lods) - 1)))
   del highres
 
   lods = [

@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Tuple
 
 from collections import defaultdict
+import functools
 import itertools
 import json
 import math
@@ -455,26 +456,30 @@ def create_octree_level_from_mesh(mesh, lod, num_lods):
   mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
 
   nodes_per_dim = 2 ** (num_lods - lod - 1) # lowest res has fewest levels
-  scale = (mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)) / nodes_per_dim
+
+  offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
+  scale = np.ceil((mesh.vertices.max(axis=0) - offset) / nodes_per_dim)
   scale = Vec(*scale)
 
-  nyz, nxz, nxy = scale * np.eye(3)
+  nx, ny, nz = np.eye(3)
+  ox, oy, oz = offset * np.eye(3)
 
   submeshes = []
   nodes = []
   for x in range(0, nodes_per_dim):
-      mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nyz, plane_origin=nyz*x)
-      mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nyz, plane_origin=nyz*(x+1))
-      for y in range(0, nodes_per_dim):
-          mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=nxz, plane_origin=nxz*y)
-          mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-nxz, plane_origin=nxz*(y+1))
-          for z in range(0, nodes_per_dim):
-              mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nxy, plane_origin=nxy*z)
-              mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nxy, plane_origin=nxy*(z+1))
+    # list(...) required b/c it doesn't like Vec classes
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nx, plane_origin=list(nx*(x+1)*scale.x+ox))
+    for y in range(0, nodes_per_dim):
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=ny, plane_origin=list(ny*y*scale.y+oy))
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-ny, plane_origin=list(ny*(y+1)*scale.y+oy))
+      for z in range(0, nodes_per_dim):
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
 
-              if len(mesh_z.vertices) > 0:
-                  submeshes.append(mesh_z)
-                  nodes.append([x, y, z])
+        if len(mesh_z.vertices) > 0:
+          submeshes.append(mesh_z)
+          nodes.append((x, y, z))
 
   # Sort in Z-curve order
   submeshes, nodes = zip(

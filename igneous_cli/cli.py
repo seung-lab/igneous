@@ -578,6 +578,7 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @meshgroup.command("merge-sharded")
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--nlod', default=1, help="Number of levels of detail to create.", type=int, show_default=True)
 @click.option('--vqb', default=16, help="Vertex quantization bits. Can be 10 or 16.", type=int, show_default=True)
 @click.option('--compress-level', default=7, help="Draco compression level.", type=int, show_default=True)
 @click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
@@ -588,7 +589,7 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
 @click.pass_context
 def mesh_sharded_merge(
   ctx, path, queue, 
-  vqb, compress_level,
+  nlod, vqb, compress_level,
   shard_index_bytes, minishard_index_bytes, min_shards,
   minishard_index_encoding, spatial_index_db
 ):
@@ -607,6 +608,7 @@ def mesh_sharded_merge(
   path = cloudfiles.paths.normalize(path)
   tasks = tc.create_sharded_multires_mesh_tasks(
     path, 
+    num_lod=nlod,
     draco_compression_level=compress_level,
     vertex_quantization_bits=vqb,
     shard_index_bytes=shard_index_bytes,

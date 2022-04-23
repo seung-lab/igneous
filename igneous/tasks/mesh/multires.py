@@ -81,18 +81,20 @@ def process_mesh(
 ) -> Tuple[MultiLevelPrecomputedMeshManifest, Mesh]:
 
   highres = lods[0][label]
-  highres.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
 
   grid_origin = np.floor(np.min(highres.vertices, axis=0))
-  chunk_shape = np.ceil((np.max(highres.vertices, axis=0) - grid_origin) / (2 ** (len(lods) - 1)))
-  del highres
+  mesh_shape = (np.max(highres.vertices, axis=0) - grid_origin).astype(int)
+  min_chunk_shape = Vec(128,128,128, dtype=int)
+  max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_shape)), 0))
+  lods = lods[:max_lod+1]
+
+  chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
 
   lods = [
-    create_octree_level_from_mesh(lods[lod][label], lod, len(lods)) 
+    create_octree_level_from_mesh(lods[lod][label], chunk_shape, lod, len(lods)) 
     for lod in range(len(lods)) 
   ]
   fragment_positions = [ nodes for submeshes, nodes in lods ]
-  # fragment_positions = reduce(operator.add, fragment_positions) # flatten
   lods = [ submeshes for submeshes, nodes in lods ]
 
   manifest = MultiLevelPrecomputedMeshManifest(
@@ -197,7 +199,7 @@ def MultiResShardedMeshMergeTask(
     meshes[label] = Mesh.concatenate(*meshes[label])
   del labels
 
-  lods = generate_lods(meshes, num_lod)
+  lods = generate_lods(meshes, num_lod, cv.meta.resolution(cv.mesh.meta.mip))
 
   fname, shard = create_mesh_shard(
     cv, lods, 
@@ -239,7 +241,7 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   meshes = cv_src.mesh.get(labels, fuse=False)
   del labels
   
-  lods = generate_lods(meshes, num_lods)
+  lods = generate_lods(meshes, num_lods, cv.meta.resolution(cv.mesh.meta.mip))
 
   fname, shard = create_mesh_shard(
     cv_dest, lods, 
@@ -261,21 +263,25 @@ def MultiResShardedFromUnshardedMeshMergeTask(
 
 def generate_lods(
   meshes:Dict[int, Mesh], 
-  num_lods: int,
+  num_lods:int,
+  resolution:np.ndarray,
   decimation_factor:int = 2, 
   aggressiveness:float = 5.0,
   progress:bool = False,
 ):
   assert num_lods >= 1
 
+  for mesh in meshes.values():
+    mesh.vertices /= resolution
+
   lods = [ meshes ]
+  resolution = resolution.astype(np.float32)
 
   # from pyfqmr documentation:
   # threshold = alpha * (iteration + K) ** agressiveness
   # 
   # Threshold is the total error that can be tolerated by
   # deleting a vertex.
-
   for i in range(1, num_lods):
     lod = {}
     simplifier = pyfqmr.Simplify()
@@ -443,7 +449,7 @@ def cmp_zorder(lhs, rhs) -> bool:
       msd = dim
   return lhs[msd] - rhs[msd]
 
-def create_octree_level_from_mesh(mesh, lod, num_lods):
+def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
   """
   Create submeshes by slicing the orignal mesh to produce smaller chunks
   by slicing them from x,y,z dimensions.
@@ -451,29 +457,27 @@ def create_octree_level_from_mesh(mesh, lod, num_lods):
   This creates (2^lod)^3 submeshes.
   """
   if lod == num_lods - 1:
-    return ([ mesh ], [[0,0,0]])
+    return ([ mesh ], ((0,0,0),) )
 
   mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
 
-  nodes_per_dim = 2 ** (num_lods - lod - 1) # lowest res has fewest levels
-
+  scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
   offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
-  scale = np.ceil((mesh.vertices.max(axis=0) - offset) / nodes_per_dim)
-  scale = Vec(*scale)
+  grid_size = Vec(*np.ceil((mesh.vertices.max(axis=0) - offset) / scale), dtype=int)
 
   nx, ny, nz = np.eye(3)
   ox, oy, oz = offset * np.eye(3)
 
   submeshes = []
   nodes = []
-  for x in range(0, nodes_per_dim):
+  for x in range(0, grid_size.x):
     # list(...) required b/c it doesn't like Vec classes
     mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
     mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nx, plane_origin=list(nx*(x+1)*scale.x+ox))
-    for y in range(0, nodes_per_dim):
+    for y in range(0, grid_size.y):
       mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=ny, plane_origin=list(ny*y*scale.y+oy))
       mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-ny, plane_origin=list(ny*(y+1)*scale.y+oy))
-      for z in range(0, nodes_per_dim):
+      for z in range(0, grid_size.z):
         mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
         mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
 

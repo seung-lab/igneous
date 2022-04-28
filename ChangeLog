@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+* feat: sort mesh fragments in a consistent order before combining
+* fix: give sharded meshes tighter manifest bounds
+* perf(meshing): use new ambidextrous zmesh to omit a conversion
+
+4.1.2
+-----
+
+* release(4.1.2): fixes unsharded skeleton merging
+* chore: update changelog
+* Some inappropriate code at UnshardedSkeletonMergeTask (#130)
+* fix: skeleton sharded merge not correctly passing spatial index arg
+
 4.1.1
 -----
 

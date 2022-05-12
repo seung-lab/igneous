@@ -102,7 +102,7 @@ def process_mesh(
     chunk_shape=chunk_shape,
     grid_origin=grid_origin, 
     num_lods=len(lods), 
-    lod_scales=[ 1 ] * len(lods),
+    lod_scales=[ 2**i for i in range(len(lods)) ],
     vertex_offsets=[[0,0,0]] * len(lods),
     num_fragments_per_lod=[ len(lods[lod]) for lod in range(len(lods)) ],
     fragment_positions=fragment_positions,
@@ -121,17 +121,18 @@ def process_mesh(
         frag=frag_no,
       )
 
-      quantization_range = np.max(submesh.vertices, axis=0) - np.min(submesh.vertices, axis=0)
+      minpt = np.min(submesh.vertices, axis=0)
+      quantization_range = np.max(submesh.vertices, axis=0) - minpt
       quantization_range = np.max(quantization_range)
 
       # mesh.vertices must be integer type or mesh will display
-      # distored in neuroglancer.
+      # distorted in neuroglancer.
       submesh = DracoPy.encode(
         submesh.vertices, submesh.faces, 
         quantization_bits=vqb,
         compression_level=draco_compression_level,
         quantization_range=quantization_range,
-        quantization_origin=np.min(submesh.vertices, axis=0),
+        quantization_origin=minpt,
         create_metadata=True,
       )
       manifest.fragment_offsets.append(len(submesh))

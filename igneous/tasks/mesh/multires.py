@@ -65,6 +65,7 @@ def MultiResUnshardedMeshMergeTask(
     files = cf.get(filenames)
     # we should handle draco as well
     files = [ Mesh.from_precomputed(f["content"]) for f in files ]
+    files = Mesh.concatenate(*files)
 
     (manifest, mesh) = process_mesh(
       cv, label, files, 
@@ -88,12 +89,19 @@ def process_mesh(
 
   grid_origin = np.floor(np.min(mesh.vertices, axis=0))
   mesh_shape = (np.max(mesh.vertices, axis=0) - grid_origin).astype(int)
+
+  if np.any(mesh_shape == 0):
+    return (None, None)
+
   min_chunk_shape = np.array(min_chunk_shape, dtype=int)
   max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_shape)), 0))
   max_lod = min(max_lod, num_lod)
 
   lods = generate_lods(label, mesh, max_lod)
   chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
+
+  if np.any(chunk_shape == 0):
+    return (None, None)
 
   lods = [
     create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods)) 
@@ -240,7 +248,7 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   if mesh_dir is None and 'mesh' in cv.info:
     mesh_dir = cv.info['mesh']
 
-  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir, progress=True)
+  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir, progress=progress)
 
   labels = labels_for_shard(cv_dest, shard_no)
   meshes = cv_src.mesh.get(labels, fuse=False)
@@ -319,11 +327,13 @@ def create_mesh_shard(
   }
   data_offset = {
     label: len(manifest)
-    for label, (manifest, mesh_binary) in meshes.items() 
+    for label, (manifest, mesh_binary) in meshes.items()
+    if manifest is not None
   }
   meshes = {
     label: mesh_binary + manifest.to_binary()
     for label, (manifest, mesh_binary) in meshes.items()
+    if manifest is not None
   }
 
   if len(meshes) == 0:

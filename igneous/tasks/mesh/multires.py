@@ -48,6 +48,7 @@ def MultiResUnshardedMeshMergeTask(
   draco_compression_level:int = 1,
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
+  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
   progress:bool = False,
 ):
   cv = CloudVolume(cloudpath)
@@ -67,7 +68,8 @@ def MultiResUnshardedMeshMergeTask(
 
     (manifest, mesh) = process_mesh(
       cv, label, files, 
-      num_lod, draco_compression_level
+      num_lod, min_chunk_shape, 
+      draco_compression_level
     )
 
     cf.put(f"{label}.index", manifest.to_binary(), cache_control="no-cache")
@@ -76,22 +78,25 @@ def MultiResUnshardedMeshMergeTask(
 def process_mesh(
   cv:CloudVolume,
   label:int,
-  lods: List[Dict[int, Mesh]],
-  draco_compression_level:int = 1,
+  mesh:Mesh,
+  num_lod:int,
+  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
+  draco_compression_level:int = 7,
 ) -> Tuple[MultiLevelPrecomputedMeshManifest, Mesh]:
 
-  highres = lods[0][label]
+  mesh.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
 
-  grid_origin = np.floor(np.min(highres.vertices, axis=0))
-  mesh_shape = (np.max(highres.vertices, axis=0) - grid_origin).astype(int)
-  min_chunk_shape = Vec(128,128,128, dtype=int)
+  grid_origin = np.floor(np.min(mesh.vertices, axis=0))
+  mesh_shape = (np.max(mesh.vertices, axis=0) - grid_origin).astype(int)
+  min_chunk_shape = np.array(min_chunk_shape, dtype=int)
   max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_shape)), 0))
-  lods = lods[:max_lod+1]
+  max_lod = min(max_lod, num_lod)
 
+  lods = generate_lods(label, mesh, max_lod)
   chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
 
   lods = [
-    create_octree_level_from_mesh(lods[lod][label], chunk_shape, lod, len(lods)) 
+    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods)) 
     for lod in range(len(lods)) 
   ]
   fragment_positions = [ nodes for submeshes, nodes in lods ]
@@ -174,6 +179,7 @@ def MultiResShardedMeshMergeTask(
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
   spatial_index_db:Optional[str] = None,
+  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
   progress:bool = False
 ):
   cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db)
@@ -200,12 +206,10 @@ def MultiResShardedMeshMergeTask(
     meshes[label] = Mesh.concatenate(*meshes[label])
   del labels
 
-  lods = generate_lods(meshes, num_lod, cv.meta.resolution(cv.mesh.meta.mip))
-
   fname, shard = create_mesh_shard(
-    cv, lods, 
+    cv, meshes, 
     num_lod, draco_compression_level,
-    progress, shard_no
+    progress, shard_no, min_chunk_shape
   )
   del meshes
 
@@ -242,12 +246,10 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   meshes = cv_src.mesh.get(labels, fuse=False)
   del labels
   
-  lods = generate_lods(meshes, num_lods, cv.meta.resolution(cv.mesh.meta.mip))
-
   fname, shard = create_mesh_shard(
-    cv_dest, lods, 
+    cv_dest, meshes, 
     num_lod, draco_compression_level,
-    progress, shard_no
+    progress, shard_no, min_chunk_shape
   )
   del meshes
 
@@ -263,61 +265,57 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   )
 
 def generate_lods(
-  meshes:Dict[int, Mesh], 
+  label:int,
+  mesh:Mesh,
   num_lods:int,
-  resolution:np.ndarray,
   decimation_factor:int = 2, 
   aggressiveness:float = 5.0,
   progress:bool = False,
 ):
-  assert num_lods >= 1
+  assert num_lods >= 0, num_lods
 
-  for mesh in meshes.values():
-    mesh.vertices /= resolution
-
-  lods = [ meshes ]
-  resolution = resolution.astype(np.float32)
+  lods = [ mesh ]
 
   # from pyfqmr documentation:
   # threshold = alpha * (iteration + K) ** agressiveness
   # 
   # Threshold is the total error that can be tolerated by
   # deleting a vertex.
-  for i in range(1, num_lods):
-    lod = {}
+  for i in range(1, num_lods+1):
     simplifier = pyfqmr.Simplify()
-    for label, mesh in tqdm(meshes.items(), desc="Simplifying", disable=(not progress)):
-      simplifier.setMesh(mesh.vertices, mesh.faces)
-      simplifier.simplify_mesh(
-        target_count=max(int(len(mesh.faces) / (decimation_factor ** i)), 4),
-        aggressiveness=aggressiveness,
-        preserve_border=True,
-        verbose=False,
-        # Additional parameters to expose?
-        # max_iterations=
-        # K=
-        # alpha=
-        # update_rate=  # Number of iterations between each update.
-        # lossless=
-        # threshold_lossless=
-      )
-      lod[label] = Mesh(*simplifier.getMesh())
+    simplifier.setMesh(mesh.vertices, mesh.faces)
+    simplifier.simplify_mesh(
+      target_count=max(int(len(mesh.faces) / (decimation_factor ** i)), 4),
+      aggressiveness=aggressiveness,
+      preserve_border=True,
+      verbose=False,
+      # Additional parameters to expose?
+      # max_iterations=
+      # K=
+      # alpha=
+      # update_rate=  # Number of iterations between each update.
+      # lossless=
+      # threshold_lossless=
+    )
 
-    lods.append(lod)
+    lods.append(
+      Mesh(*simplifier.getMesh())
+    )
 
   return lods
 
 def create_mesh_shard(
-  cv:CloudVolume, lods:List[Dict[int, Mesh]],
+  cv:CloudVolume, meshes:Dict[int, Mesh],
   num_lod:int, draco_compression_level:int,
-  progress:bool, shard_no:str
+  progress:bool, shard_no:str, min_chunk_shape:Tuple[int,int,int]
 ):
-  meshes = lods[0]
   meshes = {
     label: process_mesh(
-      cv, label, lods, draco_compression_level
+      cv, label, mesh, 
+      num_lod, min_chunk_shape,
+      draco_compression_level=draco_compression_level
     )
-    for label in tqdm(meshes, disable=(not progress))
+    for label, mesh in tqdm(meshes.items(), disable=(not progress))
   }
   data_offset = {
     label: len(manifest)

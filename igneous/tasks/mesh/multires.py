@@ -73,6 +73,9 @@ def MultiResUnshardedMeshMergeTask(
       draco_compression_level
     )
 
+    if manifest is None:
+      continue
+
     cf.put(f"{label}.index", manifest.to_binary(), cache_control="no-cache")
     cf.put(f"{label}", mesh, cache_control="no-cache")
 

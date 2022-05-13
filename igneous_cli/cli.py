@@ -576,7 +576,7 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
       path, num_lod=nlod, 
       magnitude=magnitude, mesh_dir=dir,
       vertex_quantization_bits=vqb,
-      min_chunk_shape=min_chunk_size,
+      min_chunk_size=min_chunk_size,
     )
   else:
     tasks = tc.create_mesh_manifest_tasks(
@@ -629,7 +629,7 @@ def mesh_sharded_merge(
     minishard_index_encoding=minishard_index_encoding,
     min_shards=min_shards,
     spatial_index_db=spatial_index_db,
-    min_chunk_shape=min_chunk_size,
+    min_chunk_size=min_chunk_size,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

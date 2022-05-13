@@ -134,6 +134,12 @@ def process_mesh(
         frag=frag_no,
       )
 
+      # test for totally degenerate meshes by checking if 
+      # all of two axes match, meaning the mesh must be a 
+      # point or a line.
+      if np.sum(np.bitwise_and.reduce(submesh.vertices) == submesh.vertices[0,:]) >= 2:
+        continue
+
       minpt = np.min(submesh.vertices, axis=0)
       quantization_range = np.max(submesh.vertices, axis=0) - minpt
       quantization_range = np.max(quantization_range)

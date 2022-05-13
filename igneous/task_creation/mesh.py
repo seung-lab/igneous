@@ -446,7 +446,8 @@ def configure_multires_info(
 def create_unsharded_multires_mesh_tasks(
   cloudpath:str, num_lod:int = 1, 
   magnitude:int = 3, mesh_dir:str = None,
-  vertex_quantization_bits:int = 16
+  vertex_quantization_bits:int = 16,
+  min_chunk_size:Tuple[int,int,int] = (512,512,512),
 ) -> Iterator:
   """
   vertex_quantization_bits: 10 or 16. Adjusts the precision
@@ -464,7 +465,7 @@ def create_unsharded_multires_mesh_tasks(
   start = 10 ** (magnitude - 1)
   end = 10 ** magnitude
 
-  class UnshardedMultiResTaskIterator(object):
+  class UnshardedMultiResTaskIterator:
     def __len__(self):
       return (10 ** magnitude) - 1
     def __iter__(self):
@@ -474,6 +475,7 @@ def create_unsharded_multires_mesh_tasks(
           prefix=str(prefix) + ':', 
           mesh_dir=mesh_dir,
           num_lod=num_lod,
+          min_chunk_size=min_chunk_size,
         )
 
       # enumerate from e.g. 100 to 999
@@ -483,7 +485,24 @@ def create_unsharded_multires_mesh_tasks(
           prefix=prefix, 
           mesh_dir=mesh_dir,
           num_lod=num_lod,
+          min_chunk_size=min_chunk_size,
         )
+
+  cv = CloudVolume(cloudpath)
+  cv.provenance.processing.append({
+    'method': {
+      'task': 'MultiResUnshardedMeshMergeTask',
+      'cloudpath': cloudpath,
+      'magnitude': int(magnitude),
+      'num_lod': int(num_lod),
+      'vertex_quantization_bits': int(vertex_quantization_bits),
+      'min_chunk_size': tuple(min_chunk_size),
+      'mesh_dir': mesh_dir,
+    },
+    'by': operator_contact(),
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  }) 
+  cv.commit_provenance()
 
   return UnshardedMultiResTaskIterator()
 

@@ -555,9 +555,11 @@ def mesh_forge(
 @click.argument("path")
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
+@click.option('--nlod', default=0, help="(multires) How many extra levels of detail to create.", show_default=True)
+@click.option('--vqb', default=16, help="(multires) Vertex quantization bits for stored model representation. 10 or 16 only.", show_default=True)
 @click.option('--dir', default=None, help="Write manifests into this directory instead of the one indicated in the info file.")
 @click.pass_context
-def mesh_merge(ctx, path, queue, magnitude, dir):
+def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir):
   """
   (2) Merge the mesh pieces produced from the forging step.
 
@@ -567,9 +569,17 @@ def mesh_merge(ctx, path, queue, magnitude, dir):
   file that is an index for locating the fragments.
   """
   path = cloudfiles.paths.normalize(path)
-  tasks = tc.create_mesh_manifest_tasks(
-    path, magnitude=magnitude, mesh_dir=dir
-  )
+
+  if nlod > 0:
+    tasks = tc.create_unsharded_multires_mesh_tasks(
+      cloudpath, num_lod=num_lod, 
+      magnitude=magnitude, mesh_dir=dir,
+      vertex_quantization_bits=vqb,
+    )
+  else:
+    tasks = tc.create_mesh_manifest_tasks(
+      path, magnitude=magnitude, mesh_dir=dir
+    )
 
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))

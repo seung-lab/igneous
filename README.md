@@ -582,6 +582,6 @@ Please post an issue or PR if you think something needs to be addressed.
 
 ## Acknowledgements
 
-Special thanks to everyone that has contributed to Igneous! I'll fill this section in more fully later, but in particular recent thanks to Jeremy Maitin-Shepard, David Ackermann, and Sridhar Jagannathan for giving advice and sharing code for producing sharded meshes. Thanks to Chris Roat for improving the CLI's typing. Thanks to Nico Kemnitz for improving the original mesh task. Of course, thanks to lab alumni Ignacio Tartavull who started the project with me and provided its initial impetus.
+Special thanks to everyone that has contributed to Igneous! I'll fill this section in more fully later, but in particular recent thanks to Jeremy Maitin-Shepard, David Ackermann, Hythem Sidky, and Sridhar Jagannathan for giving advice and sharing code for producing sharded multi-res meshes. Thanks to Chris Roat for improving the CLI's typing. Thanks to Nico Kemnitz for improving the original mesh task. Of course, thanks to lab alumni Ignacio Tartavull who started the project with me and provided its initial impetus.
 
 

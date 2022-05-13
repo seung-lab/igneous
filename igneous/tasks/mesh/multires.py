@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Tuple
 
 from collections import defaultdict
+import functools
 import itertools
 import json
 import math
@@ -27,6 +28,8 @@ from taskqueue import queueable
 
 import DracoPy
 import fastremap
+import pyfqmr
+import trimesh
 import zmesh
 
 from .draco import draco_encoding_settings
@@ -45,6 +48,7 @@ def MultiResUnshardedMeshMergeTask(
   draco_compression_level:int = 1,
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
+  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
   progress:bool = False,
 ):
   cv = CloudVolume(cloudpath)
@@ -61,10 +65,12 @@ def MultiResUnshardedMeshMergeTask(
     files = cf.get(filenames)
     # we should handle draco as well
     files = [ Mesh.from_precomputed(f["content"]) for f in files ]
+    files = Mesh.concatenate(*files)
 
     (manifest, mesh) = process_mesh(
       cv, label, files, 
-      num_lod, draco_compression_level
+      num_lod, min_chunk_shape, 
+      draco_compression_level
     )
 
     cf.put(f"{label}.index", manifest.to_binary(), cache_control="no-cache")
@@ -73,52 +79,85 @@ def MultiResUnshardedMeshMergeTask(
 def process_mesh(
   cv:CloudVolume,
   label:int,
-  mesh: Mesh,
-  num_lod:int = 1,
-  draco_compression_level:int = 1,
+  mesh:Mesh,
+  num_lod:int,
+  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
+  draco_compression_level:int = 7,
 ) -> Tuple[MultiLevelPrecomputedMeshManifest, Mesh]:
 
   mesh.vertices /= cv.meta.resolution(cv.mesh.meta.mip)
 
   grid_origin = np.floor(np.min(mesh.vertices, axis=0))
-  chunk_shape = np.ceil(np.max(mesh.vertices, axis=0) - grid_origin)
+  mesh_shape = (np.max(mesh.vertices, axis=0) - grid_origin).astype(int)
+
+  if np.any(mesh_shape == 0):
+    return (None, None)
+
+  min_chunk_shape = np.array(min_chunk_shape, dtype=int)
+  max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_shape)), 0))
+  max_lod = min(max_lod, num_lod)
+
+  lods = generate_lods(label, mesh, max_lod)
+  chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
+
+  if np.any(chunk_shape == 0):
+    return (None, None)
+
+  lods = [
+    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods)) 
+    for lod in range(len(lods)) 
+  ]
+  fragment_positions = [ nodes for submeshes, nodes in lods ]
+  lods = [ submeshes for submeshes, nodes in lods ]
 
   manifest = MultiLevelPrecomputedMeshManifest(
     segment_id=label,
     chunk_shape=chunk_shape,
     grid_origin=grid_origin, 
-    num_lods=int(num_lod), 
-    lod_scales=[ 1 ] * int(num_lod),
-    vertex_offsets=[[0,0,0]],
-    num_fragments_per_lod=[1], 
-    fragment_positions=[[[0,0,0]]], 
-    fragment_offsets=[0], # needs to be set when we have the final value
+    num_lods=len(lods), 
+    lod_scales=[ 2**i for i in range(len(lods)) ],
+    vertex_offsets=[[0,0,0]] * len(lods),
+    num_fragments_per_lod=[ len(lods[lod]) for lod in range(len(lods)) ],
+    fragment_positions=fragment_positions,
+    fragment_offsets=[], # needs to be set when we have the final value
   )
 
   vqb = int(cv.mesh.meta.info["vertex_quantization_bits"])
-  mesh.vertices = to_stored_model_space(
-    mesh.vertices, manifest, 
-    lod=0, 
-    vertex_quantization_bits=vqb,
-    frag=0
-  )
 
-  quantization_range = np.max(mesh.vertices, axis=0) - np.min(mesh.vertices, axis=0)
-  quantization_range = np.max(quantization_range)
+  mesh_binaries = []
+  for lod, submeshes in enumerate(lods):
+    for frag_no, submesh in enumerate(submeshes):
+      submesh.vertices = to_stored_model_space(
+        submesh.vertices, manifest, 
+        lod=lod,
+        vertex_quantization_bits=vqb,
+        frag=frag_no,
+      )
 
-  # mesh.vertices must be integer type or mesh will display
-  # distored in neuroglancer.
-  mesh = DracoPy.encode(
-    mesh.vertices, mesh.faces, 
-    quantization_bits=vqb,
-    compression_level=draco_compression_level,
-    quantization_range=quantization_range,
-    quantization_origin=np.min(mesh.vertices, axis=0),
-    create_metadata=True,
-  )
-  manifest.fragment_offsets = [ len(mesh) ]
+      # test for totally degenerate meshes by checking if 
+      # all of two axes match, meaning the mesh must be a 
+      # point or a line.
+      if np.sum(np.bitwise_and.reduce(submesh.vertices) == submesh.vertices[0,:]) >= 2:
+        continue
 
-  return (manifest, mesh)
+      minpt = np.min(submesh.vertices, axis=0)
+      quantization_range = np.max(submesh.vertices, axis=0) - minpt
+      quantization_range = np.max(quantization_range)
+
+      # mesh.vertices must be integer type or mesh will display
+      # distorted in neuroglancer.
+      submesh = DracoPy.encode(
+        submesh.vertices, submesh.faces, 
+        quantization_bits=vqb,
+        compression_level=draco_compression_level,
+        quantization_range=quantization_range,
+        quantization_origin=minpt,
+        create_metadata=True,
+      )
+      manifest.fragment_offsets.append(len(submesh))
+      mesh_binaries.append(submesh)
+
+  return (manifest, b''.join(mesh_binaries))
 
 def get_mesh_filenames_subset(
   cloudpath:str, mesh_dir:str, prefix:str
@@ -154,6 +193,7 @@ def MultiResShardedMeshMergeTask(
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
   spatial_index_db:Optional[str] = None,
+  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
   progress:bool = False
 ):
   cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db)
@@ -183,7 +223,7 @@ def MultiResShardedMeshMergeTask(
   fname, shard = create_mesh_shard(
     cv, meshes, 
     num_lod, draco_compression_level,
-    progress, shard_no
+    progress, shard_no, min_chunk_shape
   )
   del meshes
 
@@ -214,16 +254,16 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   if mesh_dir is None and 'mesh' in cv.info:
     mesh_dir = cv.info['mesh']
 
-  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir, progress=True)
+  cv_dest = CloudVolume(dest, mesh_dir=mesh_dir, progress=progress)
 
   labels = labels_for_shard(cv_dest, shard_no)
   meshes = cv_src.mesh.get(labels, fuse=False)
   del labels
-    
+  
   fname, shard = create_mesh_shard(
     cv_dest, meshes, 
     num_lod, draco_compression_level,
-    progress, shard_no
+    progress, shard_no, min_chunk_shape
   )
   del meshes
 
@@ -238,25 +278,68 @@ def MultiResShardedFromUnshardedMeshMergeTask(
     cache_control='no-cache',
   )
 
+def generate_lods(
+  label:int,
+  mesh:Mesh,
+  num_lods:int,
+  decimation_factor:int = 2, 
+  aggressiveness:float = 5.0,
+  progress:bool = False,
+):
+  assert num_lods >= 0, num_lods
+
+  lods = [ mesh ]
+
+  # from pyfqmr documentation:
+  # threshold = alpha * (iteration + K) ** agressiveness
+  # 
+  # Threshold is the total error that can be tolerated by
+  # deleting a vertex.
+  for i in range(1, num_lods+1):
+    simplifier = pyfqmr.Simplify()
+    simplifier.setMesh(mesh.vertices, mesh.faces)
+    simplifier.simplify_mesh(
+      target_count=max(int(len(mesh.faces) / (decimation_factor ** i)), 4),
+      aggressiveness=aggressiveness,
+      preserve_border=True,
+      verbose=False,
+      # Additional parameters to expose?
+      # max_iterations=
+      # K=
+      # alpha=
+      # update_rate=  # Number of iterations between each update.
+      # lossless=
+      # threshold_lossless=
+    )
+
+    lods.append(
+      Mesh(*simplifier.getMesh())
+    )
+
+  return lods
+
 def create_mesh_shard(
-  cv:CloudVolume, meshes:dict, 
+  cv:CloudVolume, meshes:Dict[int, Mesh],
   num_lod:int, draco_compression_level:int,
-  progress:bool, shard_no:str
+  progress:bool, shard_no:str, min_chunk_shape:Tuple[int,int,int]
 ):
   meshes = {
     label: process_mesh(
-      cv, label, mesh_frags,
-      num_lod, draco_compression_level
+      cv, label, mesh, 
+      num_lod, min_chunk_shape,
+      draco_compression_level=draco_compression_level
     )
-    for label, mesh_frags in tqdm(meshes.items(), disable=(not progress))
+    for label, mesh in tqdm(meshes.items(), disable=(not progress))
   }
-  data_offset = { 
+  data_offset = {
     label: len(manifest)
-    for label, (manifest, mesh) in meshes.items() 
+    for label, (manifest, mesh_binary) in meshes.items()
+    if manifest is not None
   }
   meshes = {
-    label: mesh + manifest.to_binary()
-    for label, (manifest, mesh) in meshes.items()
+    label: mesh_binary + manifest.to_binary()
+    for label, (manifest, mesh_binary) in meshes.items()
+    if manifest is not None
   }
 
   if len(meshes) == 0:
@@ -360,3 +443,69 @@ def labels_for_shard(
     if spec.compute_shard_location(lbl).shard_number == shard_no 
   ]
   
+## Below functons adapted from 
+## https://github.com/google/neuroglancer/issues/272
+## Thanks to Hythem Sidky (@hsidky) for sharing his 
+## progress and code with the connectomics community.
+
+def cmp_zorder(lhs, rhs) -> bool:
+  def less_msb(x: int, y: int) -> bool:
+    return x < y and x < (x ^ y)
+
+  # Assume lhs and rhs array-like objects of indices.
+  assert len(lhs) == len(rhs)
+  # Will contain the most significant dimension.
+  msd = 2
+  # Loop over the other dimensions.
+  for dim in [1, 0]:
+    # Check if the current dimension is more significant
+    # by comparing the most significant bits.
+    if less_msb(lhs[msd] ^ rhs[msd], lhs[dim] ^ rhs[dim]):
+      msd = dim
+  return lhs[msd] - rhs[msd]
+
+def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
+  """
+  Create submeshes by slicing the orignal mesh to produce smaller chunks
+  by slicing them from x,y,z dimensions.
+
+  This creates (2^lod)^3 submeshes.
+  """
+  if lod == num_lods - 1:
+    return ([ mesh ], ((0,0,0),) )
+
+  mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+
+  scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
+  offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
+  grid_size = Vec(*np.ceil((mesh.vertices.max(axis=0) - offset) / scale), dtype=int)
+
+  nx, ny, nz = np.eye(3)
+  ox, oy, oz = offset * np.eye(3)
+
+  submeshes = []
+  nodes = []
+  for x in range(0, grid_size.x):
+    # list(...) required b/c it doesn't like Vec classes
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nx, plane_origin=list(nx*(x+1)*scale.x+ox))
+    for y in range(0, grid_size.y):
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=ny, plane_origin=list(ny*y*scale.y+oy))
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-ny, plane_origin=list(ny*(y+1)*scale.y+oy))
+      for z in range(0, grid_size.z):
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
+
+        if len(mesh_z.vertices) > 0:
+          submeshes.append(mesh_z)
+          nodes.append((x, y, z))
+
+  # Sort in Z-curve order
+  submeshes, nodes = zip(
+    *sorted(zip(submeshes, nodes),
+    key=functools.cmp_to_key(lambda x, y: cmp_zorder(x[1], y[1])))
+  )
+  # convert back from trimesh to CV Mesh class
+  submeshes = [ Mesh(m.vertices, m.faces) for m in submeshes ]
+
+  return (submeshes, nodes)

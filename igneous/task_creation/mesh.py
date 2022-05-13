@@ -412,7 +412,7 @@ def configure_multires_info(
   Computes properties and uploads a multires 
   mesh info file
   """
-  assert vertex_quantization_bits in (10, 16)
+  assert vertex_quantization_bits in (10, 16), vertex_quantization_bits
 
   vol = CloudVolume(cloudpath)
 
@@ -645,7 +645,8 @@ def create_sharded_multires_mesh_tasks(
   vertex_quantization_bits:int = 16,
   minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 
-  spatial_index_db:Optional[str] = None
+  spatial_index_db:Optional[str] = None,
+  min_chunk_shape:Tuple[int,int,int] = (512,512,512)
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
 
   configure_multires_info(
@@ -714,6 +715,7 @@ def create_sharded_multires_mesh_tasks(
       'shard_bits': shard_bits,
       'mesh_dir': mesh_dir,
       'draco_compression_level': draco_compression_level,
+      'min_chunk_shape': min_chunk_shape,
     },
     'by': operator_contact(),
     'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -727,6 +729,7 @@ def create_sharded_multires_mesh_tasks(
       mesh_dir=mesh_dir, 
       spatial_index_db=spatial_index_db,
       draco_compression_level=draco_compression_level,
+      min_chunk_shape=min_chunk_shape,
     )
     for shard_no in shard_labels.keys()
   ]

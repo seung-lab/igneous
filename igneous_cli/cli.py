@@ -557,9 +557,10 @@ def mesh_forge(
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
 @click.option('--nlod', default=0, help="(multires) How many extra levels of detail to create.", show_default=True)
 @click.option('--vqb', default=16, help="(multires) Vertex quantization bits for stored model representation. 10 or 16 only.", show_default=True)
+@click.option('--min-chunk-size', type=Tuple3(), default="512,512,512",  help="(multires) Sets the minimum chunk size of the highest resolution mesh fragment.", show_default=True)
 @click.option('--dir', default=None, help="Write manifests into this directory instead of the one indicated in the info file.")
 @click.pass_context
-def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir):
+def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
   """
   (2) Merge the mesh pieces produced from the forging step.
 
@@ -575,6 +576,7 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir):
       path, num_lod=nlod, 
       magnitude=magnitude, mesh_dir=dir,
       vertex_quantization_bits=vqb,
+      min_chunk_shape=min_chunk_size,
     )
   else:
     tasks = tc.create_mesh_manifest_tasks(
@@ -596,12 +598,13 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir):
 @click.option('--min-shards', default=1, help="Minimum number of shards to generate. Excess shards can make it easier to parallelize the merge process.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
 @click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
+@click.option('--min-chunk-size', type=Tuple3(), default="512,512,512",  help="(multires) Sets the minimum chunk size of the highest resolution mesh fragment.", show_default=True)
 @click.pass_context
 def mesh_sharded_merge(
   ctx, path, queue, 
   nlod, vqb, compress_level,
   shard_index_bytes, minishard_index_bytes, min_shards,
-  minishard_index_encoding, spatial_index_db
+  minishard_index_encoding, spatial_index_db, min_chunk_size
 ):
   """
   (2) Postprocess fragments into finished sharded multires meshes.
@@ -626,6 +629,7 @@ def mesh_sharded_merge(
     minishard_index_encoding=minishard_index_encoding,
     min_shards=min_shards,
     spatial_index_db=spatial_index_db,
+    min_chunk_shape=min_chunk_size,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

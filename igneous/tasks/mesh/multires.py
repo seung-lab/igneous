@@ -48,7 +48,7 @@ def MultiResUnshardedMeshMergeTask(
   draco_compression_level:int = 1,
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
-  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
+  min_chunk_size:Tuple[int,int,int] = (512,512,512),
   progress:bool = False,
 ):
   cv = CloudVolume(cloudpath)
@@ -69,7 +69,7 @@ def MultiResUnshardedMeshMergeTask(
 
     (manifest, mesh) = process_mesh(
       cv, label, files, 
-      num_lod, min_chunk_shape, 
+      num_lod, min_chunk_size, 
       draco_compression_level
     )
 
@@ -81,7 +81,7 @@ def process_mesh(
   label:int,
   mesh:Mesh,
   num_lod:int,
-  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
+  min_chunk_size:Tuple[int,int,int] = (512,512,512),
   draco_compression_level:int = 7,
 ) -> Tuple[MultiLevelPrecomputedMeshManifest, Mesh]:
 
@@ -93,8 +93,8 @@ def process_mesh(
   if np.any(mesh_shape == 0):
     return (None, None)
 
-  min_chunk_shape = np.array(min_chunk_shape, dtype=int)
-  max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_shape)), 0))
+  min_chunk_size = np.array(min_chunk_size, dtype=int)
+  max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_size)), 0))
   max_lod = min(max_lod, num_lod)
 
   lods = generate_lods(label, mesh, max_lod)
@@ -193,7 +193,7 @@ def MultiResShardedMeshMergeTask(
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
   spatial_index_db:Optional[str] = None,
-  min_chunk_shape:Tuple[int,int,int] = (128,128,128),
+  min_chunk_size:Tuple[int,int,int] = (128,128,128),
   progress:bool = False
 ):
   cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db)
@@ -223,7 +223,7 @@ def MultiResShardedMeshMergeTask(
   fname, shard = create_mesh_shard(
     cv, meshes, 
     num_lod, draco_compression_level,
-    progress, shard_no, min_chunk_shape
+    progress, shard_no, min_chunk_size
   )
   del meshes
 
@@ -263,7 +263,7 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   fname, shard = create_mesh_shard(
     cv_dest, meshes, 
     num_lod, draco_compression_level,
-    progress, shard_no, min_chunk_shape
+    progress, shard_no, min_chunk_size
   )
   del meshes
 
@@ -321,12 +321,12 @@ def generate_lods(
 def create_mesh_shard(
   cv:CloudVolume, meshes:Dict[int, Mesh],
   num_lod:int, draco_compression_level:int,
-  progress:bool, shard_no:str, min_chunk_shape:Tuple[int,int,int]
+  progress:bool, shard_no:str, min_chunk_size:Tuple[int,int,int]
 ):
   meshes = {
     label: process_mesh(
       cv, label, mesh, 
-      num_lod, min_chunk_shape,
+      num_lod, min_chunk_size,
       draco_compression_level=draco_compression_level
     )
     for label, mesh in tqdm(meshes.items(), disable=(not progress))

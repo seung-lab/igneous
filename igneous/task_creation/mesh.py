@@ -488,21 +488,24 @@ def create_unsharded_multires_mesh_tasks(
           min_chunk_size=min_chunk_size,
         )
 
-  cv = CloudVolume(cloudpath)
-  cv.provenance.processing.append({
-    'method': {
-      'task': 'MultiResUnshardedMeshMergeTask',
-      'cloudpath': cloudpath,
-      'magnitude': int(magnitude),
-      'num_lod': int(num_lod),
-      'vertex_quantization_bits': int(vertex_quantization_bits),
-      'min_chunk_size': tuple(min_chunk_size),
-      'mesh_dir': mesh_dir,
-    },
-    'by': operator_contact(),
-    'date': strftime('%Y-%m-%d %H:%M %Z'),
-  }) 
-  cv.commit_provenance()
+      self.update_provenance()
+
+    def update_provenance(self):
+      cv = CloudVolume(cloudpath)
+      cv.provenance.processing.append({
+        'method': {
+          'task': 'MultiResUnshardedMeshMergeTask',
+          'cloudpath': cloudpath,
+          'magnitude': int(magnitude),
+          'num_lod': int(num_lod),
+          'vertex_quantization_bits': int(vertex_quantization_bits),
+          'min_chunk_size': tuple(min_chunk_size),
+          'mesh_dir': mesh_dir,
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      cv.commit_provenance()
 
   return UnshardedMultiResTaskIterator()
 

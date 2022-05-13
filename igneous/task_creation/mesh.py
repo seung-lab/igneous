@@ -412,7 +412,7 @@ def configure_multires_info(
   Computes properties and uploads a multires 
   mesh info file
   """
-  assert vertex_quantization_bits in (10, 16)
+  assert vertex_quantization_bits in (10, 16), vertex_quantization_bits
 
   vol = CloudVolume(cloudpath)
 

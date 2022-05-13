@@ -572,7 +572,7 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir):
 
   if nlod > 0:
     tasks = tc.create_unsharded_multires_mesh_tasks(
-      cloudpath, num_lod=num_lod, 
+      path, num_lod=nlod, 
       magnitude=magnitude, mesh_dir=dir,
       vertex_quantization_bits=vqb,
     )

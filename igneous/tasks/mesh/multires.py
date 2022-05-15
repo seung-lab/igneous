@@ -251,6 +251,7 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   mesh_dir:Optional[str] = None,
   num_lod:int = 1,
   progress:bool = False,
+  min_chunk_size:Tuple[int,int,int] = (512,512,512),
 ):
   cv_src = CloudVolume(src)
 
@@ -260,7 +261,12 @@ def MultiResShardedFromUnshardedMeshMergeTask(
   cv_dest = CloudVolume(dest, mesh_dir=mesh_dir, progress=progress)
 
   labels = labels_for_shard(cv_dest, shard_no)
-  meshes = cv_src.mesh.get(labels, fuse=False)
+
+  if cv_src.mesh.meta.info['@type'] == "neuroglancer_multilod_draco":
+    meshes = cv_src.mesh.get(labels)
+  else:
+    meshes = cv_src.mesh.get(labels, fuse=False)
+
   del labels
   
   fname, shard = create_mesh_shard(

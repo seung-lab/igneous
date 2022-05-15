@@ -484,7 +484,7 @@ def mesh_xfer(
   if not cv_src.mesh.meta.is_sharded() and sharded:
     tasks = tc.create_sharded_multires_mesh_from_unsharded_tasks(
       src, dest,
-      num_lod=1, 
+      num_lod=0, 
       mesh_dir=mesh_dir, 
     )
   else:

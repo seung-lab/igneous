@@ -574,7 +574,7 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
   cf = CloudFiles(cv_src.mesh.meta.layerpath)
 
   all_labels = []
-  SEGID_RE = re.compile(r'(\d+):0(?:\.gz|\.br|\.zstd)?$')
+  SEGID_RE = re.compile(r'(\d+)(?:(?::0(?:\.gz|\.br|\.zstd)?$)|\.index$)')
   for path in cf.list():
     match = SEGID_RE.search(path)
     if match is None:

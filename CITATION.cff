@@ -1,0 +1,28 @@
+cff-version: 1.1.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Silversmith"
+  given-names: "William"
+  orcid: "https://orcid.org/0000-0002-5485-5341"
+- family-names: "Zlateski"
+  given-names: "Aleksandar"
+  orcid: ""
+- family-names: "Bae"
+  given-names: "J. Alexander"
+  orcid: "https://orcid.org/0000-0002-4681-6342"
+- family-names: "Tartavull"
+  given-names: "Ignacio"
+  orcid: "https://orcid.org/0000-0003-3410-6906"
+- family-names: "Kemnitz"
+  given-names: "Nico"
+  orcid: "https://orcid.org/0000-0002-0260-4532"
+- family-names: "Wu"
+  given-names: "Jingpeng"
+  orcid: "https://orcid.org/0000-0003-1604-8802"
+- family-names: "Seung"
+  given-names: "H. Sebastian"
+  orcid: "https://orcid.org/0000-0002-8591-6733"
+title: "Igneous: 3D Downsampling, Meshing, Skeletonizing, Transfers and more for connectomics images."
+version: 4.2.1
+date-released: 2022-05-15
+doi: 10.5281/zenodo.6499717

@@ -3,12 +3,14 @@ import fastremap
 import numpy as np
 import compresso
 
+from tqdm import tqdm
+
 from cloudfiles import CloudFiles
 from taskqueue import queueable
 
 from cloudvolume import CloudVolume, Bbox, Vec
 
-from .sql import insert_equivalences, get_relabeling
+from . import sql
 from ...types import ShapeType
 
 __all__ = [
@@ -39,10 +41,10 @@ class DisjointSet:
     if j is None:
       j = self.makeset(y)
 
-    # We are not choosing the minimum representative
-    # to ensure that there are no overlapping rows
-    # inserted into the database.
-    self.data[i] = j
+    if i < j:
+      self.data[j] = i
+    else:
+      self.data[i] = j
 
 def compute_label_offset(shape, grid_size, gridpoint):
 # a task sequence number counting from 0 according to
@@ -68,8 +70,8 @@ def CCLFacesTask(
     return
 
   cv = CloudVolume(cloudpath, mip=mip)
-  grid_size = (cv.bounds / shape).size3()
-  gridpoint = np.floor(bounds.center() / grid_size).astype(int)
+  grid_size = np.ceil((cv.bounds / shape).size3())
+  gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape, grid_size, gridpoint)
   
   labels = cv[bounds][...,0]
@@ -108,13 +110,13 @@ def CCLEquivalancesTask(
     return
 
   cv = CloudVolume(cloudpath, mip=mip)
-  grid_size = np.ceil(cv.bounds / shape)
-  gridpoint = np.floor(bounds.center() / grid_size).astype(int)
+  grid_size = np.ceil((cv.bounds / shape).size3())
+  gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape, grid_size, gridpoint)
   
   equivalences = DisjointSet()
 
-  labels = cv[bounds]
+  labels = cv[bounds][...,0]
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
@@ -134,11 +136,11 @@ def CCLEquivalancesTask(
     cf.join(cv.key, 'ccl', fname) for fname in filenames
   ]
 
-  slices = cf.get(full_filenames, return_dict=True)
+  slices = cf.get(filenames, return_dict=True)
   for key in slices:
     if slices[key] is None:
       continue
-    slices[key] = compresso.decompress(slices[key])
+    slices[key] = compresso.decompress(slices[key])[:,:,0]
 
   prev = [ slices[filenames[i]] for i in (2,1,0) ]
 
@@ -158,7 +160,7 @@ def CCLEquivalancesTask(
         if task_label != 0 and adj_label != 0:
           equivalences.union(task_label, adj_label)
 
-  insert_equivalences(db_path, equivalances.data)
+  sql.insert_equivalences(db_path, equivalences.data)
 
 @queueable
 def RelabelCCLTask(
@@ -174,11 +176,11 @@ def RelabelCCLTask(
     return
 
   cv = CloudVolume(src_path, mip=mip)
-  grid_size = np.ceil(cv.bounds / shape)
-  gridpoint = np.floor(bounds.center() / grid_size).astype(int)
+  grid_size = np.ceil((cv.bounds / shape).size3())
+  gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape, grid_size, gridpoint)
 
-  labels = cv[bounds]
+  labels = cv[bounds][...,0]
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
@@ -186,9 +188,35 @@ def RelabelCCLTask(
   cc_labels += label_offset
 
   task_voxels = shape.x * shape.y * shape.z
-  mapping = get_relabeling(db_path, label_offset, task_voxels)
-
+  mapping = sql.get_relabeling(db_path, label_offset, task_voxels)
   fastremap.remap(cc_labels, mapping, in_place=True)
 
   dest_cv = CloudVolume(dest_path, mip=mip)
   dest_cv[bounds] = cc_labels
+
+def create_relabeling(db_path):
+  rows = sql.retrieve_equivalences(db_path)
+  equivalences = DisjointSet()
+
+  for val1, val2 in tqdm(rows, desc="Creating Union-Find"):
+    equivalences.union(val1, val2)
+
+  relabel = {}
+  next_label = 1
+  for key in tqdm(equivalences.data.keys(), desc="Renumbering"):
+    lbl = equivalences.find(key)
+    if lbl not in relabel:
+      relabel[key] = next_label
+      relabel[lbl] = next_label
+      next_label += 1
+    else:
+      relabel[key] = relabel[lbl]
+
+  del equivalences
+
+  sql.insert_relabeling(db_path, relabel)
+
+
+
+
+

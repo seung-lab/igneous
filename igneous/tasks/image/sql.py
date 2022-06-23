@@ -1,6 +1,10 @@
-from typing import Dict
+from typing import Dict, List, Tuple
+
 import sqlite3
+import urllib
+
 from cloudvolume.secrets import mysql_credentials
+from cloudvolume.lib import sip
 
 def parse_db_path(path):
   """
@@ -73,12 +77,13 @@ def create_tables(conn, cur, create_indices, mysql_syntax):
   AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
   INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
-  cur.execute("""DROP TABLE IF EXISTS union_find""")
+  cur.execute("""DROP TABLE IF EXISTS equivalences""")
   cur.execute("""DROP TABLE IF EXISTS relabeling""")
 
   cur.execute(f"""
-    CREATE TABLE union_find (
-      label {INTEGER} PRIMARY KEY,
+    CREATE TABLE equivalences (
+      id {INTEGER} PRIMARY KEY {AUTOINC},
+      label {INTEGER} NOT NULL,
       parent {INTEGER} NOT NULL
     )
   """)
@@ -88,15 +93,15 @@ def create_tables(conn, cur, create_indices, mysql_syntax):
       new_label {INTEGER} NOT NULL
     )
   """)
-  cur.execute("CREATE INDEX uf_label ON union_find (label)")
+  cur.execute("CREATE INDEX uf_label ON equivalences (label)")
   cur.execute("CREATE INDEX relabel_label ON relabeling (old_label)")
 
-def create_ccl_database(path, create_indices=True, progress=False):
+def create_ccl_database(path, create_indices=True):
   conn = sqlite3.connect(path)
   cur = conn.cursor()
   # cur.execute("PRAGMA journal_mode = MEMORY")
   # cur.execute("PRAGMA synchronous = OFF")
-  create_tables(conn, cur, create_indices, progress, mysql_syntax=False)
+  create_tables(conn, cur, create_indices, mysql_syntax=False)
   # cur.execute("PRAGMA journal_mode = DELETE")
   # cur.execute("PRAGMA synchronous = FULL")
   cur.close()
@@ -109,36 +114,57 @@ def insert_equivalences(path, equivalances:Dict[int,int]):
 
   BIND = '%s' if mysql_syntax else '?'
 
-  values = [ [label, parent] for label, parent in equivalances.items() ]
+  values = [ [int(label), int(parent)] for label, parent in equivalances.items() ]
   cur = conn.cursor()
-  cur.executemany(f"INSERT INTO union_find(label, parent) VALUES ({BIND}, {BIND})", values)
+  cur.executemany(f"INSERT INTO equivalences(label, parent) VALUES ({BIND}, {BIND})", values)
   cur.close()
   conn.commit()
   conn.close()
 
-def retrieve_union_find(path):
+def retrieve_equivalences(path:str) -> List[Tuple[int,int]]:
   conn = connect(path)
   parse = parse_db_path(path)
   cur = conn.cursor()
 
-  cur.execute(f"SELECT label,parent from union_find")
+  cur.execute(f"SELECT label,parent from equivalences")
 
   # Sqlite only stores signed integers, so we need to coerce negative
   # integers back into unsigned with a bitwise and.
 
-  results = {}
+  results = []
 
   while True:
     rows = cur.fetchmany(2**20)
     if len(rows) == 0:
       break
-    results.update(
-      { cast_u64(label): cast_u64(parent) for label, parent in rows }
-    )
+    results += [ (cast_u64(label), cast_u64(parent)) for label, parent in rows ]
   cur.close()
   conn.close()
 
   return results
+
+def insert_relabeling(path, relabeling:Dict[int,int]):
+  conn = connect(path)
+  parse = parse_db_path(path)
+  mysql_syntax = parse["scheme"] == "mysql"
+
+  BIND = '%s' if mysql_syntax else '?'
+
+  values = [ 
+    [ int(old_label), int(new_label) ] for old_label, new_label in relabeling.items() 
+  ]
+  
+
+  cur = conn.cursor()
+  cur.execute("PRAGMA journal_mode = MEMORY")
+  cur.execute("PRAGMA synchronous = OFF")
+  for vals in sip(values, 25000):
+    cur.executemany(f"INSERT INTO relabeling(old_label, new_label) VALUES ({BIND}, {BIND})", vals)  
+  conn.commit()
+  cur.execute("PRAGMA journal_mode = DELETE")
+  cur.execute("PRAGMA synchronous = FULL")
+  cur.close()
+  conn.close()
 
 def get_relabeling(path, label_offset, task_voxels):
   conn = connect(path)
@@ -148,11 +174,15 @@ def get_relabeling(path, label_offset, task_voxels):
   BIND = '%s' if mysql_syntax else '?'
 
   cur = conn.cursor()
-  cur.execute(
-    f"SELECT old_label, new_label from relabeling WHERE old_label >= {BIND} and old_label < {BIND}", 
-    (label_offset, label_offset + task_voxels)
-  )
+  # print((label_offset, label_offset + task_voxels))
+  # cur.execute(
+  #   f"SELECT old_label, new_label from relabeling WHERE old_label >= {BIND} and old_label < {BIND}", 
+  #   [label_offset, label_offset + task_voxels]
+  # )
 
+  cur.execute(
+    f"SELECT old_label, new_label from relabeling", 
+  )
   results = {}
   while True:
     rows = cur.fetchmany(2**20)

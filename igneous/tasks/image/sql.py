@@ -154,10 +154,11 @@ def insert_relabeling(path, relabeling:Dict[int,int]):
     [ int(old_label), int(new_label) ] for old_label, new_label in relabeling.items() 
   ]
   
-
   cur = conn.cursor()
   cur.execute("PRAGMA journal_mode = MEMORY")
   cur.execute("PRAGMA synchronous = OFF")
+  cur.execute("DELETE FROM relabeling")
+  conn.commit()
   for vals in sip(values, 25000):
     cur.executemany(f"INSERT INTO relabeling(old_label, new_label) VALUES ({BIND}, {BIND})", vals)  
   conn.commit()

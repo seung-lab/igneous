@@ -130,9 +130,9 @@ def CCLEquivalancesTask(
 
   cf = CloudFiles(cloudpath)
   filenames = [
-    f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-xy.cpso',
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z-1}-xy.cpso',
     f'{gridpoint.x}-{gridpoint.y-1}-{gridpoint.z}-xz.cpso',
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z-1}-yz.cpso'
+    f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-yz.cpso'
   ]
   filenames = [
     cf.join(cv.key, 'ccl', fname) for fname in filenames
@@ -144,12 +144,12 @@ def CCLEquivalancesTask(
       continue
     slices[key] = compresso.decompress(slices[key])[:,:,0]
 
-  prev = [ slices[filenames[i]] for i in (2,1,0) ]
+  prev = [ slices[filenames[i]] for i in (0,1,2) ]
 
   cur = [
-    cc_labels[0,:,:],
-    cc_labels[:,0,:],
     cc_labels[:,:,0],
+    cc_labels[:,0,:],
+    cc_labels[0,:,:],
   ]
 
   for prev_i, cur_i in zip(prev, cur):

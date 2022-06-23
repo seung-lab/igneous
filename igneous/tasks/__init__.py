@@ -18,6 +18,7 @@ from .image import (
   TransferTask, WatershedRemapTask, DeleteTask, 
   LuminanceLevelsTask, ContrastNormalizationTask,
   MaskAffinitymapTask, InferenceTask, BlackoutTask,
-  TouchTask, ImageShardTransferTask, ImageShardDownsampleTask
+  TouchTask, ImageShardTransferTask, ImageShardDownsampleTask,
+  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask
 )
 from .spatial_index import SpatialIndexTask

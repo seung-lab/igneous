@@ -21,7 +21,8 @@ from igneous.tasks import (
   ContrastNormalizationTask, DownsampleTask,
   TransferTask, TouchTask, LuminanceLevelsTask,
   HyperSquareConsensusTask, # HyperSquareTask,
-  ImageShardTransferTask, ImageShardDownsampleTask
+  ImageShardTransferTask, ImageShardDownsampleTask,
+  CCLFacesTask
 )
 from igneous.shards import image_shard_shape_from_spec
 from igneous.types import ShapeType
@@ -45,6 +46,7 @@ __all__  = [
   "create_hypersquare_consensus_tasks",
   "create_luminance_levels_tasks",
   "create_contrast_normalization_tasks",
+  "create_ccl_face_tasks",
 ]
 
 # A reasonable size for processing large
@@ -1256,3 +1258,41 @@ def create_hypersquare_consensus_tasks(
         )
 
   return HyperSquareConsensusTaskIterator()
+
+
+def create_ccl_face_tasks(
+  cloudpath, mip, shape=(512,512,512)
+):
+  """pass 1"""
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  shape = Vec(*shape)
+  bounds = vol.bounds.clone()    
+
+  class CCLFaceTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
+      return partial(CCLFacesTask, 
+        cloudpath=cloudpath, 
+        mip=mip, 
+        shape=shape.clone(), 
+        offset=offset.clone(),
+      )
+
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'CCLFaceTask',
+          'cloudpath': cloudpath,
+          'mip': mip,
+          'shape': shape.tolist(),
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+
+  print(bounds, shape)
+  return CCLFaceTaskIterator(bounds, shape)
+
+
+

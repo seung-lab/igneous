@@ -382,6 +382,27 @@ def equalize(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@imagegroup.group("ccl")
+def cclgroup():
+  """Perform connected components labeling on the image."""
+  pass
+
+@cclgroup.command("faces")
+@click.argument("src")
+@click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
+@click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
+@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.pass_context
+def ccl_faces(ctx, src, mip, shape, queue):
+  """(1) Generate face images."""
+  src = cloudfiles.paths.normalize(src)
+  tasks = tc.create_ccl_face_tasks(src, mip, shape)
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+
 @main.command()
 @click.argument("queue", type=str)
 @click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)

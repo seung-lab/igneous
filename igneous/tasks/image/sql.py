@@ -74,6 +74,7 @@ def create_tables(conn, cur, create_indices, mysql_syntax):
   INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
   cur.execute("""DROP TABLE IF EXISTS union_find""")
+  cur.execute("""DROP TABLE IF EXISTS relabeling""")
 
   cur.execute(f"""
     CREATE TABLE union_find (
@@ -81,7 +82,14 @@ def create_tables(conn, cur, create_indices, mysql_syntax):
       parent {INTEGER} NOT NULL
     )
   """)
-  cur.execute("CREATE INDEX idxfname ON index_files (label)")
+  cur.execute(f"""
+    CREATE TABLE relabeling (
+      old_label {INTEGER} PRIMARY KEY,
+      new_label {INTEGER} NOT NULL
+    )
+  """)
+  cur.execute("CREATE INDEX uf_label ON union_find (label)")
+  cur.execute("CREATE INDEX relabel_label ON relabeling (old_label)")
 
 def create_ccl_database(path, create_indices=True, progress=False):
   conn = sqlite3.connect(path)
@@ -117,7 +125,6 @@ def retrieve_union_find(path):
 
   # Sqlite only stores signed integers, so we need to coerce negative
   # integers back into unsigned with a bitwise and.
-  cast_u64 = lambda x: int(x) & 0xffffffffffffffff 
 
   results = {}
 

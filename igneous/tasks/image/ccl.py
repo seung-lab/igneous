@@ -9,7 +9,13 @@ from taskqueue import queueable
 from cloudvolume import CloudVolume, Bbox, Vec
 
 from .sql import insert_equivalences, get_relabeling
-from ....types import ShapeType
+from ...types import ShapeType
+
+__all__ = [
+  "CCLFacesTask",
+  "CCLEquivalancesTask",
+  "RelabelCCLTask",
+]
 
 class DisjointSet:
   def __init__(self):
@@ -50,7 +56,7 @@ def compute_label_offset(shape, grid_size, gridpoint):
   return task_num * shape.x * shape.y * shape.z
 
 @queueable
-def ComputeCCLFaces(
+def CCLFacesTask(
   cloudpath:str, mip:int, 
   shape:ShapeType, offset:ShapeType
 ):
@@ -62,11 +68,11 @@ def ComputeCCLFaces(
     return
 
   cv = CloudVolume(cloudpath, mip=mip)
-  grid_size = np.ceil(cv.bounds / shape)
+  grid_size = (cv.bounds / shape).size3()
   gridpoint = np.floor(bounds.center() / grid_size).astype(int)
   label_offset = compute_label_offset(shape, grid_size, gridpoint)
   
-  labels = cv[bounds]
+  labels = cv[bounds][...,0]
   cc_labels = cc3d.connected_components(labels, connectivity=6, out_dtype=np.uint64)
   cc_labels += label_offset
 
@@ -78,19 +84,19 @@ def ComputeCCLFaces(
   ]
   slices = [ compresso.compress(slc) for slc in slices ]
   filenames = [
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xy'
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xz'
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-yz'
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xy.cpso',
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xz.cpso',
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-yz.cpso'
   ]
 
   cf = CloudFiles(cloudpath)
   filenames = [
     cf.join(cv.key, 'ccl', fname) for fname in filenames
   ]
-  cf.puts(zip(filenames, slices), compression='br')
+  cf.puts(zip(filenames, slices), compress='br')
 
 @queueable
-def ComputeCCLEquivalances(
+def CCLEquivalancesTask(
   cloudpath:str, mip:int, db_path:str,
   shape:ShapeType, offset:ShapeType,
 ):
@@ -120,9 +126,9 @@ def ComputeCCLEquivalances(
 
   cf = CloudFiles(cloudpath)
   filenames = [
-    f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-xy'
-    f'{gridpoint.x}-{gridpoint.y-1}-{gridpoint.z}-xz'
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z-1}-yz'
+    f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-xy.cpso',
+    f'{gridpoint.x}-{gridpoint.y-1}-{gridpoint.z}-xz.cpso',
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z-1}-yz.cpso'
   ]
   filenames = [
     cf.join(cv.key, 'ccl', fname) for fname in filenames
@@ -155,8 +161,8 @@ def ComputeCCLEquivalances(
   insert_equivalences(db_path, equivalances.data)
 
 @queueable
-def RelabelCCL(
-  src_path:str, dest_path:src, mip:int, 
+def RelabelCCLTask(
+  src_path:str, dest_path:str, mip:int, 
   db_path:str,
   shape:ShapeType, offset:ShapeType,
 ):

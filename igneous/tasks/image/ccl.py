@@ -77,6 +77,7 @@ def CCLFacesTask(
   labels = cv[bounds][...,0]
   cc_labels = cc3d.connected_components(labels, connectivity=6, out_dtype=np.uint64)
   cc_labels += label_offset
+  cc_labels[labels == 0] = 0
 
   # Uploads leading faces for adjacent tasks to examine
   slices = [
@@ -122,6 +123,7 @@ def CCLEquivalancesTask(
     out_dtype=np.uint64, return_N=True
   )
   cc_labels += label_offset
+  cc_labels[labels == 0] = 0
 
   for i in range(1, N+1):
     equivalences.makeset(i + label_offset)
@@ -186,9 +188,11 @@ def RelabelCCLTask(
     out_dtype=np.uint64, return_N=True
   )
   cc_labels += label_offset
+  cc_labels[labels == 0] = 0
 
   task_voxels = shape.x * shape.y * shape.z
   mapping = sql.get_relabeling(db_path, label_offset, task_voxels)
+  mapping[0] = 0
   fastremap.remap(cc_labels, mapping, in_place=True)
 
   dest_cv = CloudVolume(dest_path, mip=mip)

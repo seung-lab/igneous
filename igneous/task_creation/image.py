@@ -1339,7 +1339,8 @@ def create_ccl_equivalence_tasks(
 
 def create_ccl_relabel_tasks(
   src_path, dest_path, 
-  mip, db_path, shape=(512,512,512)
+  mip, db_path, shape=(512,512,512),
+  chunk_size=None
 ):
   """pass 3"""
 
@@ -1350,6 +1351,8 @@ def create_ccl_relabel_tasks(
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
     info["data_type"] = "uint64"
+    if chunk_size:
+      info["scales"][mip]["chunk_sizes"] = [chunk_size]
     dest_vol = CloudVolume(dest_path, info=info, mip=mip)
     dest_vol.commit_info()
 

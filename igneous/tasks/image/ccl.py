@@ -64,15 +64,17 @@ def CCLFacesTask(
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
-  bounds = Bbox(offset, offset + shape)
+  bounds = Bbox(offset, offset + shape + 1) # 1 vx overlap
 
   if bounds.subvoxel():
     return
 
   cv = CloudVolume(cloudpath, mip=mip)
+  bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
+
   grid_size = np.ceil((cv.bounds / shape).size3())
   gridpoint = np.floor(bounds.center() / shape).astype(int)
-  label_offset = compute_label_offset(shape, grid_size, gridpoint)
+  label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   
   labels = cv[bounds][...,0]
   cc_labels = cc3d.connected_components(labels, connectivity=6, out_dtype=np.uint64)
@@ -105,15 +107,17 @@ def CCLEquivalancesTask(
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
-  bounds = Bbox(offset, offset + shape)
+  bounds = Bbox(offset, offset + shape + 1) # 1 vx overlap
 
   if bounds.subvoxel():
     return
 
   cv = CloudVolume(cloudpath, mip=mip)
+  bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
+
   grid_size = np.ceil((cv.bounds / shape).size3())
   gridpoint = np.floor(bounds.center() / shape).astype(int)
-  label_offset = compute_label_offset(shape, grid_size, gridpoint)
+  label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   
   equivalences = DisjointSet()
 
@@ -174,15 +178,17 @@ def RelabelCCLTask(
 ):
   shape = Vec(*shape)
   offset = Vec(*offset)
-  bounds = Bbox(offset, offset + shape)
+  bounds = Bbox(offset, offset + shape + 1) # 1 vx overlap
 
   if bounds.subvoxel():
     return
 
   cv = CloudVolume(src_path, mip=mip)
+  bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
+
   grid_size = np.ceil((cv.bounds / shape).size3())
   gridpoint = np.floor(bounds.center() / shape).astype(int)
-  label_offset = compute_label_offset(shape, grid_size, gridpoint)
+  label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
 
   labels = cv[bounds][...,0]
   cc_labels, N = cc3d.connected_components(
@@ -197,8 +203,11 @@ def RelabelCCLTask(
   mapping[0] = 0
   fastremap.remap(cc_labels, mapping, in_place=True)
 
+  # Final upload without overlap
   dest_cv = CloudVolume(dest_path, mip=mip)
-  dest_cv[bounds] = cc_labels
+  bounds = Bbox(offset, offset + shape)
+  bounds = Bbox.clamp(bounds, dest_cv.meta.bounds(mip))
+  dest_cv[bounds] = cc_labels[:shape.x,:shape.y,:shape.z]
 
 def create_relabeling(db_path):
   rows = sql.retrieve_equivalences(db_path)

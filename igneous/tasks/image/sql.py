@@ -196,3 +196,16 @@ def get_relabeling(path, label_offset, task_voxels):
   conn.close()
 
   return results
+
+def get_max_relabel(path):
+  conn = connect(path)
+  parse = parse_db_path(path)
+  mysql_syntax = parse["scheme"] == "mysql"
+  BIND = '%s' if mysql_syntax else '?'
+
+  cur = conn.cursor()
+  cur.execute(f"SELECT max(new_label) from relabeling")
+  max_label = cast_u64(cur.fetchone()[0])
+  cur.close()
+  conn.close()
+  return max_label

@@ -7,6 +7,7 @@ import json
 import math
 from time import strftime
 
+import fastremap
 import numpy as np
 from tqdm import tqdm
 
@@ -1346,11 +1347,15 @@ def create_ccl_relabel_tasks(
 
   src_vol = CloudVolume(src_path, mip=mip)
 
+  max_label = igneous.tasks.image.sql.get_max_relabel(db_path)
+  smallest_dtype = fastremap.fit_dtype(np.uint64, max_label)
+  smallest_dtype = np.dtype(smallest_dtype).name
+
   try:
     dest_vol = CloudVolume(dest_path, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
-    info["data_type"] = "uint64"
+    info["data_type"] = smallest_dtype
     if chunk_size:
       info["scales"][mip]["chunk_sizes"] = [chunk_size]
     dest_vol = CloudVolume(dest_path, info=info, mip=mip)

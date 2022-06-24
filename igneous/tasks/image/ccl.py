@@ -207,7 +207,7 @@ def RelabelCCLTask(
   dest_cv = CloudVolume(dest_path, mip=mip)
   bounds = Bbox(offset, offset + shape)
   bounds = Bbox.clamp(bounds, dest_cv.meta.bounds(mip))
-  dest_cv[bounds] = cc_labels[:shape.x,:shape.y,:shape.z]
+  dest_cv[bounds] = cc_labels[:shape.x,:shape.y,:shape.z].astype(dest_cv.dtype)
 
 def create_relabeling(db_path):
   rows = sql.retrieve_equivalences(db_path)

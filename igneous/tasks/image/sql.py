@@ -94,16 +94,13 @@ def create_tables(conn, cur, create_indices, mysql_syntax):
     )
   """)
   cur.execute("CREATE INDEX uf_label ON equivalences (label)")
-  cur.execute("CREATE INDEX relabel_label ON relabeling (old_label)")
+  cur.execute("CREATE INDEX relabel_old_label ON relabeling (old_label)")
+  cur.execute("CREATE INDEX relabel_new_label ON relabeling (new_label)")
 
 def create_ccl_database(path, create_indices=True):
   conn = sqlite3.connect(path)
   cur = conn.cursor()
-  # cur.execute("PRAGMA journal_mode = MEMORY")
-  # cur.execute("PRAGMA synchronous = OFF")
   create_tables(conn, cur, create_indices, mysql_syntax=False)
-  # cur.execute("PRAGMA journal_mode = DELETE")
-  # cur.execute("PRAGMA synchronous = FULL")
   cur.close()
   conn.close()
 
@@ -171,19 +168,18 @@ def get_relabeling(path, label_offset, task_voxels):
   conn = connect(path)
   parse = parse_db_path(path)
   mysql_syntax = parse["scheme"] == "mysql"
-
   BIND = '%s' if mysql_syntax else '?'
 
   cur = conn.cursor()
-  # print((label_offset, label_offset + task_voxels))
-  # cur.execute(
-  #   f"SELECT old_label, new_label from relabeling WHERE old_label >= {BIND} and old_label < {BIND}", 
-  #   [label_offset, label_offset + task_voxels]
-  # )
-
   cur.execute(
-    f"SELECT old_label, new_label from relabeling", 
+    f"""
+    SELECT old_label, new_label 
+    FROM relabeling 
+    WHERE old_label >= {BIND} and old_label < {BIND}
+    """,
+    [int(label_offset), int(label_offset + task_voxels)]
   )
+
   results = {}
   while True:
     rows = cur.fetchmany(2**20)

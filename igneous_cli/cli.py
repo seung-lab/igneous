@@ -384,7 +384,23 @@ def equalize(
 
 @imagegroup.group("ccl")
 def cclgroup():
-  """Perform connected components labeling on the image."""
+  """
+  Perform connected components labeling on the image.
+
+  Result will be a 6-connected labeling of the input
+  image. All steps must use the same task shape. 
+
+  Intermediate linkage and relabelign data are saved 
+  in a sqlite or mysql database.
+
+  Each of the steps are labeled with their sequence number.
+  Their order is (1) Generate 3 back faces for each task with 
+  1 voxel overlap (so they can be referenced by adjacent tasks)
+  (2) Compute linkages between CCL tasks and save the results 
+  in a database. (3) Compute a global union find from the linkage 
+  data and from that a global relabeling scheme which is saved 
+  in the database (4) Apply the relabeling scheme to the image.
+  """
   pass
 
 @cclgroup.command("faces")

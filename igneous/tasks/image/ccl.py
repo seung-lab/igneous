@@ -146,14 +146,21 @@ def CCLEquivalancesTask(
   for key in slices:
     if slices[key] is None:
       continue
-    slices[key] = compresso.decompress(slices[key])[:,:,0]
+    face = compresso.decompress(slices[key])
+    if '-xy' in key:
+      face = face[:shape.x,:shape.y,0]
+    elif '-xz' in key:
+      face = face[:shape.x,:shape.z,0]
+    else:
+      face = face[:shape.y,:shape.z,0]
+    slices[key] = face
 
   prev = [ slices[filenames[i]] for i in (0,1,2) ]
 
   cur = [
-    cc_labels[:,:,0],
-    cc_labels[:,0,:],
-    cc_labels[0,:,:],
+    cc_labels[:shape.x,:shape.y,0],
+    cc_labels[:shape.x,0,:shape.z],
+    cc_labels[0,:shape.y,:shape.z],
   ]
 
   for prev_i, cur_i in zip(prev, cur):

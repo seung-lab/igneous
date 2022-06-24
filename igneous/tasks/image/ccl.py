@@ -1,3 +1,30 @@
+"""
+Perform connected components labeling on the image.
+
+Result will be a 6-connected labeling of the input
+image. All steps must use the same task shape. 
+
+Intermediate linkage and relabelign data are saved 
+in a sqlite or mysql database.
+
+As each task uses a label offset to differentiate its
+CCL labels from adjacent tasks, the largest possible
+image that can be handled has 2^64 voxels which is
+order of magnitude about size of a whole mouse brain.
+
+Each of the steps are labeled with their sequence number.
+Their order is:
+  (1) Generate 3 back faces for each task with 
+    1 voxel overlap (so they can be referenced by 
+    adjacent tasks). [ CCLFacesTask ]
+  (2) Compute linkages between CCL tasks and save the results 
+    in a database. [ CCLEquivalancesTask ]
+  (3) Compute a global union find from the linkage 
+    data and from that a global relabeling scheme which 
+    is saved in the database. [ create_relabeling ]
+  (4) Apply the relabeling scheme to the image. [ RelabelCCLTask ]
+"""
+
 import cc3d
 import fastremap
 import numpy as np
@@ -62,6 +89,17 @@ def CCLFacesTask(
   cloudpath:str, mip:int, 
   shape:ShapeType, offset:ShapeType
 ):
+  """
+  (1) Generate x,y,z back faces of each 1vx overlap task
+  as compresso encoded 2D images.
+
+  These images are stored in e.g. 32_32_40/ccl/ and have
+  the following scheme where the numbers are the gridpoint
+  location and the letters indicate which face plane.
+    1-2-0-xy.cpso
+    1-2-0-xz.cpso
+    1-2-0-yz.cpso
+  """
   shape = Vec(*shape)
   offset = Vec(*offset)
   bounds = Bbox(offset, offset + shape + 1) # 1 vx overlap
@@ -105,6 +143,17 @@ def CCLEquivalancesTask(
   cloudpath:str, mip:int, db_path:str,
   shape:ShapeType, offset:ShapeType,
 ):
+  """
+  (2) Generate linkages between tasks by comparing the 
+  front face of the task with the back faces of the 
+  three adjacent tasks saved from the first step.
+
+  These linkages are saved in a SQL database so
+  that a union find data structure can later be 
+  assembled. The table is not saved in a strict
+  UF form as it would be slow and annoying to 
+  compute with SQL.
+  """
   shape = Vec(*shape)
   offset = Vec(*offset)
   bounds = Bbox(offset, offset + shape + 1) # 1 vx overlap
@@ -183,6 +232,12 @@ def RelabelCCLTask(
   db_path:str,
   shape:ShapeType, offset:ShapeType,
 ):
+  """
+  (4) Retrieves the relabeling for this task from the
+  database, applies it, and saves the resulting image
+  to the destination path. Upon saving, the 1 voxel
+  overlap is omitted.
+  """
   shape = Vec(*shape)
   offset = Vec(*offset)
   bounds = Bbox(offset, offset + shape + 1) # 1 vx overlap
@@ -217,6 +272,10 @@ def RelabelCCLTask(
   dest_cv[bounds] = cc_labels[:shape.x,:shape.y,:shape.z].astype(dest_cv.dtype)
 
 def create_relabeling(db_path):
+  """(3) Computes a relabeling from the 
+    linkages saved from (2) and then saves them
+    in the sql database.
+  """
   rows = sql.retrieve_equivalences(db_path)
   equivalences = DisjointSet()
 

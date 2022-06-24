@@ -393,6 +393,9 @@ def cclgroup():
   Intermediate linkage and relabelign data are saved 
   in a sqlite or mysql database.
 
+  The largest image that can be handled would have 2^64 voxels
+  (18 exavoxels, a bit larger than a whole mouse brain).
+
   Each of the steps are labeled with their sequence number.
   Their order is (1) Generate 3 back faces for each task with 
   1 voxel overlap (so they can be referenced by adjacent tasks)
@@ -410,7 +413,7 @@ def cclgroup():
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.pass_context
 def ccl_faces(ctx, src, mip, shape, queue):
-  """(1) Generate face images."""
+  """(1) Generate back face images."""
   src = cloudfiles.paths.normalize(src)
   tasks = tc.create_ccl_face_tasks(src, mip, shape)
 

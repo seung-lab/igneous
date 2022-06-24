@@ -1356,8 +1356,11 @@ def create_ccl_relabel_tasks(
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
     info["data_type"] = smallest_dtype
+    scale = info["scales"][mip]
     if chunk_size:
-      info["scales"][mip]["chunk_sizes"] = [chunk_size]
+      scale["chunk_sizes"] = [chunk_size]
+    if "sharding" in scale:
+      del scale["sharding"]
     dest_vol = CloudVolume(dest_path, info=info, mip=mip)
     dest_vol.commit_info()
 

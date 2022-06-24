@@ -158,9 +158,11 @@ def CCLEquivalancesTask(
 
     mapping = fastremap.inverse_component_map(cur_i, prev_i)
     for task_label, adj_labels in mapping.items():
-      for adj_label in adj_labels:
-        if task_label != 0 and adj_label != 0:
-          equivalences.union(task_label, adj_label)
+      if task_label == 0:
+        continue
+      for adj_label in fastremap.unique(adj_labels):
+        if adj_label != 0:
+          equivalences.union(int(task_label), int(adj_label))
 
   sql.insert_equivalences(db_path, equivalences.data)
 

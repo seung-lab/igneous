@@ -452,6 +452,48 @@ def ccl_calc_labels(
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
+@cclgroup.command("auto")
+@click.argument("src")
+@click.argument("dest")
+@click.argument("db_path")
+@click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
+@click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
+@click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
+@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.pass_context
+def ccl_auto(
+  ctx, src, dest, 
+  db_path, shape, mip, 
+  chunk_size, queue
+):
+  """
+  For local volumes, execute all steps automatically.
+  """
+  src = cloudfiles.paths.normalize(src)
+  dest = cloudfiles.paths.normalize(dest)
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  args = (queue, None, LEASE_SECONDS, True, -1, True, False)
+
+  tasks = tc.create_ccl_face_tasks(src, mip, shape)
+  tq.insert(tasks, parallel=parallel)
+  parallel_execute_helper(parallel, args)
+
+  tasks = tc.create_ccl_equivalence_tasks(src, mip, db_path, shape)
+  tq.insert(tasks, parallel=parallel)
+  parallel_execute_helper(parallel, args)
+
+  import igneous.tasks.image.ccl
+  igneous.tasks.image.ccl.create_relabeling(db_path)
+
+  tasks = tc.create_ccl_relabel_tasks(
+    src, dest, 
+    mip=mip, db_path=db_path, 
+    shape=shape, chunk_size=chunk_size
+  )
+  tq.insert(tasks, parallel=parallel)
+  parallel_execute_helper(parallel, args)
+
 @main.command()
 @click.argument("queue", type=str)
 @click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
@@ -476,7 +518,9 @@ def execute(
   """
   parallel = int(ctx.obj.get("parallel", 1))
   args = (queue, aws_region, lease_sec, tally, min_sec, exit_on_empty, quiet)
+  parallel_execute_helper(parallel, args)
 
+def parallel_execute_helper(parallel, args):
   if parallel == 1:
     execute_helper(*args)
     return

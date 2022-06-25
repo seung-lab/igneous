@@ -566,6 +566,32 @@ tasks = create_luminance_levels_tasks(layer_path, coverage_factor=0.01, shape=No
 tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip=0, clip_fraction=0.01, fill_missing=False, translate=(0,0,0))
 ```
 
+### Connected Components Labeling (CCL) (Beta!)
+
+Igneous supports whole image connected components labeling. Currently, only 6-connected components are supported. It requires the ability to read and write to a sqlite3 database (though mysql can eventually be supported) which limits this capability to clusters with a common filesystem. The largest image currently supported would have 2^64 voxels (about 18 exavoxels or 18+ whole mouse brains).
+
+This capability is very new and may have some quirks, so please report any issues.
+
+#### CLI CCL
+
+The whole image CCL algorithm requires four steps that must be executed in order. The name `ccl.db` is an arbitrary name for the sqlite database. The shape specified *must* be the same for all steps if changed from the default or nonsensical outputs will result.
+
+```bash
+igneous image ccl faces SRC --mip 0 --queue queue
+igneous execute -x queue
+igneous image ccl links SRC ccl.db --mip 0 --queue queue
+igneous execute -x queue
+igneous image ccl calc-labels ccl.db # computes relabeling and writes to db
+igneous image ccl relabel SRC DEST ccl.db --mip 0 --queue queue --encoding compresso
+igneous execute -x queue
+```
+
+For smaller images that could reasonably be processed on a single machine there is a shortcut `auto` that will also automatically execute.
+
+```bash
+igneous -p PARALLEL image ccl auto SRC DEST ccl.db --shape 512,512,512 --encoding compresso --queue queue
+````
+
 ## Conclusion
 
 It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation/` and `igneous/tasks/` for the most current information.  

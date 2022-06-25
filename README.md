@@ -212,6 +212,7 @@ Skeletonize              |SkeletonTask, SkeletonMergeTask                |Create
 Transfer                 |TransferTask                                   |Copy data, supports rechunking and coordinate translation.           
 Deletion                 |DeleteTask                                     |Delete a data layer.                                                 
 Contrast Normalization   |LuminanceLevelsTask, ContrastNormalizationTask |Spread out slice histograms to fill value range.                     
+Connected Components     |CCLFacesTask, CCLEquivalancesTask, more...     |Compute the 6-way CCL of the whole segmentation.
 Quantization             |QuantizeTask                                   |Rescale values into 8-bit to make them easier to visualize.          
 Remapping                |WatershedRemapTask                             |Remap segmentations to create agglomerated labels.                   
 Eyewire Consensus Import |HyperSquareConsensusTask                       |Map Eyewire consensus into Neuroglancer.                             
@@ -568,7 +569,7 @@ tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip
 
 ### Connected Components Labeling (CCL) (Beta!)
 
-Igneous supports whole image connected components labeling. Currently, only 6-connected components are supported. It requires the ability to read and write to a sqlite3 database (though mysql can eventually be supported) which limits this capability to clusters with a common filesystem. The largest image currently supported would have 2^64 voxels (about 18 exavoxels or 18+ whole mouse brains).
+Igneous supports whole image connected components labeling of a segmentation. Currently, only 6-connected components are supported. It requires the ability to read and write to a sqlite3 database (though mysql can eventually be supported) which limits this capability to clusters with a common filesystem. The largest image currently supported would have 2^64 voxels (about 18 exavoxels or 18+ whole mouse brains).
 
 This capability is very new and may have some quirks, so please report any issues.
 

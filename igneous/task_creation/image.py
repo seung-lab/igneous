@@ -7,6 +7,7 @@ import json
 import math
 from time import strftime
 
+import fastremap
 import numpy as np
 from tqdm import tqdm
 
@@ -21,8 +22,11 @@ from igneous.tasks import (
   ContrastNormalizationTask, DownsampleTask,
   TransferTask, TouchTask, LuminanceLevelsTask,
   HyperSquareConsensusTask, # HyperSquareTask,
-  ImageShardTransferTask, ImageShardDownsampleTask
+  ImageShardTransferTask, ImageShardDownsampleTask,
+  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask
 )
+import igneous.tasks.image.sql
+
 from igneous.shards import image_shard_shape_from_spec
 from igneous.types import ShapeType
 
@@ -45,6 +49,9 @@ __all__  = [
   "create_hypersquare_consensus_tasks",
   "create_luminance_levels_tasks",
   "create_contrast_normalization_tasks",
+  "create_ccl_face_tasks",
+  "create_ccl_equivalence_tasks",
+  "create_ccl_relabel_tasks",
 ]
 
 # A reasonable size for processing large
@@ -1256,3 +1263,140 @@ def create_hypersquare_consensus_tasks(
         )
 
   return HyperSquareConsensusTaskIterator()
+
+
+def create_ccl_face_tasks(
+  cloudpath, mip, shape=(512,512,512)
+):
+  """pass 1"""
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  shape = Vec(*shape)
+  bounds = vol.bounds.clone()    
+
+  class CCLFaceTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
+      return partial(CCLFacesTask, 
+        cloudpath=cloudpath, 
+        mip=mip, 
+        shape=shape.clone(), 
+        offset=offset.clone(),
+      )
+
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'CCLFacesTask',
+          'cloudpath': cloudpath,
+          'mip': mip,
+          'shape': shape.tolist(),
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      vol.commit_provenance()
+
+  return CCLFaceTaskIterator(bounds, shape)
+
+def create_ccl_equivalence_tasks(
+  cloudpath, mip, db_path, shape=(512,512,512)
+):
+  """pass 2. Note: shape MUST match pass 1."""
+
+  igneous.tasks.image.sql.create_ccl_database(db_path)
+
+  vol = CloudVolume(cloudpath, mip=mip)
+
+  shape = Vec(*shape)
+  bounds = vol.bounds.clone()    
+
+  class CCLEquivalencesTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
+      return partial(CCLEquivalancesTask, 
+        cloudpath=cloudpath, 
+        mip=mip, 
+        shape=shape.clone(), 
+        offset=offset.clone(),
+        db_path=db_path,
+      )
+
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'CCLEquivalancesTask',
+          'cloudpath': cloudpath,
+          'mip': mip,
+          'shape': shape.tolist(),
+          'db_path': db_path,
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      vol.commit_provenance()
+
+  return CCLEquivalencesTaskIterator(bounds, shape)
+
+def create_ccl_relabel_tasks(
+  src_path, dest_path, 
+  mip, db_path, shape=(512,512,512),
+  chunk_size=None, encoding=None
+):
+  """pass 3"""
+
+  src_vol = CloudVolume(src_path, mip=mip)
+
+  max_label = igneous.tasks.image.sql.get_max_relabel(db_path)
+  smallest_dtype = fastremap.fit_dtype(np.uint64, max_label)
+  smallest_dtype = np.dtype(smallest_dtype).name
+
+  try:
+    dest_vol = CloudVolume(dest_path, mip=mip)
+  except cloudvolume.exceptions.InfoUnavailableError:
+    info = copy.deepcopy(src_vol.info)
+    info["data_type"] = smallest_dtype
+    scale = info["scales"][mip]
+    if chunk_size:
+      scale["chunk_sizes"] = [chunk_size]
+    if encoding:
+      scale["encoding"] = encoding
+      if encoding == "compressed_segmentation":
+        scale['compressed_segmentation_block_size'] = (8,8,8)
+    if "sharding" in scale:
+      del scale["sharding"]
+    dest_vol = CloudVolume(dest_path, info=info, mip=mip)
+    dest_vol.commit_info()
+
+  shape = Vec(*shape)
+  bounds = src_vol.bounds.clone()  
+
+  class RelabelCCLTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, src_vol.bounds.maxpt - offset)
+      return partial(RelabelCCLTask, 
+        src_path=src_path, 
+        dest_path=dest_path,
+        mip=mip, 
+        shape=shape.clone(), 
+        offset=offset.clone(),
+        db_path=db_path,
+      )
+
+    def on_finish(self):
+      dest_vol.provenance.processing.append({
+        'method': {
+          'task': 'RelabelCCLTask',
+          'src_path': src_path, 
+          'dest_path': dest_path,
+          'mip': mip,
+          'shape': shape.tolist(),
+          'db_path': db_path,
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      dest_vol.commit_provenance()
+
+  return RelabelCCLTaskIterator(bounds, shape)
+

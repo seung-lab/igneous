@@ -1341,7 +1341,7 @@ def create_ccl_equivalence_tasks(
 def create_ccl_relabel_tasks(
   src_path, dest_path, 
   mip, db_path, shape=(512,512,512),
-  chunk_size=None
+  chunk_size=None, encoding=None
 ):
   """pass 3"""
 
@@ -1359,6 +1359,10 @@ def create_ccl_relabel_tasks(
     scale = info["scales"][mip]
     if chunk_size:
       scale["chunk_sizes"] = [chunk_size]
+    if encoding:
+      scale["encoding"] = encoding
+      if encoding == "compressed_segmentation":
+        scale['compressed_segmentation_block_size'] = (8,8,8)
     if "sharding" in scale:
       del scale["sharding"]
     dest_vol = CloudVolume(dest_path, info=info, mip=mip)

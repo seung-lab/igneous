@@ -480,12 +480,14 @@ def ccl_relabel(
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
+@click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.pass_context
 def ccl_auto(
   ctx, src, dest, 
   db_path, shape, mip, 
-  chunk_size, queue
+  chunk_size, encoding, 
+  queue
 ):
   """
   For local volumes, execute all steps automatically.
@@ -510,7 +512,8 @@ def ccl_auto(
   tasks = tc.create_ccl_relabel_tasks(
     src, dest, 
     mip=mip, db_path=db_path, 
-    shape=shape, chunk_size=chunk_size
+    shape=shape, chunk_size=chunk_size,
+    encoding=encoding,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)

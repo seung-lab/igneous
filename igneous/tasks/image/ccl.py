@@ -24,6 +24,7 @@ Their order is:
     is saved in the database. [ create_relabeling ]
   (4) Apply the relabeling scheme to the image. [ RelabelCCLTask ]
 """
+from collections import defaultdict
 
 import cc3d
 import fastremap
@@ -73,15 +74,18 @@ class DisjointSet:
     else:
       self.data[i] = j
 
-def compute_label_offset(shape, grid_size, gridpoint):
-# a task sequence number counting from 0 according to
-  # where the task is located in space (so we can recompute 
-  # it in the second pass easily)
-  task_num = int(
+def compute_task_number(grid_size, gridpoint) -> int:
+  return int(
     gridpoint.x + grid_size.x * (
       gridpoint.y + grid_size.y * gridpoint.z
     )
   )
+
+def compute_label_offset(shape, grid_size, gridpoint) -> int:
+  # a task sequence number counting from 0 according to
+  # where the task is located in space (so we can recompute 
+  # it in the second pass easily)
+  task_num = compute_task_number(grid_size, gridpoint)
   return task_num * shape.x * shape.y * shape.z
 
 @queueable
@@ -134,13 +138,13 @@ def CCLFacesTask(
 
   cf = CloudFiles(cloudpath)
   filenames = [
-    cf.join(cv.key, 'ccl', fname) for fname in filenames
+    cf.join(cv.key, 'ccl', 'faces', fname) for fname in filenames
   ]
   cf.puts(zip(filenames, slices), compress='br')
 
 @queueable
 def CCLEquivalancesTask(
-  cloudpath:str, mip:int, db_path:str,
+  cloudpath:str, mip:int,
   shape:ShapeType, offset:ShapeType,
 ):
   """
@@ -188,7 +192,7 @@ def CCLEquivalancesTask(
     f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-yz.cpso'
   ]
   filenames = [
-    cf.join(cv.key, 'ccl', fname) for fname in filenames
+    cf.join(cv.key, 'ccl', 'faces', fname) for fname in filenames
   ]
 
   slices = cf.get(filenames, return_dict=True)
@@ -224,12 +228,17 @@ def CCLEquivalancesTask(
         if adj_label != 0:
           equivalences.union(int(task_label), int(adj_label))
 
-  sql.insert_equivalences(db_path, equivalences.data)
+  cf = CloudFiles(cloudpath)
+  out_name = cf.join(cv.key, 'ccl', 'equivalences', f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}.json')
+  cf.put_json(
+    out_name, 
+    { str(k): int(v) for k,v in equivalences.data.items() }, 
+    compress='br'
+  )
 
 @queueable
 def RelabelCCLTask(
-  src_path:str, dest_path:str, mip:int, 
-  db_path:str,
+  src_path:str, dest_path:str, mip:int,
   shape:ShapeType, offset:ShapeType,
 ):
   """
@@ -251,6 +260,12 @@ def RelabelCCLTask(
   grid_size = np.ceil((cv.bounds / shape).size3())
   gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
+  task_num = compute_task_number(grid_size, gridpoint)
+  
+  cf = CloudFiles(src_path)
+  mapping_path = cf.join(cv.key, "ccl", "relabel", f"{task_num}.json")
+  mapping =  { int(k):int(v) for k,v in cf.get_json(mapping_path).items() }
+  mapping[0] = 0
 
   labels = cv[bounds][...,0]
   cc_labels, N = cc3d.connected_components(
@@ -261,8 +276,6 @@ def RelabelCCLTask(
   cc_labels[labels == 0] = 0
 
   task_voxels = shape.x * shape.y * shape.z
-  mapping = sql.get_relabeling(db_path, label_offset, task_voxels)
-  mapping[0] = 0
   fastremap.remap(cc_labels, mapping, in_place=True)
 
   # Final upload without overlap
@@ -273,16 +286,23 @@ def RelabelCCLTask(
   cc_labels = cc_labels[:,:,:,np.newaxis]
   dest_cv[bounds] = cc_labels
 
-def create_relabeling(db_path):
+def create_relabeling(cloudpath, mip, shape):
   """(3) Computes a relabeling from the 
     linkages saved from (2) and then saves them
     in the sql database.
   """
-  rows = sql.retrieve_equivalences(db_path)
+  cv = CloudVolume(cloudpath, mip=mip)
+  cf = CloudFiles(cloudpath)
+  eqpath = cf.join(cv.key, "ccl", "equivalences")
+  eqdicts = cf.get_json(cf.list(eqpath))
+
+  total = sum(( len(datum) for datum in eqdicts ))
+
   equivalences = DisjointSet()
 
-  for val1, val2 in tqdm(rows, desc="Creating Union-Find"):
-    equivalences.union(val1, val2)
+  for data in eqdicts:
+    for val1, val2 in tqdm(data.items(), desc="Creating Union-Find", total=total):
+      equivalences.union(int(val1), int(val2))
 
   relabel = {}
   next_label = 1
@@ -297,7 +317,33 @@ def create_relabeling(db_path):
 
   del equivalences
 
-  sql.insert_relabeling(db_path, relabel)
+  max_label_fname = cf.join(cv.key, "ccl", "max_label.json")
+  cf.put_json(max_label_fname, [ next_label - 1 ])
+
+  task_size = Vec(*shape) + 1
+  task_voxels = task_size.x * task_size.y * task_size.z
+
+  buckets = defaultdict(dict)
+  for before_val, after_val in relabel.items():
+    task_num = int(before_val // task_voxels)
+    buckets[task_num][before_val] = after_val
+
+  del relabel
+
+  cf.put_jsons(
+    (
+      (cf.join(cv.key, "ccl", "relabel", f"{task_num}.json"), relabeling) 
+      for task_num, relabeling in buckets.items()
+    ),
+    total=len(buckets),
+    compress="br",
+    progress=True
+  )
+
+def clean_intermediate_files(src, mip):
+  cv = CloudVolume(src, mip)
+  cf = CloudFiles(src)
+  cf.delete(cf.list(cf.join(cv.key, "ccl")))
 
 
 

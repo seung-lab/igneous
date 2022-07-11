@@ -388,10 +388,14 @@ def cclgroup():
   Perform connected components labeling on the image.
 
   Result will be a 6-connected labeling of the input
-  image. All steps must use the same task shape. 
+  image. All steps must use the same task shape. If
+  a threshold (lte and/or gte) is applied, it must be
+  used with the same values in all tasks. This ensures
+  that when the CCL is recomputed at each step, the same
+  values result.
 
   Intermediate linkage and relabelign data are saved 
-  in a sqlite or mysql database.
+  in PATH/KEY/ccl/{faces,equivalences,relabel}/
 
   The largest image that can be handled would have 2^64 voxels
   (18 exavoxels, a bit larger than a whole mouse brain).
@@ -411,11 +415,20 @@ def cclgroup():
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
-def ccl_faces(ctx, src, mip, shape, queue):
+def ccl_faces(
+  ctx, src, mip, shape, queue,
+  threshold_lte, threshold_gte,
+):
   """(1) Generate back face images."""
   src = cloudfiles.paths.normalize(src)
-  tasks = tc.create_ccl_face_tasks(src, mip, shape)
+  tasks = tc.create_ccl_face_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
 
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
@@ -426,11 +439,20 @@ def ccl_faces(ctx, src, mip, shape, queue):
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
-def ccl_equivalences(ctx, src, mip, shape, queue):
+def ccl_equivalences(
+  ctx, src, mip, shape, queue,
+  threshold_lte, threshold_gte,
+):
   """(2) Generate links between tasks."""
   src = cloudfiles.paths.normalize(src)
-  tasks = tc.create_ccl_equivalence_tasks(src, mip, shape)
+  tasks = tc.create_ccl_equivalence_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
 
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
@@ -454,11 +476,14 @@ def ccl_calc_labels(ctx, src, mip):
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
 def ccl_relabel(
   ctx, src, dest, 
   shape, mip, chunk_size, 
-  encoding, queue
+  encoding, queue,
+  threshold_lte, threshold_gte,
 ):
   """(4) Finally relabel and write a CCL image."""
   src = cloudfiles.paths.normalize(src)
@@ -466,7 +491,9 @@ def ccl_relabel(
   tasks = tc.create_ccl_relabel_tasks(
     src, dest, 
     mip=mip, shape=shape, 
-    chunk_size=chunk_size, encoding=encoding
+    chunk_size=chunk_size, encoding=encoding,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -490,12 +517,15 @@ def ccl_clean(src, mip):
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
 def ccl_auto(
   ctx, src, dest, 
   shape, mip, 
   chunk_size, encoding, 
-  queue
+  queue,
+  threshold_lte, threshold_gte,
 ):
   """
   For local volumes, execute all steps automatically.
@@ -506,11 +536,19 @@ def ccl_auto(
   tq = TaskQueue(normalize_path(queue))
   args = (queue, None, LEASE_SECONDS, True, -1, True, False)
 
-  tasks = tc.create_ccl_face_tasks(src, mip, shape)
+  tasks = tc.create_ccl_face_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
 
-  tasks = tc.create_ccl_equivalence_tasks(src, mip, shape)
+  tasks = tc.create_ccl_equivalence_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
 
@@ -521,6 +559,8 @@ def ccl_auto(
     src, dest, 
     mip=mip, shape=shape, 
     chunk_size=chunk_size, encoding=encoding,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)

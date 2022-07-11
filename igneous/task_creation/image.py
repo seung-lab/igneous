@@ -27,7 +27,6 @@ from igneous.tasks import (
   ImageShardTransferTask, ImageShardDownsampleTask,
   CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask
 )
-import igneous.tasks.image.sql
 
 from igneous.shards import image_shard_shape_from_spec
 from igneous.types import ShapeType
@@ -1268,7 +1267,9 @@ def create_hypersquare_consensus_tasks(
 
 
 def create_ccl_face_tasks(
-  cloudpath, mip, shape=(512,512,512)
+  cloudpath, mip, shape=(512,512,512),
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """pass 1"""
   vol = CloudVolume(cloudpath, mip=mip)
@@ -1283,6 +1284,8 @@ def create_ccl_face_tasks(
         mip=mip, 
         shape=shape.clone(), 
         offset=offset.clone(),
+        threshold_gte=threshold_gte,
+        threshold_lte=threshold_lte,
       )
 
     def on_finish(self):
@@ -1292,6 +1295,8 @@ def create_ccl_face_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
+          'threshold_gte': threshold_gte,
+          'threshold_lte': threshold_lte,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1301,7 +1306,9 @@ def create_ccl_face_tasks(
   return CCLFaceTaskIterator(bounds, shape)
 
 def create_ccl_equivalence_tasks(
-  cloudpath, mip, shape=(512,512,512)
+  cloudpath, mip, shape=(512,512,512),
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """pass 2. Note: shape MUST match pass 1."""
   vol = CloudVolume(cloudpath, mip=mip)
@@ -1316,6 +1323,8 @@ def create_ccl_equivalence_tasks(
         mip=mip, 
         shape=shape.clone(), 
         offset=offset.clone(),
+        threshold_gte=threshold_gte,
+        threshold_lte=threshold_lte,
       )
 
     def on_finish(self):
@@ -1325,6 +1334,8 @@ def create_ccl_equivalence_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
+          'threshold_gte': threshold_gte,
+          'threshold_lte': threshold_lte,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1336,7 +1347,9 @@ def create_ccl_equivalence_tasks(
 def create_ccl_relabel_tasks(
   src_path, dest_path, 
   mip, shape=(512,512,512),
-  chunk_size=None, encoding=None
+  chunk_size=None, encoding=None,
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """pass 3"""
 
@@ -1376,6 +1389,8 @@ def create_ccl_relabel_tasks(
         mip=mip, 
         shape=shape.clone(), 
         offset=offset.clone(),
+        threshold_gte=threshold_gte,
+        threshold_lte=threshold_lte,
       )
 
     def on_finish(self):
@@ -1386,6 +1401,8 @@ def create_ccl_relabel_tasks(
           'dest_path': dest_path,
           'mip': mip,
           'shape': shape.tolist(),
+          'threshold_gte': threshold_gte,
+          'threshold_lte': threshold_lte,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

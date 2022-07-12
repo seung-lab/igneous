@@ -1376,6 +1376,7 @@ def create_ccl_relabel_tasks(
     if "sharding" in scale:
       del scale["sharding"]
     dest_vol = CloudVolume(dest_path, info=info, mip=mip)
+    dest_vol.reset_scales()
     dest_vol.commit_info()
 
   shape = Vec(*shape)

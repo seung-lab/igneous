@@ -461,12 +461,13 @@ def ccl_equivalences(
 @cclgroup.command("calc-labels")
 @click.argument("src")
 @click.option('--mip', default=0, required=True, help="Apply to this level of the image pyramid.", show_default=True)
+@click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.pass_context
-def ccl_calc_labels(ctx, src, mip):
+def ccl_calc_labels(ctx, src, mip, shape):
   """(3) Compute and serialize a relabeling to the DB."""
   import igneous.tasks.image.ccl
   src = cloudfiles.paths.normalize(src)
-  igneous.tasks.image.ccl.create_relabeling(src, mip)
+  igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
 
 @cclgroup.command("relabel")
 @click.argument("src")
@@ -517,6 +518,7 @@ def ccl_clean(src, mip):
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--clean/--no-clean', default=True, is_flag=True, help="Delete intermediate files on completion.", show_default=True)
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
@@ -524,7 +526,7 @@ def ccl_auto(
   ctx, src, dest, 
   shape, mip, 
   chunk_size, encoding, 
-  queue,
+  queue, clean,
   threshold_lte, threshold_gte,
 ):
   """
@@ -565,7 +567,8 @@ def ccl_auto(
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
 
-  igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
+  if clean:
+    igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
 
 @main.command()
 @click.argument("queue", type=str)

@@ -279,7 +279,8 @@ def RelabelCCLTask(
   
   cf = CloudFiles(src_path)
   mapping_path = cf.join(cv.key, "ccl", "relabel", f"{task_num}.json")
-  mapping =  { int(k):int(v) for k,v in cf.get_json(mapping_path).items() }
+  mapping = cf.get_json(mapping_path) or {}
+  mapping =  { int(k):int(v) for k,v in mapping.items() }
   mapping[0] = 0
 
   labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
@@ -319,9 +320,11 @@ def create_relabeling(cloudpath, mip, shape):
 
   equivalences = DisjointSet()
 
-  for data in eqdicts:
-    for val1, val2 in tqdm(data.items(), desc="Creating Union-Find", total=total):
-      equivalences.union(int(val1), int(val2))
+  with tqdm(desc="Creating Union-Find", total=total) as pbar:
+    for data in eqdicts:
+      for val1, val2 in data.items():
+        equivalences.union(int(val1), int(val2))
+        pbar.update()
 
   relabel = {}
   next_label = 1

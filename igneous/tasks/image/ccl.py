@@ -95,7 +95,30 @@ def threshold_image(image, threshold_lte, threshold_gte) -> np.ndarray:
   if threshold_lte is not None:
     thresholded += image <= threshold_lte
   return thresholded
-  
+
+def blackout_non_face_rails(
+  labels:np.ndarray, shape:ShapeType
+) -> np.ndarray:
+  """
+  For 6-connectivity, we need to black out the
+  "rails" that would represent a higher connectivity
+  to ensure that the labels are actually present
+  when computing the relabeling later.
+  """
+  slcs = [
+    np.s_[shape[0],shape[1],:],
+    np.s_[shape[0],:,shape[2]],
+    np.s_[:,shape[1],shape[2]]
+  ]
+
+  for slc in slcs:
+    try:
+      labels[slc] = 0
+    except IndexError:
+      pass
+
+  return labels
+
 @queueable
 def CCLFacesTask(
   cloudpath:str, mip:int, 
@@ -134,6 +157,7 @@ def CCLFacesTask(
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   
   labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
+  labels = blackout_non_face_rails(labels, shape)
   cc_labels = cc3d.connected_components(labels, connectivity=6, out_dtype=np.uint64)
   cc_labels += label_offset
   cc_labels[labels == 0] = 0
@@ -188,6 +212,7 @@ def CCLEquivalancesTask(
   equivalences = DisjointSet()
 
   labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
+  labels = blackout_non_face_rails(labels, shape)
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
@@ -284,6 +309,7 @@ def RelabelCCLTask(
   mapping[0] = 0
 
   labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
+  labels = blackout_non_face_rails(labels, shape)
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True

@@ -388,10 +388,14 @@ def cclgroup():
   Perform connected components labeling on the image.
 
   Result will be a 6-connected labeling of the input
-  image. All steps must use the same task shape. 
+  image. All steps must use the same task shape. If
+  a threshold (lte and/or gte) is applied, it must be
+  used with the same values in all tasks. This ensures
+  that when the CCL is recomputed at each step, the same
+  values result.
 
   Intermediate linkage and relabelign data are saved 
-  in a sqlite or mysql database.
+  in PATH/KEY/ccl/{faces,equivalences,relabel}/
 
   The largest image that can be handled would have 2^64 voxels
   (18 exavoxels, a bit larger than a whole mouse brain).
@@ -411,11 +415,20 @@ def cclgroup():
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
-def ccl_faces(ctx, src, mip, shape, queue):
+def ccl_faces(
+  ctx, src, mip, shape, queue,
+  threshold_lte, threshold_gte,
+):
   """(1) Generate back face images."""
   src = cloudfiles.paths.normalize(src)
-  tasks = tc.create_ccl_face_tasks(src, mip, shape)
+  tasks = tc.create_ccl_face_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
 
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
@@ -423,71 +436,98 @@ def ccl_faces(ctx, src, mip, shape, queue):
 
 @cclgroup.command("links")
 @click.argument("src")
-@click.argument("db_path")
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
-def ccl_equivalences(ctx, src, db_path, mip, shape, queue):
+def ccl_equivalences(
+  ctx, src, mip, shape, queue,
+  threshold_lte, threshold_gte,
+):
   """(2) Generate links between tasks."""
   src = cloudfiles.paths.normalize(src)
-  tasks = tc.create_ccl_equivalence_tasks(src, mip, db_path, shape)
-
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
-
-@cclgroup.command("calc-labels")
-@click.argument("db_path")
-def ccl_calc_labels(db_path):
-  """(3) Compute and serialize a relabeling to the DB."""
-  import igneous.tasks.image.ccl
-  igneous.tasks.image.ccl.create_relabeling(db_path)
-
-@cclgroup.command("relabel")
-@click.argument("src")
-@click.argument("dest")
-@click.argument("db_path")
-@click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
-@click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
-@click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
-@click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
-@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.pass_context
-def ccl_relabel(
-  ctx, src, dest, 
-  db_path, shape, mip, 
-  chunk_size, encoding, queue
-):
-  """(4) Finally relabel and write a CCL image."""
-  src = cloudfiles.paths.normalize(src)
-  dest = cloudfiles.paths.normalize(dest)
-  tasks = tc.create_ccl_relabel_tasks(
-    src, dest, 
-    mip=mip, db_path=db_path, 
-    shape=shape, chunk_size=chunk_size,
-    encoding=encoding
+  tasks = tc.create_ccl_equivalence_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
 
-@cclgroup.command("auto")
+@cclgroup.command("calc-labels")
+@click.argument("src")
+@click.option('--mip', default=0, required=True, help="Apply to this level of the image pyramid.", show_default=True)
+@click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
+@click.pass_context
+def ccl_calc_labels(ctx, src, mip, shape):
+  """(3) Compute and serialize a relabeling to the DB."""
+  import igneous.tasks.image.ccl
+  src = cloudfiles.paths.normalize(src)
+  igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
+
+@cclgroup.command("relabel")
 @click.argument("src")
 @click.argument("dest")
-@click.argument("db_path")
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.pass_context
+def ccl_relabel(
+  ctx, src, dest, 
+  shape, mip, chunk_size, 
+  encoding, queue,
+  threshold_lte, threshold_gte,
+):
+  """(4) Finally relabel and write a CCL image."""
+  src = cloudfiles.paths.normalize(src)
+  dest = cloudfiles.paths.normalize(dest)
+  tasks = tc.create_ccl_relabel_tasks(
+    src, dest, 
+    mip=mip, shape=shape, 
+    chunk_size=chunk_size, encoding=encoding,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
+@cclgroup.command("clean")
+@click.argument("src")
+@click.option('--mip', default=0, required=True, help="Apply to this level of the image pyramid.", show_default=True)
+def ccl_clean(src, mip):
+  """(last) Cleans up intermediate files."""
+  import igneous.tasks.image.ccl
+  src = cloudfiles.paths.normalize(src)
+  igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
+
+@cclgroup.command("auto")
+@click.argument("src")
+@click.argument("dest")
+@click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
+@click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
+@click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
+@click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
+@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--clean/--no-clean', default=True, is_flag=True, help="Delete intermediate files on completion.", show_default=True)
+@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.pass_context
 def ccl_auto(
   ctx, src, dest, 
-  db_path, shape, mip, 
+  shape, mip, 
   chunk_size, encoding, 
-  queue
+  queue, clean,
+  threshold_lte, threshold_gte,
 ):
   """
   For local volumes, execute all steps automatically.
@@ -498,25 +538,37 @@ def ccl_auto(
   tq = TaskQueue(normalize_path(queue))
   args = (queue, None, LEASE_SECONDS, True, -1, True, False)
 
-  tasks = tc.create_ccl_face_tasks(src, mip, shape)
+  tasks = tc.create_ccl_face_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
 
-  tasks = tc.create_ccl_equivalence_tasks(src, mip, db_path, shape)
+  tasks = tc.create_ccl_equivalence_tasks(
+    src, mip, shape,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
+  )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
 
   import igneous.tasks.image.ccl
-  igneous.tasks.image.ccl.create_relabeling(db_path)
+  igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
 
   tasks = tc.create_ccl_relabel_tasks(
     src, dest, 
-    mip=mip, db_path=db_path, 
-    shape=shape, chunk_size=chunk_size,
-    encoding=encoding,
+    mip=mip, shape=shape, 
+    chunk_size=chunk_size, encoding=encoding,
+    threshold_lte=threshold_lte,
+    threshold_gte=threshold_gte,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
+
+  if clean:
+    igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
 
 @main.command()
 @click.argument("queue", type=str)

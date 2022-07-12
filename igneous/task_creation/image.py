@@ -11,6 +11,8 @@ import fastremap
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 import cloudvolume
 import cloudvolume.exceptions
 from cloudvolume import CloudVolume
@@ -25,7 +27,6 @@ from igneous.tasks import (
   ImageShardTransferTask, ImageShardDownsampleTask,
   CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask
 )
-import igneous.tasks.image.sql
 
 from igneous.shards import image_shard_shape_from_spec
 from igneous.types import ShapeType
@@ -1266,7 +1267,9 @@ def create_hypersquare_consensus_tasks(
 
 
 def create_ccl_face_tasks(
-  cloudpath, mip, shape=(512,512,512)
+  cloudpath, mip, shape=(512,512,512),
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """pass 1"""
   vol = CloudVolume(cloudpath, mip=mip)
@@ -1276,12 +1279,13 @@ def create_ccl_face_tasks(
 
   class CCLFaceTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
       return partial(CCLFacesTask, 
         cloudpath=cloudpath, 
         mip=mip, 
         shape=shape.clone(), 
         offset=offset.clone(),
+        threshold_gte=threshold_gte,
+        threshold_lte=threshold_lte,
       )
 
     def on_finish(self):
@@ -1291,6 +1295,8 @@ def create_ccl_face_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
+          'threshold_gte': threshold_gte,
+          'threshold_lte': threshold_lte,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1300,12 +1306,11 @@ def create_ccl_face_tasks(
   return CCLFaceTaskIterator(bounds, shape)
 
 def create_ccl_equivalence_tasks(
-  cloudpath, mip, db_path, shape=(512,512,512)
+  cloudpath, mip, shape=(512,512,512),
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """pass 2. Note: shape MUST match pass 1."""
-
-  igneous.tasks.image.sql.create_ccl_database(db_path)
-
   vol = CloudVolume(cloudpath, mip=mip)
 
   shape = Vec(*shape)
@@ -1313,13 +1318,13 @@ def create_ccl_equivalence_tasks(
 
   class CCLEquivalencesTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      bounded_shape = min2(shape, vol.bounds.maxpt - offset)
       return partial(CCLEquivalancesTask, 
         cloudpath=cloudpath, 
         mip=mip, 
         shape=shape.clone(), 
         offset=offset.clone(),
-        db_path=db_path,
+        threshold_gte=threshold_gte,
+        threshold_lte=threshold_lte,
       )
 
     def on_finish(self):
@@ -1329,7 +1334,8 @@ def create_ccl_equivalence_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
-          'db_path': db_path,
+          'threshold_gte': threshold_gte,
+          'threshold_lte': threshold_lte,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1340,14 +1346,18 @@ def create_ccl_equivalence_tasks(
 
 def create_ccl_relabel_tasks(
   src_path, dest_path, 
-  mip, db_path, shape=(512,512,512),
-  chunk_size=None, encoding=None
+  mip, shape=(512,512,512),
+  chunk_size=None, encoding=None,
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """pass 3"""
 
   src_vol = CloudVolume(src_path, mip=mip)
 
-  max_label = igneous.tasks.image.sql.get_max_relabel(db_path)
+  cf = CloudFiles(src_path)
+  max_label = int(cf.get_json(cf.join(src_vol.key, "ccl", "max_label.json"))[0])
+
   smallest_dtype = fastremap.fit_dtype(np.uint64, max_label)
   smallest_dtype = np.dtype(smallest_dtype).name
 
@@ -1366,6 +1376,7 @@ def create_ccl_relabel_tasks(
     if "sharding" in scale:
       del scale["sharding"]
     dest_vol = CloudVolume(dest_path, info=info, mip=mip)
+    dest_vol.reset_scales()
     dest_vol.commit_info()
 
   shape = Vec(*shape)
@@ -1373,14 +1384,14 @@ def create_ccl_relabel_tasks(
 
   class RelabelCCLTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      bounded_shape = min2(shape, src_vol.bounds.maxpt - offset)
       return partial(RelabelCCLTask, 
         src_path=src_path, 
         dest_path=dest_path,
         mip=mip, 
         shape=shape.clone(), 
         offset=offset.clone(),
-        db_path=db_path,
+        threshold_gte=threshold_gte,
+        threshold_lte=threshold_lte,
       )
 
     def on_finish(self):
@@ -1391,7 +1402,8 @@ def create_ccl_relabel_tasks(
           'dest_path': dest_path,
           'mip': mip,
           'shape': shape.tolist(),
-          'db_path': db_path,
+          'threshold_gte': threshold_gte,
+          'threshold_lte': threshold_lte,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

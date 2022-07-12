@@ -4,9 +4,6 @@ Perform connected components labeling on the image.
 Result will be a 6-connected labeling of the input
 image. All steps must use the same task shape. 
 
-Intermediate linkage and relabelign data are saved 
-in a sqlite or mysql database.
-
 As each task uses a label offset to differentiate its
 CCL labels from adjacent tasks, the largest possible
 image that can be handled has 2^64 voxels which is
@@ -24,6 +21,8 @@ Their order is:
     is saved in the database. [ create_relabeling ]
   (4) Apply the relabeling scheme to the image. [ RelabelCCLTask ]
 """
+from typing import Optional, Union
+from collections import defaultdict
 
 import cc3d
 import fastremap
@@ -37,7 +36,6 @@ from taskqueue import queueable
 
 from cloudvolume import CloudVolume, Bbox, Vec
 
-from . import sql
 from ...types import ShapeType
 
 __all__ = [
@@ -73,27 +71,71 @@ class DisjointSet:
     else:
       self.data[i] = j
 
-def compute_label_offset(shape, grid_size, gridpoint):
-# a task sequence number counting from 0 according to
-  # where the task is located in space (so we can recompute 
-  # it in the second pass easily)
-  task_num = int(
+def compute_task_number(grid_size, gridpoint) -> int:
+  return int(
     gridpoint.x + grid_size.x * (
       gridpoint.y + grid_size.y * gridpoint.z
     )
   )
+
+def compute_label_offset(shape, grid_size, gridpoint) -> int:
+  # a task sequence number counting from 0 according to
+  # where the task is located in space (so we can recompute 
+  # it in the second pass easily)
+  task_num = compute_task_number(grid_size, gridpoint)
   return task_num * shape.x * shape.y * shape.z
+
+def threshold_image(image, threshold_lte, threshold_gte) -> np.ndarray:
+  if threshold_gte is None and threshold_lte is None:
+    return image
+
+  thresholded = np.zeros(image.shape, dtype=np.uint8, order="F")
+  if threshold_gte is not None:
+    thresholded += image >= threshold_gte
+  if threshold_lte is not None:
+    thresholded += image <= threshold_lte
+  return thresholded
+
+def blackout_non_face_rails(
+  labels:np.ndarray, shape:ShapeType
+) -> np.ndarray:
+  """
+  For 6-connectivity, we need to black out the
+  "rails" that would represent a higher connectivity
+  to ensure that the labels are actually present
+  when computing the relabeling later.
+  """
+  slcs = [
+    np.s_[shape[0],shape[1],:],
+    np.s_[shape[0],:,shape[2]],
+    np.s_[:,shape[1],shape[2]]
+  ]
+
+  for slc in slcs:
+    try:
+      labels[slc] = 0
+    except IndexError:
+      pass
+
+  return labels
 
 @queueable
 def CCLFacesTask(
   cloudpath:str, mip:int, 
-  shape:ShapeType, offset:ShapeType
+  shape:ShapeType, offset:ShapeType,
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """
   (1) Generate x,y,z back faces of each 1vx overlap task
   as compresso encoded 2D images.
 
-  These images are stored in e.g. 32_32_40/ccl/ and have
+  For continuous data, greater than or equal to (gte) 
+  or less than or equal to (lte) thresholds 
+  can be applied either individually or together. If neither
+  is specified, no modification of the input will occur.
+
+  These images are stored in e.g. 32_32_40/ccl/faces/ and have
   the following scheme where the numbers are the gridpoint
   location and the letters indicate which face plane.
     1-2-0-xy.cpso
@@ -114,7 +156,8 @@ def CCLFacesTask(
   gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   
-  labels = cv[bounds][...,0]
+  labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
+  labels = blackout_non_face_rails(labels, shape)
   cc_labels = cc3d.connected_components(labels, connectivity=6, out_dtype=np.uint64)
   cc_labels += label_offset
   cc_labels[labels == 0] = 0
@@ -134,25 +177,23 @@ def CCLFacesTask(
 
   cf = CloudFiles(cloudpath)
   filenames = [
-    cf.join(cv.key, 'ccl', fname) for fname in filenames
+    cf.join(cv.key, 'ccl', 'faces', fname) for fname in filenames
   ]
   cf.puts(zip(filenames, slices), compress='br')
 
 @queueable
 def CCLEquivalancesTask(
-  cloudpath:str, mip:int, db_path:str,
+  cloudpath:str, mip:int,
   shape:ShapeType, offset:ShapeType,
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """
   (2) Generate linkages between tasks by comparing the 
   front face of the task with the back faces of the 
   three adjacent tasks saved from the first step.
 
-  These linkages are saved in a SQL database so
-  that a union find data structure can later be 
-  assembled. The table is not saved in a strict
-  UF form as it would be slow and annoying to 
-  compute with SQL.
+  Writes output to e.g. 32_32_40/ccl/equivalences/
   """
   shape = Vec(*shape)
   offset = Vec(*offset)
@@ -170,7 +211,8 @@ def CCLEquivalancesTask(
   
   equivalences = DisjointSet()
 
-  labels = cv[bounds][...,0]
+  labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
+  labels = blackout_non_face_rails(labels, shape)
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
@@ -188,7 +230,7 @@ def CCLEquivalancesTask(
     f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-yz.cpso'
   ]
   filenames = [
-    cf.join(cv.key, 'ccl', fname) for fname in filenames
+    cf.join(cv.key, 'ccl', 'faces', fname) for fname in filenames
   ]
 
   slices = cf.get(filenames, return_dict=True)
@@ -224,13 +266,20 @@ def CCLEquivalancesTask(
         if adj_label != 0:
           equivalences.union(int(task_label), int(adj_label))
 
-  sql.insert_equivalences(db_path, equivalences.data)
+  cf = CloudFiles(cloudpath)
+  out_name = cf.join(cv.key, 'ccl', 'equivalences', f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}.json')
+  cf.put_json(
+    out_name, 
+    { str(k): int(v) for k,v in equivalences.data.items() }, 
+    compress='br'
+  )
 
 @queueable
 def RelabelCCLTask(
-  src_path:str, dest_path:str, mip:int, 
-  db_path:str,
+  src_path:str, dest_path:str, mip:int,
   shape:ShapeType, offset:ShapeType,
+  threshold_gte:Optional[Union[float,int]] = None,
+  threshold_lte:Optional[Union[float,int]] = None,
 ):
   """
   (4) Retrieves the relabeling for this task from the
@@ -251,8 +300,16 @@ def RelabelCCLTask(
   grid_size = np.ceil((cv.bounds / shape).size3())
   gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
+  task_num = compute_task_number(grid_size, gridpoint)
+  
+  cf = CloudFiles(src_path)
+  mapping_path = cf.join(cv.key, "ccl", "relabel", f"{task_num}.json")
+  mapping = cf.get_json(mapping_path) or {}
+  mapping =  { int(k):int(v) for k,v in mapping.items() }
+  mapping[0] = 0
 
-  labels = cv[bounds][...,0]
+  labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
+  labels = blackout_non_face_rails(labels, shape)
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
@@ -261,8 +318,6 @@ def RelabelCCLTask(
   cc_labels[labels == 0] = 0
 
   task_voxels = shape.x * shape.y * shape.z
-  mapping = sql.get_relabeling(db_path, label_offset, task_voxels)
-  mapping[0] = 0
   fastremap.remap(cc_labels, mapping, in_place=True)
 
   # Final upload without overlap
@@ -273,16 +328,29 @@ def RelabelCCLTask(
   cc_labels = cc_labels[:,:,:,np.newaxis]
   dest_cv[bounds] = cc_labels
 
-def create_relabeling(db_path):
-  """(3) Computes a relabeling from the 
-    linkages saved from (2) and then saves them
-    in the sql database.
+def create_relabeling(cloudpath, mip, shape):
   """
-  rows = sql.retrieve_equivalences(db_path)
+  (3) Computes a relabeling from the linkages saved 
+  from (2) and then saves them.
+
+  Writes output to e.g. 32_32_40/ccl/relabel/
+  and also .../ccl/max_label.json which contains
+  the largest label.
+  """
+  cv = CloudVolume(cloudpath, mip=mip)
+  cf = CloudFiles(cloudpath)
+  eqpath = cf.join(cv.key, "ccl", "equivalences")
+  eqdicts = cf.get_json(cf.list(eqpath))
+
+  total = sum(( len(datum) for datum in eqdicts ))
+
   equivalences = DisjointSet()
 
-  for val1, val2 in tqdm(rows, desc="Creating Union-Find"):
-    equivalences.union(val1, val2)
+  with tqdm(desc="Creating Union-Find", total=total) as pbar:
+    for data in eqdicts:
+      for val1, val2 in data.items():
+        equivalences.union(int(val1), int(val2))
+        pbar.update()
 
   relabel = {}
   next_label = 1
@@ -297,7 +365,33 @@ def create_relabeling(db_path):
 
   del equivalences
 
-  sql.insert_relabeling(db_path, relabel)
+  max_label_fname = cf.join(cv.key, "ccl", "max_label.json")
+  cf.put_json(max_label_fname, [ next_label - 1 ])
+
+  task_size = Vec(*shape) + 1
+  task_voxels = task_size.x * task_size.y * task_size.z
+
+  buckets = defaultdict(dict)
+  for before_val, after_val in relabel.items():
+    task_num = int(before_val // task_voxels)
+    buckets[task_num][before_val] = after_val
+
+  del relabel
+
+  cf.put_jsons(
+    (
+      (cf.join(cv.key, "ccl", "relabel", f"{task_num}.json"), relabeling) 
+      for task_num, relabeling in buckets.items()
+    ),
+    total=len(buckets),
+    compress="br",
+    progress=True
+  )
+
+def clean_intermediate_files(src, mip):
+  cv = CloudVolume(src, mip)
+  cf = CloudFiles(src)
+  cf.delete(cf.list(cf.join(cv.key, "ccl")))
 
 
 

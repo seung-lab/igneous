@@ -569,28 +569,29 @@ tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip
 
 ### Connected Components Labeling (CCL) (Beta!)
 
-Igneous supports whole image connected components labeling of a segmentation. Currently, only 6-connected components are supported. It requires the ability to read and write to a sqlite3 database (though mysql can eventually be supported) which limits this capability to clusters with a common filesystem. The largest image currently supported would have 2^64 voxels (about 18 exavoxels or 18+ whole mouse brains).
+Igneous supports whole image connected components labeling of a segmentation. Currently, only 6-connected components are supported. The largest image currently supported would have 2^64 voxels (about 18 exavoxels or 18+ whole mouse brains). You can apply CCL to either a labeled image or to a grayscale image that can be binarized with a threshold.
 
 This capability is very new and may have some quirks, so please report any issues.
 
 #### CLI CCL
 
-The whole image CCL algorithm requires four steps that must be executed in order. The name `ccl.db` is an arbitrary name for the sqlite database. The shape specified *must* be the same for all steps if changed from the default or nonsensical outputs will result.
+The whole image CCL algorithm requires four steps that must be executed in order. The shape specified and binarization thresholds *must* be the same for all steps nonsensical outputs will result. By default, the values will be consistent. To apply a threshold, you can apply both or one of `--threshold-lte` (`<=`) and `--threshold-gte` (`>=`).
 
 ```bash
 igneous image ccl faces SRC --mip 0 --queue queue
 igneous execute -x queue
-igneous image ccl links SRC ccl.db --mip 0 --queue queue
+igneous image ccl links SRC --mip 0 --queue queue
 igneous execute -x queue
-igneous image ccl calc-labels ccl.db # computes relabeling and writes to db
-igneous image ccl relabel SRC DEST ccl.db --mip 0 --queue queue --encoding compresso
+igneous image ccl calc-labels SRC --mip 0 # computes relabeling
+igneous image ccl relabel SRC DEST --mip 0 --queue queue --encoding compresso
 igneous execute -x queue
+igneous image ccl clean SRC # removes intermediate files
 ```
 
 For smaller images that could reasonably be processed on a single machine there is a shortcut `auto` that will also automatically execute.
 
 ```bash
-igneous -p PARALLEL image ccl auto SRC DEST ccl.db --shape 512,512,512 --encoding compresso --queue queue
+igneous -p PARALLEL image ccl auto SRC DEST --shape 512,512,512 --encoding compresso --queue queue
 ````
 
 ## Conclusion

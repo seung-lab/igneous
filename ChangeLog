@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+4.5.0
+-----
+
+* chore: update ChangeLog
+* feat: add fill\_missing to ccl
+* docs: add CCL scripting section
+
 4.4.0
 -----
 

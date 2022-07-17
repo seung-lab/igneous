@@ -61,9 +61,13 @@ def src_cv(transfer_data):
   )
 
 @pytest.mark.parametrize("lower", (None,255,0))
-def test_ccl_tasks(tq, src_cv, transfer_data, lower):
+@pytest.mark.parametrize("fill_missing", [True,False])
+def test_ccl_tasks(tq, src_cv, transfer_data, lower, fill_missing):
   shape = (128,128,128)
-  tasks = tc.create_ccl_face_tasks(src_cv.cloudpath, mip=0, shape=shape, threshold_lte=lower)
+  tasks = tc.create_ccl_face_tasks(
+    src_cv.cloudpath, mip=0, shape=shape, 
+    threshold_lte=lower, fill_missing=fill_missing,
+  )
   tq.insert_all(tasks)
 
   cf = CloudFiles(src_cv.cloudpath)
@@ -95,7 +99,7 @@ def test_ccl_tasks(tq, src_cv, transfer_data, lower):
 
   tasks = tc.create_ccl_equivalence_tasks(
     src_cv.cloudpath, mip=0, shape=shape, 
-    threshold_lte=lower
+    threshold_lte=lower, fill_missing=fill_missing,
   )
   tq.insert_all(tasks)
 
@@ -121,6 +125,7 @@ def test_ccl_tasks(tq, src_cv, transfer_data, lower):
     src_cv.cloudpath, destpath, 
     mip=0, shape=shape,
     threshold_lte=lower,
+    fill_missing=fill_missing,
   )
   tq.insert_all(tasks)
 

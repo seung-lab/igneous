@@ -1270,6 +1270,7 @@ def create_ccl_face_tasks(
   cloudpath, mip, shape=(512,512,512),
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
+  fill_missing:bool = False,
 ):
   """pass 1"""
   vol = CloudVolume(cloudpath, mip=mip)
@@ -1286,6 +1287,7 @@ def create_ccl_face_tasks(
         offset=offset.clone(),
         threshold_gte=threshold_gte,
         threshold_lte=threshold_lte,
+        fill_missing=fill_missing,
       )
 
     def on_finish(self):
@@ -1297,6 +1299,7 @@ def create_ccl_face_tasks(
           'shape': shape.tolist(),
           'threshold_gte': threshold_gte,
           'threshold_lte': threshold_lte,
+          'fill_missing': bool(fill_missing),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1309,6 +1312,7 @@ def create_ccl_equivalence_tasks(
   cloudpath, mip, shape=(512,512,512),
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
+  fill_missing:bool = False,
 ):
   """pass 2. Note: shape MUST match pass 1."""
   vol = CloudVolume(cloudpath, mip=mip)
@@ -1325,6 +1329,7 @@ def create_ccl_equivalence_tasks(
         offset=offset.clone(),
         threshold_gte=threshold_gte,
         threshold_lte=threshold_lte,
+        fill_missing=fill_missing,
       )
 
     def on_finish(self):
@@ -1336,6 +1341,7 @@ def create_ccl_equivalence_tasks(
           'shape': shape.tolist(),
           'threshold_gte': threshold_gte,
           'threshold_lte': threshold_lte,
+          'fill_missing': bool(fill_missing),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1350,6 +1356,7 @@ def create_ccl_relabel_tasks(
   chunk_size=None, encoding=None,
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
+  fill_missing:bool = False,
 ):
   """pass 3"""
 
@@ -1392,6 +1399,7 @@ def create_ccl_relabel_tasks(
         offset=offset.clone(),
         threshold_gte=threshold_gte,
         threshold_lte=threshold_lte,
+        fill_missing=fill_missing,
       )
 
     def on_finish(self):
@@ -1404,6 +1412,7 @@ def create_ccl_relabel_tasks(
           'shape': shape.tolist(),
           'threshold_gte': threshold_gte,
           'threshold_lte': threshold_lte,
+          'fill_missing': bool(fill_missing),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

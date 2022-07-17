@@ -571,11 +571,40 @@ tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip
 
 Igneous supports whole image connected components labeling of a segmentation. Currently, only 6-connected components are supported. The largest image currently supported would have 2^64 voxels (about 18 exavoxels or 18+ whole mouse brains). You can apply CCL to either a labeled image or to a grayscale image that can be binarized with a threshold.
 
+The whole image CCL algorithm requires four steps that must be executed in order. The shape specified and optional binarization thresholds *must* be the same for all steps nonsensical outputs will result. By default, the values will be consistent. To apply a threshold, you can apply both or one of `--threshold-lte` (`<=`) and `--threshold-gte` (`>=`).
+
 This capability is very new and may have some quirks, so please report any issues.
 
-#### CLI CCL
+#### Scripting CCL
 
-The whole image CCL algorithm requires four steps that must be executed in order. The shape specified and binarization thresholds *must* be the same for all steps nonsensical outputs will result. By default, the values will be consistent. To apply a threshold, you can apply both or one of `--threshold-lte` (`<=`) and `--threshold-gte` (`>=`).
+```python
+import igneous.task_creation as tc
+import igneous.tasks.image.ccl
+tasks = tc.create_ccl_face_tasks( # Step 1
+  cloudpath, mip, shape=(512,512,512),
+  # optional, for grayscale images
+  threshold_gte=None, threshold_lte=None,
+)
+tasks = tc.create_ccl_equivalence_tasks( # Step 2
+  cloudpath, mip, shape,
+  threshold_gte, threshold_lte
+)
+# Step 3
+# This is just a function to call, not a job to enqueue.
+# It concentrates the equivalence data onto a single machine
+# and uploads the relabelings for each grid point.
+igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
+
+tasks = tc.create_ccl_relabel_tasks( # Step 4
+  src_path, dest_path, 
+  mip, shape=(512,512,512),
+  chunk_size=None, encoding=None,
+  threshold_gte=None,
+  threshold_lte=None,
+)
+```
+
+#### CLI CCL
 
 ```bash
 igneous image ccl faces SRC --mip 0 --queue queue

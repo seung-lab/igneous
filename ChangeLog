@@ -1,6 +1,35 @@
 CHANGES
 =======
 
+4.4.0
+-----
+
+* release(4.4.0): CCL without sqlite requirement + binarization thresh
+* perf: scale up CCL (#136)
+* release(4.3.0): adds CCL capability
+* feat: whole image connected components labeling (#135)
+* docs: add CITATION.cff
+
+4.2.1
+-----
+
+* release(4.2.1): fix mesh xfer, add BASIC support multires unsharded
+* fix+feat: support multires meshes for mesh xfer
+
+4.2.0
+-----
+
+* release(4.2.0): support for multi-resolution meshing
+* fix: issues in unsharded multires
+* fix: update when iteration finishes
+* feat: add provenance info to unsharded
+* feat+refactor: adds min\_chunk\_size to merge CLI interface
+* feat: multiresolution meshes (#132)
+
+4.1.3
+-----
+
+* release(4.1.3): fix DracoPy requirement
 * feat: sort mesh fragments in a consistent order before combining
 * fix: give sharded meshes tighter manifest bounds
 * perf(meshing): use new ambidextrous zmesh to omit a conversion

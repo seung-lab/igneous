@@ -125,6 +125,7 @@ def CCLFacesTask(
   shape:ShapeType, offset:ShapeType,
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
+  fill_missing:bool = False,
 ):
   """
   (1) Generate x,y,z back faces of each 1vx overlap task
@@ -149,7 +150,7 @@ def CCLFacesTask(
   if bounds.subvoxel():
     return
 
-  cv = CloudVolume(cloudpath, mip=mip)
+  cv = CloudVolume(cloudpath, mip=mip, fill_missing=fill_missing)
   bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
 
   grid_size = np.ceil((cv.bounds / shape).size3())
@@ -187,6 +188,7 @@ def CCLEquivalancesTask(
   shape:ShapeType, offset:ShapeType,
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
+  fill_missing:bool = False,
 ):
   """
   (2) Generate linkages between tasks by comparing the 
@@ -202,7 +204,7 @@ def CCLEquivalancesTask(
   if bounds.subvoxel():
     return
 
-  cv = CloudVolume(cloudpath, mip=mip)
+  cv = CloudVolume(cloudpath, mip=mip, fill_missing=fill_missing)
   bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
 
   grid_size = np.ceil((cv.bounds / shape).size3())
@@ -280,6 +282,7 @@ def RelabelCCLTask(
   shape:ShapeType, offset:ShapeType,
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
+  fill_missing:bool = False,
 ):
   """
   (4) Retrieves the relabeling for this task from the
@@ -294,7 +297,7 @@ def RelabelCCLTask(
   if bounds.subvoxel():
     return
 
-  cv = CloudVolume(src_path, mip=mip)
+  cv = CloudVolume(src_path, mip=mip, fill_missing=fill_missing)
   bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
 
   grid_size = np.ceil((cv.bounds / shape).size3())

@@ -417,10 +417,12 @@ def cclgroup():
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
 def ccl_faces(
   ctx, src, mip, shape, queue,
   threshold_lte, threshold_gte,
+  fill_missing
 ):
   """(1) Generate back face images."""
   src = cloudfiles.paths.normalize(src)
@@ -428,6 +430,7 @@ def ccl_faces(
     src, mip, shape,
     threshold_lte=threshold_lte,
     threshold_gte=threshold_gte,
+    fill_missing=fill_missing,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -441,10 +444,12 @@ def ccl_faces(
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
 def ccl_equivalences(
   ctx, src, mip, shape, queue,
   threshold_lte, threshold_gte,
+  fill_missing
 ):
   """(2) Generate links between tasks."""
   src = cloudfiles.paths.normalize(src)
@@ -452,6 +457,7 @@ def ccl_equivalences(
     src, mip, shape,
     threshold_lte=threshold_lte,
     threshold_gte=threshold_gte,
+    fill_missing=fill_missing,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -479,12 +485,14 @@ def ccl_calc_labels(ctx, src, mip, shape):
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
 def ccl_relabel(
   ctx, src, dest, 
   shape, mip, chunk_size, 
   encoding, queue,
   threshold_lte, threshold_gte,
+  fill_missing
 ):
   """(4) Finally relabel and write a CCL image."""
   src = cloudfiles.paths.normalize(src)
@@ -495,6 +503,7 @@ def ccl_relabel(
     chunk_size=chunk_size, encoding=encoding,
     threshold_lte=threshold_lte,
     threshold_gte=threshold_gte,
+    fill_missing=fill_missing,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -521,6 +530,7 @@ def ccl_clean(src, mip):
 @click.option('--clean/--no-clean', default=True, is_flag=True, help="Delete intermediate files on completion.", show_default=True)
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.pass_context
 def ccl_auto(
   ctx, src, dest, 
@@ -528,6 +538,7 @@ def ccl_auto(
   chunk_size, encoding, 
   queue, clean,
   threshold_lte, threshold_gte,
+  fill_missing,
 ):
   """
   For local volumes, execute all steps automatically.
@@ -542,6 +553,7 @@ def ccl_auto(
     src, mip, shape,
     threshold_lte=threshold_lte,
     threshold_gte=threshold_gte,
+    fill_missing=fill_missing,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
@@ -550,6 +562,7 @@ def ccl_auto(
     src, mip, shape,
     threshold_lte=threshold_lte,
     threshold_gte=threshold_gte,
+    fill_missing=fill_missing,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
@@ -563,6 +576,7 @@ def ccl_auto(
     chunk_size=chunk_size, encoding=encoding,
     threshold_lte=threshold_lte,
     threshold_gte=threshold_gte,
+    fill_missing=fill_missing,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)

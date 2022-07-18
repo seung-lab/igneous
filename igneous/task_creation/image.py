@@ -800,7 +800,7 @@ def create_transfer_tasks(
 
   if not skip_downsamples:
     downsample_scales.create_downsample_scales(dest_layer_path, 
-      mip=mip, ds_shape=shape, 
+      mip=mip, ds_shape=shape, factor=factor,
       preserve_chunk_size=preserve_chunk_size,
       encoding=encoding
     )

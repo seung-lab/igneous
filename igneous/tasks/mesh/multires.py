@@ -255,8 +255,8 @@ def MultiResShardedFromUnshardedMeshMergeTask(
 ):
   cv_src = CloudVolume(src)
 
-  if mesh_dir is None and 'mesh' in cv.info:
-    mesh_dir = cv.info['mesh']
+  if mesh_dir is None and 'mesh' in cv_src.info:
+    mesh_dir = cv_src.info['mesh']
 
   cv_dest = CloudVolume(dest, mesh_dir=mesh_dir, progress=progress)
 

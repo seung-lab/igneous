@@ -35,6 +35,7 @@ from cloudfiles import CloudFiles
 from taskqueue import queueable
 
 from cloudvolume import CloudVolume, Bbox, Vec
+from cloudvolume.lib import sip
 
 from ...types import ShapeType
 
@@ -342,18 +343,22 @@ def create_relabeling(cloudpath, mip, shape):
   """
   cv = CloudVolume(cloudpath, mip=mip)
   cf = CloudFiles(cloudpath)
-  eqpath = cf.join(cv.key, "ccl", "equivalences")
-  eqdicts = cf.get_json(cf.list(eqpath))
-
-  total = sum(( len(datum) for datum in eqdicts ))
+  all_eqpaths = cf.list(cf.join(cv.key, "ccl", "equivalences"))
 
   equivalences = DisjointSet()
 
-  with tqdm(desc="Creating Union-Find", total=total) as pbar:
-    for data in eqdicts:
-      for val1, val2 in data.items():
-        equivalences.union(int(val1), int(val2))
-        pbar.update()
+  with tqdm(desc="Creating Union-Find", total=0) as pbar:
+    for eqpaths in sip(all_eqpaths, 5000):
+      eqdicts = cf.get_json(eqpaths)
+      pbar.total += sum(( len(datum) for datum in eqdicts ))
+      pbar.refresh()
+      
+      for data in eqdicts:
+        for val1, val2 in data.items():
+          equivalences.union(int(val1), int(val2))
+          pbar.update()
+
+      del eqdicts
 
   relabel = {}
   next_label = 1

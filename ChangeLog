@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+4.5.2
+-----
+
+* release(4.5.2): fixes typo in unsharded->sharded meshes
+* fix(mesh/multires): misspelled variable
+
 4.5.1
 -----
 

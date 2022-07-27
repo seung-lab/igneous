@@ -428,8 +428,8 @@ def ccl_faces(
   src = cloudfiles.paths.normalize(src)
   tasks = tc.create_ccl_face_tasks(
     src, mip, shape,
-    threshold_lte=threshold_lte,
-    threshold_gte=threshold_gte,
+    threshold_lte=int(threshold_lte),
+    threshold_gte=int(threshold_gte),
     fill_missing=fill_missing,
   )
 
@@ -455,8 +455,8 @@ def ccl_equivalences(
   src = cloudfiles.paths.normalize(src)
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
-    threshold_lte=threshold_lte,
-    threshold_gte=threshold_gte,
+    threshold_lte=int(threshold_lte),
+    threshold_gte=int(threshold_gte),
     fill_missing=fill_missing,
   )
 
@@ -501,8 +501,8 @@ def ccl_relabel(
     src, dest, 
     mip=mip, shape=shape, 
     chunk_size=chunk_size, encoding=encoding,
-    threshold_lte=threshold_lte,
-    threshold_gte=threshold_gte,
+    threshold_lte=int(threshold_lte),
+    threshold_gte=int(threshold_gte),
     fill_missing=fill_missing,
   )
 
@@ -551,8 +551,8 @@ def ccl_auto(
 
   tasks = tc.create_ccl_face_tasks(
     src, mip, shape,
-    threshold_lte=threshold_lte,
-    threshold_gte=threshold_gte,
+    threshold_lte=int(threshold_lte),
+    threshold_gte=int(threshold_gte),
     fill_missing=fill_missing,
   )
   tq.insert(tasks, parallel=parallel)
@@ -560,8 +560,8 @@ def ccl_auto(
 
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
-    threshold_lte=threshold_lte,
-    threshold_gte=threshold_gte,
+    threshold_lte=int(threshold_lte),
+    threshold_gte=int(threshold_gte),
     fill_missing=fill_missing,
   )
   tq.insert(tasks, parallel=parallel)
@@ -574,8 +574,8 @@ def ccl_auto(
     src, dest, 
     mip=mip, shape=shape, 
     chunk_size=chunk_size, encoding=encoding,
-    threshold_lte=threshold_lte,
-    threshold_gte=threshold_gte,
+    threshold_lte=int(threshold_lte),
+    threshold_gte=int(threshold_gte),
     fill_missing=fill_missing,
   )
   tq.insert(tasks, parallel=parallel)

@@ -571,7 +571,7 @@ tasks = create_contrast_normalization_tasks(src_path, dest_path, shape=None, mip
 
 Igneous supports whole image connected components labeling of a segmentation. Currently, only 6-connected components are supported. The largest image currently supported would have 2^64 voxels (about 18 exavoxels or 18+ whole mouse brains). You can apply CCL to either a labeled image or to a grayscale image that can be binarized with a threshold.
 
-The whole image CCL algorithm requires four steps that must be executed in order. The shape specified and optional binarization thresholds *must* be the same for all steps nonsensical outputs will result. By default, the values will be consistent. To apply a threshold, you can apply both or one of `--threshold-lte` (`<=`) and `--threshold-gte` (`>=`).
+The whole image CCL algorithm requires four steps that must be executed in order. The shape specified and optional binarization and dust thresholds *must* be the same for all steps nonsensical outputs will result. By default, the values will be consistent. To apply a binarization threshold, you can apply both or one of `--threshold-lte` (`<=`) and `--threshold-gte` (`>=`). You can also apply a `--dust` threshold to remove unwanted objects smaller than this threshold.
 
 This capability is very new and may have some quirks, so please report any issues.
 
@@ -584,10 +584,12 @@ tasks = tc.create_ccl_face_tasks( # Step 1
   cloudpath, mip, shape=(512,512,512),
   # optional, for grayscale images
   threshold_gte=None, threshold_lte=None,
+  dust_threshold=0,
 )
 tasks = tc.create_ccl_equivalence_tasks( # Step 2
   cloudpath, mip, shape,
-  threshold_gte, threshold_lte
+  threshold_gte, threshold_lte, 
+  dust_threshold
 )
 # Step 3
 # This is just a function to call, not a job to enqueue.
@@ -601,6 +603,7 @@ tasks = tc.create_ccl_relabel_tasks( # Step 4
   chunk_size=None, encoding=None,
   threshold_gte=None,
   threshold_lte=None,
+  dust_threshold=0,
 )
 ```
 

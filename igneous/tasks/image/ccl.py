@@ -353,6 +353,8 @@ def RelabelCCLTask(
   dest_cv = CloudVolume(dest_path, mip=mip)
   bounds = Bbox(offset, offset + shape)
   bounds = Bbox.clamp(bounds, dest_cv.meta.bounds(mip))
+  shape = bounds.size3()
+
   cc_labels = cc_labels[:shape.x,:shape.y,:shape.z].astype(dest_cv.dtype)
   cc_labels = cc_labels[:,:,:,np.newaxis]
   dest_cv[bounds] = cc_labels

@@ -90,11 +90,17 @@ def test_threshold_image():
 
 @pytest.mark.parametrize("upper", (None,255,0))
 @pytest.mark.parametrize("fill_missing", [True,False])
-def test_ccl_tasks(tq, src_cv, transfer_data, upper, fill_missing):
+@pytest.mark.parametrize("dust_threshold", [0, (64**3) + 1])
+def test_ccl_tasks(
+  tq, src_cv, transfer_data, 
+  upper, fill_missing,
+  dust_threshold
+):
   shape = (128,128,128)
   tasks = tc.create_ccl_face_tasks(
     src_cv.cloudpath, mip=0, shape=shape, 
     threshold_lte=upper, fill_missing=fill_missing,
+    dust_threshold=dust_threshold,
   )
   tq.insert_all(tasks)
 
@@ -128,6 +134,7 @@ def test_ccl_tasks(tq, src_cv, transfer_data, upper, fill_missing):
   tasks = tc.create_ccl_equivalence_tasks(
     src_cv.cloudpath, mip=0, shape=shape, 
     threshold_lte=upper, fill_missing=fill_missing,
+    dust_threshold=dust_threshold,
   )
   tq.insert_all(tasks)
 
@@ -154,6 +161,7 @@ def test_ccl_tasks(tq, src_cv, transfer_data, upper, fill_missing):
     mip=0, shape=shape,
     threshold_lte=upper,
     fill_missing=fill_missing,
+    dust_threshold=dust_threshold,
   )
   tq.insert_all(tasks)
 
@@ -161,15 +169,23 @@ def test_ccl_tasks(tq, src_cv, transfer_data, upper, fill_missing):
   cc_labels = cv_dest[:][:,:,:,0]
 
   uniq = np.unique(cc_labels)
-  if upper is None:
-    assert len(uniq) == 128
-    assert np.all(uniq == np.arange(1,129))
-  elif upper == 255:
-    assert len(uniq) == 1
-    assert uniq[0] == 1
-  elif upper == 0:
-    assert len(uniq) == 1
-    assert uniq[0] == 0
+  if dust_threshold > 0:
+    if upper in (None, 0):
+      assert len(uniq) == 1
+      assert uniq[0] == 0
+    else:
+      assert len(uniq) == 1
+      assert uniq[0] == 1
+  else:
+    if upper is None:
+      assert len(uniq) == 128
+      assert np.all(uniq == np.arange(1,129))
+    elif upper == 255:
+      assert len(uniq) == 1
+      assert uniq[0] == 1
+    elif upper == 0:
+      assert len(uniq) == 1
+      assert uniq[0] == 0
 
   rmsrc()
   rmdest()

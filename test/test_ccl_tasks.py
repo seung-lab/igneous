@@ -60,13 +60,41 @@ def src_cv(transfer_data):
     max_mip=0,
   )
 
-@pytest.mark.parametrize("lower", (None,255,0))
+def test_threshold_image():
+  import igneous.tasks.image.ccl as ccl
+  sz = 100
+  image = np.arange(0,sz**3).reshape((sz,sz,sz), order="F")
+  image = image.astype(np.uint32)
+
+  res = ccl.threshold_image(image, None, None)  
+  assert np.all(image == res)
+
+  res = ccl.threshold_image(image, sz**3+1, None)  
+  assert np.all(res == 1)
+
+  res = ccl.threshold_image(image, None, 0)  
+  assert np.all(res == 1)
+
+  res = ccl.threshold_image(image, sz**3+1, 0)
+  assert np.all(res == 1)
+
+  res = ccl.threshold_image(image, None, 1)
+  assert np.all(res[0,0,0] == 0)
+  res[0,0,0] = 1
+  assert np.all(res == 1)
+
+  res = ccl.threshold_image(image, sz**3+1, 1)
+  assert np.all(res[0,0,0] == 0)
+  res[0,0,0] = 1
+  assert np.all(res == 1)
+
+@pytest.mark.parametrize("upper", (None,255,0))
 @pytest.mark.parametrize("fill_missing", [True,False])
-def test_ccl_tasks(tq, src_cv, transfer_data, lower, fill_missing):
+def test_ccl_tasks(tq, src_cv, transfer_data, upper, fill_missing):
   shape = (128,128,128)
   tasks = tc.create_ccl_face_tasks(
     src_cv.cloudpath, mip=0, shape=shape, 
-    threshold_lte=lower, fill_missing=fill_missing,
+    threshold_lte=upper, fill_missing=fill_missing,
   )
   tq.insert_all(tasks)
 
@@ -99,7 +127,7 @@ def test_ccl_tasks(tq, src_cv, transfer_data, lower, fill_missing):
 
   tasks = tc.create_ccl_equivalence_tasks(
     src_cv.cloudpath, mip=0, shape=shape, 
-    threshold_lte=lower, fill_missing=fill_missing,
+    threshold_lte=upper, fill_missing=fill_missing,
   )
   tq.insert_all(tasks)
 
@@ -124,7 +152,7 @@ def test_ccl_tasks(tq, src_cv, transfer_data, lower, fill_missing):
   tasks = tc.create_ccl_relabel_tasks(
     src_cv.cloudpath, destpath, 
     mip=0, shape=shape,
-    threshold_lte=lower,
+    threshold_lte=upper,
     fill_missing=fill_missing,
   )
   tq.insert_all(tasks)
@@ -133,13 +161,13 @@ def test_ccl_tasks(tq, src_cv, transfer_data, lower, fill_missing):
   cc_labels = cv_dest[:][:,:,:,0]
 
   uniq = np.unique(cc_labels)
-  if lower is None:
+  if upper is None:
     assert len(uniq) == 128
     assert np.all(uniq == np.arange(1,129))
-  elif lower == 255:
+  elif upper == 255:
     assert len(uniq) == 1
     assert uniq[0] == 1
-  elif lower == 0:
+  elif upper == 0:
     assert len(uniq) == 1
     assert uniq[0] == 0
 

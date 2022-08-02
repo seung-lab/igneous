@@ -86,7 +86,11 @@ def compute_label_offset(shape, grid_size, gridpoint) -> int:
   task_num = compute_task_number(grid_size, gridpoint)
   return task_num * shape.x * shape.y * shape.z
 
-def threshold_image(image, threshold_lte, threshold_gte) -> np.ndarray:
+def threshold_image(
+  image:np.ndarray, 
+  threshold_lte:Optional[Union[int,float]], 
+  threshold_gte:Optional[Union[int,float]]
+) -> np.ndarray:
   if threshold_gte is None and threshold_lte is None:
     return image
 
@@ -94,7 +98,10 @@ def threshold_image(image, threshold_lte, threshold_gte) -> np.ndarray:
   if threshold_gte is not None:
     thresholded += image >= threshold_gte
   if threshold_lte is not None:
-    thresholded += image <= threshold_lte
+    if threshold_gte is not None:
+      thresholded *= image <= threshold_lte
+    else:
+      thresholded += image <= threshold_lte
   return thresholded
 
 def blackout_non_face_rails(

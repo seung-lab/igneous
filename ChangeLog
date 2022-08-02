@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+4.5.4
+-----
+
+* release(4.5.4): fix ccl cli binarization thresholds
+* fix(cli/ccl): convert thresholds to integers
+
+4.5.3
+-----
+
+* release(4.5.3): lower memory CCL, fixed factor in xfer image tasks
+* perf(ccl): reduce memory usage for computing relabeling
+* fix: use factor arg within create\_transfer\_tasks (#138)
+
 4.5.2
 -----
 

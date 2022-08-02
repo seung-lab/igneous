@@ -134,6 +134,7 @@ def CCLFacesTask(
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
   fill_missing:bool = False,
+  dust_threshold:int = 0,
 ):
   """
   (1) Generate x,y,z back faces of each 1vx overlap task
@@ -167,6 +168,11 @@ def CCLFacesTask(
   
   labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
   labels = blackout_non_face_rails(labels, shape)
+  if dust_threshold > 0:
+    labels = cc3d.dust(
+      labels, threshold=dust_threshold, 
+      connectivity=6, in_place=True
+    )
   cc_labels = cc3d.connected_components(labels, connectivity=6, out_dtype=np.uint64)
   cc_labels += label_offset
   cc_labels[labels == 0] = 0
@@ -197,6 +203,7 @@ def CCLEquivalancesTask(
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
   fill_missing:bool = False,
+  dust_threshold:int = 0,
 ):
   """
   (2) Generate linkages between tasks by comparing the 
@@ -223,6 +230,11 @@ def CCLEquivalancesTask(
 
   labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
   labels = blackout_non_face_rails(labels, shape)
+  if dust_threshold > 0:
+    labels = cc3d.dust(
+      labels, threshold=dust_threshold, 
+      connectivity=6, in_place=True
+    )
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
@@ -291,6 +303,7 @@ def RelabelCCLTask(
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
   fill_missing:bool = False,
+  dust_threshold:int = 0,
 ):
   """
   (4) Retrieves the relabeling for this task from the
@@ -321,6 +334,11 @@ def RelabelCCLTask(
 
   labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
   labels = blackout_non_face_rails(labels, shape)
+  if dust_threshold > 0:
+    labels = cc3d.dust(
+      labels, threshold=dust_threshold, 
+      connectivity=6, in_place=True
+    )
   cc_labels, N = cc3d.connected_components(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True

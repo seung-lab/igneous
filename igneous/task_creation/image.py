@@ -1271,6 +1271,7 @@ def create_ccl_face_tasks(
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
   fill_missing:bool = False,
+  dust_threshold:int = 0,
 ):
   """pass 1"""
   vol = CloudVolume(cloudpath, mip=mip)
@@ -1288,6 +1289,7 @@ def create_ccl_face_tasks(
         threshold_gte=threshold_gte,
         threshold_lte=threshold_lte,
         fill_missing=fill_missing,
+        dust_threshold=dust_threshold,
       )
 
     def on_finish(self):
@@ -1300,6 +1302,7 @@ def create_ccl_face_tasks(
           'threshold_gte': threshold_gte,
           'threshold_lte': threshold_lte,
           'fill_missing': bool(fill_missing),
+          'dust_threshold': dust_threshold,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1313,6 +1316,7 @@ def create_ccl_equivalence_tasks(
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
   fill_missing:bool = False,
+  dust_threshold:int = 0,
 ):
   """pass 2. Note: shape MUST match pass 1."""
   vol = CloudVolume(cloudpath, mip=mip)
@@ -1330,6 +1334,7 @@ def create_ccl_equivalence_tasks(
         threshold_gte=threshold_gte,
         threshold_lte=threshold_lte,
         fill_missing=fill_missing,
+        dust_threshold=dust_threshold,
       )
 
     def on_finish(self):
@@ -1342,6 +1347,7 @@ def create_ccl_equivalence_tasks(
           'threshold_gte': threshold_gte,
           'threshold_lte': threshold_lte,
           'fill_missing': bool(fill_missing),
+          'dust_threshold': dust_threshold,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1357,6 +1363,7 @@ def create_ccl_relabel_tasks(
   threshold_gte:Optional[Union[float,int]] = None,
   threshold_lte:Optional[Union[float,int]] = None,
   fill_missing:bool = False,
+  dust_threshold:int = 0,
 ):
   """pass 3"""
 
@@ -1400,6 +1407,7 @@ def create_ccl_relabel_tasks(
         threshold_gte=threshold_gte,
         threshold_lte=threshold_lte,
         fill_missing=fill_missing,
+        dust_threshold=dust_threshold,
       )
 
     def on_finish(self):
@@ -1413,6 +1421,7 @@ def create_ccl_relabel_tasks(
           'threshold_gte': threshold_gte,
           'threshold_lte': threshold_lte,
           'fill_missing': bool(fill_missing),
+          'dust_threshold': dust_threshold,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

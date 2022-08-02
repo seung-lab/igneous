@@ -421,11 +421,12 @@ def cclgroup():
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
+@click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
 def ccl_faces(
   ctx, src, mip, shape, queue,
   threshold_lte, threshold_gte,
-  fill_missing
+  fill_missing, dust
 ):
   """(1) Generate back face images."""
   src = cloudfiles.paths.normalize(src)
@@ -434,6 +435,7 @@ def ccl_faces(
     threshold_lte=intify(threshold_lte),
     threshold_gte=intify(threshold_gte),
     fill_missing=fill_missing,
+    dust_threshold=dust,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -448,11 +450,12 @@ def ccl_faces(
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
+@click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
 def ccl_equivalences(
   ctx, src, mip, shape, queue,
   threshold_lte, threshold_gte,
-  fill_missing
+  fill_missing, dust
 ):
   """(2) Generate links between tasks."""
   src = cloudfiles.paths.normalize(src)
@@ -461,6 +464,7 @@ def ccl_equivalences(
     threshold_lte=intify(threshold_lte),
     threshold_gte=intify(threshold_gte),
     fill_missing=fill_missing,
+    dust_threshold=dust,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -489,13 +493,14 @@ def ccl_calc_labels(ctx, src, mip, shape):
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
+@click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
 def ccl_relabel(
   ctx, src, dest, 
   shape, mip, chunk_size, 
   encoding, queue,
   threshold_lte, threshold_gte,
-  fill_missing
+  fill_missing, dust
 ):
   """(4) Finally relabel and write a CCL image."""
   src = cloudfiles.paths.normalize(src)
@@ -507,6 +512,7 @@ def ccl_relabel(
     threshold_lte=intify(threshold_lte),
     threshold_gte=intify(threshold_gte),
     fill_missing=fill_missing,
+    dust_threshold=dust,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -534,6 +540,7 @@ def ccl_clean(src, mip):
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
+@click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
 def ccl_auto(
   ctx, src, dest, 
@@ -541,7 +548,7 @@ def ccl_auto(
   chunk_size, encoding, 
   queue, clean,
   threshold_lte, threshold_gte,
-  fill_missing,
+  fill_missing, dust
 ):
   """
   For local volumes, execute all steps automatically.
@@ -557,6 +564,7 @@ def ccl_auto(
     threshold_lte=intify(threshold_lte),
     threshold_gte=intify(threshold_gte),
     fill_missing=fill_missing,
+    dust_threshold=dust,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
@@ -566,6 +574,7 @@ def ccl_auto(
     threshold_lte=intify(threshold_lte),
     threshold_gte=intify(threshold_gte),
     fill_missing=fill_missing,
+    dust_threshold=dust,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)
@@ -580,6 +589,7 @@ def ccl_auto(
     threshold_lte=intify(threshold_lte),
     threshold_gte=intify(threshold_gte),
     fill_missing=fill_missing,
+    dust_threshold=dust,
   )
   tq.insert(tasks, parallel=parallel)
   parallel_execute_helper(parallel, args)

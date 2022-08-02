@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+4.5.5
+-----
+
+* release(4.5.5): fixes threshold and mip issues with ccl
+* chore: update Changelog and AUTHORS
+* fix: prior fix for mips was off by one
+* fix(cli/ccl): don't crash if you don't specify a binarization threshold
+* fix: relabel tasks should copy correct mip levels
+
 4.5.4
 -----
 

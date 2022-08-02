@@ -59,7 +59,7 @@ class Tuple2(click.ParamType):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="4.5.4")
+@click.version_option(version="4.5.5")
 @click.pass_context
 def main(ctx, parallel):
   """

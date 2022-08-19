@@ -11,7 +11,9 @@ RUN apt-get update \
         nano \
     # igneous + runtime dependencies
     && cd igneous \
-    && pip install --no-cache-dir numpy \
+    # numpy 1.23.0 through 1.23.2 causing issues
+    # with locating random module
+    && pip install --no-cache-dir 'numpy<1.23.0' \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir -e . \
     \

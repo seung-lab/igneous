@@ -813,6 +813,7 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
 @click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
 @click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
 @click.option('--min-shards', default=1, help="Minimum number of shards to generate. Excess shards can make it easier to parallelize the merge process.", type=int, show_default=True)
+@click.option('--max-labels-per-shard', default=1000, help="Maximum average number of labels per a shard.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
 @click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
 @click.option('--min-chunk-size', type=Tuple3(), default="512,512,512",  help="(multires) Sets the minimum chunk size of the highest resolution mesh fragment.", show_default=True)
@@ -821,7 +822,8 @@ def mesh_sharded_merge(
   ctx, path, queue, 
   nlod, vqb, compress_level,
   shard_index_bytes, minishard_index_bytes, min_shards,
-  minishard_index_encoding, spatial_index_db, min_chunk_size
+  max_labels_per_shard, minishard_index_encoding, 
+  spatial_index_db, min_chunk_size
 ):
   """
   (2) Postprocess fragments into finished sharded multires meshes.
@@ -847,6 +849,7 @@ def mesh_sharded_merge(
     min_shards=min_shards,
     spatial_index_db=spatial_index_db,
     min_chunk_size=min_chunk_size,
+    max_labels_per_shard=max_labels_per_shard,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -911,16 +914,24 @@ def mesh_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
 @click.argument("path")
 @click.argument("database")
 @click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
-def mesh_spatial_index_download(path, database, progress):
+@click.option('--allow-missing', is_flag=True, default=False, help="Allow missing index files.", show_default=True)
+@click.pass_context
+def mesh_spatial_index_download(ctx, path, database, progress, allow_missing):
   """
   Download the mesh spatial index into a database.
 
   sqlite paths: sqlite://filename.db (prefix optional)
   mysql paths: mysql://{user}:{pwd}@{host}/{database}
   """
+  parallel = int(ctx.obj.get("parallel", 1))
   path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path)
-  cv.mesh.spatial_index.to_sql(database, progress=progress)
+  cv.mesh.spatial_index.to_sql(
+    database, 
+    progress=progress,
+    allow_missing=allow_missing, 
+    parallel=parallel,
+  )
 
 @main.group("skeleton")
 def skeletongroup():
@@ -1211,16 +1222,24 @@ def skel_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
 @click.argument("path")
 @click.argument("database")
 @click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
-def skel_spatial_index_download(path, database, progress):
+@click.option('--allow-missing', is_flag=True, default=False, help="Allow missing index files.", show_default=True)
+@click.pass_context
+def skel_spatial_index_download(path, database, progress, allow_missing):
   """
   Download the skeleton spatial index into a database.
 
   sqlite paths: sqlite://filename.db (prefix optional)
   mysql paths: mysql://{user}:{pwd}@{host}/{database}
   """
+  parallel = int(ctx.obj.get("parallel", 1))
   path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path)
-  cv.skeleton.spatial_index.to_sql(database, progress=progress)
+  cv.skeleton.spatial_index.to_sql(
+    database, 
+    progress=progress,
+    allow_missing=allow_missing, 
+    parallel=parallel,
+  )
 
 @main.group("design")
 def designgroup():

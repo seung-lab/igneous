@@ -668,7 +668,8 @@ def create_sharded_multires_mesh_tasks(
   minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 
   spatial_index_db:Optional[str] = None,
-  min_chunk_size:Tuple[int,int,int] = (512,512,512)
+  min_chunk_size:Tuple[int,int,int] = (512,512,512),
+  max_labels_per_shard:Optional[int] = None,
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
 
   configure_multires_info(
@@ -684,6 +685,10 @@ def create_sharded_multires_mesh_tasks(
   # 17 sec to download for pinky100
   all_labels = cv.mesh.spatial_index.query(cv.bounds * cv.resolution)
   
+  if max_labels_per_shard is not None:
+    assert max_labels_per_shard >= 1
+    min_shards = max(int(np.ceil(len(all_labels) / max_labels_per_shard)), min_shards)
+
   (shard_bits, minishard_bits, preshift_bits) = \
     compute_shard_params_for_hashed(
       num_labels=len(all_labels),

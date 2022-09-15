@@ -21,6 +21,7 @@ from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_diviso
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudfiles import CloudFiles
 import cloudfiles.paths
+import shardcomputer
 
 from igneous.tasks import (
   MeshTask, MeshManifestPrefixTask, 
@@ -609,12 +610,8 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
 
   cv_dest = CloudVolume(dest, mesh_dir=mesh_dir)
 
-  # perf: ~66.5k hashes/sec on M1 ARM64
-  shardfn = lambda lbl: cv_dest.mesh.reader.spec.compute_shard_location(lbl).shard_number
-
-  shard_labels = defaultdict(list)
-  for label in tqdm(all_labels, desc="Hashes"):
-    shard_labels[shardfn(label)].append(label)
+  all_labels = np.fromiter(all_labels, dtype=np.uint64, count=len(all_labels))
+  shard_labels = shardcomputer.assign_labels_to_shards(all_labels, preshift_bits, shard_bits, minishard_bits)
   del all_labels
 
   cf = CloudFiles(cv_dest.mesh.meta.layerpath, progress=True)
@@ -712,12 +709,8 @@ def create_sharded_multires_mesh_tasks(
 
   cv = CloudVolume(cloudpath)
 
-  # perf: ~66.5k hashes/sec on M1 ARM64
-  shardfn = lambda lbl: cv.mesh.reader.spec.compute_shard_location(lbl).shard_number
-
-  shard_labels = defaultdict(list)
-  for label in tqdm(all_labels, desc="Hashes"):
-    shard_labels[shardfn(label)].append(label)
+  all_labels = np.fromiter(all_labels, dtype=np.uint64, count=len(all_labels))
+  shard_labels = shardcomputer.assign_labels_to_shards(all_labels, preshift_bits, shard_bits, minishard_bits)
   del all_labels
 
   cf = CloudFiles(cv.mesh.meta.layerpath, progress=True)

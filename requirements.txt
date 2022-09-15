@@ -16,6 +16,7 @@ pyfqmr
 pytest>=3.3.1
 pytz
 scipy
+shardcomputer
 tinybrain
 task-queue>=2.4.0
 tqdm

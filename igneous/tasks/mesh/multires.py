@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Tuple
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 import functools
 import itertools
 import json
@@ -378,7 +379,7 @@ def collect_mesh_fragments(
   dirfn = lambda loc: cv.meta.join(mesh_dir, loc)
   filenames = [ dirfn(loc) for loc in filenames ]
 
-  block_size = 50
+  block_size = 20
 
   if len(filenames) < block_size:
     blocks = [ filenames ]
@@ -388,32 +389,41 @@ def collect_mesh_fragments(
     blocks = sip(filenames, block_size)
 
   all_meshes = defaultdict(list)
+  def process_shardfile(item):
+    filename, content = item
+    fragment = MapBuffer(content, frombytesfn=Mesh.from_precomputed)
+    fragment.validate()
+
+    for label in labels:
+      try:
+        mesh = fragment[label]
+        mesh.id = label
+        all_meshes[label].append((filename, mesh))
+      except KeyError:
+        continue
+
+    if hasattr(content, "close"):
+      content.close()
+
+    return filename
+
   for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not progress)):
     if cv.meta.path.protocol == "file":
       all_files = {}
       prefix = cv.cloudpath.replace("file://", "")
       for filename in filenames_block:
         all_files[filename] = open(os.path.join(prefix, filename), "rb")
+
+      for item in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not progress)):
+        process_shardfile(item)
     else:
       all_files = { 
         filename: CloudFile(cv.meta.join(cv.cloudpath, filename), cache_meta=True) 
         for filename in filenames_block 
       } 
-    
-    for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not progress)):
-      fragment = MapBuffer(content, frombytesfn=Mesh.from_precomputed)
-      fragment.validate()
-
-      for label in labels:
-        try:
-          mesh = fragment[label]
-          mesh.id = label
-          all_meshes[label].append((filename, mesh))
-        except KeyError:
-          continue
-
-      if hasattr(content, "close"):
-        content.close()
+      with ThreadPoolExecutor(max_workers=20) as executor:
+        for filename in executor.map(process_shardfile, all_files.items()):
+          pass
 
   # ensure consistent results across multiple runs
   # by sorting mesh fragments by filename

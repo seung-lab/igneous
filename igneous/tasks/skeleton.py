@@ -16,7 +16,7 @@ import numpy as np
 
 import mapbuffer
 from mapbuffer import MapBuffer
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 
 import cloudvolume
 from cloudvolume import CloudVolume, PrecomputedSkeleton
@@ -412,7 +412,10 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         for filename in filenames_block:
           all_files[filename] = open(os.path.join(prefix, filename), "rb")
       else:
-        all_files = cv.skeleton.cache.download(filenames_block, progress=self.progress)
+        all_files = { 
+          filename: CloudFile(cv.meta.join(cv.cloudpath, filename), cache_meta=True) 
+          for filename in filenames_block 
+        } 
       
       for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not self.progress)):
         try:

@@ -421,7 +421,7 @@ def collect_mesh_fragments(
         filename: CloudFile(cv.meta.join(cv.cloudpath, filename), cache_meta=True) 
         for filename in filenames_block 
       } 
-      with ThreadPoolExecutor(max_workers=20) as executor:
+      with ThreadPoolExecutor(max_workers=block_size) as executor:
         for filename in executor.map(process_shardfile, all_files.items()):
           pass
 

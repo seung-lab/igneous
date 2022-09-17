@@ -465,7 +465,7 @@ def labels_for_shard(
     if spec.compute_shard_location(lbl).shard_number == shard_no 
   ]
   
-## Below functons adapted from 
+## Below functions adapted from 
 ## https://github.com/google/neuroglancer/issues/272
 ## Thanks to Hythem Sidky (@hsidky) for sharing his 
 ## progress and code with the connectomics community.

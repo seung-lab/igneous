@@ -14,7 +14,7 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 
 from cloudvolume import CloudVolume, Mesh, view
 from cloudvolume.lib import Vec, Bbox, jsonify, sip, toiter, first
@@ -395,7 +395,10 @@ def collect_mesh_fragments(
       for filename in filenames_block:
         all_files[filename] = open(os.path.join(prefix, filename), "rb")
     else:
-      all_files = cv.mesh.cache.download(filenames_block, progress=progress)
+      all_files = { 
+        filename: CloudFile(cv.meta.join(cv.cloudpath, filename), cache_meta=True) 
+        for filename in filenames_block 
+      } 
     
     for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not progress)):
       fragment = MapBuffer(content, frombytesfn=Mesh.from_precomputed)

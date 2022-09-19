@@ -8,6 +8,11 @@ setuptools.setup(
       "igneous=igneous_cli:main"
     ],
   },
+  extras_require={
+    "mysql": [
+      "mysql-connector-python",
+    ],
+  },
   long_description_content_type="text/markdown",
   pbr=True,
 )

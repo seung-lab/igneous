@@ -14,7 +14,7 @@ RUN apt-get update \
     # numpy 1.23.0 through 1.23.2 causing issues
     # with locating random module
     && pip install --no-cache-dir 'numpy<1.23.0' \
-    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt mysql-connector-python \
     && pip install --no-cache-dir -e . \
     \
     # Cleanup build dependencies

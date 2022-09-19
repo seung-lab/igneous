@@ -21,4 +21,4 @@ tinybrain
 task-queue>=2.4.0
 tqdm
 zmesh>=1.4,<2.0
-trimesh
+trimesh[easy]

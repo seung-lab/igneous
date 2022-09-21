@@ -150,14 +150,18 @@ def process_mesh(
 
       # mesh.vertices must be integer type or mesh will display
       # distorted in neuroglancer.
-      submesh = DracoPy.encode(
-        submesh.vertices, submesh.faces, 
-        quantization_bits=vqb,
-        compression_level=draco_compression_level,
-        quantization_range=quantization_range,
-        quantization_origin=minpt,
-        create_metadata=True,
-      )
+      try:
+        submesh = DracoPy.encode(
+          submesh.vertices, submesh.faces, 
+          quantization_bits=vqb,
+          compression_level=draco_compression_level,
+          quantization_range=quantization_range,
+          quantization_origin=minpt,
+          create_metadata=True,
+        )
+      except DracoPy.EncodingFailedException:
+        continue
+
       manifest.fragment_offsets.append(len(submesh))
       mesh_binaries.append(submesh)
 

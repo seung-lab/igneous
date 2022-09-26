@@ -57,6 +57,11 @@ class Tuple2(click.ParamType):
         self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
     return value
 
+class CloudPath(click.ParamType):
+  name = "CloudPath"
+  def convert(self, value, param, ctx):
+    return cloudfiles.paths.normalize(value)
+
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
 @click.version_option(version="4.7.0")

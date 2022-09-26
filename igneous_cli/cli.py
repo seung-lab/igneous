@@ -655,6 +655,7 @@ def execute_helper(
           else:
             return False
         else:
+          print(f"Queue appearently empty. Waiting {sqs_sec_to_wait} sec. to confirm.")
           start_time = time.time()
           last_empty = True
           return False

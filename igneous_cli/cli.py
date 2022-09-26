@@ -114,7 +114,7 @@ def imagegroup():
   pass
 
 @imagegroup.command()
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
@@ -153,8 +153,6 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
-  path = cloudfiles.paths.normalize(path)
-
   if sharded and num_mips != 1:
     print("igneous: sharded downsamples only support producing one mip at a time.")
     return
@@ -204,8 +202,8 @@ def downsample(
   tq.insert(tasks, parallel=parallel)
 
 @imagegroup.command()
-@click.argument("src")
-@click.argument("dest")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
 @click.option('--translate', type=Tuple3(), default=(0, 0, 0), help="Translate the bounding box by X,Y,Z voxels in the new location.")
@@ -252,9 +250,6 @@ def xfer(
   Use the --memory flag to automatically compute the
   a reasonable task shape based on your memory limits.
   """
-  src = cloudfiles.paths.normalize(src)
-  dest = cloudfiles.paths.normalize(dest)
-
   if encoding == "cseg":
     encoding = "compressed_segmentation"
 
@@ -294,7 +289,7 @@ def contrastgroup():
   pass
 
 @contrastgroup.command()
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build histogram from this level of the image pyramid.", show_default=True)
 @click.option('--coverage', default=0.01, type=float, help="Fraction of the image to sample. Range: [0,1]", show_default=True)
@@ -308,8 +303,6 @@ def histogram(
   xrange, yrange, zrange, bounds_mip
 ):
   """(1) Compute the histogram for each z-slice."""
-  path = cloudfiles.paths.normalize(path)
-
   bounds = None
   if xrange or yrange or zrange:
     bounds = CloudVolume(path).meta.bounds(mip)
@@ -338,8 +331,8 @@ def histogram(
   tq.insert(tasks, parallel=parallel)
 
 @contrastgroup.command()
-@click.argument("src")
-@click.argument("dest")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
 @click.option('--shape', default="2048,2048,64", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--translate', type=Tuple3(), default=(0, 0, 0), help="Translate the bounding box by X,Y,Z voxels in the new location.")
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
@@ -361,9 +354,6 @@ def equalize(
   xrange, yrange, zrange, bounds_mip
 ):
   """(2) Apply histogram equalization to z-slices."""
-  src = cloudfiles.paths.normalize(src)
-  dest = cloudfiles.paths.normalize(dest)
-
   bounds = None
   if xrange or yrange or zrange:
     bounds = CloudVolume(path).meta.bounds(mip)
@@ -419,7 +409,7 @@ def cclgroup():
   pass
 
 @cclgroup.command("faces")
-@click.argument("src")
+@click.argument("src", type=CloudPath())
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
@@ -434,7 +424,6 @@ def ccl_faces(
   fill_missing, dust
 ):
   """(1) Generate back face images."""
-  src = cloudfiles.paths.normalize(src)
   tasks = tc.create_ccl_face_tasks(
     src, mip, shape,
     threshold_lte=intify(threshold_lte),
@@ -448,7 +437,7 @@ def ccl_faces(
   tq.insert(tasks, parallel=parallel)
 
 @cclgroup.command("links")
-@click.argument("src")
+@click.argument("src", type=CloudPath())
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
@@ -463,7 +452,6 @@ def ccl_equivalences(
   fill_missing, dust
 ):
   """(2) Generate links between tasks."""
-  src = cloudfiles.paths.normalize(src)
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
     threshold_lte=intify(threshold_lte),
@@ -477,19 +465,18 @@ def ccl_equivalences(
   tq.insert(tasks, parallel=parallel)
 
 @cclgroup.command("calc-labels")
-@click.argument("src")
+@click.argument("src", type=CloudPath())
 @click.option('--mip', default=0, required=True, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.pass_context
 def ccl_calc_labels(ctx, src, mip, shape):
   """(3) Compute and serialize a relabeling to the DB."""
   import igneous.tasks.image.ccl
-  src = cloudfiles.paths.normalize(src)
   igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
 
 @cclgroup.command("relabel")
-@click.argument("src")
-@click.argument("dest")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
@@ -508,8 +495,6 @@ def ccl_relabel(
   fill_missing, dust
 ):
   """(4) Finally relabel and write a CCL image."""
-  src = cloudfiles.paths.normalize(src)
-  dest = cloudfiles.paths.normalize(dest)
   tasks = tc.create_ccl_relabel_tasks(
     src, dest, 
     mip=mip, shape=shape, 
@@ -525,17 +510,16 @@ def ccl_relabel(
   tq.insert(tasks, parallel=parallel)
 
 @cclgroup.command("clean")
-@click.argument("src")
+@click.argument("src", type=CloudPath())
 @click.option('--mip', default=0, required=True, help="Apply to this level of the image pyramid.", show_default=True)
 def ccl_clean(src, mip):
   """(last) Cleans up intermediate files."""
   import igneous.tasks.image.ccl
-  src = cloudfiles.paths.normalize(src)
   igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
 
 @cclgroup.command("auto")
-@click.argument("src")
-@click.argument("dest")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
@@ -558,8 +542,6 @@ def ccl_auto(
   """
   For local volumes, execute all steps automatically.
   """
-  src = cloudfiles.paths.normalize(src)
-  dest = cloudfiles.paths.normalize(dest)
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   args = (queue, None, LEASE_SECONDS, True, -1, True, False)
@@ -714,8 +696,8 @@ def meshgroup():
   pass
 
 @meshgroup.command("xfer")
-@click.argument("src")
-@click.argument("dest")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option("--dir", "mesh_dir", type=str, default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
@@ -730,8 +712,6 @@ def mesh_xfer(
   Enables conversion of unsharded to sharded
   as well.
   """
-  src = cloudfiles.paths.normalize(src)
-  dest = cloudfiles.paths.normalize(dest)
   cv_src = CloudVolume(src)
 
   if not cv_src.mesh.meta.is_sharded() and sharded:
@@ -752,7 +732,7 @@ def mesh_xfer(
   tq.insert(tasks, parallel=parallel)
 
 @meshgroup.command("forge")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels.", show_default=True)
@@ -787,7 +767,6 @@ def mesh_forge(
 
   Sharded format not currently supports. Coming soon.
   """
-  path = cloudfiles.paths.normalize(path)
   if compress.lower() == "none":
     compress = False
 
@@ -805,7 +784,7 @@ def mesh_forge(
   tq.insert(tasks, parallel=parallel)
 
 @meshgroup.command("merge")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
 @click.option('--nlod', default=0, help="(multires) How many extra levels of detail to create.", show_default=True)
@@ -822,8 +801,6 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
   a list of fragment files and uploading a "mesh manifest"
   file that is an index for locating the fragments.
   """
-  path = cloudfiles.paths.normalize(path)
-
   if nlod > 0:
     tasks = tc.create_unsharded_multires_mesh_tasks(
       path, num_lod=nlod, 
@@ -841,7 +818,7 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
   tq.insert(tasks, parallel=parallel)
 
 @meshgroup.command("merge-sharded")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--nlod', default=1, help="Number of levels of detail to create.", type=int, show_default=True)
 @click.option('--vqb', default=16, help="Vertex quantization bits. Can be 10 or 16.", type=int, show_default=True)
@@ -873,7 +850,6 @@ def mesh_sharded_merge(
   The shard and minishard index default sizes are set to
   accomodate efficient access for a 100 Mbps connection.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_sharded_multires_mesh_tasks(
     path, 
     num_lod=nlod,
@@ -893,7 +869,7 @@ def mesh_sharded_merge(
   tq.insert(tasks, parallel=parallel)
 
 @meshgroup.command("rm")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
 @click.option('--dir', 'mesh_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
@@ -902,7 +878,6 @@ def mesh_rm(ctx, path, queue, magnitude, mesh_dir):
   """
   Delete mesh files.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_mesh_deletion_tasks(
     path, magnitude=magnitude, mesh_dir=mesh_dir
   )
@@ -919,7 +894,7 @@ def spatialindexgroup():
   pass
 
 @spatialindexgroup.command("create")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--shape', default="448,448,448", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
@@ -934,7 +909,6 @@ def mesh_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
   This function provides a more efficient
   way to accomplish that than remeshing.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_spatial_index_mesh_tasks(
     cloudpath=path,
     shape=shape,
@@ -947,7 +921,7 @@ def mesh_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
   tq.insert(tasks, parallel=parallel)
 
 @spatialindexgroup.command("db")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.argument("database")
 @click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
 @click.option('--allow-missing', is_flag=True, default=False, help="Allow missing index files.", show_default=True)
@@ -960,7 +934,6 @@ def mesh_spatial_index_download(ctx, path, database, progress, allow_missing):
   mysql paths: mysql://{user}:{pwd}@{host}/{database}
   """
   parallel = int(ctx.obj.get("parallel", 1))
-  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path)
   cv.mesh.spatial_index.to_sql(
     database, 
@@ -983,7 +956,7 @@ def skeletongroup():
   pass
 
 @skeletongroup.command("forge")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=(512, 512, 512), help="Set the task shape in voxels.", show_default=True)
@@ -1030,7 +1003,6 @@ def skeleton_forge(
 
   - https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People
   """
-  path = cloudfiles.paths.normalize(path)
   teasar_params = {
     'scale': scale,
     'const': const, # physical units
@@ -1059,7 +1031,7 @@ def skeleton_forge(
 
 
 @skeletongroup.command("merge")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--min-cable-length', default=1000, help="Skip objects smaller than this physical path length. Default: 1000 nm", type=float)
 @click.option('--max-cable-length', default=None, help="Skip objects larger than this physical path length. Default: no limit", type=float)
@@ -1076,7 +1048,6 @@ def skeleton_merge(
   """
   (2) Postprocess fragments into finished skeletons.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_unsharded_skeleton_merge_tasks(
     path, 
     magnitude=magnitude, 
@@ -1091,7 +1062,7 @@ def skeleton_merge(
   tq.insert(tasks, parallel=parallel)
 
 @skeletongroup.command("merge-sharded")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--min-cable-length', default=1000, help="Skip objects smaller than this physical path length.", type=float, show_default=True)
 @click.option('--max-cable-length', default=None, help="Skip objects larger than this physical path length. Default: no limit", type=float)
@@ -1123,7 +1094,6 @@ def skeleton_sharded_merge(
   The shard and minishard index default sizes are set to
   accomodate efficient access for a 100 Mbps connection.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_sharded_skeleton_merge_tasks(
     path, 
     dust_threshold=min_cable_length,
@@ -1142,7 +1112,7 @@ def skeleton_sharded_merge(
   tq.insert(tasks, parallel=parallel)
 
 @imagegroup.command("rm")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Which mip level to start deleting from. Default: 0")
 @click.option('--num-mips', default=5, help="The number of mip levels to delete at once. Default: 5")
@@ -1155,7 +1125,6 @@ def delete_images(
   """
   Delete the image layer of a dataset.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_deletion_tasks(
     path, mip, num_mips=num_mips, shape=shape
   )
@@ -1164,7 +1133,7 @@ def delete_images(
   tq.insert(tasks, parallel=parallel)
 
 @skeletongroup.command("rm")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
 @click.option('--dir', 'skel_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
@@ -1173,7 +1142,6 @@ def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
   """
   Delete skeleton files.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_skeleton_deletion_tasks(
     path, magnitude=magnitude, skel_dir=skel_dir
   )
@@ -1184,8 +1152,8 @@ def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
 
 
 @skeletongroup.command("xfer")
-@click.argument("src")
-@click.argument("dest")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option("--dir", "skel_dir", type=str, default=None, help="Write skeletons into this directory instead of the one indicated in the info file.")
@@ -1200,8 +1168,6 @@ def skel_xfer(
   Enables conversion of unsharded to sharded
   as well.
   """
-  src = cloudfiles.paths.normalize(src)
-  dest = cloudfiles.paths.normalize(dest)
   cv_src = CloudVolume(src)
 
   if not cv_src.skeleton.meta.is_sharded() and sharded:
@@ -1227,7 +1193,7 @@ def spatialindexgroupskel():
   pass
 
 @spatialindexgroupskel.command("create")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
@@ -1242,7 +1208,6 @@ def skel_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
   This function provides a more efficient
   way to accomplish that than remeshing.
   """
-  path = cloudfiles.paths.normalize(path)
   tasks = tc.create_spatial_index_skeleton_tasks(
     cloudpath=path,
     shape=shape,
@@ -1255,7 +1220,7 @@ def skel_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
   tq.insert(tasks, parallel=parallel)
 
 @spatialindexgroupskel.command("db")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.argument("database")
 @click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
 @click.option('--allow-missing', is_flag=True, default=False, help="Allow missing index files.", show_default=True)
@@ -1268,7 +1233,6 @@ def skel_spatial_index_download(path, database, progress, allow_missing):
   mysql paths: mysql://{user}:{pwd}@{host}/{database}
   """
   parallel = int(ctx.obj.get("parallel", 1))
-  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path)
   cv.skeleton.spatial_index.to_sql(
     database, 
@@ -1285,7 +1249,7 @@ def designgroup():
   pass
 
 @designgroup.command("bounds")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
 def dsbounds(path, mip):
   """
@@ -1293,7 +1257,6 @@ def dsbounds(path, mip):
   an unsharded image volume. Useful when there
   is a corrupted info file.
   """
-  path = cloudfiles.paths.normalize(path)
   cv = CloudVolume(path, mip=mip)
   cf = CloudFiles(path)
 
@@ -1309,7 +1272,7 @@ def dsbounds(path, mip):
   print(f"Chunks: {chunk_size}")
 
 @designgroup.command("ds-memory")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.argument("memory_bytes", type=float)
 @click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
 @click.option('--factor', default="2,2,1", type=Tuple3(), help="Downsample factor to use.", show_default=True)
@@ -1319,8 +1282,7 @@ def dsmemory(path, memory_bytes, mip, factor, verbose, max_mips):
   """
   Compute the task shape that maximizes the number of
   downsamples for a given amount of memory.
-  """ 
-  path = cloudfiles.paths.normalize(path)
+  """
   cv = CloudVolume(path, mip=mip)
 
   data_width = np.dtype(cv.dtype).itemsize
@@ -1359,7 +1321,7 @@ def dsmemory(path, memory_bytes, mip, factor, verbose, max_mips):
     print(shape)
 
 @designgroup.command("ds-shape")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.argument("shape", type=Tuple3())
 @click.option('--mip', default=0, help="Select level of the image pyramid.", show_default=True)
 @click.option('--factor', default="2,2,1", type=Tuple3(), help="Downsample factor to use.", show_default=True)
@@ -1367,8 +1329,7 @@ def dsshape(path, shape, mip, factor):
   """
   Compute the approximate memory usage for a
   given downsample task shape.
-  """ 
-  path = cloudfiles.paths.normalize(path)
+  """
   cv = CloudVolume(path, mip=mip)
   data_width = np.dtype(cv.dtype).itemsize
   memory_bytes = memory_used(data_width, shape, factor)  
@@ -1389,7 +1350,7 @@ def memory_used(data_width, shape, factor):
   return memory_bytes
 
 @main.command("view")
-@click.argument("path")
+@click.argument("path", type=CloudPath())
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
 @click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
@@ -1400,7 +1361,6 @@ def view(path, browser, port, ng):
   # later improvements: 
   #   could use local neuroglancer
   #   modify the url to autopopulate params to avoid a click
-  path = cloudfiles.paths.normalize(path)
   url = f"{ng}#!%7B%22layers%22:%5B%7B%22type%22:%22new%22%2C%22source%22:%22precomputed://http://localhost:{port}%22%2C%22tab%22:%22source%22%2C%22name%22:%22localhost:{port}%22%7D%5D%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22localhost:{port}%22%7D%2C%22layout%22:%224panel%22%7D"
   if browser:
     webbrowser.open(url, new=2)

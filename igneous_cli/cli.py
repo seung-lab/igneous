@@ -650,11 +650,15 @@ def execute_helper(
   start_time = time.time()
   last_empty = False
 
+  # Offical Amazon docs state that to determine if a queue is empty,
+  # you have to test whether it's consistently empty for several 
+  # minutes. So we pick 120 seconds to wait somewhat arbitrarily.
+  # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/confirm-queue-is-empty.html
   def is_empty():
     nonlocal start_time
     nonlocal sqs_sec_to_wait
     nonlocal last_empty
-    
+
     if tq.path.protocol == "sqs":
       if tq.is_empty():
         if last_empty:

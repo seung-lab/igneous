@@ -646,8 +646,35 @@ def execute_helper(
 ):
   tq = TaskQueue(normalize_path(queue), region_name=aws_region)
 
+  sqs_sec_to_wait = 120
+  start_time = time.time()
+  last_empty = False
+
+  def is_empty():
+    nonlocal start_time
+    nonlocal sqs_sec_to_wait
+    nonlocal last_empty
+    
+    if tq.path.protocol == "sqs":
+      if tq.is_empty():
+        if last_empty:
+          elapsed_time = time.time() - start_time
+          if elapsed_time >= sqs_sec_to_wait:
+            return True
+          else:
+            return False
+        else:
+          start_time = time.time()
+          last_empty = True
+          return False
+      else:
+        last_empty = False
+        return False
+    else:
+      return tq.is_empty()
+
   def stop_after_elapsed_time(tries, elapsed_time):
-    if exit_on_empty and tq.is_empty():
+    if exit_on_empty and is_empty():
       return True
 
     if min_sec < 0:

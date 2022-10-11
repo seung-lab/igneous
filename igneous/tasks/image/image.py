@@ -376,7 +376,8 @@ def TransferTask(
   agglomerate=False,
   timestamp=None,
   compress='gzip',
-  factor=None
+  factor=None,
+  encoding_level=None,
 ):
   """
   Transfer an image to a new location while enabling
@@ -400,7 +401,8 @@ def TransferTask(
   dest_cv = CloudVolume(
     dest_path, fill_missing=fill_missing,
     mip=mip, delete_black_uploads=delete_black_uploads,
-    background_color=background_color, compress=compress
+    background_color=background_color, compress=compress,
+    encoding_level=encoding_level,
   )
 
   dst_bbox = Bbox(offset, shape + offset)
@@ -478,6 +480,7 @@ def ImageShardTransferTask(
   translate: ShapeType = (0, 0, 0),
   agglomerate: bool = False,
   timestamp: Optional[int] = None,
+  encoding_level: Optional[int] = None,
 ):
   """
   Generates a sharded image volume from
@@ -504,7 +507,8 @@ def ImageShardTransferTask(
     dst_path,
     fill_missing=fill_missing,
     mip=mip,
-    compress=None
+    compress=None,
+    encoding_level=encoding_level,
   )
 
   dst_bbox = Bbox(offset, offset + shape)

@@ -1,6 +1,50 @@
 CHANGES
 =======
 
+4.8.0
+-----
+
+* release(4.8.0): -x works for SQS, don't encode degenerate meshes
+* feat(cli): add message noting that sqs is waiting
+* refactor(cli): use CloudPath param type instead of extra loc
+* feat(cli): add CloudPath parameter class
+* docs: note why the sqs empty function is complicated
+* feat(sqs): make -x flag work for SQS (120 second wait before exit)
+* fix: don't try to encode degenerate meshes
+
+4.7.0
+-----
+
+* install: ensure trimesh has needed deps
+* install: add mysql-connector-python to Dockerfile
+* docs: fix spelling error
+* refactor: change constant to appropriate variable
+* perf: parallelize each shard access
+* perf(skeletons): only fetch necessary skeletons from remote shard
+* perf: don't download the whole remote shard for meshes
+* install: update dependencies
+* fix: wrong name for shard-computer dependency
+* perf: much faster shard hash calculation
+* feat(spatial\_index): add --allow-missing, parallel, max\_labels\_per\_shard
+* build: issue with numpy 1.23.0 through 1.23.2
+* build: build and push to dockerhub
+* build: try pushing docker
+* chore: update docker to python3.9
+* Create docker-image.yml
+* feat: add pyproject.toml
+
+4.6.0
+-----
+
+* release(4.6.0): fixes several ccl issues and adds --dust argument
+* ci: ensure numpy installed first
+* docs: add dust\_threshold to documentation
+* test: add py37 and py310 to test roster
+* fix(ccl): alignment issue near boundaries
+* test: check dust works
+* feat(ccl): add dust threshold
+* fix(ccl): thresholding operation was incorrect
+
 4.5.5
 -----
 

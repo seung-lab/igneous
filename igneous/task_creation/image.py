@@ -496,7 +496,6 @@ def create_image_shard_transfer_tasks(
         mip=mip,
         agglomerate=agglomerate,
         timestamp=timestamp,
-        encoding_level=encoding_level,
       )
 
     def on_finish(self):
@@ -837,7 +836,6 @@ def create_transfer_tasks(
         compress=compress,
         factor=factor,
         sparse=sparse,
-        encoding_level=encoding_level,
       )
 
     def on_finish(self):

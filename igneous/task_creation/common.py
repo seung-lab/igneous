@@ -213,7 +213,7 @@ def compute_shard_params_for_hashed(
   return (int(shard_bits), int(minishard_bits), 0)
 
 def set_encoding(cv, mip, encoding, encoding_level):
-  scale = cv.scale(mip)
+  scale = cv.meta.scale(mip)
   if encoding is not None:
     scale['encoding'] = encoding
     if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in scale:

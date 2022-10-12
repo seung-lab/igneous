@@ -443,6 +443,11 @@ def create_image_shard_transfer_tasks(
     info = copy.deepcopy(src_vol.info)
     dest_vol = CloudVolume(dst_layer_path, info=info, mip=mip)
     dest_vol.commit_info()
+  except cloudvolume.exceptions.ScaleUnavailableError:
+    dest_vol = CloudVolume(dst_layer_path)
+    dest_vol.scales.append(src_vol.scale)
+    dest_vol.mip = src_vol.scale["resolution"]
+    dest_vol.commit_info()
 
   if dest_voxel_offset is not None:
     dest_vol.scale["voxel_offset"] = dest_voxel_offset

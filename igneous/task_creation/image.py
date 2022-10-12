@@ -33,7 +33,7 @@ from igneous.types import ShapeType
 
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
-  get_bounds, num_tasks, prod
+  get_bounds, num_tasks, prod, set_encoding
 )
 
 __all__  = [
@@ -454,10 +454,8 @@ def create_image_shard_transfer_tasks(
   else:
     translate = Vec(*translate) // src_vol.downsample_ratio
 
-  if encoding is not None:
-    dest_vol.info['scales'][mip]['encoding'] = encoding
-    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dest_vol.info['scales'][mip]:
-      dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
+  set_encoding(dest_vol, mip, encoding, encoding_level)
+
   dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
 
@@ -779,10 +777,7 @@ def create_transfer_tasks(
   else:
     translate = Vec(*translate) // src_vol.downsample_ratio
 
-  if encoding is not None:
-    dest_vol.info['scales'][mip]['encoding'] = encoding
-    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dest_vol.info['scales'][mip]:
-      dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
+  set_encoding(dest_vol, mip, encoding, encoding_level)
   dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
 

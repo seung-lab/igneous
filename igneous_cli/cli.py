@@ -212,6 +212,7 @@ def downsample(
 @click.option('--memory', default=3.5e9, type=int, help="Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
 @click.option('--max-mips', default=5, help="Maximum number of additional pyramid levels.", show_default=True)
 @click.option('--encoding', default="raw", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
+@click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--shape', type=Tuple3(), default=(2048, 2048, 64), help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
@@ -228,7 +229,7 @@ def xfer(
 	ctx, src, dest, queue, translate, 
   downsample, mip, fill_missing, 
   memory, max_mips, shape, sparse, 
-  encoding, chunk_size, compress, 
+  encoding, encoding_level, chunk_size, compress,
   volumetric, delete_bg, bg_color, sharded,
   dest_voxel_offset, clean_info, no_src_update
 ):
@@ -265,7 +266,8 @@ def xfer(
       src, dest,
       chunk_size=chunk_size, fill_missing=fill_missing, mip=mip, 
       dest_voxel_offset=dest_voxel_offset, translate=translate, 
-      encoding=encoding, memory_target=memory, clean_info=clean_info
+      encoding=encoding, memory_target=memory, clean_info=clean_info,
+      encoding_level=encoding_level,
     )
   else:
     tasks = tc.create_transfer_tasks(
@@ -276,7 +278,8 @@ def xfer(
       delete_black_uploads=delete_bg, background_color=bg_color,
       compress=compress, factor=factor, sparse=sparse,
       memory_target=memory, max_mips=max_mips, 
-      clean_info=clean_info, no_src_update=no_src_update
+      clean_info=clean_info, no_src_update=no_src_update,
+      encoding_level=encoding_level,
     )
 
   parallel = int(ctx.obj.get("parallel", 1))

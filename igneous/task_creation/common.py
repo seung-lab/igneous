@@ -211,3 +211,24 @@ def compute_shard_params_for_hashed(
   minishard_bits = max(minishard_bits, 0)
 
   return (int(shard_bits), int(minishard_bits), 0)
+
+def set_encoding(cv, mip, encoding, encoding_level):
+  scale = cv.meta.scale(mip)
+  if encoding is not None:
+    scale['encoding'] = encoding
+    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in scale:
+      scale['compressed_segmentation_block_size'] = (8,8,8)
+
+  if encoding_level is None:
+    return
+
+  encoding_level = int(encoding_level)
+
+  if encoding == "jpeg":
+    scale["jpeg_quality"] = encoding_level
+  elif encoding == "png":
+    scale["png_level"] = encoding_level
+  elif encoding == "fpzip":
+    scale["fpzip_precision"] = encoding_level
+
+

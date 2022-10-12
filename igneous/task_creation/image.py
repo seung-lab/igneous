@@ -33,7 +33,7 @@ from igneous.types import ShapeType
 
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
-  get_bounds, num_tasks, prod
+  get_bounds, num_tasks, prod, set_encoding
 )
 
 __all__  = [
@@ -423,7 +423,8 @@ def create_image_shard_transfer_tasks(
   agglomerate: bool = False, 
   timestamp: int = None,
   memory_target: int = MEMORY_TARGET,
-  clean_info: bool = False
+  clean_info: bool = False,
+  encoding_level: Optional[int] = None,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -442,6 +443,11 @@ def create_image_shard_transfer_tasks(
     info = copy.deepcopy(src_vol.info)
     dest_vol = CloudVolume(dst_layer_path, info=info, mip=mip)
     dest_vol.commit_info()
+  except cloudvolume.exceptions.ScaleUnavailableError:
+    dest_vol = CloudVolume(dst_layer_path)
+    dest_vol.scales.append(src_vol.scale)
+    dest_vol.mip = src_vol.scale["resolution"]
+    dest_vol.commit_info()
 
   if dest_voxel_offset is not None:
     dest_vol.scale["voxel_offset"] = dest_voxel_offset
@@ -453,10 +459,8 @@ def create_image_shard_transfer_tasks(
   else:
     translate = Vec(*translate) // src_vol.downsample_ratio
 
-  if encoding is not None:
-    dest_vol.info['scales'][mip]['encoding'] = encoding
-    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dest_vol.info['scales'][mip]:
-      dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
+  set_encoding(dest_vol, mip, encoding, encoding_level)
+
   dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
 
@@ -505,6 +509,7 @@ def create_image_shard_transfer_tasks(
           "translate": list(map(int, translate)),
           "bounds": [bounds.minpt.tolist(), bounds.maxpt.tolist()],
           "mip": mip,
+          "encoding_level": encoding_level,
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),
@@ -668,6 +673,7 @@ def create_transfer_tasks(
   clean_info:bool = False, 
   no_src_update:bool = False, 
   bounds_mip:int = 0,
+  encoding_level:Optional[int] = None,
 ) -> Iterator:
   """
   Transfer data to a new data layer. You can use this operation
@@ -703,6 +709,10 @@ def create_transfer_tasks(
     image type-specific first stage of compression and the "compress" flag as the data
     agnostic second stage compressor. For example, compressed_segmentation and gzip work
     well together, but not jpeg and gzip.
+  encoding_level: Some encoding schemes (png,jpeg,fpzip) offer a simple scalar knob
+    to control encoding quality. This number corresponds to png level, jpeg quality,
+    and fpzip precision. Other schemes might require more complex inputs and may
+    require info file modifications.
   factor: (overrides axis) can manually specify what each downsampling round is
     supposed to do: e.g. (2,2,1), (2,2,2), etc
   fill_missing: Treat missing image tiles as zeroed for both src and dest.
@@ -771,10 +781,7 @@ def create_transfer_tasks(
   else:
     translate = Vec(*translate) // src_vol.downsample_ratio
 
-  if encoding is not None:
-    dest_vol.info['scales'][mip]['encoding'] = encoding
-    if encoding == 'compressed_segmentation' and 'compressed_segmentation_block_size' not in dest_vol.info['scales'][mip]:
-      dest_vol.info['scales'][mip]['compressed_segmentation_block_size'] = (8,8,8)
+  set_encoding(dest_vol, mip, encoding, encoding_level)
   dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
 
@@ -855,6 +862,7 @@ def create_transfer_tasks(
           'memory_target': memory_target,
           'factor': (tuple(factor) if factor else None),
           'sparse': bool(sparse),
+          'encoding_level': encoding_level,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

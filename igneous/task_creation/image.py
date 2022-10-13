@@ -803,7 +803,7 @@ def create_transfer_tasks(
   shape = Vec(*shape)
 
   if factor[2] == 1:
-    shape.z = int(dest_vol.chunk_size.z * round(shape.z / dest_vol.chunk_size.z))
+    shape.z = int(dest_vol.chunk_size.z * max(round(shape.z / dest_vol.chunk_size.z), 1))
 
   if not skip_downsamples:
     downsample_scales.create_downsample_scales(dest_layer_path, 

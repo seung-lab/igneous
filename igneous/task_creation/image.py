@@ -425,6 +425,7 @@ def create_image_shard_transfer_tasks(
   memory_target: int = MEMORY_TARGET,
   clean_info: bool = False,
   encoding_level: Optional[int] = None,
+  truncate_scales: bool = True,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -461,7 +462,8 @@ def create_image_shard_transfer_tasks(
 
   set_encoding(dest_vol, mip, encoding, encoding_level)
 
-  dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
+  if truncate_scales:
+    dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
 
   spec = create_sharded_image_info(
@@ -477,7 +479,6 @@ def create_image_shard_transfer_tasks(
   dest_vol.commit_info()
 
   shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
-
   bounds = get_bounds(
     dest_vol, bounds, mip, 
     bounds_mip=bounds_mip, 
@@ -674,6 +675,7 @@ def create_transfer_tasks(
   no_src_update:bool = False, 
   bounds_mip:int = 0,
   encoding_level:Optional[int] = None,
+  truncate_scales:bool = True,
 ) -> Iterator:
   """
   Transfer data to a new data layer. You can use this operation
@@ -782,7 +784,8 @@ def create_transfer_tasks(
     translate = Vec(*translate) // src_vol.downsample_ratio
 
   set_encoding(dest_vol, mip, encoding, encoding_level)
-  dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
+  if truncate_scales:
+    dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
   dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
 
   if clean_info:

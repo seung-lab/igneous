@@ -224,6 +224,7 @@ def downsample(
 @click.option('--dest-voxel-offset', type=Tuple3(), default=None, help="Set the voxel offset for this mip level.")
 @click.option('--clean-info', is_flag=True, default=False, help="Scrub info file of mesh and skeleton fields.", show_default=True)
 @click.option('--no-src-update', is_flag=True, default=False, help="Don't update the source provenance file with the transfer metadata.", show_default=True)
+@click.option('--truncate-scales/--no-truncate-scales', is_flag=True, default=True, help="Truncate the info file scales to the mip specified.", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, 
@@ -231,7 +232,8 @@ def xfer(
   memory, max_mips, shape, sparse, 
   encoding, encoding_level, chunk_size, compress,
   volumetric, delete_bg, bg_color, sharded,
-  dest_voxel_offset, clean_info, no_src_update
+  dest_voxel_offset, clean_info, no_src_update,
+  truncate_scales
 ):
   """
   Copy, re-encode, or shard an image layer.
@@ -267,7 +269,7 @@ def xfer(
       chunk_size=chunk_size, fill_missing=fill_missing, mip=mip, 
       dest_voxel_offset=dest_voxel_offset, translate=translate, 
       encoding=encoding, memory_target=memory, clean_info=clean_info,
-      encoding_level=encoding_level,
+      encoding_level=encoding_level, truncate_scales=truncate_scales,
     )
   else:
     tasks = tc.create_transfer_tasks(
@@ -279,7 +281,7 @@ def xfer(
       compress=compress, factor=factor, sparse=sparse,
       memory_target=memory, max_mips=max_mips, 
       clean_info=clean_info, no_src_update=no_src_update,
-      encoding_level=encoding_level,
+      encoding_level=encoding_level, truncate_scales=truncate_scales,
     )
 
   parallel = int(ctx.obj.get("parallel", 1))

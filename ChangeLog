@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+4.9.0
+-----
+
+* release(4.9.0): adds --encoding-level to image xfer
+* feat: add encoding level to transfer tasks (#140)
+* docs: update ChangeLog
+
 4.8.0
 -----
 

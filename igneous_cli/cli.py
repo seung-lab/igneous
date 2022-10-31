@@ -708,10 +708,12 @@ def meshgroup():
 @click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option("--dir", "mesh_dir", type=str, default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
+@click.option('--mip', type=int, default=None, help="Manually specify which mip level the images were derived from.", show_default=True)
 @click.pass_context
 def mesh_xfer(
   ctx, src, dest, queue,
-  sharded, mesh_dir, magnitude
+  sharded, mesh_dir, magnitude,
+  mip
 ):
   """
   Transfer meshes to another location.
@@ -725,6 +727,7 @@ def mesh_xfer(
       src, dest,
       num_lod=0, 
       mesh_dir=mesh_dir, 
+      mip=mip,
     )
   else:
     tasks = tc.create_xfer_meshes_tasks(

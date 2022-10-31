@@ -423,8 +423,10 @@ def configure_multires_info(
     vol.info['mesh'] = mesh_dir
     vol.commit_info()
 
-  res = vol.meta.resolution(vol.mesh.meta.mip)
+  if vol.mesh.meta.mip is None:
+    raise ValueError("Unable to detect mesh resolution. Please specify the resolution in the mesh info file.")
 
+  res = vol.meta.resolution(vol.mesh.meta.mip)
   cf = CloudFiles(cloudpath)
   info_filename = f'{mesh_dir}/info'
   mesh_info = cf.get_json(info_filename) or {}
@@ -563,16 +565,29 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
   vertex_quantization_bits:int = 16,
   minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 
+  mip:Optional[int] = None,
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
+
+  cv_src = CloudVolume(src)
+  cf = CloudFiles(cv_src.mesh.meta.layerpath)
   
+  if not CloudFiles(dest).exists("info"):
+    CloudVolume(dest, info=cv_src.info, mesh_dir=mesh_dir).commit_info()
+
+  cv_dest = CloudVolume(dest)
+  if cv_dest.mesh.meta.info:
+    if cv_dest.mesh.meta.mip is None:
+      if mip is not None:
+        cv_dest.mesh.meta.mip = mip
+      else:
+        raise ValueError("mip must be set")
+    cv_dest.mesh.meta.commit_info()
+
   configure_multires_info(
     dest, 
     vertex_quantization_bits, 
     mesh_dir
   )
-
-  cv_src = CloudVolume(src)
-  cf = CloudFiles(cv_src.mesh.meta.layerpath)
 
   all_labels = []
   SEGID_RE = re.compile(r'(\d+)(?:(?::0(?:\.gz|\.br|\.zstd)?$)|\.index$)')
@@ -592,8 +607,9 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
     )
 
   cv_dest = CloudVolume(dest, mesh_dir=mesh_dir)
-  cv_dest.mesh.meta.info["mip"] = cv_src.mesh.meta.mip
-  cv_dest.commit_info()
+  if mip is None and cv_src.mesh.meta.mip is not None:
+    cv_dest.mesh.meta.info["mip"] = cv_src.mesh.meta.mip
+    cv_dest.commit_info()
 
   spec = ShardingSpecification(
     type='neuroglancer_uint64_sharded_v1',

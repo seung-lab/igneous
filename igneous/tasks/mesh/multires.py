@@ -141,7 +141,7 @@ def process_mesh(
       # test for totally degenerate meshes by checking if 
       # all of two axes match, meaning the mesh must be a 
       # point or a line.
-      if np.sum(np.bitwise_and.reduce(submesh.vertices) == submesh.vertices[0,:]) >= 2:
+      if np.sum([ np.all(submesh.vertices[:,i] == submesh.vertices[0,i]) for i in range(3) ]) >= 2:
         continue
 
       minpt = np.min(submesh.vertices, axis=0)
@@ -348,12 +348,12 @@ def create_mesh_shard(
   data_offset = {
     label: len(manifest)
     for label, (manifest, mesh_binary) in meshes.items()
-    if manifest is not None
+    if manifest is not None and len(mesh_binary) > 0
   }
   meshes = {
     label: mesh_binary + manifest.to_binary()
     for label, (manifest, mesh_binary) in meshes.items()
-    if manifest is not None
+    if manifest is not None and len(mesh_binary) > 0
   }
 
   if len(meshes) == 0:

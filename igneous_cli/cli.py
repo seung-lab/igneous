@@ -709,11 +709,12 @@ def meshgroup():
 @click.option("--dir", "mesh_dir", type=str, default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
 @click.option('--mip', type=int, default=None, help="Manually specify which mip level the images were derived from.", show_default=True)
+@click.option('--nlod', type=int, default=0, help="(sharded) Create additional levels of detail (lods).", show_default=True)
 @click.pass_context
 def mesh_xfer(
   ctx, src, dest, queue,
   sharded, mesh_dir, magnitude,
-  mip
+  mip, nlod
 ):
   """
   Transfer meshes to another location.
@@ -725,7 +726,7 @@ def mesh_xfer(
   if not cv_src.mesh.meta.is_sharded() and sharded:
     tasks = tc.create_sharded_multires_mesh_from_unsharded_tasks(
       src, dest,
-      num_lod=0, 
+      num_lod=nlod, 
       mesh_dir=mesh_dir, 
       mip=mip,
     )

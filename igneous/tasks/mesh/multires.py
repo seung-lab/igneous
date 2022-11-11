@@ -138,12 +138,6 @@ def process_mesh(
         frag=frag_no,
       )
 
-      # test for totally degenerate meshes by checking if 
-      # all of two axes match, meaning the mesh must be a 
-      # point or a line.
-      if np.sum([ np.all(submesh.vertices[:,i] == submesh.vertices[0,i]) for i in range(3) ]) >= 2:
-        continue
-
       minpt = np.min(submesh.vertices, axis=0)
       quantization_range = np.max(submesh.vertices, axis=0) - minpt
       quantization_range = np.max(quantization_range)
@@ -160,7 +154,7 @@ def process_mesh(
           create_metadata=True,
         )
       except DracoPy.EncodingFailedException:
-        continue
+        submesh = b''
 
       manifest.fragment_offsets.append(len(submesh))
       mesh_binaries.append(submesh)
@@ -522,9 +516,17 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
         mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
         mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
 
-        if len(mesh_z.vertices) > 0:
-          submeshes.append(mesh_z)
-          nodes.append((x, y, z))
+        if len(mesh_z.vertices) == 0:
+          continue
+
+        # test for totally degenerate meshes by checking if 
+        # all of two axes match, meaning the mesh must be a 
+        # point or a line.
+        if np.sum([ np.all(mesh_z.vertices[:,i] == mesh_z.vertices[0,i]) for i in range(3) ]) >= 2:
+          continue
+
+        submeshes.append(mesh_z)
+        nodes.append((x, y, z))
 
   # Sort in Z-curve order
   submeshes, nodes = zip(

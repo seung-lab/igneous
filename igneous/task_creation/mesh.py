@@ -450,7 +450,7 @@ def create_unsharded_multires_mesh_tasks(
   cloudpath:str, num_lod:int = 1, 
   magnitude:int = 3, mesh_dir:str = None,
   vertex_quantization_bits:int = 16,
-  min_chunk_size:Tuple[int,int,int] = (512,512,512),
+  min_chunk_size:Tuple[int,int,int] = (256,256,256),
 ) -> Iterator:
   """
   vertex_quantization_bits: 10 or 16. Adjusts the precision
@@ -681,7 +681,7 @@ def create_sharded_multires_mesh_tasks(
   minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 
   spatial_index_db:Optional[str] = None,
-  min_chunk_size:Tuple[int,int,int] = (512,512,512),
+  min_chunk_size:Tuple[int,int,int] = (256,256,256),
   max_labels_per_shard:Optional[int] = None,
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
 

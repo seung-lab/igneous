@@ -447,7 +447,7 @@ def configure_multires_info(
     )
 
 def create_unsharded_multires_mesh_tasks(
-  cloudpath:str, num_lod:int = 1, 
+  cloudpath:str, num_lod:int = 0, 
   magnitude:int = 3, mesh_dir:str = None,
   vertex_quantization_bits:int = 16,
   min_chunk_size:Tuple[int,int,int] = (256,256,256),
@@ -560,7 +560,7 @@ def create_sharded_multires_mesh_from_unsharded_tasks(
   shard_index_bytes=2**13, 
   minishard_index_bytes=2**15,
   min_shards:int = 1,
-  num_lod:int = 1, 
+  num_lod:int = 0, 
   draco_compression_level:int = 1,
   vertex_quantization_bits:int = 16,
   minishard_index_encoding="gzip", 
@@ -675,7 +675,7 @@ def create_sharded_multires_mesh_tasks(
   shard_index_bytes=2**13, 
   minishard_index_bytes=2**15,
   min_shards:int = 1,
-  num_lod:int = 1, 
+  num_lod:int = 0, 
   draco_compression_level:int = 7,
   vertex_quantization_bits:int = 16,
   minishard_index_encoding="gzip", 

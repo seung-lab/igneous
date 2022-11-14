@@ -291,7 +291,7 @@ def generate_lods(
   mesh:Mesh,
   num_lods:int,
   decimation_factor:int = 2, 
-  aggressiveness:float = 5.0,
+  aggressiveness:float = 5.5,
   progress:bool = False,
 ):
   assert num_lods >= 0, num_lods

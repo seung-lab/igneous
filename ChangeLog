@@ -1,6 +1,32 @@
 CHANGES
 =======
 
+4.11.1
+------
+
+* release(4.11.1): allow --memory to work for image xfer
+* fix(cli/xfer): stop overriding --memory for xfer command
+
+4.11.0
+------
+
+* release(4.11.0): improvements and fixes to multires mesh transfers
+* redesign(mesh/multires): make default nlod = 0 instead of 1
+* redesign(mesh/multires): reduce min\_chunk\_size to 256 from 512
+* redesign(mesh/multires): incr. aggressiveness from 5 to 5.5
+* fix(multires/mesh): format was corrupted by degenerate objects
+* feat(cli): add nlod to mesh xfer
+* fix(mesh xfer): better degenerate detection, check zero length meshes
+* fix: make it easier to transfer unsharded to sharded meshes
+* fix(skeletons): better centering in meshes
+
+4.10.0
+------
+
+* release(4.10.0): add truncate-scales flag to xfer and fixes z chunk size
+* feat(image xfer): add truncate\_scales flag and parameter
+* fix: handle larger z chunk size than initial
+
 4.9.0
 -----
 

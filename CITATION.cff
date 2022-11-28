@@ -22,7 +22,7 @@ authors:
 - family-names: "Seung"
   given-names: "H. Sebastian"
   orcid: "https://orcid.org/0000-0002-8591-6733"
-title: "Igneous: 3D Downsampling, Meshing, Skeletonizing, Transfers and more for connectomics images."
-version: 4.2.1
-date-released: 2022-05-15
-doi: 10.5281/zenodo.6499717
+title: "Igneous: Distributed dense 3D segmentation meshing, neuron skeletonization, and hierarchical downsampling"
+version: 4.11.1
+date-released: 2022-11-25
+doi: 10.3389/fncir.2022.977700

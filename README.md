@@ -1,4 +1,4 @@
-[![PyPI version](https://badge.fury.io/py/igneous-pipeline.svg)](https://badge.fury.io/py/igneous-pipeline) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi)
+[![PyPI version](https://badge.fury.io/py/igneous-pipeline.svg)](https://badge.fury.io/py/igneous-pipeline) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi) [![Igneous Paper](https://img.shields.io/badge/Paper-Igneous%3A%20Distributed%20Meshing%2C%20Skeletonization%2C%20and%20Downsampling%20(2022)-important)]
 
 # Igneous
 

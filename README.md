@@ -18,7 +18,7 @@ $ igneous --help
 
 Igneous is a [TaskQueue](https://github.com/seung-lab/python-task-queue) and CloudVolume based pipeline for producing and managing visualizable Neuroglancer [Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) volumes. It uses [CloudVolume](https://github.com/seung-lab/cloud-volume) for accessing data on AWS S3, Google Storage, or the local filesystem. It can operate in the cloud using an [SQS](https://aws.amazon.com/sqs/) task queuing system or run locally on a single machine or cluster (using a file based SQS emulation). 
 
-Igneous is useful for downsampling, transferring, deleting, meshing, and skeletonizing large images. There are a few more esoteric functions too.  
+Igneous is useful for downsampling, transferring, deleting, meshing, and skeletonizing large images. There are a few more esoteric functions too. You can watch a [video tutorial](https://www.youtube.com/watch?v=tyQGQtw2WIE) here.
 
 Originally by Nacho and Will. 
 

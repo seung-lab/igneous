@@ -185,7 +185,7 @@ kubectl delete deployment igneous
 
 ## Command Line Interface (CLI)
 
-Igneous also comes with a (beta) command line interface for performing some routine tasks. We currently support `downsample`, `xfer`, `mesh`, `skeleton`, and `execute` and plan to add more Igneous functions as well. Check `igneous --help` to see the current menu of functions and their options. 
+Igneous also comes with a command line interface for performing some routine tasks. We currently support `downsample`, `xfer`, `mesh`, `skeleton`, and `execute` and plan to add more Igneous functions as well. Check `igneous --help` to see the current menu of functions and their options. 
 
 The principle of the CLI is specify a source layer, a destination layer (if applicable), and a [TaskQueue](https://github.com/seung-lab/python-task-queue) (e.g. `sqs://` or `fq://`). First, populate the queue with the correct task type and then execute against it.
 

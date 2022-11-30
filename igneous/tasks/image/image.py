@@ -16,7 +16,6 @@ from cloudvolume import CloudVolume
 from cloudvolume.exceptions import OutOfBoundsError
 from cloudvolume.lib import min2, Vec, Bbox, mkdir, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
-from cloudvolume.frontends.precomputed import CloudVolumePrecomputed
 
 from taskqueue import RegisteredTask, queueable
 import tinybrain

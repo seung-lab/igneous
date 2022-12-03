@@ -9,6 +9,8 @@ from time import strftime
 import numpy as np
 from tqdm import tqdm
 
+import shardcomputer
+
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
@@ -273,13 +275,16 @@ def create_flat_graphene_skeleton_merge_tasks(
   return GrapheneSkeletonMergeTaskIterator()
 
 def create_sharded_skeleton_merge_tasks(
-  layer_path, dust_threshold, tick_threshold,
-  shard_index_bytes=2**13,
-  minishard_index_bytes=2**15,
-  min_shards=1,
-  minishard_index_encoding='gzip', 
-  data_encoding='gzip',
-  max_cable_length=None, spatial_index_db=None
+  layer_path:str, 
+  dust_threshold:int, tick_threshold:float,
+  shard_index_bytes:int = 2**13,
+  minishard_index_bytes:int = 2**15,
+  min_shards:int = 1,
+  minishard_index_encoding:str = 'gzip', 
+  data_encoding:str = 'gzip',
+  max_cable_length:Optional[float] = None, 
+  spatial_index_db:Optional[str] = None,
+  max_labels_per_shard:Optional[int] = None,
 ):
   cv = CloudVolume(layer_path, progress=True, spatial_index_db=spatial_index_db) 
   cv.mip = cv.skeleton.meta.mip
@@ -287,6 +292,10 @@ def create_sharded_skeleton_merge_tasks(
   # 17 sec to download for pinky100
   all_labels = cv.skeleton.spatial_index.query(cv.bounds * cv.resolution)
   
+  if max_labels_per_shard is not None:
+    assert max_labels_per_shard >= 1
+    min_shards = max(int(np.ceil(len(all_labels) / max_labels_per_shard)), min_shards)
+
   (shard_bits, minishard_bits, preshift_bits) = \
     compute_shard_params_for_hashed(
       num_labels=len(all_labels),
@@ -311,12 +320,9 @@ def create_sharded_skeleton_merge_tasks(
   cv = CloudVolume(layer_path, progress=True, spatial_index_db=spatial_index_db) 
   cv.mip = cv.skeleton.meta.mip
 
-  # perf: ~36k hashes/sec
-  shardfn = lambda lbl: cv.skeleton.reader.spec.compute_shard_location(lbl).shard_number
-
-  shard_labels = defaultdict(list)
-  for label in tqdm(all_labels, desc="Hashes"):
-    shard_labels[shardfn(label)].append(label)
+  all_labels = np.fromiter(all_labels, dtype=np.uint64, count=len(all_labels))
+  shard_labels = shardcomputer.assign_labels_to_shards(all_labels, preshift_bits, shard_bits, minishard_bits)
+  del all_labels
 
   cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
   files = ( 

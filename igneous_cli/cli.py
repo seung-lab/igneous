@@ -1079,6 +1079,7 @@ def skeleton_merge(
 @click.option('--tick-threshold', default=0, help="Remove small \"ticks\", or branches from the main skeleton one at a time from smallest to largest. Branches larger than this are preserved. Default: no elimination", type=float)
 @click.option('--shard-index-bytes', default=2**13, help="Size in bytes to make the shard index.", type=int, show_default=True)
 @click.option('--minishard-index-bytes', default=2**15, help="Size in bytes to make the minishard index.", type=int, show_default=True)
+@click.option('--max-labels-per-shard', default=2000, help="Maximum average number of labels per a shard.", type=int, show_default=True)
 @click.option('--min-shards', default=1, help="Minimum number of shards to generate. Excess shards can make it easier to parallelize the merge process.", type=int, show_default=True)
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw. Default: gzip")
 @click.option('--data-encoding', default="gzip", help="Shard data can be compressed. gzip or raw. Default: gzip")
@@ -1088,7 +1089,8 @@ def skeleton_sharded_merge(
   ctx, path, queue, 
   min_cable_length, max_cable_length, 
   tick_threshold, 
-  shard_index_bytes, minishard_index_bytes, min_shards,
+  shard_index_bytes, minishard_index_bytes, 
+  max_labels_per_shard, min_shards,
   minishard_index_encoding, data_encoding,
   spatial_index_db
 ):
@@ -1115,6 +1117,7 @@ def skeleton_sharded_merge(
     minishard_index_encoding=minishard_index_encoding, 
     data_encoding=data_encoding,
     spatial_index_db=spatial_index_db,
+    max_labels_per_shard=max_labels_per_shard,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

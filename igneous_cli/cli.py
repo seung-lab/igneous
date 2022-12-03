@@ -1235,7 +1235,7 @@ def skel_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
 @click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
 @click.option('--allow-missing', is_flag=True, default=False, help="Allow missing index files.", show_default=True)
 @click.pass_context
-def skel_spatial_index_download(path, database, progress, allow_missing):
+def skel_spatial_index_download(ctx, path, database, progress, allow_missing):
   """
   Download the skeleton spatial index into a database.
 

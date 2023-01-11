@@ -272,7 +272,8 @@ def create_sharded_image_info(
   uncompressed_shard_bytesize: int = MEMORY_TARGET, 
   max_shard_index_bytes: int = 8192, # 2^13
   max_minishard_index_bytes: int = 40000,
-  max_labels_per_minishard: int = 4000
+  max_labels_per_minishard: int = 4000,
+  data_encoding:str = "gzip"
 ) -> Dict[str, Any]:
   """
   Create a recommended sharding scheme. These recommendations are based
@@ -395,8 +396,7 @@ def create_sharded_image_info(
   if preshift_bits + shard_bits + minishard_bits > max_bits:
     raise ValueError(f"{preshift_bits} preshift_bits {shard_bits} shard_bits + {minishard_bits} minishard_bits must be <= {max_bits}. Try reducing the number of minishards.")
 
-  data_encoding = "gzip"
-  if encoding in ("jpeg", "kempressed", "fpzip"):
+  if encoding in ("jpeg", "kempressed", "fpzip", "zfpc"):
     data_encoding = "raw"
 
   return {
@@ -426,6 +426,7 @@ def create_image_shard_transfer_tasks(
   clean_info: bool = False,
   encoding_level: Optional[int] = None,
   truncate_scales: bool = True,
+  compress:bool = True
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -472,6 +473,7 @@ def create_image_shard_transfer_tasks(
     encoding=dest_vol.scale["encoding"], 
     dtype=dest_vol.dtype,
     uncompressed_shard_bytesize=memory_target,
+    data_encoding=("gzip" if compress else "raw"),
   )
   dest_vol.scale["sharding"] = spec
   if clean_info:

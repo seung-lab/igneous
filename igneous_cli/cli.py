@@ -270,6 +270,7 @@ def xfer(
       dest_voxel_offset=dest_voxel_offset, translate=translate, 
       encoding=encoding, memory_target=memory, clean_info=clean_info,
       encoding_level=encoding_level, truncate_scales=truncate_scales,
+      compress=compress,
     )
   else:
     tasks = tc.create_transfer_tasks(

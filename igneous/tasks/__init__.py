@@ -19,6 +19,7 @@ from .image import (
   LuminanceLevelsTask, ContrastNormalizationTask,
   MaskAffinitymapTask, InferenceTask, BlackoutTask,
   TouchTask, ImageShardTransferTask, ImageShardDownsampleTask,
-  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask
+  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
+  CountVoxelsTask
 )
 from .spatial_index import SpatialIndexTask

@@ -25,7 +25,8 @@ from igneous.tasks import (
   TransferTask, TouchTask, LuminanceLevelsTask,
   HyperSquareConsensusTask, # HyperSquareTask,
   ImageShardTransferTask, ImageShardDownsampleTask,
-  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask
+  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
+  CountVoxelsTask
 )
 
 from igneous.shards import image_shard_shape_from_spec
@@ -1444,3 +1445,35 @@ def create_ccl_relabel_tasks(
 
   return RelabelCCLTaskIterator(bounds, shape)
 
+def crate_voxel_counting_tasks(
+  cloudpath, mip
+):
+  vol = CloudVolume(cloudpath, max_redirects=0)
+  shape = Vec(512,512,512)
+
+  class CountVoxelsTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, bounds.maxpt - offset)
+      return partial(CountVoxelsTask,
+        cloudpath=cloudpath,
+        shape=bounded_shape.clone(),
+        offset=offset.clone(),
+        mip=mip,
+      )
+
+    def on_finish(self):
+      vol = CloudVolume(cloudpath, max_redirects=0)
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'CountVoxelsTask',
+          'cloudpath': cloudpath,
+          'mip': mip,
+          'shape': shape.tolist(),
+          'offset': offset.tolist(),
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      vol.commit_provenance()
+
+  return CountVoxelsTaskIterator(bounds, shape)

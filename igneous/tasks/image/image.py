@@ -9,6 +9,8 @@ from typing import Optional, Tuple, cast
 import numpy as np
 from tqdm import tqdm
 
+from mapbuffer import MapBuffer
+
 from cloudfiles import CloudFiles
 from taskqueue.registered_task import RegisteredTask
 
@@ -609,3 +611,46 @@ def ImageShardDownsampleTask(
     src_vol.cloudpath, src_vol.meta.key(mip + 1)
   )
   CloudFiles(basepath).put(filename, shard)
+
+@queueable
+def CountVoxelsTask(
+  cloudpath:str,
+  shape:ShapeType,
+  offset:ShapeType,
+  mip:int = 0,
+  fill_missing:bool = False,
+  agglomerate:bool = False,
+  timestamp:Optional[int] = None
+):
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  mip = int(mip)
+  fill_missing = bool(fill_missing)
+
+  cv = CloudVolume(
+    cloudpath, fill_missing=fill_missing, 
+    mip=mip, bounded=False, progress=False
+  )
+  bbox = Bbox(offset, offset + shape)
+  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
+  
+  labels = cv.download(
+    bbox, 
+    agglomerate=agglomerate, 
+    timestamp=timestamp
+  )
+  uniq, cts = fastremap.unique(labels, return_counts=True)
+  voxel_counts = { segid: ct for segid, ct in zip(uniq, cts) }
+
+  mb = MapBuffer(voxel_counts)
+
+  cf = CloudFiles(cloudpath)
+
+  cf.put(
+    cf.join(f'{cv.key}', 'stats', 'voxel_counts', f'{bbox.filename()}.json'),
+    mb.tobytes()
+  )
+
+
+
+

@@ -775,8 +775,6 @@ def mesh_forge(
   memory efficient as it can use a 32-bit mesher.
 
   zmesh is used: https://github.com/seung-lab/zmesh
-
-  Sharded format not currently supports. Coming soon.
   """
   if compress.lower() == "none":
     compress = False

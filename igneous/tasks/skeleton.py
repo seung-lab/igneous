@@ -378,7 +378,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
     for label in tqdm(unfused_skeletons.keys(), desc="Postprocessing", disable=(not self.progress)):
       skels = unfused_skeletons[label]
-      skel = PrecomputedSkeleton.simple_merge(skels)
+      skel = PrecomputedSkeleton.simple_merge(skels).consolidate()
       skel.id = label
       skel.extra_attributes = [ 
         attr for attr in skel.extra_attributes \

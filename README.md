@@ -626,6 +626,16 @@ For smaller images that could reasonably be processed on a single machine there 
 igneous -p PARALLEL image ccl auto SRC DEST --shape 512,512,512 --encoding compresso --queue queue
 ````
 
+### Computing Per-Object Voxel Counts
+
+This will create a [`MapBuffer`](https://github.com/seung-lab/mapbuffer) dictionary containing the global number of voxels per a label at the location `$CLOUDPATH/$KEY/stats/voxel_counts.mb`. You can then use this file to lookup the global voxel count for each label.
+
+```bash
+igneous image voxels count SRC --mip 0 --queue queue
+igneous execute -x queue
+igneous image voxels sum SRC --mip 0 # no execution needed
+```
+
 ## Conclusion
 
 It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation/` and `igneous/tasks/` for the most current information.  

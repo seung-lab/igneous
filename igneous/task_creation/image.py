@@ -1,3 +1,4 @@
+from collections import defaultdict
 from functools import reduce, partial
 import operator
 from typing import Any, Dict, Union, Tuple, cast, Optional, Iterator
@@ -1452,7 +1453,7 @@ def create_ccl_relabel_tasks(
 def create_voxel_counting_tasks(
   cloudpath, mip
 ):
-  vol = CloudVolume(cloudpath, max_redirects=0)
+  vol = CloudVolume(cloudpath, max_redirects=0, mip=mip)
   shape = Vec(512,512,512)
   bounds = vol.bounds.clone()
 
@@ -1482,7 +1483,7 @@ def create_voxel_counting_tasks(
 
   return CountVoxelsTaskIterator(bounds, shape)
 
-def accumulate_voxel_counts(cloudpath, mip, shape):
+def accumulate_voxel_counts(cloudpath, mip):
   """
   
   """
@@ -1499,7 +1500,7 @@ def accumulate_voxel_counts(cloudpath, mip, shape):
   filenames = ( f'{bbx.to_filename()}.json' for bbx in itr )
 
   cf = CloudFiles(cloudpath)
-  stats_path = cf.join(cloudpath, f'{cv.key}', 'stats', 'voxel_counts')
+  stats_path = cf.join(cloudpath, f'{vol.key}', 'stats', 'voxel_counts')
   cf = CloudFiles(stats_path)
 
   count_files = cf.get_json(filenames)
@@ -1507,16 +1508,15 @@ def accumulate_voxel_counts(cloudpath, mip, shape):
 
   for counts in count_files:
     for segid, ct in counts.items():
-      final_counts[segid] += ct
+      final_counts[int(segid)] += ct
 
 
-  final_path = cf.join(cloudpath, f'{cv.key}', 'stats', 'voxel_counts')
+  final_path = cf.join(cloudpath, f'{vol.key}', 'stats')
   cf = CloudFiles(final_path)
 
-  mb = MapBuffer(final_counts)
-  cf.put('counts.mb', mb.tobytes())
-
-
-
-
+  mb = MapBuffer(
+    final_counts, 
+    tobytesfn=lambda x: x.to_bytes(8, byteorder='little')
+  )
+  cf.put('voxel_counts.mb', mb.tobytes())
 

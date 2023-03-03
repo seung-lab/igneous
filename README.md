@@ -250,7 +250,7 @@ igneous execute $QUEUE # process the queue
 
 #### Scripting Downsample
 
-```python3
+```python
 tasks = create_downsampling_tasks(
     layer_path, # e.g. 'gs://bucket/dataset/layer'
     mip=0, # Start downsampling from this mip level (writes to next level up)
@@ -336,7 +336,7 @@ igneous design ds-memory gs://bucket/dataset 3.5e9 --verbose
 
 #### Scripting Transfer
 
-```python3
+```python
 tasks = create_transfer_tasks(
   src_layer_path, dest_layer_path, 
   chunk_size=None, shape=None, 
@@ -380,7 +380,7 @@ igneous execute $QUEUE
 #### Scripting
 
 
-```python3
+```python
 tasks = create_deletion_tasks(
   layer_path, # data layer to target
   mip=0, # Which layer to start deleting from
@@ -436,7 +436,7 @@ igneous execute $QUEUE
 
 #### Scripting Meshing
 
-```python3
+```python
 tasks = create_meshing_tasks(             # First Pass
   layer_path, # Which data layer 
   mip, # Which resolution level to mesh at (we often choose near isotropic resolutions)
@@ -489,7 +489,7 @@ igneous execute $QUEUE
 
 #### Scripting Skeletonization
 
-```python3
+```python
 import igneous.task_creation as tc 
 
 # First Pass: Generate Skeletons
@@ -625,6 +625,45 @@ For smaller images that could reasonably be processed on a single machine there 
 ```bash
 igneous -p PARALLEL image ccl auto SRC DEST --shape 512,512,512 --encoding compresso --queue queue
 ````
+
+### Computing Per-Object Voxel Counts
+
+This will create a [`MapBuffer`](https://github.com/seung-lab/mapbuffer) dictionary containing the global number of voxels per a label at the location `$CLOUDPATH/$KEY/stats/voxel_counts.mb`. You can then use this file to lookup the global voxel count for each label.
+
+#### Scripting Voxel Counts
+
+```python
+import igneous.task_creation as tc
+
+cloudpath = ... 
+mip = 0
+tasks = tc.create_voxel_counting_tasks(
+  cloudpath, mip=mip
+)
+tq = LocalTaskQueue(parallel=1)
+tq.insert_all(tasks)
+
+tc.accumulate_voxel_counts(cloudpath, mip)
+
+from cloudfiles import CloudFile
+from mapbuffer import MapBuffer
+cf = CloudFile("/".join(cloudpath, "stats", "voxel_counts.mb"))
+
+fn = lambda x: int.from_bytes(x, byteorder='little')
+# for (slow) remote access w/o having to download the file
+mb = MapBuffer(cf, frombytesfn=fn)
+# for fast local access, but downloads the whole file
+mb = MapBuffer(cf.get(), frombytesfn=fn)
+mb[label] # fetches voxel count for label
+```
+
+#### CLI Voxel Counts
+
+```bash
+igneous image voxels count SRC --mip 0 --queue queue
+igneous execute -x queue
+igneous image voxels sum SRC --mip 0 # no execution needed
+```
 
 ## Conclusion
 

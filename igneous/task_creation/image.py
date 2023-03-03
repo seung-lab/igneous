@@ -1,3 +1,4 @@
+from collections import defaultdict
 from functools import reduce, partial
 import operator
 from typing import Any, Dict, Union, Tuple, cast, Optional, Iterator
@@ -10,6 +11,8 @@ from time import strftime
 import fastremap
 import numpy as np
 from tqdm import tqdm
+
+from mapbuffer import MapBuffer
 
 from cloudfiles import CloudFiles
 
@@ -25,7 +28,8 @@ from igneous.tasks import (
   TransferTask, TouchTask, LuminanceLevelsTask,
   HyperSquareConsensusTask, # HyperSquareTask,
   ImageShardTransferTask, ImageShardDownsampleTask,
-  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask
+  CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
+  CountVoxelsTask
 )
 
 from igneous.shards import image_shard_shape_from_spec
@@ -53,6 +57,8 @@ __all__  = [
   "create_ccl_face_tasks",
   "create_ccl_equivalence_tasks",
   "create_ccl_relabel_tasks",
+  "create_voxel_counting_tasks",
+  "accumulate_voxel_counts",
 ]
 
 # A reasonable size for processing large
@@ -1443,4 +1449,81 @@ def create_ccl_relabel_tasks(
       dest_vol.commit_provenance()
 
   return RelabelCCLTaskIterator(bounds, shape)
+
+def create_voxel_counting_tasks(
+  cloudpath, mip
+):
+  """
+  Counts voxels in 512^3 tasks and uploads the JSON files
+  to $KEY/stats/voxel_counts/$BBOX.json
+  """
+  vol = CloudVolume(cloudpath, max_redirects=0, mip=mip)
+  shape = Vec(512,512,512)
+  bounds = vol.bounds.clone()
+
+  class CountVoxelsTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, bounds.maxpt - offset)
+      return partial(CountVoxelsTask,
+        cloudpath=cloudpath,
+        shape=bounded_shape.clone(),
+        offset=offset.clone(),
+        mip=mip,
+      )
+
+    def on_finish(self):
+      vol = CloudVolume(cloudpath, max_redirects=0)
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'CountVoxelsTask',
+          'cloudpath': cloudpath,
+          'mip': mip,
+          'shape': shape.tolist(),
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      vol.commit_provenance()
+
+  return CountVoxelsTaskIterator(bounds, shape)
+
+def accumulate_voxel_counts(cloudpath, mip):
+  """
+  Accumulate counts from each task.
+
+  Results are saved in a mapbuffer file:
+  $cloudpath/$KEY/stats/voxel_counts.mb
+  """
+  vol = CloudVolume(cloudpath, max_redirects=0, mip=mip)
+  shape = Vec(512,512,512)
+  bounds = vol.bounds.clone()
+
+  class CountVoxelsTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, bounds.maxpt - offset)
+      return Bbox(offset, offset + bounded_shape)
+  
+  itr = CountVoxelsTaskIterator(bounds, shape)
+  filenames = ( f'{bbx.to_filename()}.json' for bbx in itr )
+
+  cf = CloudFiles(cloudpath)
+  stats_path = cf.join(cloudpath, f'{vol.key}', 'stats', 'voxel_counts')
+  cf = CloudFiles(stats_path)
+
+  count_files = cf.get_json(filenames)
+  final_counts = defaultdict(int)
+
+  for counts in count_files:
+    for segid, ct in counts.items():
+      final_counts[int(segid)] += ct
+
+
+  final_path = cf.join(cloudpath, f'{vol.key}', 'stats')
+  cf = CloudFiles(final_path)
+
+  mb = MapBuffer(
+    final_counts, 
+    tobytesfn=lambda x: x.to_bytes(8, byteorder='little')
+  )
+  cf.put('voxel_counts.mb', mb.tobytes())
 

@@ -1453,6 +1453,10 @@ def create_ccl_relabel_tasks(
 def create_voxel_counting_tasks(
   cloudpath, mip
 ):
+  """
+  Counts voxels in 512^3 tasks and uploads the JSON files
+  to $KEY/stats/voxel_counts/$BBOX.json
+  """
   vol = CloudVolume(cloudpath, max_redirects=0, mip=mip)
   shape = Vec(512,512,512)
   bounds = vol.bounds.clone()
@@ -1485,7 +1489,10 @@ def create_voxel_counting_tasks(
 
 def accumulate_voxel_counts(cloudpath, mip):
   """
-  
+  Accumulate counts from each task.
+
+  Results are saved in a mapbuffer file:
+  $cloudpath/$KEY/stats/voxel_counts.mb
   """
   vol = CloudVolume(cloudpath, max_redirects=0, mip=mip)
   shape = Vec(512,512,512)

@@ -297,8 +297,9 @@ def voxelgroup():
 @voxelgroup.command("count")
 @click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Count this mip level of the image pyramid.", show_default=True)
+@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.pass_context
-def count_voxels(path, mip):
+def count_voxels(ctx, path, mip, queue):
   """Create voxel counting tasks.
 
   These tasks are 512x512x512 voxels and result
@@ -314,7 +315,7 @@ def count_voxels(path, mip):
 @click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Count this mip level of the image pyramid.", show_default=True)
 @click.pass_context
-def sum_voxel_counts(path, mip):
+def sum_voxel_counts(ctx, path, mip):
   """Accumulate counts from each task.
 
   Results are saved in a mapbuffer file:

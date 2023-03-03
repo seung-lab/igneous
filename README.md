@@ -250,7 +250,7 @@ igneous execute $QUEUE # process the queue
 
 #### Scripting Downsample
 
-```python3
+```python
 tasks = create_downsampling_tasks(
     layer_path, # e.g. 'gs://bucket/dataset/layer'
     mip=0, # Start downsampling from this mip level (writes to next level up)
@@ -336,7 +336,7 @@ igneous design ds-memory gs://bucket/dataset 3.5e9 --verbose
 
 #### Scripting Transfer
 
-```python3
+```python
 tasks = create_transfer_tasks(
   src_layer_path, dest_layer_path, 
   chunk_size=None, shape=None, 
@@ -380,7 +380,7 @@ igneous execute $QUEUE
 #### Scripting
 
 
-```python3
+```python
 tasks = create_deletion_tasks(
   layer_path, # data layer to target
   mip=0, # Which layer to start deleting from
@@ -436,7 +436,7 @@ igneous execute $QUEUE
 
 #### Scripting Meshing
 
-```python3
+```python
 tasks = create_meshing_tasks(             # First Pass
   layer_path, # Which data layer 
   mip, # Which resolution level to mesh at (we often choose near isotropic resolutions)
@@ -489,7 +489,7 @@ igneous execute $QUEUE
 
 #### Scripting Skeletonization
 
-```python3
+```python
 import igneous.task_creation as tc 
 
 # First Pass: Generate Skeletons

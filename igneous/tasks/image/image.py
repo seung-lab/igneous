@@ -9,6 +9,7 @@ from typing import Optional, Tuple, cast
 import numpy as np
 from tqdm import tqdm
 
+import fastremap
 from mapbuffer import MapBuffer
 
 from cloudfiles import CloudFiles
@@ -632,7 +633,7 @@ def CountVoxelsTask(
     mip=mip, bounded=False, progress=False
   )
   bbox = Bbox(offset, offset + shape)
-  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
+  bbox = Bbox.clamp(bbox, cv.meta.bounds(mip))
   
   labels = cv.download(
     bbox, 
@@ -640,17 +641,12 @@ def CountVoxelsTask(
     timestamp=timestamp
   )
   uniq, cts = fastremap.unique(labels, return_counts=True)
-  voxel_counts = { segid: ct for segid, ct in zip(uniq, cts) }
-
-  mb = MapBuffer(voxel_counts)
+  voxel_counts = { str(segid): ct for segid, ct in zip(uniq, cts) }
 
   cf = CloudFiles(cloudpath)
 
-  cf.put(
-    cf.join(f'{cv.key}', 'stats', 'voxel_counts', f'{bbox.filename()}.json'),
-    mb.tobytes()
+  cf.put_json(
+    cf.join(f'{cv.key}', 'stats', 'voxel_counts', f'{bbox.to_filename()}.json'),
+    voxel_counts
   )
-
-
-
 

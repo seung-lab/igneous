@@ -11,6 +11,8 @@ import fastremap
 import numpy as np
 from tqdm import tqdm
 
+from mapbuffer import MapBuffer
+
 from cloudfiles import CloudFiles
 
 import cloudvolume
@@ -54,6 +56,8 @@ __all__  = [
   "create_ccl_face_tasks",
   "create_ccl_equivalence_tasks",
   "create_ccl_relabel_tasks",
+  "create_voxel_counting_tasks",
+  "accumulate_voxel_counts",
 ]
 
 # A reasonable size for processing large
@@ -1445,11 +1449,12 @@ def create_ccl_relabel_tasks(
 
   return RelabelCCLTaskIterator(bounds, shape)
 
-def crate_voxel_counting_tasks(
+def create_voxel_counting_tasks(
   cloudpath, mip
 ):
   vol = CloudVolume(cloudpath, max_redirects=0)
   shape = Vec(512,512,512)
+  bounds = vol.bounds.clone()
 
   class CountVoxelsTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -1469,7 +1474,6 @@ def crate_voxel_counting_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
-          'offset': offset.tolist(),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -1477,3 +1481,42 @@ def crate_voxel_counting_tasks(
       vol.commit_provenance()
 
   return CountVoxelsTaskIterator(bounds, shape)
+
+def accumulate_voxel_counts(cloudpath, mip, shape):
+  """
+  
+  """
+  vol = CloudVolume(cloudpath, max_redirects=0, mip=mip)
+  shape = Vec(512,512,512)
+  bounds = vol.bounds.clone()
+
+  class CountVoxelsTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      bounded_shape = min2(shape, bounds.maxpt - offset)
+      return Bbox(offset, offset + bounded_shape)
+  
+  itr = CountVoxelsTaskIterator(bounds, shape)
+  filenames = ( f'{bbx.to_filename()}.json' for bbx in itr )
+
+  cf = CloudFiles(cloudpath)
+  stats_path = cf.join(cloudpath, f'{cv.key}', 'stats', 'voxel_counts')
+  cf = CloudFiles(stats_path)
+
+  count_files = cf.get_json(filenames)
+  final_counts = defaultdict(int)
+
+  for counts in count_files:
+    for segid, ct in counts.items():
+      final_counts[segid] += ct
+
+
+  final_path = cf.join(cloudpath, f'{cv.key}', 'stats', 'voxel_counts')
+  cf = CloudFiles(final_path)
+
+  mb = MapBuffer(final_counts)
+  cf.put('counts.mb', mb.tobytes())
+
+
+
+
+

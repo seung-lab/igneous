@@ -71,7 +71,7 @@ class SkeletonTask(RegisteredTask):
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, sharded=False,
     spatial_index=True, spatial_grid_shape=None,
-    synapses=None
+    synapses=None, dust_global=True
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 
@@ -81,7 +81,7 @@ class SkeletonTask(RegisteredTask):
       fix_avocados, fill_holes,
       dust_threshold, progress, parallel,
       fill_missing, bool(sharded), bool(spatial_index),
-      spatial_grid_shape, synapses
+      spatial_grid_shape, synapses, bool(dust_global)
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
@@ -111,11 +111,16 @@ class SkeletonTask(RegisteredTask):
         all_labels, self.synapses
       )
 
+    dust_threshold = self.dust_threshold
+    if self.dust_global and dust_threshold > 0:
+      dust_threshold = 0
+      all_labels = self.apply_global_dust_threshold(vol, all_labels)
+
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, 
       anisotropy=vol.resolution,
-      dust_threshold=self.dust_threshold, 
+      dust_threshold=dust_threshold, 
       progress=self.progress, 
       fix_branching=self.fix_branching,
       fix_borders=self.fix_borders,
@@ -153,6 +158,25 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
   
+  def apply_global_dust_threshold(self, vol, all_labels):
+    path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.mb')
+    cf = CloudFile(path)
+
+    if not cf.exists():
+      raise FileNotFoundError(f"Cannot apply global dust threshold without {path}")
+
+    mb = MapBuffer(cf)
+    uniq = fastremap.unique(all_labels)
+
+    valid_objects = []
+    for label in uniq:
+      if label == 0:
+        continue
+      if mb[label] >= self.dust_threshold:
+        valid_objects.append(label)
+
+    return fastremap.mask_except(all_labels, valid_objects)
+
   def upload_batch(self, vol, path, bbox, skeletons):
     mbuf = MapBuffer(
       skeletons, compress="br", 

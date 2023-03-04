@@ -1009,7 +1009,7 @@ def skeletongroup():
 @click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
 @click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions.", show_default=True)
 @click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
-@click.option('--dust-global/--dust-local', is_flag=True, default=True, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", type=int, show_default=True)
+@click.option('--dust-global/--dust-local', is_flag=True, default=True, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
 @click.option('--scale', default=4, help="Multiplies invalidation radius by distance from boundary.", type=float, show_default=True)
 @click.option('--const', default=10, help="Adds constant amount to invalidation radius in physical units.", type=float, show_default=True)

@@ -165,7 +165,7 @@ class SkeletonTask(RegisteredTask):
     if not cf.exists():
       raise FileNotFoundError(f"Cannot apply global dust threshold without {path}")
 
-    mb = MapBuffer(cf)
+    mb = MapBuffer(cf, frombytesfn=lambda x: int.from_bytes(x, byteorder='little'))
     uniq = fastremap.unique(all_labels)
 
     valid_objects = []

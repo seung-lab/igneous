@@ -71,7 +71,7 @@ class SkeletonTask(RegisteredTask):
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, sharded=False,
     spatial_index=True, spatial_grid_shape=None,
-    synapses=None, dust_global=True
+    synapses=None, dust_global=False
   ):
     super(SkeletonTask, self).__init__(
       cloudpath, shape, offset, mip, 

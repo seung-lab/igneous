@@ -49,7 +49,7 @@ def create_skeletonizing_tasks(
     parallel=1, fill_missing=False, 
     sharded=False, spatial_index=True,
     synapses=None, num_synapses=None,
-    dust_global=True
+    dust_global=False
   ):
   """
   Assign tasks with one voxel overlap in a regular grid 

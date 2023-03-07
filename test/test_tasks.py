@@ -11,6 +11,7 @@ import numpy as np
 from cloudvolume import CloudVolume, EmptyVolumeException, view
 import cloudvolume.lib as lib
 from cloudfiles import CloudFiles
+import fastremap
 from taskqueue import MockTaskQueue, TaskQueue
 import tinybrain
 
@@ -523,4 +524,38 @@ def test_skeletonization_task():
         'const': 10,
     })
     tq.insert_all(tasks)
+
+
+def test_voxel_counting_task():
+    directory = '/tmp/removeme/voxelcounting/'
+    layer_path = 'file://' + directory
+    delete_layer(layer_path)
+
+    img = np.random.randint(0, 50, size=(1024,1024,256), dtype=np.uint8)
+    cv = CloudVolume.from_numpy(
+        img,
+        layer_type='segmentation',
+        vol_path=layer_path,
+    )
+
+    tq = MockTaskQueue()
+    tasks = tc.create_voxel_counting_tasks(layer_path, mip=0)
+    tq.insert_all(tasks)
+    tc.accumulate_voxel_counts(layer_path, mip=0)
+
+    from mapbuffer import MapBuffer
+    mb = CloudFiles(layer_path).get(f"{cv.key}/stats/voxel_counts.mb")
+    mb = MapBuffer(mb, frombytesfn=lambda x: int.from_bytes(x, byteorder='little'))
+    uniq, cts = fastremap.unique(img, return_counts=True)
+    
+    cts_dict_gt = { label: ct for label, ct in zip(uniq, cts) }
+    cts_dict_task = mb.todict()
+
+    assert cts_dict_task == cts_dict_gt
+
+
+
+
+
+
 

@@ -9,7 +9,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 import cloudfiles.paths
 
 from cloudvolume import CloudVolume, view
@@ -250,7 +250,7 @@ class MeshTask(RegisteredTask):
       return self.apply_dust_global_threshold(dust_threshold, data)
 
   def apply_dust_global_threshold(self, dust_threshold, all_labels):
-    path = self._volume.meta.join(self.cloudpath, self._volume.key, 'stats', 'voxel_counts.mb')
+    path = self._volume.meta.join(self._volume.cloudpath, self._volume.key, 'stats', 'voxel_counts.mb')
     cf = CloudFile(path)
 
     if not cf.exists():

@@ -785,6 +785,7 @@ def mesh_xfer(
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--max-error', default=40, help="Maximum simplification error in physical units.", show_default=True)
 @click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
+@click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
@@ -795,7 +796,8 @@ def mesh_forge(
   ctx, path, queue, mip, shape, 
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
-  spatial_index, sharded, closed_edge
+  spatial_index, sharded, closed_edge,
+  dust_global
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -819,7 +821,8 @@ def mesh_forge(
     mesh_dir=dir, cdn_cache=False, dust_threshold=dust_threshold,
     object_ids=None, progress=False, fill_missing=fill_missing,
     encoding='precomputed', spatial_index=spatial_index, 
-    sharded=sharded, compress=compress, closed_dataset_edges=closed_edge
+    sharded=sharded, compress=compress, closed_dataset_edges=closed_edge,
+    dust_global=dust_global
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

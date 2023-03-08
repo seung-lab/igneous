@@ -785,6 +785,7 @@ def mesh_xfer(
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--max-error', default=40, help="Maximum simplification error in physical units.", show_default=True)
 @click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
+@click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--compress', default="gzip", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
@@ -795,7 +796,8 @@ def mesh_forge(
   ctx, path, queue, mip, shape, 
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
-  spatial_index, sharded, closed_edge
+  spatial_index, sharded, closed_edge,
+  dust_global
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -819,7 +821,8 @@ def mesh_forge(
     mesh_dir=dir, cdn_cache=False, dust_threshold=dust_threshold,
     object_ids=None, progress=False, fill_missing=fill_missing,
     encoding='precomputed', spatial_index=spatial_index, 
-    sharded=sharded, compress=compress, closed_dataset_edges=closed_edge
+    sharded=sharded, compress=compress, closed_dataset_edges=closed_edge,
+    dust_global=dust_global
   )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -1009,6 +1012,7 @@ def skeletongroup():
 @click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
 @click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions.", show_default=True)
 @click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
+@click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
 @click.option('--scale', default=4, help="Multiplies invalidation radius by distance from boundary.", type=float, show_default=True)
 @click.option('--const', default=10, help="Adds constant amount to invalidation radius in physical units.", type=float, show_default=True)
@@ -1021,7 +1025,7 @@ def skeletongroup():
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
-  fill_missing, dust_threshold, spatial_index,
+  fill_missing, dust_threshold, dust_global, spatial_index,
   fix_branching, fix_borders, fix_avocados, 
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded
@@ -1066,6 +1070,7 @@ def skeleton_forge(
     dust_threshold=dust_threshold, progress=False,
     parallel=1, fill_missing=fill_missing, 
     sharded=sharded, spatial_index=spatial_index,
+    dust_global=dust_global,
   )
 
   parallel = int(ctx.obj.get("parallel", 1))

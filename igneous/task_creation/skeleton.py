@@ -48,7 +48,8 @@ def create_skeletonizing_tasks(
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, 
     sharded=False, spatial_index=True,
-    synapses=None, num_synapses=None
+    synapses=None, num_synapses=None,
+    dust_global=False
   ):
   """
   Assign tasks with one voxel overlap in a regular grid 
@@ -98,6 +99,9 @@ def create_skeletonizing_tasks(
     volumes.
   dust_threshold: don't skeletonize labels smaller than this number of voxels
     as seen by a single task.
+  dust_global: Use global voxel counts for the dust threshold instead of from
+    just the cutout (if dust_threshold > 0). However, you must have generated 
+    voxel_counts.mb prior to running skeletonization.
   progress: show a progress bar
   parallel: number of processes to deploy against a single task. parallelizes
     over labels, it won't speed up a single complex label. You can be slightly
@@ -123,6 +127,15 @@ def create_skeletonizing_tasks(
   """
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
+
+  if dust_threshold > 0 and dust_global:
+    cf = CloudFiles(cloudpath)
+    vxctfile = cf.join(vol.key, 'stats', 'voxel_counts.mb')
+    if not cf.exists(vxctfile):
+      raise FileNotFoundError(
+        f"To use global dust thresholds, you must pre-compute the global voxel"
+        f" counts using 'igneous image voxels'. {vxctfile} not found."
+      )
 
   kdtree, labelsmap = None, None
   if synapses:
@@ -172,6 +185,7 @@ def create_skeletonizing_tasks(
         spatial_index=bool(spatial_index),
         spatial_grid_shape=shape.clone(), # used for writing index filenames
         synapses=bbox_synapses,
+        dust_global=dust_global,
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -214,6 +228,7 @@ def create_skeletonizing_tasks(
           'sharded': bool(sharded),
           'spatial_index': bool(spatial_index),
           'synapses': bool(synapses),
+          'dust_global': bool(dust_global),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

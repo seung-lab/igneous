@@ -9,7 +9,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 import cloudfiles.paths
 
 from cloudvolume import CloudVolume, view
@@ -91,6 +91,7 @@ class MeshTask(RegisteredTask):
       'draco_compression_level': kwargs.get('draco_compression_level', 1),
       'draco_create_metadata': kwargs.get('draco_create_metadata', False),
       'dust_threshold': kwargs.get('dust_threshold', None),
+      'dust_global': kwargs.get('dust_global', False),
       'encoding': kwargs.get('encoding', 'precomputed'),
       'fill_missing': kwargs.get('fill_missing', False),
       'generate_manifests': kwargs.get('generate_manifests', False),
@@ -174,7 +175,10 @@ class MeshTask(RegisteredTask):
     if self.options["closed_dataset_edges"]:
       data, left_offset = self._handle_dataset_boundary(data, data_bounds)
 
-    data = self._remove_dust(data, self.options['dust_threshold'])
+    data = self._remove_dust(
+      data, 
+      self.options['dust_threshold'], self.options['dust_global']
+    )
     data = self._remap(data)
 
     if self.options['object_ids']:
@@ -234,13 +238,35 @@ class MeshTask(RegisteredTask):
     else:
       raise ValueError("The mesh destination is not present in the info file.")
 
-  def _remove_dust(self, data, dust_threshold):
-    if dust_threshold:
+  def _remove_dust(self, data, dust_threshold, dust_global):
+    if not dust_threshold:
+      return data
+
+    if not dust_global:
       segids, pxct = fastremap.unique(data, return_counts=True)
       dust_segids = [ sid for sid, ct in zip(segids, pxct) if ct < int(dust_threshold) ]
-      data = fastremap.mask(data, dust_segids, in_place=True)
+      return fastremap.mask(data, dust_segids, in_place=True)
+    else:
+      return self.apply_dust_global_threshold(dust_threshold, data)
 
-    return data
+  def apply_dust_global_threshold(self, dust_threshold, all_labels):
+    path = self._volume.meta.join(self._volume.cloudpath, self._volume.key, 'stats', 'voxel_counts.mb')
+    cf = CloudFile(path)
+
+    if not cf.exists():
+      raise FileNotFoundError(f"Cannot apply global dust threshold without {path}")
+
+    mb = MapBuffer(cf, frombytesfn=lambda x: int.from_bytes(x, byteorder='little'))
+    uniq = fastremap.unique(all_labels)
+
+    valid_objects = []
+    for label in uniq:
+      if label == 0:
+        continue
+      if mb[label] >= self.dust_threshold:
+        valid_objects.append(label)
+
+    return fastremap.mask_except(all_labels, valid_objects)
 
   def _remap(self, data):
     if self.options['remap_table'] is None:

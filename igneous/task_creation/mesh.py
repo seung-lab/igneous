@@ -161,7 +161,7 @@ def create_meshing_tasks(
     mesh_dir=None, cdn_cache=False, dust_threshold=None,
     object_ids=None, progress=False, fill_missing=False,
     encoding='precomputed', spatial_index=True, sharded=False,
-    compress='gzip', closed_dataset_edges=True
+    compress='gzip', closed_dataset_edges=True, dust_global=False
   ):
   shape = Vec(*shape)
 
@@ -199,6 +199,7 @@ def create_meshing_tasks(
         mesh_dir=mesh_dir, 
         cache_control=('' if cdn_cache else 'no-cache'),
         dust_threshold=dust_threshold,
+        dust_global=bool(dust_global),
         progress=progress,
         object_ids=object_ids,
         fill_missing=fill_missing,
@@ -228,6 +229,7 @@ def create_meshing_tasks(
           'sharded': sharded,
           'compress': compress,
           'closed_dataset_edges': closed_dataset_edges,
+          'dust_global': bool(dust_global),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

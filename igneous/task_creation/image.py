@@ -1495,7 +1495,7 @@ def create_voxel_counting_tasks(
 
   return CountVoxelsTaskIterator(bounds, shape)
 
-def accumulate_voxel_counts(cloudpath, mip):
+def accumulate_voxel_counts(cloudpath, mip, progress=True):
   """
   Accumulate counts from each task.
 
@@ -1516,22 +1516,22 @@ def accumulate_voxel_counts(cloudpath, mip):
 
   cf = CloudFiles(cloudpath)
   stats_path = cf.join(cloudpath, f'{vol.key}', 'stats', 'voxel_counts')
-  cf = CloudFiles(stats_path)
+  cf = CloudFiles(stats_path, progress=progress)
 
-  count_files = cf.get_json(filenames)
+  count_files = cf.get_json(filenames, total=len(itr))
   final_counts = defaultdict(int)
 
-  for counts in count_files:
+  for counts in tqdm(count_files, disable=(not progress), desc="Summing"):
     for segid, ct in counts.items():
       final_counts[int(segid)] += ct
-
 
   final_path = cf.join(cloudpath, f'{vol.key}', 'stats')
   cf = CloudFiles(final_path)
 
   mb = MapBuffer(
     final_counts, 
-    tobytesfn=lambda x: x.to_bytes(8, byteorder='little')
+    tobytesfn=lambda x: x.to_bytes(8, byteorder='little'),
+    check_crc=False,
   )
   cf.put('voxel_counts.mb', mb.tobytes())
 

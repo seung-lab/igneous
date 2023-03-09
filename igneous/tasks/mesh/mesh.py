@@ -256,8 +256,12 @@ class MeshTask(RegisteredTask):
     if not cf.exists():
       raise FileNotFoundError(f"Cannot apply global dust threshold without {path}")
 
+    buf = cf
+    if cf.protocol != "file":
+      buf = cf.get()
+
     mb = MapBuffer(
-      cf, 
+      buf, 
       frombytesfn=lambda x: int.from_bytes(x, byteorder='little'),
       check_crc=False,
     )

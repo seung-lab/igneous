@@ -684,6 +684,7 @@ def create_transfer_tasks(
   bounds_mip:int = 0,
   encoding_level:Optional[int] = None,
   truncate_scales:bool = True,
+  cutout:bool = False,
 ) -> Iterator:
   """
   Transfer data to a new data layer. You can use this operation
@@ -697,6 +698,8 @@ def create_transfer_tasks(
 
   bounds: Bbox specified in terms of the destination image and its
     highest resolution.
+  cutout: If True, set the bounds of the destination volume to the
+    specified bounds when creating a new volume (existing is untouched).
   translate: Vec3 pointing from source bounds to dest bounds
     and is in terms of the highest resolution of the source image.
     This allows you to compensate for differing voxel offsets
@@ -761,6 +764,8 @@ def create_transfer_tasks(
 
   if dest_voxel_offset:
     dest_voxel_offset = Vec(*dest_voxel_offset, dtype=int)
+  elif cutout and bounds:
+    dest_voxel_offset = list(bounds.minpt)
   else:
     dest_voxel_offset = src_vol.voxel_offset.clone()
 
@@ -779,6 +784,9 @@ def create_transfer_tasks(
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
     dest_vol = CloudVolume(dest_layer_path, info=info, mip=mip)
+    if cutout and bounds:
+      dest_vol.scale["voxel_offset"] = list(bounds.minpt)
+      dest_vol.scale["size"] = list(bounds.size3())
     dest_vol.commit_info()
 
   if dest_voxel_offset is not None:

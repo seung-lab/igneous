@@ -62,6 +62,24 @@ class CloudPath(click.ParamType):
   def convert(self, value, param, ctx):
     return cloudfiles.paths.normalize(value)
 
+def compute_bounds(path, mip, xrange, yrange, zrange):
+  bounds = None
+  if xrange or yrange or zrange:
+    bounds = CloudVolume(path).meta.bounds(mip)
+
+  if xrange:
+    bounds.minpt.x = xrange[0]
+    bounds.maxpt.x = xrange[1]
+  if yrange:
+    bounds.minpt.y = yrange[0]
+    bounds.maxpt.y = yrange[1]
+  if zrange:
+    bounds.minpt.z = zrange[0]
+    bounds.maxpt.z = zrange[1]
+
+  return bounds
+
+
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
 @click.version_option(version="4.11.1")
@@ -164,19 +182,7 @@ def downsample(
   if volumetric:
   	factor = (2,2,2)
 
-  bounds = None
-  if xrange or yrange or zrange:
-    bounds = CloudVolume(path).meta.bounds(mip)
-
-  if xrange:
-    bounds.minpt.x = xrange[0]
-    bounds.maxpt.x = xrange[1]
-  if yrange:
-    bounds.minpt.y = yrange[0]
-    bounds.maxpt.y = yrange[1]
-  if zrange:
-    bounds.minpt.z = zrange[0]
-    bounds.maxpt.z = zrange[1]
+  bounds = compute_bounds(path, mip, xrange, yrange, zrange)
 
   if sharded:
     tasks = tc.create_image_shard_downsample_tasks(
@@ -225,6 +231,11 @@ def downsample(
 @click.option('--clean-info', is_flag=True, default=False, help="Scrub info file of mesh and skeleton fields.", show_default=True)
 @click.option('--no-src-update', is_flag=True, default=False, help="Don't update the source provenance file with the transfer metadata.", show_default=True)
 @click.option('--truncate-scales/--no-truncate-scales', is_flag=True, default=True, help="Truncate the info file scales to the mip specified.", show_default=True)
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
+@click.option('--bounds-mip', default=None, type=int, help="Which mip level are xrange, yrange, and zrange specified in?", show_default=True)
+@click.option('--cutout', is_flag=True, default=False, help="If bounds are specified and creating a new volume, restrict the new volume to the specified bounds. Currently only for unsharded transfers.", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, 
@@ -233,7 +244,8 @@ def xfer(
   encoding, encoding_level, chunk_size, compress,
   volumetric, delete_bg, bg_color, sharded,
   dest_voxel_offset, clean_info, no_src_update,
-  truncate_scales
+  truncate_scales, 
+  xrange, yrange, zrange, bounds_mip, cutout
 ):
   """
   Copy, re-encode, or shard an image layer.
@@ -263,6 +275,10 @@ def xfer(
   if compress and compress.lower() in ("none", "false"):
     compress = False
 
+  if bounds_mip is None:
+    bounds_mip = mip
+  bounds = compute_bounds(src, bounds_mip, xrange, yrange, zrange)
+
   if sharded:
     tasks = tc.create_image_shard_transfer_tasks(
       src, dest,
@@ -270,7 +286,7 @@ def xfer(
       dest_voxel_offset=dest_voxel_offset, translate=translate, 
       encoding=encoding, memory_target=memory, clean_info=clean_info,
       encoding_level=encoding_level, truncate_scales=truncate_scales,
-      compress=compress,
+      compress=compress, bounds=bounds, bounds_mip=bounds_mip,
     )
   else:
     tasks = tc.create_transfer_tasks(
@@ -283,6 +299,7 @@ def xfer(
       memory_target=memory, max_mips=max_mips, 
       clean_info=clean_info, no_src_update=no_src_update,
       encoding_level=encoding_level, truncate_scales=truncate_scales,
+      bounds=bounds, bounds_mip=bounds_mip, cutout=cutout,
     )
 
   parallel = int(ctx.obj.get("parallel", 1))
@@ -333,29 +350,19 @@ def contrastgroup():
 @click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build histogram from this level of the image pyramid.", show_default=True)
 @click.option('--coverage', default=0.01, type=float, help="Fraction of the image to sample. Range: [0,1]", show_default=True)
-@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
-@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
-@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
-@click.option('--bounds-mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
+@click.option('--bounds-mip', default=None, type=int, help="Bounds are written in terms of this image pyramid level.", show_default=True)
 @click.pass_context
 def histogram(
   ctx, path, queue, mip, coverage,
   xrange, yrange, zrange, bounds_mip
 ):
   """(1) Compute the histogram for each z-slice."""
-  bounds = None
-  if xrange or yrange or zrange:
-    bounds = CloudVolume(path).meta.bounds(mip)
-
-  if xrange:
-    bounds.minpt.x = xrange[0]
-    bounds.maxpt.x = xrange[1]
-  if yrange:
-    bounds.minpt.y = yrange[0]
-    bounds.maxpt.y = yrange[1]
-  if zrange:
-    bounds.minpt.z = zrange[0]
-    bounds.maxpt.z = zrange[1]
+  if bounds_mip is None:
+    bounds_mip = mip
+  bounds = compute_bounds(path, bounds_mip, xrange, yrange, zrange)
 
   tasks = tc.create_luminance_levels_tasks(
     path, 
@@ -381,10 +388,10 @@ def histogram(
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--minval', default=None, help="Set left side of histogram as this value. (must be in range of datatype)", show_default=True)
 @click.option('--maxval', default=None, help="Set right side of histogram as this value. (must be in range of datatype)", show_default=True)
-@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
-@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
-@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
-@click.option('--bounds-mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
+@click.option('--bounds-mip', default=None, type=int, help="Bounds are written in terms of this image pyramid level.", show_default=True)
 @click.pass_context
 def equalize(
   ctx, src, dest, queue,
@@ -394,19 +401,9 @@ def equalize(
   xrange, yrange, zrange, bounds_mip
 ):
   """(2) Apply histogram equalization to z-slices."""
-  bounds = None
-  if xrange or yrange or zrange:
-    bounds = CloudVolume(path).meta.bounds(mip)
-
-  if xrange:
-    bounds.minpt.x = xrange[0]
-    bounds.maxpt.x = xrange[1]
-  if yrange:
-    bounds.minpt.y = yrange[0]
-    bounds.maxpt.y = yrange[1]
-  if zrange:
-    bounds.minpt.z = zrange[0]
-    bounds.maxpt.z = zrange[1]
+  if bounds_mip is None:
+    bounds_mip = mip
+  bounds = compute_bounds(path, bounds_mip, xrange, yrange, zrange)
 
   tasks = tc.create_contrast_normalization_tasks(
     src, dest, levels_path=None,

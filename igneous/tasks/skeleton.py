@@ -410,12 +410,13 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
     for label in tqdm(unfused_skeletons.keys(), desc="Postprocessing", disable=(not self.progress)):
       skels = unfused_skeletons[label]
-      skel = PrecomputedSkeleton.simple_merge(skels).consolidate()
+      skel = PrecomputedSkeleton.simple_merge(skels)
       skel.id = label
       skel.extra_attributes = [ 
         attr for attr in skel.extra_attributes \
         if attr['data_type'] == 'float32' 
       ]
+      skel = skel.consolidate()
       if self.max_cable_length is not None and skel.cable_length() > self.max_cable_length:
         skeletons[label] = skel.to_precomputed()
       else:

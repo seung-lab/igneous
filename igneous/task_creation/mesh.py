@@ -448,6 +448,8 @@ def configure_multires_info(
       cache_control="no-cache"
     )
 
+  return new_mesh_info
+
 def create_unsharded_multires_mesh_tasks(
   cloudpath:str, num_lod:int = 0, 
   magnitude:int = 3, mesh_dir:str = None,
@@ -687,7 +689,7 @@ def create_sharded_multires_mesh_tasks(
   max_labels_per_shard:Optional[int] = None,
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
 
-  configure_multires_info(
+  mesh_info = configure_multires_info(
     cloudpath, 
     vertex_quantization_bits, 
     mesh_dir
@@ -722,6 +724,7 @@ def create_sharded_multires_mesh_tasks(
     data_encoding="raw", # draco encoded meshes
   )
 
+  cv.mesh.meta.info = mesh_info # ensure no race conditions
   cv.mesh.meta.info['sharding'] = spec.to_dict()
   cv.mesh.meta.commit_info()
 

@@ -459,10 +459,10 @@ def create_image_shard_transfer_tasks(
     if cutout:
       for i in range(mip):
         dest_vol.info['scales'][i]["voxel_offset"] = list(
-          bounds.size3() // (dest_vol.resolution / dest_vol.meta.resolution(i))
+          bounds.size3() * (dest_vol.resolution / dest_vol.meta.resolution(i))
         )
         dest_vol.info['scales'][i]["size"] = list(
-          bounds.minpt // (dest_vol.resolution / dest_vol.meta.resolution(i))
+          bounds.minpt * (dest_vol.resolution / dest_vol.meta.resolution(i))
         )
     dest_vol.commit_info()
   except cloudvolume.exceptions.ScaleUnavailableError:

@@ -12,14 +12,18 @@ import fastremap
 import numpy as np
 from tqdm import tqdm
 
-from mapbuffer import MapBuffer
+from mapbuffer import IntMap
 
 from cloudfiles import CloudFiles
 
 import cloudvolume
 import cloudvolume.exceptions
 from cloudvolume import CloudVolume
-from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
+from cloudvolume.lib import (
+  sip, Vec, Bbox, max2, min2, 
+  xyzrange, find_closest_divisor, 
+  yellow, jsonify
+)
 
 from igneous import downsample_scales
 from igneous.tasks import (
@@ -447,7 +451,7 @@ def create_image_shard_transfer_tasks(
   if not chunk_size:
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
-  
+
   try:
     dest_vol = CloudVolume(dst_layer_path, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
@@ -1520,8 +1524,8 @@ def accumulate_voxel_counts(cloudpath, mip, progress=True):
   """
   Accumulate counts from each task.
 
-  Results are saved in a mapbuffer file:
-  $cloudpath/$KEY/stats/voxel_counts.mb
+  Results are saved in a IntMap file:
+  $cloudpath/$KEY/stats/voxel_counts.im
   """
   vol = CloudVolume(cloudpath, max_redirects=0, mip=mip)
   shape = Vec(512,512,512)
@@ -1537,22 +1541,26 @@ def accumulate_voxel_counts(cloudpath, mip, progress=True):
 
   cf = CloudFiles(cloudpath)
   stats_path = cf.join(cloudpath, f'{vol.key}', 'stats', 'voxel_counts')
-  cf = CloudFiles(stats_path, progress=progress)
+  cf = CloudFiles(stats_path, progress=False)
 
-  count_files = cf.get_json(filenames, total=len(itr))
   final_counts = defaultdict(int)
+  with tqdm(desc="Summing", total=len(itr), disable=(not progress)) as pbar:
+    for filenames_batch in sip(filenames, 50):
+      count_files = cf.get_json(filenames_batch)
+      for counts in count_files:
+        for segid, ct in counts.items():
+          final_counts[int(segid)] += ct
+      pbar.update(len(count_files))
 
-  for counts in tqdm(count_files, disable=(not progress), desc="Summing"):
-    for segid, ct in counts.items():
-      final_counts[int(segid)] += ct
+  del count_files
 
   final_path = cf.join(cloudpath, f'{vol.key}', 'stats')
   cf = CloudFiles(final_path)
 
-  mb = MapBuffer(
-    final_counts, 
-    tobytesfn=lambda x: x.to_bytes(8, byteorder='little'),
-    check_crc=False,
+  mb = IntMap(final_counts)
+  cf.put(
+    'voxel_counts.im', 
+    mb.tobytes(),
+    content_type="application/x.intmap"
   )
-  cf.put('voxel_counts.mb', mb.tobytes())
 

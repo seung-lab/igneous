@@ -15,7 +15,7 @@ import cloudfiles.paths
 from cloudvolume import CloudVolume, view
 from cloudvolume.lib import Vec, Bbox, jsonify
 import mapbuffer
-from mapbuffer import MapBuffer
+from mapbuffer import MapBuffer, IntMap
 from taskqueue import RegisteredTask, queueable
 
 import DracoPy
@@ -250,7 +250,7 @@ class MeshTask(RegisteredTask):
       return self.apply_dust_global_threshold(dust_threshold, data)
 
   def apply_dust_global_threshold(self, dust_threshold, all_labels):
-    path = self._volume.meta.join(self._volume.cloudpath, self._volume.key, 'stats', 'voxel_counts.mb')
+    path = self._volume.meta.join(self._volume.cloudpath, self._volume.key, 'stats', 'voxel_counts.im')
     cf = CloudFile(path)
 
     if not cf.exists():
@@ -260,11 +260,7 @@ class MeshTask(RegisteredTask):
     if cf.protocol != "file":
       buf = cf.get()
 
-    mb = MapBuffer(
-      buf, 
-      frombytesfn=lambda x: int.from_bytes(x, byteorder='little'),
-      check_crc=False,
-    )
+    mb = IntMap(buf)
     uniq = fastremap.unique(all_labels)
 
     valid_objects = []

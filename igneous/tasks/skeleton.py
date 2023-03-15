@@ -15,7 +15,7 @@ from tqdm import tqdm
 import numpy as np
 
 import mapbuffer
-from mapbuffer import MapBuffer
+from mapbuffer import MapBuffer, IntMap
 from cloudfiles import CloudFiles, CloudFile
 
 import cloudvolume
@@ -159,7 +159,7 @@ class SkeletonTask(RegisteredTask):
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
   
   def apply_global_dust_threshold(self, vol, all_labels):
-    path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.mb')
+    path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.im')
     cf = CloudFile(path)
 
     if not cf.exists():
@@ -169,11 +169,7 @@ class SkeletonTask(RegisteredTask):
     if cf.protocol != "file":
       buf = cf.get()
 
-    mb = MapBuffer(
-      buf, 
-      frombytesfn=lambda x: int.from_bytes(x, byteorder='little'),
-      check_crc=False,
-    )
+    mb = IntMap(buf)
     uniq = fastremap.unique(all_labels)
 
     valid_objects = []

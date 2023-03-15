@@ -456,6 +456,14 @@ def create_image_shard_transfer_tasks(
       info['scales'][mip]["voxel_offset"] = list(bounds.minpt)
       info['scales'][mip]["size"] = list(bounds.size3())
     dest_vol = CloudVolume(dst_layer_path, info=info, mip=mip)
+    if cutout:
+      for i in range(mip):
+        dest_vol.info['scales'][i]["voxel_offset"] = list(
+          bounds.size3() // (dest_vol.resolution / dest_vol.meta.resolution(i))
+        )
+        dest_vol.info['scales'][i]["size"] = list(
+          bounds.minpt // (dest_vol.resolution / dest_vol.meta.resolution(i))
+        )
     dest_vol.commit_info()
   except cloudvolume.exceptions.ScaleUnavailableError:
     dest_vol = CloudVolume(dst_layer_path)
@@ -493,11 +501,15 @@ def create_image_shard_transfer_tasks(
   dest_vol.commit_info()
 
   shape = image_shard_shape_from_spec(spec, dest_vol.scale["size"], chunk_size)
-  bounds = get_bounds(
-    dest_vol, bounds, mip, 
-    bounds_mip=bounds_mip, 
-    chunk_size=chunk_size,
-  )
+
+  if not cutout:
+    bounds = get_bounds(
+      dest_vol, bounds, mip, 
+      bounds_mip=bounds_mip, 
+      chunk_size=chunk_size,
+    )
+  else:
+    bounds = Bbox.clamp(bounds, dest_vol.bounds)
 
   class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
@@ -837,11 +849,14 @@ def create_transfer_tasks(
       encoding=encoding
     )
 
-  dest_bounds = get_bounds(
-    dest_vol, bounds, mip, 
-    bounds_mip=bounds_mip,
-    chunk_size=chunk_size
-  )
+  if not cutout:
+    dest_bounds = get_bounds(
+      dest_vol, bounds, mip, 
+      bounds_mip=bounds_mip,
+      chunk_size=chunk_size
+    )
+  else:
+    dest_bounds = Bbox.clamp(dest_bounds, dest_vol.bounds)
 
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  

@@ -287,6 +287,7 @@ def xfer(
       encoding=encoding, memory_target=memory, clean_info=clean_info,
       encoding_level=encoding_level, truncate_scales=truncate_scales,
       compress=compress, bounds=bounds, bounds_mip=bounds_mip,
+      cutout=cutout,
     )
   else:
     tasks = tc.create_transfer_tasks(

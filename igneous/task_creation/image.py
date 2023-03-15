@@ -432,23 +432,29 @@ def create_image_shard_transfer_tasks(
   clean_info: bool = False,
   encoding_level: Optional[int] = None,
   truncate_scales: bool = True,
-  compress:bool = True
+  compress:bool = True,
+  cutout:bool = False,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
   if dest_voxel_offset:
     dest_voxel_offset = Vec(*dest_voxel_offset, dtype=int)
+  elif cutout and bounds:
+    dest_voxel_offset = list(bounds.minpt)
   else:
     dest_voxel_offset = src_vol.voxel_offset.clone()
 
   if not chunk_size:
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
-
+  
   try:
     dest_vol = CloudVolume(dst_layer_path, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
+    if cutout and bounds:
+      info['scales'][mip]["voxel_offset"] = list(bounds.minpt)
+      info['scales'][mip]["size"] = list(bounds.size3())
     dest_vol = CloudVolume(dst_layer_path, info=info, mip=mip)
     dest_vol.commit_info()
   except cloudvolume.exceptions.ScaleUnavailableError:

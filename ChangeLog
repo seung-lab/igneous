@@ -1,6 +1,36 @@
 CHANGES
 =======
 
+4.13.0
+------
+
+* release(4.13.0): many fixes and improvements since 4.12
+* fix: add cutout feature to sharded image transfers
+* fix: ensure mesh info doesn't get overwritten
+* fix: consolidate was added to the wrong position
+* perf: download voxel counts if remote
+* feat: add progress and don't check crc for counts
+* feat: add bounds and "cutout" option to image xfer
+* feat: use global voxel counts for dust threshold (#146)
+* feat: compute global voxel counts per label (#145)
+* fix: need to call consolidate during sharded skel merge
+* docs: update blurb about sharded on CLI
+* feat: allow disabling data\_encoding=gzip for shards
+
+4.12.0
+------
+
+* feat+perf: adds max\_labels\_per\_shard to skeleton shard production
+* fix: missing parameter, adjust docs
+* refactor(image): remove unused "CloudVolumePrecomputed" import
+* docs: -x is now reliable for sqs
+* docs: remove word "beta" from command line
+* docs: update citation file to point to paper
+* docs: fix link to paper
+* docs: add video tutorial link
+* docs: add paper badge
+* fix(ccl): clean dest info for relabel
+
 4.11.1
 ------
 

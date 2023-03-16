@@ -1561,6 +1561,6 @@ def accumulate_voxel_counts(cloudpath, mip, progress=True):
   cf.put(
     'voxel_counts.im', 
     mb.tobytes(),
-    content_type="application/x.intmap"
+    content_type="application/x-intmap"
   )
 

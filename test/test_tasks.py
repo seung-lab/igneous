@@ -543,13 +543,13 @@ def test_voxel_counting_task():
     tq.insert_all(tasks)
     tc.accumulate_voxel_counts(layer_path, mip=0)
 
-    from mapbuffer import MapBuffer
-    mb = CloudFiles(layer_path).get(f"{cv.key}/stats/voxel_counts.mb")
-    mb = MapBuffer(mb, frombytesfn=lambda x: int.from_bytes(x, byteorder='little'))
+    from mapbuffer import IntMap
+    im = CloudFiles(layer_path).get(f"{cv.key}/stats/voxel_counts.im")
+    im = IntMap(im)
     uniq, cts = fastremap.unique(img, return_counts=True)
     
     cts_dict_gt = { label: ct for label, ct in zip(uniq, cts) }
-    cts_dict_task = mb.todict()
+    cts_dict_task = im.todict()
 
     assert cts_dict_task == cts_dict_gt
 

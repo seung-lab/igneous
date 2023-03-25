@@ -575,7 +575,10 @@ def ImageShardDownsampleTask(
   shape_bbox = Bbox(upper_offset, upper_offset + shard_shape)
   shape_bbox = shape_bbox.astype(np.int64)
   shape_bbox = Bbox.clamp(shape_bbox, src_vol.meta.bounds(mip + 1))
-  shape_bbox = shape_bbox.expand_to_chunk_size(src_vol.meta.chunk_size(mip + 1))
+  shape_bbox = shape_bbox.expand_to_chunk_size(
+    src_vol.meta.chunk_size(mip + 1), 
+    offset=src_vol.meta.voxel_offset(mip + 1)
+  )
 
   if shape_bbox.subvoxel():
     return

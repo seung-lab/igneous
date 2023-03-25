@@ -585,7 +585,7 @@ def ImageShardDownsampleTask(
 
   shard_shape = list(shape_bbox.size3()) + [ 1 ]
 
-  output_img = np.zeros(shard_shape, dtype=src_vol.dtype)
+  output_img = np.zeros(shard_shape, dtype=src_vol.dtype, order="F")
   nz = int(math.ceil(bbox.dz / chunk_size.z))
 
   dsfn = tinybrain.downsample_with_averaging
@@ -601,7 +601,10 @@ def ImageShardDownsampleTask(
     (ds_img,) = dsfn(img, factor, num_mips=1, sparse=sparse)
     # ds_img[slc] b/c sometimes the size round up in tinybrain
     # makes this too large by one voxel on an axis
-    output_img[:,:,(z*chunk_size.z):(z+1)*chunk_size.z] = ds_img
+    xlim, ylim = tuple(ds_img.shape[:2])
+    zs = z * chunk_size.z
+    ze = (z+1) * chunk_size.z
+    output_img[:xlim,:ylim,zs:ze] = ds_img
 
     del img
     del ds_img

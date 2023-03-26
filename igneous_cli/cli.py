@@ -137,7 +137,7 @@ def imagegroup():
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
-@click.option('--encoding', default="raw", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
+@click.option('--encoding', default="auto", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
@@ -177,6 +177,8 @@ def downsample(
 
   if encoding == "cseg":
     encoding = "compressed_segmentation"
+  elif encoding == "auto":
+    encoding = None
 
   factor = (2,2,1)
   if volumetric:

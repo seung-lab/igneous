@@ -219,7 +219,7 @@ def downsample(
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--memory', default=3.5e9, type=int, help="Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
 @click.option('--max-mips', default=5, help="Maximum number of additional pyramid levels.", show_default=True)
-@click.option('--encoding', default="raw", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
+@click.option('--encoding', default="auto", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
 @click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=None, help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64", show_default=True)
@@ -269,6 +269,8 @@ def xfer(
   """
   if encoding == "cseg":
     encoding = "compressed_segmentation"
+  elif encoding == "auto":
+    encoding = None
 
   factor = (2,2,1)
   if volumetric:

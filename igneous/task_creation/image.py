@@ -1520,7 +1520,10 @@ def create_voxel_counting_tasks(
 
   return CountVoxelsTaskIterator(bounds, shape)
 
-def accumulate_voxel_counts(cloudpath, mip, progress=True):
+def accumulate_voxel_counts(
+  cloudpath, mip, 
+  progress=True, compress=None
+):
   """
   Accumulate counts from each task.
 
@@ -1556,11 +1559,13 @@ def accumulate_voxel_counts(cloudpath, mip, progress=True):
 
   final_path = cf.join(cloudpath, f'{vol.key}', 'stats')
   cf = CloudFiles(final_path)
+  im = IntMap(final_counts)
 
-  mb = IntMap(final_counts)
+  del final_counts
   cf.put(
     'voxel_counts.im', 
-    mb.tobytes(),
-    content_type="application/x-intmap"
+    im.tobytes(),
+    content_type="application/x-intmap",
+    compress=None,
   )
 

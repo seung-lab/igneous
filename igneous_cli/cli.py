@@ -336,14 +336,17 @@ def count_voxels(ctx, path, mip, queue):
 @voxelgroup.command("sum")
 @click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Count this mip level of the image pyramid.", show_default=True)
+@click.option('--compress', default=None, help="", show_default=True)
 @click.pass_context
-def sum_voxel_counts(ctx, path, mip):
+def sum_voxel_counts(ctx, path, mip, compress):
   """Accumulate counts from each task.
 
-  Results are saved in a mapbuffer file:
-  $cloudpath/$KEY/stats/voxel_counts.mb
+  Results are saved in a mapbuffer IntMap file:
+  $cloudpath/$KEY/stats/voxel_counts.im
   """
-  tc.accumulate_voxel_counts(path, mip=mip)
+  tc.accumulate_voxel_counts(
+    path, mip=mip, compress=compress
+  )
 
 @imagegroup.group("contrast")
 def contrastgroup():

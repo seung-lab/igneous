@@ -1,6 +1,26 @@
 CHANGES
 =======
 
+4.15.0
+------
+
+* perf: cache voxel counts file as compressed zstd in memory
+* feat: add compression option to voxel counts
+
+4.14.0
+------
+
+* release(4.14.0): voxel ct more efficient, fix sharded ds, fix encoding
+* fix: match original encoding by default during xfer
+* fix: downsample encoding should match previous encoding by default
+* fix(downsample): border effect for sharded downsample
+* fix(downsample): sharded downsample fails for some non-zero offsets
+* fixtest: voxel counting test working
+* fix: update content-type for intmap
+* perf: switch to using IntMap and batch JSON for computing voxel sums
+* fix: needed to multiply not divide for lower mips
+* fix: adjust bounds iteration when cutout is specified
+
 4.13.0
 ------
 

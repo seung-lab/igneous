@@ -252,13 +252,23 @@ class MeshTask(RegisteredTask):
   def apply_dust_global_threshold(self, dust_threshold, all_labels):
     path = self._volume.meta.join(self._volume.cloudpath, self._volume.key, 'stats', 'voxel_counts.im')
     cf = CloudFile(path)
-
+    memcf = CloudFile(path.replace(f"{cf.protocol}://", "mem://"))
+    
     if not cf.exists():
       raise FileNotFoundError(f"Cannot apply global dust threshold without {path}")
 
-    buf = cf
-    if cf.protocol != "file":
-      buf = cf.get()
+    buf = None
+    if memcf.exists():
+      buf = memcf.get()
+    else:
+      cloudfiles.clear_memory()
+
+    if buf is None:
+      if cf.protocol != "file":
+        buf = cf.get()
+        memcf.put(buf, compress='zstd')
+      else:
+        buf = cf
 
     mb = IntMap(buf)
     uniq = fastremap.unique(all_labels)

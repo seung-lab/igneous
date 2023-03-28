@@ -16,6 +16,7 @@ import numpy as np
 
 import mapbuffer
 from mapbuffer import MapBuffer, IntMap
+import cloudfiles
 from cloudfiles import CloudFiles, CloudFile
 
 import cloudvolume
@@ -161,19 +162,29 @@ class SkeletonTask(RegisteredTask):
   def apply_global_dust_threshold(self, vol, all_labels):
     path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.im')
     cf = CloudFile(path)
+    memcf = CloudFile(path.replace(f"{cf.protocol}://", "mem://"))
 
     if not cf.exists():
       raise FileNotFoundError(f"Cannot apply global dust threshold without {path}")
 
-    buf = cf
-    if cf.protocol != "file":
-      buf = cf.get()
+    buf = None
+    if memcf.exists():
+      buf = memcf.get()
+    else:
+      cloudfiles.clear_memory()
+
+    if buf is None:
+      if cf.protocol != "file":
+        buf = cf.get()
+        memcf.put(buf, compress='zstd')
+      else:
+        buf = cf
 
     mb = IntMap(buf)
     uniq = fastremap.unique(all_labels)
 
     valid_objects = []
-    for label in tqdm(uniq, desc="global dust"):
+    for label in uniq:
       if label == 0:
         continue
       if mb[label] >= self.dust_threshold:

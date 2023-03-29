@@ -586,14 +586,14 @@ def ImageShardDownsampleTask(
   shard_shape = list(shape_bbox.size3()) + [ 1 ]
 
   output_img = np.zeros(shard_shape, dtype=src_vol.dtype, order="F")
-  nz = int(math.ceil(bbox.dz / chunk_size.z))
+  nz = int(math.ceil(bbox.dz / (chunk_size.z * factor[2])))
 
   dsfn = tinybrain.downsample_with_averaging
   if src_vol.layer_type == "segmentation":
     dsfn = tinybrain.downsample_segmentation
 
   zbox = bbox.clone()
-  zbox.maxpt.z = zbox.minpt.z + chunk_size.z
+  zbox.maxpt.z = zbox.minpt.z + (chunk_size.z * factor[2])
   for z in range(nz):
     img = src_vol.download(
       zbox, agglomerate=agglomerate, timestamp=timestamp

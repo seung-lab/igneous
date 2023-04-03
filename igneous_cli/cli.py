@@ -31,6 +31,20 @@ def normalize_path(queuepath):
 def intify(x):
   return None if x is None else int(x)
 
+def normalize_encoding(encoding):
+  if encoding == "cseg":
+    return "compressed_segmentation"
+  elif encoding == "auto":
+    return None
+
+  return encoding
+
+def enqueue_tasks(ctx, queue, tasks):
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+  return tq
+
 class Tuple3(click.ParamType):
   """A command line option type consisting of 3 comma-separated integers."""
   name = 'tuple3'
@@ -175,10 +189,7 @@ def downsample(
     print("igneous: sharded downsamples only support producing one mip at a time.")
     return
 
-  if encoding == "cseg":
-    encoding = "compressed_segmentation"
-  elif encoding == "auto":
-    encoding = None
+  encoding = normalize_encoding(encoding)
 
   factor = (2,2,1)
   if volumetric:
@@ -267,10 +278,7 @@ def xfer(
   Use the --memory flag to automatically compute the
   a reasonable task shape based on your memory limits.
   """
-  if encoding == "cseg":
-    encoding = "compressed_segmentation"
-  elif encoding == "auto":
-    encoding = None
+  encoding = normalize_encoding(encoding)
 
   factor = (2,2,1)
   if volumetric:
@@ -310,6 +318,65 @@ def xfer(
   parallel = int(ctx.obj.get("parallel", 1))
   tq = TaskQueue(normalize_path(queue))
   tq.insert(tasks, parallel=parallel)
+
+@imagegroup.command("reorder")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+@click.option('--queue', default=None, required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--encoding', default="auto", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
+@click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
+@click.option('--compress', default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
+@click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
+@click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
+@click.option('--clean-info', is_flag=True, default=False, help="Scrub info file of mesh and skeleton fields.", show_default=True)
+@click.pass_context
+def image_reorder(
+  ctx, src, dest, 
+  queue, mip,
+  fill_missing, 
+  encoding, encoding_level,
+  compress, 
+  delete_bg, bg_color,
+  clean_info,
+):
+  """
+  Re-arrange z-slices.
+
+  Performs a transfer but accepts a JSON
+  object that specifies which slices to
+  move where. Slices not specified are
+  mapped to their original location.
+
+  If a slice would be lost by this operation,
+  e.g. via being overwritten, an error will
+  be issued before executing.
+
+  JSON object format for a 3 slice volume
+  across a range of z = 0-2 inclusive:
+  
+  { "1": 2 } # error, 2 is lost: [0,null,1]
+  { "0": 1, "1": 0 } # results in [1,0,2]
+  """
+  encoding = normalize_encoding(encoding)
+
+  tasks = tc.create_reordering_tasks(
+    src=src, dest=dest,
+    mip=mip,
+    sequence:Dict[int,int],
+    fill_missing=fill_missing,
+    compress=compress,
+    delete_black_uploads=delete_bg, 
+    background_color=bg_color,
+    encoding=encoding, 
+    encoding_level=encoding_level,
+  )
+
+  parallel = int(ctx.obj.get("parallel", 1))
+  tq = TaskQueue(normalize_path(queue))
+  tq.insert(tasks, parallel=parallel)
+
 
 @imagegroup.group("voxels")
 def voxelgroup():

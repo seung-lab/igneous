@@ -216,9 +216,7 @@ def downsample(
       bounds_mip=mip
     )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @imagegroup.command()
 @click.argument("src", type=CloudPath())
@@ -315,9 +313,7 @@ def xfer(
       bounds=bounds, bounds_mip=bounds_mip, cutout=cutout,
     )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @imagegroup.command("reorder")
 @click.argument("src", type=CloudPath())
@@ -373,9 +369,7 @@ def image_reorder(
     encoding_level=encoding_level,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 
 @imagegroup.group("voxels")
@@ -396,9 +390,7 @@ def count_voxels(ctx, path, mip, queue):
   $cloudpath/$KEY/stats/voxel_counts/$BBOX.json
   """
   tasks = tc.create_voxel_counting_tasks(path, mip=mip)
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @voxelgroup.command("sum")
 @click.argument("path", type=CloudPath())
@@ -448,9 +440,7 @@ def histogram(
     bounds=bounds,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @contrastgroup.command()
 @click.argument("src", type=CloudPath())
@@ -488,9 +478,7 @@ def equalize(
     bounds_mip=bounds_mip
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @imagegroup.group("ccl")
 def cclgroup():
@@ -544,9 +532,7 @@ def ccl_faces(
     dust_threshold=dust,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @cclgroup.command("links")
 @click.argument("src", type=CloudPath())
@@ -572,9 +558,7 @@ def ccl_equivalences(
     dust_threshold=dust,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @cclgroup.command("calc-labels")
 @click.argument("src", type=CloudPath())
@@ -617,9 +601,7 @@ def ccl_relabel(
     dust_threshold=dust,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @cclgroup.command("clean")
 @click.argument("src", type=CloudPath())
@@ -844,9 +826,7 @@ def mesh_xfer(
       magnitude=magnitude,
     )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @meshgroup.command("forge")
 @click.argument("path", type=CloudPath())
@@ -897,9 +877,7 @@ def mesh_forge(
     dust_global=dust_global
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @meshgroup.command("merge")
 @click.argument("path", type=CloudPath())
@@ -931,9 +909,7 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
       path, magnitude=magnitude, mesh_dir=dir
     )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @meshgroup.command("merge-sharded")
 @click.argument("path", type=CloudPath())
@@ -982,9 +958,7 @@ def mesh_sharded_merge(
     max_labels_per_shard=max_labels_per_shard,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @meshgroup.command("rm")
 @click.argument("path", type=CloudPath())
@@ -1000,9 +974,7 @@ def mesh_rm(ctx, path, queue, magnitude, mesh_dir):
     path, magnitude=magnitude, mesh_dir=mesh_dir
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @meshgroup.group("spatial-index")
 def spatialindexgroup():
@@ -1034,9 +1006,7 @@ def mesh_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
     fill_missing=fill_missing,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @spatialindexgroup.command("db")
 @click.argument("path", type=CloudPath())
@@ -1145,9 +1115,7 @@ def skeleton_forge(
     dust_global=dust_global,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 
 @skeletongroup.command("merge")
@@ -1177,9 +1145,7 @@ def skeleton_merge(
     delete_fragments=delete_fragments,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @skeletongroup.command("merge-sharded")
 @click.argument("path", type=CloudPath())
@@ -1230,9 +1196,7 @@ def skeleton_sharded_merge(
     max_labels_per_shard=max_labels_per_shard,
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @imagegroup.command("rm")
 @click.argument("path", type=CloudPath())
@@ -1251,9 +1215,7 @@ def delete_images(
   tasks = tc.create_deletion_tasks(
     path, mip, num_mips=num_mips, shape=shape
   )
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @skeletongroup.command("rm")
 @click.argument("path", type=CloudPath())
@@ -1269,9 +1231,7 @@ def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
     path, magnitude=magnitude, skel_dir=skel_dir
   )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 
 @skeletongroup.command("xfer")
@@ -1304,9 +1264,7 @@ def skel_xfer(
       magnitude=magnitude,
     )
 
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @skeletongroup.group("spatial-index")
 def spatialindexgroupskel():
@@ -1337,10 +1295,7 @@ def skel_spatial_index_create(ctx, path, queue, shape, mip, fill_missing):
     mip=mip, 
     fill_missing=fill_missing,
   )
-
-  parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
-  tq.insert(tasks, parallel=parallel)
+  enqueue_tasks(ctx, queue, tasks)
 
 @spatialindexgroupskel.command("db")
 @click.argument("path", type=CloudPath())

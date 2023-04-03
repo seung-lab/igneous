@@ -358,10 +358,13 @@ def image_reorder(
   { "1": 2 } # error, 2 is lost: [0,null,1]
   { "0": 1, "1": 0 } # results in [1,0,2]
   """
+  with open(mapping_file, "rt") as f:
+    seq = json.loads(f.read())
+
   tasks = tc.create_reordering_tasks(
     src=src, dest=dest,
     mip=mip,
-    sequence=json.loads(mapping_file),
+    sequence=seq,
     fill_missing=fill_missing,
     compress=compress,
     delete_black_uploads=delete_bg, 

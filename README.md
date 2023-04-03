@@ -665,6 +665,29 @@ igneous execute -x queue
 igneous image voxels sum SRC --mip 0 # no execution needed
 ```
 
+### Reordering Z-Slices
+
+When acquiring a new microscopy stack, for a variety of reasons,
+such as process interruptions, reimaging, etc, the montaged slices
+may not be compact in Z or otherwise out of order. Using a JSON
+file, you can specify (sparsely) which movements in Z are required
+to put the image stack in order.
+
+```json
+// mapping.json for the 5 slices from 0 to 4 inclusive
+{ "1": 2, "2": 3, "3": 1 }
+// This will result in the order: [ 0, 3, 1, 2, 4 ]
+```
+
+The mapping file will be analyzed to ensure no slices are dropped
+before creating the task set.
+
+#### CLI Z-Slice Reorder
+
+```bash
+igneous image reorder SRC DEST --queue queue --mip 0 --mapping-file mapping.json
+```
+
 ## Conclusion
 
 It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation/` and `igneous/tasks/` for the most current information.  

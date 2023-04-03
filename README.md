@@ -646,15 +646,15 @@ tq.insert_all(tasks)
 tc.accumulate_voxel_counts(cloudpath, mip)
 
 from cloudfiles import CloudFile
-from mapbuffer import MapBuffer
-cf = CloudFile("/".join(cloudpath, "stats", "voxel_counts.mb"))
+from mapbuffer import IntMap
+cf = CloudFile("/".join(cloudpath, "stats", "voxel_counts.im"))
 
-fn = lambda x: int.from_bytes(x, byteorder='little')
 # for (slow) remote access w/o having to download the file
-mb = MapBuffer(cf, frombytesfn=fn)
+# only works if file is uncompressed on remote
+im = IntMap(cf)
 # for fast local access, but downloads the whole file
-mb = MapBuffer(cf.get(), frombytesfn=fn)
-mb[label] # fetches voxel count for label
+im = IntMap(cf.get())
+im[label] # fetches voxel count for label
 ```
 
 #### CLI Voxel Counts

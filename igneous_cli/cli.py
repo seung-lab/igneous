@@ -1,6 +1,7 @@
 from functools import reduce
 import math
 import multiprocessing as mp
+import json
 import os
 import sys
 import time
@@ -327,6 +328,7 @@ def xfer(
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
 @click.option('--clean-info', is_flag=True, default=False, help="Scrub info file of mesh and skeleton fields.", show_default=True)
+@click.option('--mapping-file', required=True, help="JSON filename containing a sparse mapping of each moved z to its new position. e.g. '\{ \"5\": 6 \}'")
 @click.pass_context
 def image_reorder(
   ctx, src, dest, 
@@ -335,7 +337,8 @@ def image_reorder(
   encoding, encoding_level,
   compress, 
   delete_bg, bg_color,
-  clean_info,
+  clean_info, 
+  mapping_file,
 ):
   """
   Re-arrange z-slices.
@@ -355,17 +358,15 @@ def image_reorder(
   { "1": 2 } # error, 2 is lost: [0,null,1]
   { "0": 1, "1": 0 } # results in [1,0,2]
   """
-  encoding = normalize_encoding(encoding)
-
   tasks = tc.create_reordering_tasks(
     src=src, dest=dest,
     mip=mip,
-    sequence:Dict[int,int],
+    sequence=json.loads(mapping_file),
     fill_missing=fill_missing,
     compress=compress,
     delete_black_uploads=delete_bg, 
     background_color=bg_color,
-    encoding=encoding, 
+    encoding=normalize_encoding(encoding), 
     encoding_level=encoding_level,
   )
 

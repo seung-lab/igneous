@@ -1003,11 +1003,11 @@ def create_reordering_tasks(
           'src': src_layer_path,
           'dest': dest_layer_path,
           'shape': list(map(int, shape)),
-          # 'fill_missing': fill_missing,
+          'fill_missing': fill_missing,
           # 'translate': list(map(int, translate)),
           # 'skip_downsamples': skip_downsamples,
-          # 'delete_black_uploads': bool(delete_black_uploads),
-          # 'background_color': background_color,
+          'delete_black_uploads': bool(delete_black_uploads),
+          'background_color': background_color,
           'bounds': [
             dest_bounds.minpt.tolist(),
             dest_bounds.maxpt.tolist()
@@ -1020,7 +1020,7 @@ def create_reordering_tasks(
           # 'memory_target': memory_target,
           # 'factor': (tuple(factor) if factor else None),
           # 'sparse': bool(sparse),
-          # 'encoding_level': encoding_level,
+          'encoding_level': encoding_level,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

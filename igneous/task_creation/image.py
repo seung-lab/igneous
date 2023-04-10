@@ -860,7 +860,7 @@ def create_transfer_tasks(
       chunk_size=chunk_size
     )
   else:
-    dest_bounds = Bbox.clamp(dest_bounds, dest_vol.bounds)
+    dest_bounds = Bbox.clamp(bounds, dest_vol.bounds)
 
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  

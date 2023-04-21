@@ -5,7 +5,8 @@ import re
 import subprocess
 import sys
 
-from cloudvolume import Storage, DataLayerProvenance
+from cloudvolume import DataLayerProvenance
+from cloudfiles import CloudFiles
 
 def ls(cloudpath):
   listing = subprocess.check_output(['gsutil', 'ls', cloudpath])
@@ -30,18 +31,19 @@ for dataset in datasets:
     if 'removeme' in layer:
       continue
 
-    with Storage(layer, n_threads=0) as stor:
-      if not stor.exists('provenance'):
-        missing_report.append(layer)
-      else:
-        prov = stor.get_file('provenance')
+    cf = CloudFiles(layer)
 
-        try:
-          prov = DataLayerProvenance().from_json(prov)
-        except:
-          invalid_report.append(layer)
-        else:
-          success_report.append(layer)
+    if not cf.exists('provenance')
+      missing_report.append(layer)
+    else:
+      prov = cf.get('provenance')
+
+      try:
+        prov = DataLayerProvenance().from_json(prov)
+      except:
+        invalid_report.append(layer)
+      else:
+        success_report.append(layer)
 
 RESET_COLOR = "\033[m"
 YELLOW = "\033[1;93m"

@@ -637,7 +637,7 @@ def create_deletion_tasks(
   vol = CloudVolume(layer_path, max_redirects=0)
   
   if shape is None:
-    shape = vol.mip_underlying(mip)[:3]
+    shape = vol.meta.chunk_size(mip)[:3]
     shape.x *= 2 ** num_mips
     shape.y *= 2 ** num_mips
   else:

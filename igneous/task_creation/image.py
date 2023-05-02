@@ -637,7 +637,7 @@ def create_deletion_tasks(
   vol = CloudVolume(layer_path, max_redirects=0)
   
   if shape is None:
-    shape = vol.mip_underlying(mip)[:3]
+    shape = vol.meta.chunk_size(mip)[:3]
     shape.x *= 2 ** num_mips
     shape.y *= 2 ** num_mips
   else:
@@ -922,6 +922,112 @@ def create_transfer_tasks(
         src_vol.commit_provenance()
 
   return TransferTaskIterator(dest_bounds, shape)
+
+
+def compute_reorder_mapping(sequence, zstart, zend):
+  seq = np.arange(zstart, zend+1, dtype=np.uint64)
+  for z, new_z in sequence.items():
+    if z < zstart or z > zend:
+      raise ValueError(f"z={z} out of range {zstart} - {zend}")
+    elif new_z < zstart or new_z > zend:
+      raise ValueError(f"new z={z} out of range {zstart} - {zend}")
+    seq[z - zstart] = new_z
+
+  uniq = fastremap.unique(seq)
+  if len(uniq) < (zend - zstart + 1):
+    missing = set(range(zstart, zend+1)).difference(set(uniq))
+    missing = list(missing)
+    missing.sort()
+    raise ValueError(
+      f"The provided remap sequence would result in the loss of slices: "
+      ",".join(missing)
+    )
+  return seq
+
+def create_reordering_tasks(
+  src:str, dest:str,
+  mip:int,
+  sequence:Dict[int,int],
+  fill_missing:bool = False,
+  compress:Union[str,bool] = 'br',
+  delete_black_uploads:bool = False, 
+  background_color:int = 0,
+  encoding:Optional[str] = None, 
+  encoding_level:Optional[int] = None,
+):
+  src_cv = CloudVolume(src, mip=mip)
+  zstart, zend = src_cv.bounds.min[2], src_cv.bounds.max[2]
+  seq = compute_reorder_mapping(sequence, zstart, zend)
+
+  try:
+    dest_cv = CloudVolume(dest, mip=mip)
+  except cloudvolume.exceptions.InfoUnavailableError:
+    info = copy.deepcopy(src_cv.info)
+    dest_cv = CloudVolume(dest, info=info, mip=mip)
+
+  shape = (4096, 4096, 32)
+  chunk_size = [1024, 1024, 1]
+  dest_cv.info['scales'][mip]['chunk_sizes'] = [ chunk_size ]
+  dest_cv.info = clean_xfer_info(dest_cv.info)
+  if encoding:
+    set_encoding(dest_cv, mip, encoding, encoding_level=encoding_level)
+
+  dest_cv.commit_info()
+
+  class ReorderTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      zs = offset[2]
+      ze = zs + shape[2]
+      mapping = { 
+        z: seq[z - zstart] 
+        for z in range(zs,ze+1) 
+        if z != seq[z - zstart]
+      }
+      return partial(ReorderTask,
+        src=src,
+        dest=dest,
+        mip=mip,
+        shape=shape,
+        offset=offset,
+        fill_missing=fill_missing,
+        compress=compress,
+        delete_black_uploads=delete_black_uploads,
+        background_color=background_color,
+        mapping=mapping,
+      )
+
+    def on_finish(self):
+      job_details = {
+        'method': {
+          'task': 'ReorderTask',
+          'src': src_layer_path,
+          'dest': dest_layer_path,
+          'shape': list(map(int, shape)),
+          'fill_missing': fill_missing,
+          # 'translate': list(map(int, translate)),
+          # 'skip_downsamples': skip_downsamples,
+          'delete_black_uploads': bool(delete_black_uploads),
+          'background_color': background_color,
+          'bounds': [
+            dest_bounds.minpt.tolist(),
+            dest_bounds.maxpt.tolist()
+          ],
+          'mip': mip,
+          # 'agglomerate': bool(agglomerate),
+          # 'timestamp': timestamp,
+          # 'compress': compress,
+          # 'encoding': encoding,
+          # 'memory_target': memory_target,
+          # 'factor': (tuple(factor) if factor else None),
+          # 'sparse': bool(sparse),
+          'encoding_level': encoding_level,
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }
+
+  return ReorderTaskIterator(dest_cv.bounds, shape)
+
 
 def create_contrast_normalization_tasks(
     src_path, dest_path, levels_path=None,

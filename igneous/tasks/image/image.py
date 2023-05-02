@@ -4,7 +4,7 @@ import json
 import math
 import os
 import random
-from typing import Optional, Tuple, cast
+from typing import Optional, Tuple, cast, Iterable, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -468,6 +468,50 @@ def DownsampleTask(
     compress=compress,
     factor=factor,
   )
+
+@queueable
+def ReorderTask(
+  src:str, dest:str,
+  mip:int, 
+  mapping:dict,
+  shape:Iterable[int], 
+  offset:Iterable[int],
+  fill_missing:bool = False,
+  delete_black_uploads:bool = False,
+  background_color:int = 0,
+  compress:Union[str,bool] = 'br',
+):
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+  mapping = { int(k):int(v) for k,v, in mapping.items() }
+
+  src_cv = CloudVolume(
+    src, mip=mip,
+    fill_missing=fill_missing,
+  )
+  dest_cv = CloudVolume(
+    dest, fill_missing=bool(fill_missing),
+    mip=mip, 
+    delete_black_uploads=delete_black_uploads,
+    background_color=int(background_color), 
+    compress=compress,
+  )
+
+  bbox = Bbox(offset, shape + offset)
+  bbox = Bbox.clamp(bbox, src_cv.bounds)
+
+  img = src_cv[bbox]
+  zbox = bbox.clone()
+  if len(mapping) == 0:
+    dest_cv[zbox] = img
+    return
+
+  for z in range(img.shape[2]):
+    img_slc = img[:,:,z]
+    new_z = mapping.get(z, z)
+    zbox.minpt.z = bbox.minpt.z + z
+    zbox.maxpt.z = zbox.minpt.z + 1
+    dest_cv[zbox] = img_slc
 
 @queueable
 def ImageShardTransferTask(

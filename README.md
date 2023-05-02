@@ -646,15 +646,15 @@ tq.insert_all(tasks)
 tc.accumulate_voxel_counts(cloudpath, mip)
 
 from cloudfiles import CloudFile
-from mapbuffer import MapBuffer
-cf = CloudFile("/".join(cloudpath, "stats", "voxel_counts.mb"))
+from mapbuffer import IntMap
+cf = CloudFile("/".join(cloudpath, "stats", "voxel_counts.im"))
 
-fn = lambda x: int.from_bytes(x, byteorder='little')
 # for (slow) remote access w/o having to download the file
-mb = MapBuffer(cf, frombytesfn=fn)
+# only works if file is uncompressed on remote
+im = IntMap(cf)
 # for fast local access, but downloads the whole file
-mb = MapBuffer(cf.get(), frombytesfn=fn)
-mb[label] # fetches voxel count for label
+im = IntMap(cf.get())
+im[label] # fetches voxel count for label
 ```
 
 #### CLI Voxel Counts
@@ -663,6 +663,29 @@ mb[label] # fetches voxel count for label
 igneous image voxels count SRC --mip 0 --queue queue
 igneous execute -x queue
 igneous image voxels sum SRC --mip 0 # no execution needed
+```
+
+### Reordering Z-Slices
+
+When acquiring a new microscopy stack, for a variety of reasons,
+such as process interruptions, reimaging, etc, the montaged slices
+may not be compact in Z or otherwise out of order. Using a JSON
+file, you can specify (sparsely) which movements in Z are required
+to put the image stack in order.
+
+```json
+// mapping.json for the 5 slices from 0 to 4 inclusive
+{ "1": 2, "2": 3, "3": 1 }
+// This will result in the order: [ 0, 3, 1, 2, 4 ]
+```
+
+The mapping file will be analyzed to ensure no slices are dropped
+before creating the task set.
+
+#### CLI Z-Slice Reorder
+
+```bash
+igneous image reorder SRC DEST --queue queue --mip 0 --mapping-file mapping.json
 ```
 
 ## Conclusion

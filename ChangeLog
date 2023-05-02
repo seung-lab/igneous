@@ -1,9 +1,24 @@
 CHANGES
 =======
 
+4.15.1
+------
+
+* release(4.15.1): fixes unbound local error
+* refactor: mip\_underlying -> chunk\_size
+* refactor: remove Storage
+* fix: remove unused option
+* docs: how to use
+* docs: update documentation for voxel count access
+* fix: add mapping file to CLI
+* refactor: put insertion logic into a function
+* refactor: use normalize\_encoding
+* fix: 3D downsampling for sharded images
+
 4.15.0
 ------
 
+* release(4.15.0): --compress in voxel sum, better caching of voxel counts
 * perf: cache voxel counts file as compressed zstd in memory
 * feat: add compression option to voxel counts
 

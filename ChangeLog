@@ -1,18 +1,12 @@
 CHANGES
 =======
 
-4.15.1
+4.15.2
 ------
 
-* release(4.15.1): fixes unbound local error
-* refactor: mip\_underlying -> chunk\_size
-* refactor: remove Storage
-* fix: remove unused option
-* docs: how to use
-* docs: update documentation for voxel count access
-* fix: add mapping file to CLI
-* refactor: put insertion logic into a function
-* refactor: use normalize\_encoding
+* release(4.15.2): Fixes unbound local error
+* feat: reorder task (#149)
+* fix unbound local error in image xfer --cutout (#148)
 * fix: 3D downsampling for sharded images
 
 4.15.0

@@ -990,7 +990,6 @@ def mesh_clean(src):
     print("Unsharded not currently supported.")
     return
 
-
   cf = CloudFiles(cv.mesh.meta.cloudpath, progress=True)
 
   def suffix_filtered_paths():
@@ -1302,7 +1301,6 @@ def skel_clean(src):
   if not cv.skeleton.meta.is_sharded():
     print("Unsharded not currently supported.")
     return
-
 
   cf = CloudFiles(cv.skeleton.meta.cloudpath, progress=True)
 

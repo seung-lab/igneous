@@ -14,8 +14,8 @@ Their order is:
   (1) Generate 3 back faces for each task with 
     1 voxel overlap (so they can be referenced by 
     adjacent tasks). [ CCLFacesTask ]
-  (2) Compute linkages between CCL tasks and save the results 
-    in a database. [ CCLEquivalancesTask ]
+  (2) Compute linkages between CCL tasks and 
+    save the results. [ CCLEquivalancesTask ]
   (3) Compute a global union find from the linkage 
     data and from that a global relabeling scheme which 
     is saved in the database. [ create_relabeling ]

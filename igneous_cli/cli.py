@@ -985,20 +985,23 @@ def mesh_clean(src):
   Removes temporary files (e.g. labels and fragment files).
   """
   cv = CloudVolume(src)
-
-  if not cv.mesh.meta.is_sharded():
-    print("Unsharded not currently supported.")
-    return
-
   cf = CloudFiles(cv.mesh.meta.cloudpath, progress=True)
 
-  def suffix_filtered_paths():
-    for path in cf.list():
-      _, ext = os.path.splitext(path)
-      if ext in (".labels", ".frags"):
-        yield path
+  if not cv.mesh.meta.is_sharded():
+    def remove_paths():
+      for path in cf.list():
+        N = len(os.path.basename(path).split(":"))
+        # temp file: segid:0:fragment_name
+        if N == 3:
+          yield path
+  else:
+    def remove_paths():
+      for path in cf.list():
+        _, ext = os.path.splitext(path)
+        if ext in (".labels", ".frags"):
+          yield path
 
-  cf.delete(suffix_filtered_paths())
+  cf.delete(remove_paths())
 
 @meshgroup.group("spatial-index")
 def spatialindexgroup():
@@ -1297,20 +1300,23 @@ def skel_clean(src):
   Removes temporary files (e.g. labels and fragment files).
   """
   cv = CloudVolume(src)
-
-  if not cv.skeleton.meta.is_sharded():
-    print("Unsharded not currently supported.")
-    return
-
   cf = CloudFiles(cv.skeleton.meta.cloudpath, progress=True)
 
-  def suffix_filtered_paths():
-    for path in cf.list():
-      _, ext = os.path.splitext(path)
-      if ext in (".labels", ".frags"):
-        yield path
+  if not cv.skeleton.meta.is_sharded():
+    def remove_paths():
+      for path in cf.list():
+        N = len(os.path.basename(path).split(":"))
+        # temp file: segid:0:fragment_name
+        if N == 3:
+          yield path
+  else:
+    def remove_paths():
+      for path in cf.list():
+        _, ext = os.path.splitext(path)
+        if ext in (".labels", ".frags"):
+          yield path
 
-  cf.delete(suffix_filtered_paths())
+  cf.delete(remove_paths())
 
 @skeletongroup.group("spatial-index")
 def spatialindexgroupskel():

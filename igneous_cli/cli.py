@@ -986,7 +986,7 @@ def mesh_clean(src):
   e.g. .labels and .frags files.
   """
   cv = CloudVolume(src)
-  cf = CloudFiles(cv.mesh.meta.cloudpath, progress=True)
+  cf = CloudFiles(cv.mesh.meta.layerpath, progress=True)
 
   if not cv.mesh.meta.is_sharded():
     def remove_paths():
@@ -1302,7 +1302,7 @@ def skel_clean(src):
   e.g. .labels and .frags files.
   """
   cv = CloudVolume(src)
-  cf = CloudFiles(cv.skeleton.meta.cloudpath, progress=True)
+  cf = CloudFiles(cv.skeleton.meta.layerpath, progress=True)
 
   if not cv.skeleton.meta.is_sharded():
     def remove_paths():

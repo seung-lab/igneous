@@ -982,7 +982,8 @@ def mesh_rm(ctx, path, queue, magnitude, mesh_dir):
 @click.argument("src", type=CloudPath())
 def mesh_clean(src):
   """
-  Removes temporary files (e.g. labels and fragment files).
+  Removes temporary files.
+  e.g. .labels and .frags files.
   """
   cv = CloudVolume(src)
   cf = CloudFiles(cv.mesh.meta.cloudpath, progress=True)
@@ -1297,7 +1298,8 @@ def skel_xfer(
 @click.argument("src", type=CloudPath())
 def skel_clean(src):
   """
-  Removes temporary files (e.g. labels and fragment files).
+  Removes temporary files.
+  e.g. .labels and .frags files.
   """
   cv = CloudVolume(src)
   cf = CloudFiles(cv.skeleton.meta.cloudpath, progress=True)

@@ -978,6 +978,29 @@ def mesh_rm(ctx, path, queue, magnitude, mesh_dir):
 
   enqueue_tasks(ctx, queue, tasks)
 
+@meshgroup.command("clean")
+@click.argument("src", type=CloudPath())
+def mesh_clean(src):
+  """
+  Removes temporary files (e.g. labels and fragment files).
+  """
+  cv = CloudVolume(src)
+
+  if not cv.mesh.meta.is_sharded():
+    print("Unsharded not currently supported.")
+    return
+
+
+  cf = CloudFiles(cv.mesh.meta.cloudpath, progress=True)
+
+  def suffix_filtered_paths():
+    for path in cf.list():
+      _, ext = os.path.splitext(path)
+      if ext in (".labels", ".frags"):
+        yield path
+
+  cf.delete(suffix_filtered_paths())
+
 @meshgroup.group("spatial-index")
 def spatialindexgroup():
   """
@@ -1267,6 +1290,29 @@ def skel_xfer(
     )
 
   enqueue_tasks(ctx, queue, tasks)
+
+@skeletongroup.command("clean")
+@click.argument("src", type=CloudPath())
+def skel_clean(src):
+  """
+  Removes temporary files (e.g. labels and fragment files).
+  """
+  cv = CloudVolume(src)
+
+  if not cv.skeleton.meta.is_sharded():
+    print("Unsharded not currently supported.")
+    return
+
+
+  cf = CloudFiles(cv.skeleton.meta.cloudpath, progress=True)
+
+  def suffix_filtered_paths():
+    for path in cf.list():
+      _, ext = os.path.splitext(path)
+      if ext in (".labels", ".frags"):
+        yield path
+
+  cf.delete(suffix_filtered_paths())
 
 @skeletongroup.group("spatial-index")
 def spatialindexgroupskel():

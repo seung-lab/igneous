@@ -17,8 +17,8 @@ import igneous
 import igneous.task_creation as tc
 from igneous.downsample_scales import create_downsample_scales
 
-@pytest.fixture(scope="module", params=[ (512,512,128) ])
-def transfer_data(request):
+@pytest.fixture(scope="module")
+def checker_data(request):
   data = np.zeros((512,512,128), dtype=np.uint8)
   i = 1
   for x in range(data.shape[0] // 64):
@@ -27,7 +27,12 @@ def transfer_data(request):
         data[64*x:64*(x+1), 64*y:64*(y+1), 64*z:64*(z+1)] = i
         i += 1 
 
-  return data  
+  return data
+
+@pytest.fixture(scope="module")
+def connectomics_data(request):
+  import crackle
+  return crackle.load("./test/connectomics.npy.ckl.gz")
 
 path_root = "/tmp/removeme/igneous/ccltask"
 srcpath = f"file://{path_root}/src"
@@ -47,16 +52,30 @@ def tq():
   return MockTaskQueue()
 
 @pytest.fixture(scope="function")
-def src_cv(transfer_data):
+def src_cv(checker_data):
   rmsrc()
   rmdest()
   return CloudVolume.from_numpy(
-    transfer_data, 
+    checker_data, 
     vol_path=srcpath,
     resolution=(1,1,1), 
     voxel_offset=(0,0,0), 
-    chunk_size=(64,64,64), 
+    chunk_size=(128,128,64), 
     layer_type="image", 
+    max_mip=0,
+  )
+
+@pytest.fixture(scope="function")
+def connectomics_cv(connectomics_data):
+  rmsrc()
+  rmdest()
+  return CloudVolume.from_numpy(
+    connectomics_data, 
+    vol_path=srcpath,
+    resolution=(1,1,1), 
+    voxel_offset=(0,0,0), 
+    chunk_size=(128,128,64), 
+    layer_type="segmentation", 
     max_mip=0,
   )
 
@@ -92,7 +111,7 @@ def test_threshold_image():
 @pytest.mark.parametrize("fill_missing", [True,False])
 @pytest.mark.parametrize("dust_threshold", [0, (64**3) + 1])
 def test_ccl_tasks(
-  tq, src_cv, transfer_data, 
+  tq, src_cv, checker_data, 
   upper, fill_missing,
   dust_threshold
 ):
@@ -186,6 +205,47 @@ def test_ccl_tasks(
     elif upper == 0:
       assert len(uniq) == 1
       assert uniq[0] == 0
+
+  rmsrc()
+  rmdest()
+
+def test_ccl_tasks_connectomics(
+  tq, connectomics_cv, connectomics_data,
+):
+  shape = (128,128,128)
+  tasks = tc.create_ccl_face_tasks(
+    connectomics_cv.cloudpath, mip=0, shape=shape,
+  )
+  tq.insert_all(tasks)
+
+  tasks = tc.create_ccl_equivalence_tasks(
+    connectomics_cv.cloudpath, mip=0, shape=shape, 
+  )
+  tq.insert_all(tasks)
+
+  import igneous.tasks.image.ccl
+  igneous.tasks.image.ccl.create_relabeling(connectomics_cv.cloudpath, mip=0, shape=shape)
+
+  tasks = tc.create_ccl_relabel_tasks(
+    connectomics_cv.cloudpath, destpath, 
+    mip=0, shape=shape,
+  )
+  tq.insert_all(tasks)
+
+  cv_dest = CloudVolume(destpath)
+  cc_labels = cv_dest[:][:,:,:,0]
+
+  import fastremap
+  import cc3d
+  
+  cc_orig = cc3d.connected_components(
+    connectomics_data, connectivity=6
+  )
+
+  cc_labels, _ = fastremap.renumber(cc_labels)
+  cc_orig, _ = fastremap.renumber(cc_orig)
+
+  assert np.all(cc_labels == cc_orig)
 
   rmsrc()
   rmdest()

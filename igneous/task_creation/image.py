@@ -1672,6 +1672,6 @@ def accumulate_voxel_counts(
     'voxel_counts.im', 
     im.tobytes(),
     content_type="application/x-intmap",
-    compress=None,
+    compress=compress,
   )
 

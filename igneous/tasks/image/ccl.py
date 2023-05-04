@@ -166,7 +166,8 @@ def CCLFacesTask(
   gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   
-  labels = threshold_image(cv[bounds][...,0], threshold_lte, threshold_gte)
+  labels = cv[bounds][...,0]
+  labels = threshold_image(labels, threshold_lte, threshold_gte)
   labels = blackout_non_face_rails(labels, shape)
   if dust_threshold > 0:
     labels = cc3d.dust(

@@ -127,22 +127,22 @@ def test_ccl_tasks(
   faces = list(cf.list(cf.join(src_cv.key, "ccl", "faces")))
 
   answer = [
-    '1_1_1/ccl/faces/0-0-0-xy.cpso', '1_1_1/ccl/faces/0-0-0-xz.cpso', '1_1_1/ccl/faces/0-0-0-yz.cpso', 
-    '1_1_1/ccl/faces/0-1-0-xy.cpso', '1_1_1/ccl/faces/0-1-0-xz.cpso', '1_1_1/ccl/faces/0-1-0-yz.cpso', 
-    '1_1_1/ccl/faces/0-2-0-xy.cpso', '1_1_1/ccl/faces/0-2-0-xz.cpso', '1_1_1/ccl/faces/0-2-0-yz.cpso', 
-    '1_1_1/ccl/faces/0-3-0-xy.cpso', '1_1_1/ccl/faces/0-3-0-xz.cpso', '1_1_1/ccl/faces/0-3-0-yz.cpso', 
-    '1_1_1/ccl/faces/1-0-0-xy.cpso', '1_1_1/ccl/faces/1-0-0-xz.cpso', '1_1_1/ccl/faces/1-0-0-yz.cpso', 
-    '1_1_1/ccl/faces/1-1-0-xy.cpso', '1_1_1/ccl/faces/1-1-0-xz.cpso', '1_1_1/ccl/faces/1-1-0-yz.cpso', 
-    '1_1_1/ccl/faces/1-2-0-xy.cpso', '1_1_1/ccl/faces/1-2-0-xz.cpso', '1_1_1/ccl/faces/1-2-0-yz.cpso', 
-    '1_1_1/ccl/faces/1-3-0-xy.cpso', '1_1_1/ccl/faces/1-3-0-xz.cpso', '1_1_1/ccl/faces/1-3-0-yz.cpso', 
-    '1_1_1/ccl/faces/2-0-0-xy.cpso', '1_1_1/ccl/faces/2-0-0-xz.cpso', '1_1_1/ccl/faces/2-0-0-yz.cpso', 
-    '1_1_1/ccl/faces/2-1-0-xy.cpso', '1_1_1/ccl/faces/2-1-0-xz.cpso', '1_1_1/ccl/faces/2-1-0-yz.cpso', 
-    '1_1_1/ccl/faces/2-2-0-xy.cpso', '1_1_1/ccl/faces/2-2-0-xz.cpso', '1_1_1/ccl/faces/2-2-0-yz.cpso', 
-    '1_1_1/ccl/faces/2-3-0-xy.cpso', '1_1_1/ccl/faces/2-3-0-xz.cpso', '1_1_1/ccl/faces/2-3-0-yz.cpso', 
-    '1_1_1/ccl/faces/3-0-0-xy.cpso', '1_1_1/ccl/faces/3-0-0-xz.cpso', '1_1_1/ccl/faces/3-0-0-yz.cpso', 
-    '1_1_1/ccl/faces/3-1-0-xy.cpso', '1_1_1/ccl/faces/3-1-0-xz.cpso', '1_1_1/ccl/faces/3-1-0-yz.cpso', 
-    '1_1_1/ccl/faces/3-2-0-xy.cpso', '1_1_1/ccl/faces/3-2-0-xz.cpso', '1_1_1/ccl/faces/3-2-0-yz.cpso', 
-    '1_1_1/ccl/faces/3-3-0-xy.cpso', '1_1_1/ccl/faces/3-3-0-xz.cpso', '1_1_1/ccl/faces/3-3-0-yz.cpso'
+    '1_1_1/ccl/faces/0-0-0-xy.ckl', '1_1_1/ccl/faces/0-0-0-xz.ckl', '1_1_1/ccl/faces/0-0-0-yz.ckl', 
+    '1_1_1/ccl/faces/0-1-0-xy.ckl', '1_1_1/ccl/faces/0-1-0-xz.ckl', '1_1_1/ccl/faces/0-1-0-yz.ckl', 
+    '1_1_1/ccl/faces/0-2-0-xy.ckl', '1_1_1/ccl/faces/0-2-0-xz.ckl', '1_1_1/ccl/faces/0-2-0-yz.ckl', 
+    '1_1_1/ccl/faces/0-3-0-xy.ckl', '1_1_1/ccl/faces/0-3-0-xz.ckl', '1_1_1/ccl/faces/0-3-0-yz.ckl', 
+    '1_1_1/ccl/faces/1-0-0-xy.ckl', '1_1_1/ccl/faces/1-0-0-xz.ckl', '1_1_1/ccl/faces/1-0-0-yz.ckl', 
+    '1_1_1/ccl/faces/1-1-0-xy.ckl', '1_1_1/ccl/faces/1-1-0-xz.ckl', '1_1_1/ccl/faces/1-1-0-yz.ckl', 
+    '1_1_1/ccl/faces/1-2-0-xy.ckl', '1_1_1/ccl/faces/1-2-0-xz.ckl', '1_1_1/ccl/faces/1-2-0-yz.ckl', 
+    '1_1_1/ccl/faces/1-3-0-xy.ckl', '1_1_1/ccl/faces/1-3-0-xz.ckl', '1_1_1/ccl/faces/1-3-0-yz.ckl', 
+    '1_1_1/ccl/faces/2-0-0-xy.ckl', '1_1_1/ccl/faces/2-0-0-xz.ckl', '1_1_1/ccl/faces/2-0-0-yz.ckl', 
+    '1_1_1/ccl/faces/2-1-0-xy.ckl', '1_1_1/ccl/faces/2-1-0-xz.ckl', '1_1_1/ccl/faces/2-1-0-yz.ckl', 
+    '1_1_1/ccl/faces/2-2-0-xy.ckl', '1_1_1/ccl/faces/2-2-0-xz.ckl', '1_1_1/ccl/faces/2-2-0-yz.ckl', 
+    '1_1_1/ccl/faces/2-3-0-xy.ckl', '1_1_1/ccl/faces/2-3-0-xz.ckl', '1_1_1/ccl/faces/2-3-0-yz.ckl', 
+    '1_1_1/ccl/faces/3-0-0-xy.ckl', '1_1_1/ccl/faces/3-0-0-xz.ckl', '1_1_1/ccl/faces/3-0-0-yz.ckl', 
+    '1_1_1/ccl/faces/3-1-0-xy.ckl', '1_1_1/ccl/faces/3-1-0-xz.ckl', '1_1_1/ccl/faces/3-1-0-yz.ckl', 
+    '1_1_1/ccl/faces/3-2-0-xy.ckl', '1_1_1/ccl/faces/3-2-0-xz.ckl', '1_1_1/ccl/faces/3-2-0-yz.ckl', 
+    '1_1_1/ccl/faces/3-3-0-xy.ckl', '1_1_1/ccl/faces/3-3-0-xz.ckl', '1_1_1/ccl/faces/3-3-0-yz.ckl'
   ]
   faces.sort()
   answer.sort()
@@ -237,7 +237,7 @@ def test_ccl_tasks_connectomics(
 
   import fastremap
   import cc3d
-  
+
   cc_orig = cc3d.connected_components(
     connectomics_data, connectivity=6
   )

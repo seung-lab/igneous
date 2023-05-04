@@ -27,7 +27,7 @@ from collections import defaultdict
 import cc3d
 import fastremap
 import numpy as np
-import compresso
+import crackle
 
 from tqdm import tqdm
 
@@ -138,7 +138,7 @@ def CCLFacesTask(
 ):
   """
   (1) Generate x,y,z back faces of each 1vx overlap task
-  as compresso encoded 2D images.
+  as crackle encoded 2D images.
 
   For continuous data, greater than or equal to (gte) 
   or less than or equal to (lte) thresholds 
@@ -148,9 +148,9 @@ def CCLFacesTask(
   These images are stored in e.g. 32_32_40/ccl/faces/ and have
   the following scheme where the numbers are the gridpoint
   location and the letters indicate which face plane.
-    1-2-0-xy.cpso
-    1-2-0-xz.cpso
-    1-2-0-yz.cpso
+    1-2-0-xy.ckl
+    1-2-0-xz.ckl
+    1-2-0-yz.ckl
   """
   shape = Vec(*shape)
   offset = Vec(*offset)
@@ -183,11 +183,11 @@ def CCLFacesTask(
     cc_labels[:,-1,:],
     cc_labels[-1,:,:],
   ]
-  slices = [ compresso.compress(slc) for slc in slices ]
+  slices = [ crackle.compress(slc) for slc in slices ]
   filenames = [
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xy.cpso',
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xz.cpso',
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-yz.cpso'
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xy.ckl',
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-xz.ckl',
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z}-yz.ckl'
   ]
 
   cf = CloudFiles(cloudpath)
@@ -247,9 +247,9 @@ def CCLEquivalancesTask(
 
   cf = CloudFiles(cloudpath)
   filenames = [
-    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z-1}-xy.cpso',
-    f'{gridpoint.x}-{gridpoint.y-1}-{gridpoint.z}-xz.cpso',
-    f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-yz.cpso'
+    f'{gridpoint.x}-{gridpoint.y}-{gridpoint.z-1}-xy.ckl',
+    f'{gridpoint.x}-{gridpoint.y-1}-{gridpoint.z}-xz.ckl',
+    f'{gridpoint.x-1}-{gridpoint.y}-{gridpoint.z}-yz.ckl'
   ]
   filenames = [
     cf.join(cv.key, 'ccl', 'faces', fname) for fname in filenames
@@ -259,7 +259,7 @@ def CCLEquivalancesTask(
   for key in slices:
     if slices[key] is None:
       continue
-    face = compresso.decompress(slices[key])
+    face = crackle.decompress(slices[key])
     if '-xy' in key:
       face = face[:shape.x,:shape.y,0]
     elif '-xz' in key:

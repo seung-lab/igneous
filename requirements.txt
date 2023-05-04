@@ -1,7 +1,7 @@
 click>=6.7
 cloud-files>=4.11.0
 cloud-volume>=8.11.1
-compresso
+crackle-codec
 connected-components-3d>=3.10.1
 DracoPy>=1.0.1,<2.0.0
 fastremap>=1.13.2

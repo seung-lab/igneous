@@ -13,7 +13,7 @@ from cloudvolume.lib import max2
 from cloudfiles import CloudFiles
 import cloudfiles.paths
 import numpy as np
-from taskqueue import TaskQueue
+from taskqueue import TaskQueue, LocalTaskQueue
 from taskqueue.lib import toabs
 from taskqueue.paths import get_protocol
 from tqdm import tqdm

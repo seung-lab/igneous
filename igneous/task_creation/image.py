@@ -828,6 +828,9 @@ def create_transfer_tasks(
 
   if clean_info:
     dest_vol.info = clean_xfer_info(dest_vol.info)
+  
+  if cutout:
+    dest_vol.scale.pop("sharding", None)
 
   dest_vol.commit_info()
 

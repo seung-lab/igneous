@@ -243,7 +243,7 @@ def downsample(
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
-@click.option('--sharded', is_flag=True, default=False, help="Generate a sharded dataset which reduces the number of files. Downsamples are not generated.")
+@click.option('--sharded', is_flag=True, default=False, help="Generate a sharded dataset which reduces the number of files. Downsamples are not generated.", show_default=True)
 @click.option('--dest-voxel-offset', type=Tuple3(), default=None, help="Set the voxel offset for this mip level.")
 @click.option('--clean-info', is_flag=True, default=False, help="Scrub info file of mesh and skeleton fields.", show_default=True)
 @click.option('--no-src-update', is_flag=True, default=False, help="Don't update the source provenance file with the transfer metadata.", show_default=True)

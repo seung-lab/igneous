@@ -644,7 +644,6 @@ def ccl_auto(
   For local volumes, execute all steps automatically.
   """
   parallel = int(ctx.obj.get("parallel", 1))
-  tq = TaskQueue(normalize_path(queue))
   args = (queue, None, LEASE_SECONDS, True, -1, True, False)
 
   tasks = tc.create_ccl_face_tasks(
@@ -654,8 +653,9 @@ def ccl_auto(
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
-  tq.insert(tasks, parallel=parallel)
-  parallel_execute_helper(parallel, args)
+  enqueue_tasks(ctx, queue, tasks)
+  if queue:
+    parallel_execute_helper(parallel, args)
 
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
@@ -664,8 +664,9 @@ def ccl_auto(
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
-  tq.insert(tasks, parallel=parallel)
-  parallel_execute_helper(parallel, args)
+  enqueue_tasks(ctx, queue, tasks)
+  if queue:
+    parallel_execute_helper(parallel, args)
 
   import igneous.tasks.image.ccl
   igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
@@ -679,8 +680,9 @@ def ccl_auto(
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
-  tq.insert(tasks, parallel=parallel)
-  parallel_execute_helper(parallel, args)
+  enqueue_tasks(ctx, queue, tasks)
+  if queue:
+    parallel_execute_helper(parallel, args)
 
   if clean:
     igneous.tasks.image.ccl.clean_intermediate_files(src, mip)

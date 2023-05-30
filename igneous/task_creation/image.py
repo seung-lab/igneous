@@ -1682,8 +1682,12 @@ def accumulate_voxel_counts(
     compress=compress,
   )
 
-def compute_rois(cloudpath:str) -> List[Bbox]:
-  cv = CloudVolume(cloudpath)
+def compute_rois(
+  cloudpath:str, 
+  progress:bool = False,
+  suppress_faint_voxels:int = 0,
+) -> List[Bbox]:
+  cv = CloudVolume(cloudpath, progress=progress)
   cv.mip = cv.scales[-1]['resolution']
 
   if cv.meta.voxels(cv.mip) > int(8e9):
@@ -1704,9 +1708,10 @@ def compute_rois(cloudpath:str) -> List[Bbox]:
     else:
       more_mips = 0
 
-  np.greater(img, 0, out=img)
+  np.greater(img, suppress_faint_voxels, out=img)
 
   labels = cc3d.connected_components(img)
+  labels = cc3d.dust(labels, threshold=10)
   slcs = cc3d.statistics(labels)["bounding_boxes"][1:] 
 
   factor3 = cv.downsample_ratio
@@ -1715,8 +1720,8 @@ def compute_rois(cloudpath:str) -> List[Bbox]:
   offset = cv.image.meta.voxel_offset(0)
   
   bboxes:List[Bbox] = []
-  for i, slcs in enumerate(slcs):
-    bbx = Bbox.from_slices(slcs)
+  for i, slc in enumerate(slcs):
+    bbx = Bbox.from_slices(slc)
     bbx *= factor3 
     bbx += offset
     # bbx.minpt.z += zmin

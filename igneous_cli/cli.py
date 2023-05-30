@@ -321,6 +321,15 @@ def xfer(
 
   enqueue_tasks(ctx, queue, tasks)
 
+@imagegroup.command("roi")
+@click.argument("src", type=CloudPath())
+@click.option('--suppress-faint', default=0, help="Voxels below this value are set to background.", show_default=True)
+@click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
+def image_roi(src, progress, suppress_faint):
+  """Computes bounding box of non-empty image regions."""
+  bboxes = tc.compute_rois(src, progress, suppress_faint)
+  print(f"{len(bboxes)} ROI detected. info file updated.")
+
 @imagegroup.command("reorder")
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())

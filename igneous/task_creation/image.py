@@ -1,15 +1,17 @@
 from collections import defaultdict
 from functools import reduce, partial
 import operator
-from typing import Any, Dict, Union, Tuple, cast, Optional, Iterator
+from typing import Any, Dict, List, Union, Tuple, cast, Optional, Iterator
 
 import copy
 import json
 import math
 from time import strftime
 
+import cc3d
 import fastremap
 import numpy as np
+import tinybrain
 from tqdm import tqdm
 
 from mapbuffer import IntMap
@@ -63,6 +65,7 @@ __all__  = [
   "create_ccl_relabel_tasks",
   "create_voxel_counting_tasks",
   "accumulate_voxel_counts",
+  "compute_rois",
 ]
 
 # A reasonable size for processing large
@@ -1677,4 +1680,51 @@ def accumulate_voxel_counts(
     content_type="application/x-intmap",
     compress=compress,
   )
+
+def compute_rois(cloudpath:str) -> List[Bbox]:
+  cv = CloudVolume(cloudpath)
+  cv.mip = cv.scales[-1]['resolution']
+
+  if cv.meta.voxels(cv.mip) > int(8e9):
+    print(yellow("Warning: lowest resolution is larger than 8 gigavoxels. Consider additional downsampling."))
+
+  img = cv[:][...,0]
+
+  more_mips = 0
+  sxy =  img.shape[0] * img.shape[1]
+  max_size = 512 ** 2
+  
+  if sxy > max_size:
+    more_mips = int(np.ceil(np.log2(sxy / max_size)))
+    if more_mips > 0:
+      img = tinybrain.downsample_with_averaging(
+        img, factor=(2,2,1), num_mips=more_mips
+      )[-1]
+    else:
+      more_mips = 0
+
+  np.greater(img, 0, out=img)
+
+  labels = cc3d.connected_components(img)
+  slcs = cc3d.statistics(labels)["bounding_boxes"][1:] 
+
+  factor3 = cv.downsample_ratio
+  factor3.x *= 2 ** more_mips
+  factor3.y *= 2 ** more_mips
+  offset = cv.image.meta.voxel_offset(0)
+  
+  bboxes:List[Bbox] = []
+  for i, slcs in enumerate(slcs):
+    bbx = Bbox.from_slices(slcs)
+    bbx *= factor3 
+    bbx += offset
+    # bbx.minpt.z += zmin
+    # bbx.maxpt.z += zmin
+    bbx.maxpt -= 1
+    bboxes.append(bbx.astype(int))
+
+  cv.scales[0]["rois"] = [ bbx.to_list() for bbx in bboxes ]
+  cv.commit_info()
+
+  return bboxes
 

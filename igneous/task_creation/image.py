@@ -1691,7 +1691,6 @@ def compute_rois(
 ) -> List[Bbox]:
   cv = CloudVolume(cloudpath, progress=progress)
   cv.mip = cv.scales[-1]['resolution']
-  print(cv.meta.rois)
   cv.meta.rois = None
 
   if cv.meta.voxels(cv.mip) > int(8e9):

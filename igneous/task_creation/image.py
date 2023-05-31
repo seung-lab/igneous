@@ -1686,48 +1686,57 @@ def compute_rois(
   cloudpath:str, 
   progress:bool = False,
   suppress_faint_voxels:int = 0,
+  dust_threshold:int = 10,
+  z_step = None,
 ) -> List[Bbox]:
   cv = CloudVolume(cloudpath, progress=progress)
   cv.mip = cv.scales[-1]['resolution']
+  print(cv.meta.rois)
+  cv.meta.rois = None
 
   if cv.meta.voxels(cv.mip) > int(8e9):
     print(yellow("Warning: lowest resolution is larger than 8 gigavoxels. Consider additional downsampling."))
 
-  img = cv[:][...,0]
+  if z_step is None:
+    z_step = cv.bounds.size3()[2]
 
   more_mips = 0
-  sxy =  img.shape[0] * img.shape[1]
   max_size = 512 ** 2
-  
-  if sxy > max_size:
-    more_mips = int(np.ceil(np.log2(sxy / max_size)))
-    if more_mips > 0:
-      img = tinybrain.downsample_with_averaging(
-        img, factor=(2,2,1), num_mips=more_mips
-      )[-1]
-    else:
-      more_mips = 0
-
-  np.greater(img, suppress_faint_voxels, out=img)
-
-  labels = cc3d.connected_components(img)
-  labels = cc3d.dust(labels, threshold=10)
-  slcs = cc3d.statistics(labels)["bounding_boxes"][1:] 
-
-  factor3 = cv.downsample_ratio
-  factor3.x *= 2 ** more_mips
-  factor3.y *= 2 ** more_mips
-  offset = cv.image.meta.voxel_offset(0)
-  
   bboxes:List[Bbox] = []
-  for i, slc in enumerate(slcs):
-    bbx = Bbox.from_slices(slc)
-    bbx *= factor3 
-    bbx += offset
-    # bbx.minpt.z += zmin
-    # bbx.maxpt.z += zmin
-    bbx.maxpt -= 1
-    bboxes.append(bbx.astype(int))
+
+  for z in range(cv.bounds.minpt.z, cv.bounds.maxpt.z, z_step):
+    upper = min(z+z_step, cv.bounds.maxpt.z)
+    img = cv[:,:,z:upper][...,0]
+    sxy =  img.shape[0] * img.shape[1]
+
+    if sxy > max_size:
+      more_mips = int(np.ceil(np.log2(sxy / max_size)))
+      if more_mips > 0:
+        img = tinybrain.downsample_with_averaging(
+          img, factor=(2,2,1), num_mips=more_mips
+        )[-1]
+      else:
+        more_mips = 0
+
+    np.greater(img, suppress_faint_voxels, out=img)
+
+    labels = cc3d.connected_components(img)
+    labels = cc3d.dust(labels, threshold=dust_threshold, in_place=True)
+    slcs = cc3d.statistics(labels)["bounding_boxes"][1:] 
+
+    factor3 = cv.downsample_ratio
+    factor3.x *= 2 ** more_mips
+    factor3.y *= 2 ** more_mips
+    
+    for i, slc in enumerate(slcs):
+      if slc is None:
+        continue
+      bbx = Bbox.from_slices(slc)
+      bbx *= factor3 
+      bbx.minpt.z += z
+      bbx.maxpt.z += z
+      bbx.maxpt -= 1
+      bboxes.append(bbx.astype(int))
 
   cv.scales[0]["rois"] = [ bbx.to_list() for bbx in bboxes ]
   cv.commit_info()

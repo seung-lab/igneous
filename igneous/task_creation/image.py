@@ -1703,6 +1703,10 @@ def compute_rois(
   max_size = 512 ** 2
   bboxes:List[Bbox] = []
 
+  dsfn = tinybrain.downsample_with_averaging
+  if cv.layer_type == "segmentation":
+    dsfn = tinybrain.downsample_segmentation
+
   for z in range(cv.bounds.minpt.z, cv.bounds.maxpt.z, z_step):
     upper = min(z+z_step, cv.bounds.maxpt.z)
     img = cv[:,:,z:upper][...,0]
@@ -1711,7 +1715,7 @@ def compute_rois(
     if sxy > max_size:
       more_mips = int(np.ceil(np.log2(sxy / max_size)))
       if more_mips > 0:
-        img = tinybrain.downsample_with_averaging(
+        img = dsfn(
           img, factor=(2,2,1), num_mips=more_mips
         )[-1]
       else:

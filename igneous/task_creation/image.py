@@ -1687,7 +1687,8 @@ def compute_rois(
   progress:bool = False,
   suppress_faint_voxels:int = 0,
   dust_threshold:int = 10,
-  z_step = None,
+  max_axial_length:int = 512,
+  z_step:Optional[int] = None,
 ) -> List[Bbox]:
   cv = CloudVolume(cloudpath, progress=progress, fill_missing=True)
   cv.mip = cv.scales[-1]['resolution']
@@ -1700,7 +1701,7 @@ def compute_rois(
     z_step = cv.bounds.size3()[2]
 
   more_mips = 0
-  max_size = 512 ** 2
+  max_size = max_axial_length ** 2
   bboxes:List[Bbox] = []
 
   dsfn = tinybrain.downsample_with_averaging

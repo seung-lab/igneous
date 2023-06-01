@@ -326,14 +326,16 @@ def xfer(
 @click.option('--suppress-faint', default=0, help="Voxels below this value are set to background.", show_default=True)
 @click.option('--dust', default=10, help="Suppress connected components smaller than this number of voxels.", show_default=True)
 @click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
+@click.option('--max-axial-len', type=int, default=512, help="If the XY size is larger than the square of this number, the image will be automatically downsampled in-memory.", show_default=True)
 @click.option('--z-step', type=int, default=None, help="How far to step in z for each ROI evaluation. Defaults to entire z range.", show_default=True)
-def image_roi(src, progress, suppress_faint, dust, z_step):
+def image_roi(src, progress, suppress_faint, dust, z_step, max_axial_len):
   """Computes bounding box of non-empty image regions."""
   bboxes = tc.compute_rois(
     src, 
     progress=progress, 
     suppress_faint_voxels=suppress_faint, 
     dust_threshold=dust, 
+    max_axial_length=max_axial_len,
     z_step=z_step,
   )
   print(f"{len(bboxes)} ROI detected. info file updated.")

@@ -1689,7 +1689,7 @@ def compute_rois(
   dust_threshold:int = 10,
   z_step = None,
 ) -> List[Bbox]:
-  cv = CloudVolume(cloudpath, progress=progress)
+  cv = CloudVolume(cloudpath, progress=progress, fill_missing=True)
   cv.mip = cv.scales[-1]['resolution']
   cv.meta.rois = None
 

@@ -1,15 +1,17 @@
 from collections import defaultdict
 from functools import reduce, partial
 import operator
-from typing import Any, Dict, Union, Tuple, cast, Optional, Iterator
+from typing import Any, Dict, List, Union, Tuple, cast, Optional, Iterator
 
 import copy
 import json
 import math
 from time import strftime
 
+import cc3d
 import fastremap
 import numpy as np
+import tinybrain
 from tqdm import tqdm
 
 from mapbuffer import IntMap
@@ -63,6 +65,7 @@ __all__  = [
   "create_ccl_relabel_tasks",
   "create_voxel_counting_tasks",
   "accumulate_voxel_counts",
+  "compute_rois",
 ]
 
 # A reasonable size for processing large
@@ -806,6 +809,7 @@ def create_transfer_tasks(
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
     dest_vol = CloudVolume(dest_layer_path, info=info, mip=mip)
+    dest_vol.meta.unlock_mips(dest_vol.mip)
     if cutout and bounds:
       dest_vol.scale["voxel_offset"] = list(bounds.minpt)
       dest_vol.scale["size"] = list(bounds.size3())
@@ -1677,4 +1681,69 @@ def accumulate_voxel_counts(
     content_type="application/x-intmap",
     compress=compress,
   )
+
+def compute_rois(
+  cloudpath:str, 
+  progress:bool = False,
+  suppress_faint_voxels:int = 0,
+  dust_threshold:int = 10,
+  max_axial_length:int = 512,
+  z_step:Optional[int] = None,
+) -> List[Bbox]:
+  cv = CloudVolume(cloudpath, progress=progress, fill_missing=True)
+  cv.mip = cv.scales[-1]['resolution']
+  cv.meta.rois = None
+
+  if cv.meta.voxels(cv.mip) > int(8e9):
+    print(yellow("Warning: lowest resolution is larger than 8 gigavoxels. Consider additional downsampling."))
+
+  if z_step is None:
+    z_step = cv.bounds.size3()[2]
+
+  more_mips = 0
+  max_size = max_axial_length ** 2
+  bboxes:List[Bbox] = []
+
+  dsfn = tinybrain.downsample_with_averaging
+  if cv.layer_type == "segmentation":
+    dsfn = tinybrain.downsample_segmentation
+
+  for z in range(cv.bounds.minpt.z, cv.bounds.maxpt.z, z_step):
+    upper = min(z+z_step, cv.bounds.maxpt.z)
+    img = cv[:,:,z:upper][...,0]
+    sxy =  img.shape[0] * img.shape[1]
+
+    if sxy > max_size:
+      more_mips = int(np.ceil(np.log2(sxy / max_size)))
+      if more_mips > 0:
+        img = dsfn(
+          img, factor=(2,2,1), num_mips=more_mips
+        )[-1]
+      else:
+        more_mips = 0
+
+    np.greater(img, suppress_faint_voxels, out=img)
+
+    labels = cc3d.connected_components(img)
+    labels = cc3d.dust(labels, threshold=dust_threshold, in_place=True)
+    slcs = cc3d.statistics(labels)["bounding_boxes"][1:] 
+
+    factor3 = cv.downsample_ratio
+    factor3.x *= 2 ** more_mips
+    factor3.y *= 2 ** more_mips
+    
+    for i, slc in enumerate(slcs):
+      if slc is None:
+        continue
+      bbx = Bbox.from_slices(slc)
+      bbx *= factor3 
+      bbx.minpt.z += z
+      bbx.maxpt.z += z
+      bbx.maxpt -= 1
+      bboxes.append(bbx.astype(int))
+
+  cv.scales[0]["rois"] = [ bbx.to_list() for bbx in bboxes ]
+  cv.commit_info()
+
+  return bboxes
 

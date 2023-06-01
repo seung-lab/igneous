@@ -688,7 +688,7 @@ before creating the task set.
 igneous image reorder SRC DEST --queue queue --mip 0 --mapping-file mapping.json
 ```
 
-### ROI Detection
+### Tissue ROI Detection
 
 Sometimes, especially during the alignment of a new microscopy stack, volume bounds may greatly exceed the tissue containing regions. This results in wasted computation when processing large volumes. As of version 8.22.0, CloudVolume can use a set of pre-computed bounding boxes to avoid issuing network requests to empty regions.
 

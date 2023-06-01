@@ -688,6 +688,49 @@ before creating the task set.
 igneous image reorder SRC DEST --queue queue --mip 0 --mapping-file mapping.json
 ```
 
+### ROI Detection
+
+Sometimes, especially during the alignment of a new microscopy stack, volume bounds may greatly exceed the tissue containing regions. This results in wasted computation when processing large volumes. As of version 8.22.0, CloudVolume can use a set of pre-computed bounding boxes to avoid issuing network requests to empty regions.
+
+Igneous can compute these regions by checking low resolution images of the dataset for the presence of tissue and record those bounding boxes in the highest resolution scale of the info file in the following format where the variable names are integers and the bounds are inclusive.
+
+```
+"rois": [ [ xstart, ystart, zstart, xend, yend, zend ], ... ]
+```
+
+In order to use this function, which performs all computation in one step and does not require using task queues. This function can be memory intensive if the volume is large and not sufficiently downsampled. The lowest resolution downsample available will be used, and possibly downsampled further in memory before being analyzed.
+
+```python
+tc.compute_rois(  
+  cloudpath:str, 
+  progress:bool = False,
+  suppress_faint_voxels:int = 0,
+  dust_threshold:int = 10,
+  max_axial_length:int = 512,
+  z_step:Optional[int] = None,
+)
+```
+
+```bash
+igneous image roi $PATH # process whole dataset in one shot
+
+# to generate bboxes in bundles of 100 z-slices. This can be helpful
+# if the tissue region drifts across the image plane as that could
+# generate a single bounding box nearly equivalent to the entire volume.
+igneous image roi $PATH --z-step 100
+
+# If your image is huge and deep, for example 10,000 z-slices, then
+# simply retaining it in memory may be challenging as 512 * 512 * 10,000
+# is 2.6 GVx and image processing may use several multiples of 
+# the input size. You can ask for additional downsampling by specifying
+# a smaller side image length. 
+igneous image roi $PATH --max-axial-len 256
+```
+
+When the function finishes executing, it will print out the number of bounding boxes found. Depending on your data, a reasonable number of bounding boxes are between 1 to 15. Above 25 bounding boxes, CloudVolume may incur more than 1 millisecond of additional processing per a cutout.
+
+If you see hundreds of bounding boxes have generated unexpectedly, try examining your image more carefully and consider suppressing faint voxels or tiny connected components.
+
 ## Conclusion
 
 It's possible something has changed or is not covered in this documentation. Please read `igneous/task_creation/` and `igneous/tasks/` for the most current information.  

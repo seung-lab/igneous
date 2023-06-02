@@ -1,6 +1,31 @@
 CHANGES
 =======
 
+4.16.0
+------
+
+* release(4.16.0): features and bugfixes
+* docs: "Tissiue ROI" to be more specific
+* docs: discuss how to use the ROI computation
+* feat: roi detection (#151)
+* fix: make ccl auto mode compatible with LocalTaskQueue
+* fix: don't retain sharded property when doing a cutout
+* fix: missing import
+* feat: use in-memory queue if no queue specified
+* refactor: separate network call
+* test: python 3.11
+* perf: switch out compresso for crackle in ccl
+* test: ccl connectomics (#150)
+* test: add connectomics volume test for ccl
+* chore: update supported python versions
+* fix: compress option was inoperative for voxel sum
+* docs: remove reference to a database
+* fix: use layerpath instead of cloudpath
+* docs: better formatting of clean command
+* feat: remove temp files for unsharded
+* chore: whitespace
+* feat: add sharded cleaning function for meshes and skeletons
+
 4.15.2
 ------
 

@@ -698,7 +698,7 @@ Igneous can compute these regions by checking low resolution images of the datas
 "rois": [ [ xstart, ystart, zstart, xend, yend, zend ], ... ]
 ```
 
-In order to use this function, which performs all computation in one step and does not require using task queues. This function can be memory intensive if the volume is large and not sufficiently downsampled. The lowest resolution downsample available will be used, and possibly downsampled further in memory before being analyzed.
+The below function performs all computation in one step and does not require using task queues. It can be memory intensive if the volume is large and not sufficiently downsampled. The lowest resolution downsample available will be used, and possibly downsampled further in memory before being analyzed.
 
 ```python
 tc.compute_rois(  
@@ -710,6 +710,12 @@ tc.compute_rois(
   z_step:Optional[int] = None,
 )
 ```
+
+When the function finishes executing, it will print out the number of bounding boxes found. Depending on your data, a reasonable number of bounding boxes are between 1 to 15. Above 25 bounding boxes, CloudVolume may incur more than 1 millisecond of additional processing per a cutout.
+
+If you see hundreds of bounding boxes have generated unexpectedly, try examining your image more carefully and consider suppressing faint voxels or tiny connected components.
+
+#### CLI Tissue ROI Detection
 
 ```bash
 igneous image roi $PATH # process whole dataset in one shot
@@ -726,10 +732,6 @@ igneous image roi $PATH --z-step 100
 # a smaller side image length. 
 igneous image roi $PATH --max-axial-len 256
 ```
-
-When the function finishes executing, it will print out the number of bounding boxes found. Depending on your data, a reasonable number of bounding boxes are between 1 to 15. Above 25 bounding boxes, CloudVolume may incur more than 1 millisecond of additional processing per a cutout.
-
-If you see hundreds of bounding boxes have generated unexpectedly, try examining your image more carefully and consider suppressing faint voxels or tiny connected components.
 
 ## Conclusion
 

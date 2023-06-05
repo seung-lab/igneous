@@ -812,7 +812,7 @@ def create_transfer_tasks(
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
     dest_vol = CloudVolume(dest_layer_path, info=info, mip=mip)
-    dest_vol.meta.unlock_mips(dest_vol.mip)
+    dest_vol.meta.info['scales'][mip].pop('locked', None)
     if cutout and bounds:
       dest_vol.scale["voxel_offset"] = list(bounds.minpt)
       dest_vol.scale["size"] = list(bounds.size3())

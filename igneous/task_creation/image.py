@@ -286,6 +286,7 @@ def create_sharded_image_info(
   max_shard_index_bytes: int = 8192, # 2^13
   max_minishard_index_bytes: int = 40000,
   max_labels_per_minishard: int = 4000,
+  minishard_index_encoding:str = "gzip",
   data_encoding:str = "gzip"
 ) -> Dict[str, Any]:
   """
@@ -417,7 +418,7 @@ def create_sharded_image_info(
     "data_encoding": data_encoding,
     "hash": "identity",
     "minishard_bits": minishard_bits,
-    "minishard_index_encoding": "gzip",
+    "minishard_index_encoding": minishard_index_encoding,
     "preshift_bits": preshift_bits, 
     "shard_bits": shard_bits,
   }
@@ -441,6 +442,7 @@ def create_image_shard_transfer_tasks(
   truncate_scales: bool = True,
   compress:bool = True,
   cutout:bool = False,
+  minishard_index_encoding:str = "gzip",
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -501,6 +503,7 @@ def create_image_shard_transfer_tasks(
     dtype=dest_vol.dtype,
     uncompressed_shard_bytesize=memory_target,
     data_encoding=("gzip" if compress else "raw"),
+    minishard_index_encoding=minishard_index_encoding,
   )
   dest_vol.scale["sharding"] = spec
   if clean_info:

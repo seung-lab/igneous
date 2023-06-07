@@ -35,10 +35,16 @@ def intify(x):
 def normalize_encoding(encoding):
   if encoding == "cseg":
     return "compressed_segmentation"
+  elif encoding == "ckl":
+    return "crackle"
+  elif encoding == "cpso":
+    return "compresso"
   elif encoding == "auto":
     return None
 
   return encoding
+
+ENCODING_HELP = "Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] compressed_segmentation (cseg), compresso (cpso), crackle (ckl); [floats] fpzip, kempressed, zfpc"
 
 def enqueue_tasks(ctx, queue, tasks):
   parallel = int(ctx.obj.get("parallel", 1))
@@ -75,6 +81,18 @@ class Tuple2(click.ParamType):
         self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
       if len(value) != 2:
         self.fail(f"'{value}' does not contain a comma delimited list of 3 integers.")
+    return value
+
+class EncodingType(click.ParamType):
+  name = 'encoding'
+  def convert(self, value, param, ctx):
+    return normalize_encoding(value)
+
+class CompressType(click.ParamType):
+  name = "compress"
+  def convert(self, value, param, ctx):
+    if value and value.lower() in ("none", "false"):
+      value = False
     return value
 
 class CloudPath(click.ParamType):
@@ -157,7 +175,7 @@ def imagegroup():
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
-@click.option('--encoding', default="auto", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
+@click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
@@ -194,8 +212,6 @@ def downsample(
   if sharded and num_mips != 1:
     print("igneous: sharded downsamples only support producing one mip at a time.")
     return
-
-  encoding = normalize_encoding(encoding)
 
   factor = (2,2,1)
   if volumetric:
@@ -234,7 +250,7 @@ def downsample(
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--memory', default=3.5e9, type=int, help="Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
 @click.option('--max-mips', default=5, help="Maximum number of additional pyramid levels.", show_default=True)
-@click.option('--encoding', default="auto", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
+@click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
 @click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=None, help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64", show_default=True)
@@ -282,8 +298,6 @@ def xfer(
   Use the --memory flag to automatically compute the
   a reasonable task shape based on your memory limits.
   """
-  encoding = normalize_encoding(encoding)
-
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
@@ -346,7 +360,7 @@ def image_roi(src, progress, suppress_faint, dust, z_step, max_axial_len):
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
-@click.option('--encoding', default="auto", help="Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] cseg, compresso; [floats] fpzip, kempressed", show_default=True)
+@click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
 @click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
 @click.option('--compress', default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
@@ -392,7 +406,7 @@ def image_reorder(
     compress=compress,
     delete_black_uploads=delete_bg, 
     background_color=bg_color,
-    encoding=normalize_encoding(encoding), 
+    encoding=encoding, 
     encoding_level=encoding_level,
   )
 
@@ -602,7 +616,7 @@ def ccl_calc_labels(ctx, src, mip, shape):
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
-@click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
+@click.option('--encoding', type=EncodingType(), default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
 @click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
@@ -643,7 +657,7 @@ def ccl_clean(src, mip):
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
-@click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso", show_default=True)
+@click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--clean/--no-clean', default=True, is_flag=True, help="Delete intermediate files on completion.", show_default=True)
 @click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
@@ -1523,3 +1537,50 @@ def view(path, browser, port, ng):
   if browser:
     webbrowser.open(url, new=2)
   CloudVolume(path).viewer(port=port)
+
+
+@imagegroup.command()
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+@click.option('--resolution', type=Tuple3(), default=(1,1,1), help="Resolution of the volume in nanometers along x,y, and z dimensions.", show_default=True)
+@click.option('--offset', type=Tuple3(), default=(0,0,0), help="Voxel offset in x,y, and z.", show_default=True)
+@click.option('--seg', is_flag=True, default=False, help="Sets layer type to segmentation (default image).", show_default=True)
+@click.option('--encoding', type=EncodingType(), default="raw", help=ENCODING_HELP, show_default=True)
+@click.option('--compress', type=CompressType(), default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
+@click.option('--chunk-size', type=Tuple3(), default=(128,128,64), help="Chunk size of new layers. e.g. 128,128,64", show_default=True)
+def create(
+  src, dest, 
+  resolution, offset, 
+  seg, encoding,
+  compress, chunk_size
+):
+  """Create a Precomputed volume from another data source.
+
+  Currently only supports numpy arrays, but will include others
+  such as tiff in the future.
+  """
+  src = src.replace("file://", "")
+
+  with open(src, "rb") as f:
+    shape, forder, dtype = read_array_header(f)
+
+  order = "F" if forder else "C"
+  arr = np.memmap(src, dtype=dtype, shape=shape, order=order)
+
+  CloudVolume.from_numpy(
+    arr, dest,
+    resolution=resolution,
+    voxel_offset=offset,
+    chunk_size=chunk_size,
+    layer_type=("segmentation" if seg else "image"),
+    encoding=encoding,
+    compress=compress,
+    progress=True,
+  )
+
+# c/o https://stackoverflow.com/questions/64226337/is-there-a-way-to-read-npy-header-without-loading-the-whole-file
+def read_array_header(fobj):
+  version = np.lib.format.read_magic(fobj)
+  func_name = 'read_array_header_' + '_'.join(str(v) for v in version)
+  func = getattr(np.lib.format, func_name)
+  return func(fobj)

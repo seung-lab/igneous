@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+4.17.0
+------
+
+* release(4.17.0): can set minishard index encoding for image shard transfer
+* fix: unlock compatible with no info file
+* feat: allow setting minishard index encoding
+* docs: update formatting of instructions
+
 4.16.0
 ------
 

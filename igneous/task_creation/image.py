@@ -844,7 +844,7 @@ def create_transfer_tasks(
   if shape is None:
     if memory_target is not None:
       shape = downsample_scales.downsample_shape_from_memory_target(
-        np.dtype(src_vol.dtype).itemsize, 
+        np.dtype(src_vol.dtype).itemsize * src_vol.num_channels,
         dest_vol.chunk_size.x, dest_vol.chunk_size.y, dest_vol.chunk_size.z, 
         factor, memory_target, max_mips
       )

@@ -167,115 +167,115 @@ def create_touch_tasks(
   return TouchTaskIterator(bounds, shape)
 
 def create_downsampling_tasks(
-    layer_path, mip=0, fill_missing=False, 
-    axis='z', num_mips=5, preserve_chunk_size=True,
-    sparse=False, bounds=None, chunk_size=None,
-    encoding=None, delete_black_uploads=False, 
-    background_color=0, dest_path=None, compress=None,
-    factor=None, bounds_mip=0
-  ):
-    """
-    mip: Download this mip level, writes to mip levels greater than this one.
-    fill_missing: interpret missing chunks as black instead of issuing an EmptyVolumeException
-    axis: technically 'x' and 'y' are supported, but no one uses them.
-    num_mips: download a block chunk * 2**num_mips size and generate num_mips mips. If you have
-      memory problems, try reducing this number.
-    preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
-      evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
-      useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
-    chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
-    sparse: When downsampling segmentation, if true, don't count black pixels when computing
-      the mode. Useful for e.g. synapses and point labels.
-    bounds: By default, downsample everything, but you can specify restricted bounding boxes
-      instead. The bounding box will be expanded to the nearest chunk. Bbox is specifed in mip 0
-      coordinates.
-    delete_black_uploads: issue delete commands instead of upload chunks
-      that are all background.
-    background_color: Designates which color should be considered background.
-    dest_path: (optional) instead of writing downsamples to the existing 
-      volume, write them somewhere else. This can be useful e.g. if someone 
-      doesn't want you to touch the existing info file.
-    compress: None, 'gzip', or 'br' Determines which compression algorithm to use 
-      for new uploaded files.
-    factor: (overrides axis) can manually specify what each downsampling round is
-      supposed to do: e.g. (2,2,1), (2,2,2), etc
-    """
-    def ds_shape(mip, chunk_size=None, factor=None):
-      if chunk_size:
-        shape = Vec(*chunk_size)
-      else:
-        shape = vol.meta.chunk_size(mip)[:3]
+  layer_path, mip=0, fill_missing=False, 
+  axis='z', num_mips=5, preserve_chunk_size=True,
+  sparse=False, bounds=None, chunk_size=None,
+  encoding=None, delete_black_uploads=False, 
+  background_color=0, dest_path=None, compress=None,
+  factor=None, bounds_mip=0
+):
+  """
+  mip: Download this mip level, writes to mip levels greater than this one.
+  fill_missing: interpret missing chunks as black instead of issuing an EmptyVolumeException
+  axis: technically 'x' and 'y' are supported, but no one uses them.
+  num_mips: download a block chunk * 2**num_mips size and generate num_mips mips. If you have
+    memory problems, try reducing this number.
+  preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
+    evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
+    useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
+  chunk_size: (overrides preserve_chunk_size) force chunk size for new layers to be this.
+  sparse: When downsampling segmentation, if true, don't count black pixels when computing
+    the mode. Useful for e.g. synapses and point labels.
+  bounds: By default, downsample everything, but you can specify restricted bounding boxes
+    instead. The bounding box will be expanded to the nearest chunk. Bbox is specifed in mip 0
+    coordinates.
+  delete_black_uploads: issue delete commands instead of upload chunks
+    that are all background.
+  background_color: Designates which color should be considered background.
+  dest_path: (optional) instead of writing downsamples to the existing 
+    volume, write them somewhere else. This can be useful e.g. if someone 
+    doesn't want you to touch the existing info file.
+  compress: None, 'gzip', or 'br' Determines which compression algorithm to use 
+    for new uploaded files.
+  factor: (overrides axis) can manually specify what each downsampling round is
+    supposed to do: e.g. (2,2,1), (2,2,2), etc
+  """
+  def ds_shape(mip, chunk_size=None, factor=None):
+    if chunk_size:
+      shape = Vec(*chunk_size)
+    else:
+      shape = vol.meta.chunk_size(mip)[:3]
 
-      if factor is None:
-        factor = downsample_scales.axis_to_factor(axis)
+    if factor is None:
+      factor = downsample_scales.axis_to_factor(axis)
 
-      shape.x *= factor[0] ** num_mips
-      shape.y *= factor[1] ** num_mips
-      shape.z *= factor[2] ** num_mips
-      return shape
+    shape.x *= factor[0] ** num_mips
+    shape.y *= factor[1] ** num_mips
+    shape.z *= factor[2] ** num_mips
+    return shape
 
-    vol = CloudVolume(layer_path, mip=mip)
-    shape = ds_shape(mip, chunk_size, factor)
+  vol = CloudVolume(layer_path, mip=mip)
+  shape = ds_shape(mip, chunk_size, factor)
 
-    vol = downsample_scales.create_downsample_scales(
-      layer_path, mip, shape, 
-      preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
-      encoding=encoding, factor=factor
-    )
+  vol = downsample_scales.create_downsample_scales(
+    layer_path, mip, shape, 
+    preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
+    encoding=encoding, factor=factor
+  )
 
-    if not preserve_chunk_size or chunk_size:
-      shape = ds_shape(mip + 1, chunk_size, factor)
+  if not preserve_chunk_size or chunk_size:
+    shape = ds_shape(mip + 1, chunk_size, factor)
 
-    bounds = get_bounds(
-      vol, bounds, mip,
-      bounds_mip=bounds_mip,
-      chunk_size=vol.chunk_size,
-    )
-    
-    class DownsampleTaskIterator(FinelyDividedTaskIterator):
-      def task(self, shape, offset):
-        return partial(DownsampleTask, 
-          layer_path=layer_path,
-          mip=vol.mip,
-          shape=shape.clone(),
-          offset=offset.clone(),
-          axis=axis,
-          fill_missing=fill_missing,
-          sparse=sparse,
-          delete_black_uploads=delete_black_uploads,
-          background_color=background_color,
-          dest_path=dest_path,
-          compress=compress,
-          factor=factor,
-        )
+  bounds = get_bounds(
+    vol, bounds, mip,
+    bounds_mip=bounds_mip,
+    chunk_size=vol.chunk_size,
+  )
+  
+  class DownsampleTaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return partial(DownsampleTask, 
+        layer_path=layer_path,
+        mip=vol.mip,
+        shape=shape.clone(),
+        offset=offset.clone(),
+        axis=axis,
+        fill_missing=fill_missing,
+        sparse=sparse,
+        delete_black_uploads=delete_black_uploads,
+        background_color=background_color,
+        dest_path=dest_path,
+        compress=compress,
+        factor=factor,
+      )
 
-      def on_finish(self):
-        vol.provenance.processing.append({
-          'method': {
-            'task': 'DownsampleTask',
-            'mip': mip,
-            'num_mips': num_mips,
-            'shape': shape.tolist(),
-            'axis': axis,
-            'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
-            'sparse': sparse,
-            'bounds': str(bounds),
-            'chunk_size': (list(chunk_size) if chunk_size else None),
-            'preserve_chunk_size': preserve_chunk_size,
-            'encoding': encoding,
-            'fill_missing': bool(fill_missing),
-            'delete_black_uploads': bool(delete_black_uploads),
-            'background_color': background_color,
-            'dest_path': dest_path,
-            'compress': compress,
-            'factor': (tuple(factor) if factor else None),
-          },
-          'by': operator_contact(),
-          'date': strftime('%Y-%m-%d %H:%M %Z'),
-        })
-        vol.commit_provenance()
+    def on_finish(self):
+      vol.provenance.processing.append({
+        'method': {
+          'task': 'DownsampleTask',
+          'mip': mip,
+          'num_mips': num_mips,
+          'shape': shape.tolist(),
+          'axis': axis,
+          'method': 'downsample_with_averaging' if vol.layer_type == 'image' else 'downsample_segmentation',
+          'sparse': sparse,
+          'bounds': str(bounds),
+          'chunk_size': (list(chunk_size) if chunk_size else None),
+          'preserve_chunk_size': preserve_chunk_size,
+          'encoding': encoding,
+          'fill_missing': bool(fill_missing),
+          'delete_black_uploads': bool(delete_black_uploads),
+          'background_color': background_color,
+          'dest_path': dest_path,
+          'compress': compress,
+          'factor': (tuple(factor) if factor else None),
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      })
+      vol.commit_provenance()
 
-    return DownsampleTaskIterator(bounds, shape)
+  return DownsampleTaskIterator(bounds, shape)
 
 def create_sharded_image_info(
   dataset_size: ShapeType,

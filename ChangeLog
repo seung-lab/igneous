@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+4.18.0
+------
+
+* release(4.18.0): new igneous image create command
+* feat: add igneous image create method for npy files
+
 4.17.0
 ------
 

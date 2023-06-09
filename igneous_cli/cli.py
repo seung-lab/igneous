@@ -1543,9 +1543,6 @@ def view(path, browser, port, ng):
   """
   Open an on-disk dataset for viewing in neuroglancer.
   """
-  # later improvements: 
-  #   could use local neuroglancer
-  #   modify the url to autopopulate params to avoid a click
   rgb_shader = """#uicontrol invlerp normalized
 void main() {
   vec3 data = vec3(toNormalized(getDataValue(0)), toNormalized(getDataValue(1)), toNormalized(getDataValue(2)));

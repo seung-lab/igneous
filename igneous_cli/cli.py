@@ -1588,11 +1588,15 @@ void main() {
 @click.option('--encoding', type=EncodingType(), default="raw", help=ENCODING_HELP, show_default=True)
 @click.option('--compress', type=CompressType(), default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=(128,128,64), help="Chunk size of new layers. e.g. 128,128,64", show_default=True)
+@click.option('--dtype', type=str, default=None, help="Set dtype manually.", show_default=True)
+@click.option('--shape', type=Tuple34(), default=None, help="Set shape manually.", show_default=True)
+@click.option('--order', type=str, default="F", help="Set order manually.", show_default=True)
 def create(
   src, dest, 
   resolution, offset, 
   seg, encoding,
-  compress, chunk_size
+  compress, chunk_size,
+  shape, dtype, order
 ):
   """Create a Precomputed volume from another data source.
 
@@ -1601,11 +1605,16 @@ def create(
   """
   src = src.replace("file://", "")
 
-  with open(src, "rb") as f:
-    shape, forder, dtype = read_array_header(f)
+  try:
+    with open(src, "rb") as f:
+      shape, forder, dtype = read_array_header(f)
+      order = "F" if forder else "C"
+  except ValueError:
+    if dtype is None or shape is None or order not in ("C", "F"):
+      raise
+    dtype = np.dtype(dtype)
 
-  order = "F" if forder else "C"
-  arr = np.memmap(src, dtype=dtype, shape=shape, order=order)
+  arr = np.memmap(src, dtype=dtype, shape=shape, order=order, mode="r")
 
   CloudVolume.from_numpy(
     arr, dest,

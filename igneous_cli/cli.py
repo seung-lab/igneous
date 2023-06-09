@@ -57,6 +57,19 @@ def enqueue_tasks(ctx, queue, tasks):
     tq.insert(tasks, parallel=parallel)
   return tq
 
+class Tuple34(click.ParamType):
+  """A command line option type consisting of 3 comma-separated integers."""
+  name = 'tuple34'
+  def convert(self, value, param, ctx):
+    if isinstance(value, str):
+      try:
+        value = tuple(map(int, value.split(',')))
+      except ValueError:
+        self.fail(f"'{value}' does not contain a comma delimited list of 3 or 4 integers.")
+      if len(value) not in (3,4):
+        self.fail(f"'{value}' does not contain a comma delimited list of 3 or 4 integers.")
+    return value
+
 class Tuple3(click.ParamType):
   """A command line option type consisting of 3 comma-separated integers."""
   name = 'tuple3'
@@ -1533,11 +1546,41 @@ def view(path, browser, port, ng):
   # later improvements: 
   #   could use local neuroglancer
   #   modify the url to autopopulate params to avoid a click
-  url = f"{ng}#!%7B%22layers%22:%5B%7B%22type%22:%22new%22%2C%22source%22:%22precomputed://http://localhost:{port}%22%2C%22tab%22:%22source%22%2C%22name%22:%22localhost:{port}%22%7D%5D%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22localhost:{port}%22%7D%2C%22layout%22:%224panel%22%7D"
+  rgb_shader = """#uicontrol invlerp normalized
+void main() {
+  vec3 data = vec3(toNormalized(getDataValue(0)), toNormalized(getDataValue(1)), toNormalized(getDataValue(2)));
+  emitRGB(data);
+}"""
+  
+  cv = CloudVolume(path)
+  host = "http://localhost"
+
+  config = {
+    "layers": [
+      {
+        "type": cv.layer_type,
+        "source": f"precomputed://{host}:{port}",
+        "tab": "source",
+        "name": "igneous"
+      }
+    ],
+    "selectedLayer": {
+      "visible": True,
+      "layer": "igneous"
+    },
+    "layout": "4panel"
+  }
+
+  if cv.num_channels == 3:
+    config["layers"][0]["shader"] = rgb_shader
+
+  fragment = urllib.parse.quote(json.dumps(config))
+
+  url = f"{ng}#!{fragment}"
   if browser:
     webbrowser.open(url, new=2)
-  CloudVolume(path).viewer(port=port)
 
+  cv.viewer(port=port)
 
 @imagegroup.command()
 @click.argument("src", type=CloudPath())

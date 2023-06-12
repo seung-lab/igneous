@@ -3,6 +3,7 @@ import math
 import multiprocessing as mp
 import json
 import os
+import posixpath
 import sys
 import time
 import urllib
@@ -1551,20 +1552,26 @@ void main() {
 }"""
   
   cv = CloudVolume(path)
-  host = "http://localhost"
+
+  if cv.meta.path.protocol == "file":
+    cloudpath = f"http://localhost:{port}"
+    layer_name = "igneous"
+  else:
+    cloudpath = cv.cloudpath
+    layer_name = posixpath.basename(cloudpath)
 
   config = {
     "layers": [
       {
         "type": cv.layer_type,
-        "source": f"precomputed://{host}:{port}",
+        "source": f"precomputed://{cloudpath}",
         "tab": "source",
-        "name": "igneous"
+        "name": layer_name
       }
     ],
     "selectedLayer": {
       "visible": True,
-      "layer": "igneous"
+      "layer": layer_name
     },
     "layout": "4panel"
   }
@@ -1578,7 +1585,8 @@ void main() {
   if browser:
     webbrowser.open(url, new=2)
 
-  cv.viewer(port=port)
+  if cv.meta.path.protocol == "file":
+    cv.viewer(port=port)
 
 @imagegroup.command()
 @click.argument("src", type=CloudPath())

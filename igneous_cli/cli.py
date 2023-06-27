@@ -1597,33 +1597,38 @@ void main() {
 @click.option('--encoding', type=EncodingType(), default="raw", help=ENCODING_HELP, show_default=True)
 @click.option('--compress', type=CompressType(), default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=(128,128,64), help="Chunk size of new layers. e.g. 128,128,64", show_default=True)
-@click.option('--dtype', type=str, default=None, help="Set dtype manually.", show_default=True)
-@click.option('--shape', type=Tuple34(), default=None, help="Set shape manually.", show_default=True)
-@click.option('--order', type=str, default="F", help="Set order manually.", show_default=True)
+@click.option('--h5-dataset', default="main", help="Which h5 dataset to acccess (hdf5 imports only).", show_default=True)
+@click.pass_context
 def create(
-  src, dest, 
+  ctx, src, dest, 
   resolution, offset, 
   seg, encoding,
   compress, chunk_size,
-  shape, dtype, order
+  h5_dataset
 ):
   """Create a Precomputed volume from another data source.
 
-  Currently only supports numpy arrays, but will include others
-  such as tiff in the future.
+  Supports: .npy files, .h5/.hdf5 files, and .ckl files
+  
+  Hopefully will support others such as TIFF in the future.
   """
   src = src.replace("file://", "")
+  ext = normalize_file_ext(filename)
 
-  try:
+  if ext == ".npy":
     with open(src, "rb") as f:
       shape, forder, dtype = read_array_header(f)
-      order = "F" if forder else "C"
-  except ValueError:
-    if dtype is None or shape is None or order not in ("C", "F"):
-      raise
-    dtype = np.dtype(dtype)
-
-  arr = np.memmap(src, dtype=dtype, shape=shape, order=order, mode="r")
+    arr = np.lib.format.open_memmap(src, dtype=dtype, shape=shape, fortran_order=forder, mode="r")
+  elif ext == ".ckl":
+    import crackle
+    arr = crackle.aload(src)
+  elif ext in (".h5", ".hdf5"):
+    import h5py
+    file = h5py.File(src, 'r')
+    arr = np.array(file[h5_dataset])
+  else:
+    print("Format not supported.")
+    return
 
   CloudVolume.from_numpy(
     arr, dest,
@@ -1635,6 +1640,17 @@ def create(
     compress=compress,
     progress=True,
   )
+
+def normalize_file_ext(filename):
+  filename, ext = os.path.splitext(filename)
+
+  while True:
+    filename, ext2 = os.path.splitext(filename)
+    if ext2 in ('.ckl', '.cpso'):
+      return ext2
+    elif ext2 == '':
+      return ext
+    ext = ext2
 
 # c/o https://stackoverflow.com/questions/64226337/is-there-a-way-to-read-npy-header-without-loading-the-whole-file
 def read_array_header(fobj):

@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+4.19.0
+------
+
+* release(4.19.0): updated image create
+* feat(cli/create): support for npy, hdf5, and crackle files
+* feat: load neuroglancer remotes in RGB mode
+* fix: missing urllib import
+* feat(create): support np.memmap better
+* chore: remove outdated comments
+* feat: igneous view takes one fewer click + automatic RGB rendering
+* fix: memory target did not accomodate multiple channels
+* refactor: whitespace in create downsampling tasks
+
 4.18.0
 ------
 

@@ -1613,7 +1613,7 @@ def create(
   Hopefully will support others such as TIFF in the future.
   """
   src = src.replace("file://", "")
-  ext = normalize_file_ext(filename)
+  ext = normalize_file_ext(src)
 
   if ext == ".npy":
     with open(src, "rb") as f:
@@ -1621,7 +1621,9 @@ def create(
     arr = np.lib.format.open_memmap(src, dtype=dtype, shape=shape, fortran_order=forder, mode="r")
   elif ext == ".ckl":
     import crackle
-    arr = crackle.aload(src)
+    arr = crackle.util.aload(src)
+    if arr.nbytes < int(1e9):
+      arr = arr.decompress()
   elif ext in (".h5", ".hdf5"):
     import h5py
     file = h5py.File(src, 'r')

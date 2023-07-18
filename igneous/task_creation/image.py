@@ -457,21 +457,21 @@ def create_image_shard_transfer_tasks(
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
 
+  intify = lambda lst: [ int(x) for x in lst ]
+  bounds_resolution = src_vol.meta.resolution(bounds_mip)
+
   try:
     dest_vol = CloudVolume(dst_layer_path, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(src_vol.info)
-    if cutout and bounds:
-      info['scales'][mip]["voxel_offset"] = list(bounds.minpt)
-      info['scales'][mip]["size"] = list(bounds.size3())
     dest_vol = CloudVolume(dst_layer_path, info=info, mip=mip)
     if cutout:
-      for i in range(mip):
-        dest_vol.info['scales'][i]["voxel_offset"] = list(
-          bounds.size3() * (dest_vol.resolution / dest_vol.meta.resolution(i))
+      for i in range(mip + 1):
+        dest_vol.info['scales'][i]["voxel_offset"] = intify(
+          bounds.minpt * (bounds_resolution / dest_vol.meta.resolution(i))
         )
-        dest_vol.info['scales'][i]["size"] = list(
-          bounds.minpt * (dest_vol.resolution / dest_vol.meta.resolution(i))
+        dest_vol.info['scales'][i]["size"] = intify(
+          bounds.size3() * (bounds_resolution / dest_vol.meta.resolution(i))
         )
     dest_vol.commit_info()
   except cloudvolume.exceptions.ScaleUnavailableError:

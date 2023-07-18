@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+4.19.1
+------
+
+* release(4.19.1): fix igneous create
+* fix(cli/create): broken extension normalization
+
 4.19.0
 ------
 

@@ -283,7 +283,7 @@ def downsample(
 @click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
 @click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
 @click.option('--bounds-mip', default=None, type=int, help="Which mip level are xrange, yrange, and zrange specified in?", show_default=True)
-@click.option('--cutout', is_flag=True, default=False, help="If bounds are specified and creating a new volume, restrict the new volume to the specified bounds. Currently only for unsharded transfers.", show_default=True)
+@click.option('--cutout', is_flag=True, default=False, help="If bounds are specified and creating a new volume, restrict the new volume to the specified bounds.", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, 

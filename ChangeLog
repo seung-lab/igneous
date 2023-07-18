@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+4.19.2
+------
+
+* fix: processing of mip levels in shard cutout xfer
+
 4.19.1
 ------
 

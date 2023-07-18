@@ -448,10 +448,6 @@ def create_image_shard_transfer_tasks(
 
   if dest_voxel_offset:
     dest_voxel_offset = Vec(*dest_voxel_offset, dtype=int)
-  elif cutout and bounds:
-    dest_voxel_offset = list(bounds.minpt)
-  else:
-    dest_voxel_offset = src_vol.voxel_offset.clone()
 
   if not chunk_size:
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
@@ -481,7 +477,10 @@ def create_image_shard_transfer_tasks(
     dest_vol.commit_info()
 
   if dest_voxel_offset is not None:
-    dest_vol.scale["voxel_offset"] = dest_voxel_offset
+    for i in range(mip + 1):
+      dest_vol.info['scales'][i]["voxel_offset"] = intify(
+        (dest_voxel_offset + bounds.minpt) * (bounds_resolution / dest_vol.meta.resolution(i))
+      )
 
   # If translate is not set, but dest_voxel_offset is then it should naturally be
   # only be the difference between datasets.
@@ -519,6 +518,7 @@ def create_image_shard_transfer_tasks(
       chunk_size=chunk_size,
     )
   else:
+    bounds = dest_vol.bbox_to_mip(bounds, mip=bounds_mip, to_mip=dest_vol.mip)
     bounds = Bbox.clamp(bounds, dest_vol.bounds)
 
   class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):

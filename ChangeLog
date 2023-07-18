@@ -1,6 +1,8 @@
 CHANGES
 =======
 
+* fix: handling offsets and dest\_voxel\_offset better for shards
+
 4.19.2
 ------
 

@@ -372,7 +372,8 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     cv = CloudVolume(
       self.cloudpath, 
       progress=self.progress,
-      spatial_index_db=self.spatial_index_db
+      spatial_index_db=self.spatial_index_db,
+      cache=True
     )
 
     # This looks messy because we are trying to avoid retaining

@@ -198,7 +198,7 @@ def MultiResShardedMeshMergeTask(
   min_chunk_size:Tuple[int,int,int] = (128,128,128),
   progress:bool = False
 ):
-  cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db)
+  cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db, cache=True)
   cv.mip = cv.mesh.meta.mip
   if mesh_dir is None and 'mesh' in cv.info:
     mesh_dir = cv.info['mesh']

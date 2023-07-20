@@ -454,7 +454,7 @@ def create_image_shard_transfer_tasks(
   chunk_size = Vec(*chunk_size)
 
   dest_vol = create_transfer_cloudvolume(
-    src_vol, dest_layer_path, 
+    src_vol, dst_layer_path, 
     dest_voxel_offset, 
     mip, bounds_mip,
     encoding, encoding_level,

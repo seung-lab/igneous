@@ -453,34 +453,14 @@ def create_image_shard_transfer_tasks(
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
 
-  intify = lambda lst: [ int(x) for x in lst ]
-  bounds_resolution = src_vol.meta.resolution(bounds_mip)
-
-  try:
-    dest_vol = CloudVolume(dst_layer_path, mip=mip)
-  except cloudvolume.exceptions.InfoUnavailableError:
-    info = copy.deepcopy(src_vol.info)
-    dest_vol = CloudVolume(dst_layer_path, info=info, mip=mip)
-    if cutout:
-      for i in range(mip + 1):
-        dest_vol.info['scales'][i]["voxel_offset"] = intify(
-          bounds.minpt * (bounds_resolution / dest_vol.meta.resolution(i))
-        )
-        dest_vol.info['scales'][i]["size"] = intify(
-          bounds.size3() * (bounds_resolution / dest_vol.meta.resolution(i))
-        )
-    dest_vol.commit_info()
-  except cloudvolume.exceptions.ScaleUnavailableError:
-    dest_vol = CloudVolume(dst_layer_path)
-    dest_vol.scales.append(src_vol.scale)
-    dest_vol.mip = src_vol.scale["resolution"]
-    dest_vol.commit_info()
-
-  if dest_voxel_offset is not None:
-    for i in range(mip + 1):
-      dest_vol.info['scales'][i]["voxel_offset"] = intify(
-        (dest_voxel_offset + bounds.minpt) * (bounds_resolution / dest_vol.meta.resolution(i))
-      )
+  dest_vol = create_transfer_cloudvolume(
+    src_vol, dest_layer_path, 
+    dest_voxel_offset, 
+    mip, bounds_mip,
+    encoding, encoding_level,
+    chunk_size, truncate_scales,
+    clean_info, cutout, bounds
+  )
 
   # If translate is not set, but dest_voxel_offset is then it should naturally be
   # only be the difference between datasets.
@@ -488,12 +468,6 @@ def create_image_shard_transfer_tasks(
     translate = dest_vol.voxel_offset - src_vol.voxel_offset # vector pointing from src to dest
   else:
     translate = Vec(*translate) // src_vol.downsample_ratio
-
-  set_encoding(dest_vol, mip, encoding, encoding_level)
-
-  if truncate_scales:
-    dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
-  dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
 
   spec = create_sharded_image_info(
     dataset_size=dest_vol.scale["size"], 
@@ -681,12 +655,60 @@ def create_deletion_tasks(
 
   return DeleteTaskIterator(bounds, shape)
 
-def clean_xfer_info(info):
+def clean_xfer_info(info:dict) -> dict:
   """Removes fields that could interfere with additional processing."""
   info.pop("mesh", None)
   info.pop("meshing", None)
   info.pop("skeletons", None)
   return info
+
+def create_transfer_cloudvolume(
+  src_vol:CloudVolume, dst_cloudpath:str, 
+  dest_voxel_offset:ShapeType, 
+  mip:int, bounds_mip:int,
+  encoding:str, encoding_level:int,
+  chunk_size:ShapeType, 
+  truncate_scales:bool, clean_info:bool,
+  cutout:bool, bounds:Bbox
+) -> CloudVolume:
+  intify = lambda lst: [ int(x) for x in lst ]
+  bounds_resolution = src_vol.meta.resolution(bounds_mip)
+
+  try:
+    dest_vol = CloudVolume(dst_cloudpath, mip=mip)
+  except cloudvolume.exceptions.InfoUnavailableError:
+    info = copy.deepcopy(src_vol.info)
+    dest_vol = CloudVolume(dst_cloudpath, info=info, mip=mip)
+    if cutout:
+      for i in range(mip + 1):
+        dest_vol.info['scales'][i]["voxel_offset"] = intify(
+          bounds.minpt * (bounds_resolution / dest_vol.meta.resolution(i))
+        )
+        dest_vol.info['scales'][i]["size"] = intify(
+          bounds.size3() * (bounds_resolution / dest_vol.meta.resolution(i))
+        )
+    dest_vol.commit_info()
+  except cloudvolume.exceptions.ScaleUnavailableError:
+    dest_vol = CloudVolume(dst_cloudpath)
+    dest_vol.scales.append(src_vol.scale)
+    dest_vol.mip = src_vol.scale["resolution"]
+    dest_vol.commit_info()
+
+  if dest_voxel_offset is not None:
+    for i in range(mip + 1):
+      dest_vol.info['scales'][i]["voxel_offset"] = intify(
+        (dest_voxel_offset + bounds.minpt) * (bounds_resolution / dest_vol.meta.resolution(i))
+      )
+
+  set_encoding(dest_vol, mip, encoding, encoding_level)
+  if truncate_scales:
+    dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
+  dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
+
+  if clean_info:
+    dest_vol.info = clean_xfer_info(dest_vol.info)
+
+  return dest_vol
 
 def create_transfer_tasks(
   src_layer_path:str, dest_layer_path:str, 
@@ -794,10 +816,6 @@ def create_transfer_tasks(
 
   if dest_voxel_offset:
     dest_voxel_offset = Vec(*dest_voxel_offset, dtype=int)
-  elif cutout and bounds:
-    dest_voxel_offset = list(bounds.minpt)
-  else:
-    dest_voxel_offset = src_vol.voxel_offset.clone()
 
   if factor is None:
     factor = (2,2,1)
@@ -809,19 +827,14 @@ def create_transfer_tasks(
     chunk_size = src_vol.info['scales'][mip]['chunk_sizes'][0]
   chunk_size = Vec(*chunk_size)
 
-  try:
-    dest_vol = CloudVolume(dest_layer_path, mip=mip)
-  except cloudvolume.exceptions.InfoUnavailableError:
-    info = copy.deepcopy(src_vol.info)
-    dest_vol = CloudVolume(dest_layer_path, info=info, mip=mip)
-    dest_vol.meta.info['scales'][mip].pop('locked', None)
-    if cutout and bounds:
-      dest_vol.scale["voxel_offset"] = list(bounds.minpt)
-      dest_vol.scale["size"] = list(bounds.size3())
-    dest_vol.commit_info()
-
-  if dest_voxel_offset is not None:
-    dest_vol.scale["voxel_offset"] = dest_voxel_offset
+  dest_vol = create_transfer_cloudvolume(
+    src_vol, dest_layer_path, 
+    dest_voxel_offset, 
+    mip, bounds_mip,
+    encoding, encoding_level,
+    chunk_size, truncate_scales,
+    clean_info, cutout, bounds
+  )
 
   # If translate is not set, but dest_voxel_offset is then it should naturally be
   # only be the difference between datasets.
@@ -829,14 +842,6 @@ def create_transfer_tasks(
     translate = dest_vol.voxel_offset - src_vol.voxel_offset # vector pointing from src to dest
   else:
     translate = Vec(*translate) // src_vol.downsample_ratio
-
-  set_encoding(dest_vol, mip, encoding, encoding_level)
-  if truncate_scales:
-    dest_vol.info['scales'] = dest_vol.info['scales'][:mip+1]
-  dest_vol.info['scales'][mip]['chunk_sizes'] = [ chunk_size.tolist() ]
-
-  if clean_info:
-    dest_vol.info = clean_xfer_info(dest_vol.info)
   
   if cutout:
     dest_vol.scale.pop("sharding", None)
@@ -872,7 +877,8 @@ def create_transfer_tasks(
       chunk_size=chunk_size
     )
   else:
-    dest_bounds = Bbox.clamp(bounds, dest_vol.bounds)
+    dest_bounds = dest_vol.bbox_to_mip(bounds, mip=bounds_mip, to_mip=mip)
+    dest_bounds = Bbox.clamp(dest_bounds, dest_vol.bounds)
 
   class TransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):  

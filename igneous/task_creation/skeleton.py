@@ -47,7 +47,7 @@ def create_skeletonizing_tasks(
     fix_avocados=False, fill_holes=False,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, 
-    sharded=False, spatial_index=True,
+    sharded=False, frag_path=None, spatial_index=True,
     synapses=None, num_synapses=None,
     dust_global=False
   ):
@@ -182,6 +182,7 @@ def create_skeletonizing_tasks(
         parallel=parallel,
         fill_missing=bool(fill_missing),
         sharded=bool(sharded),
+        frag_path=frag_path,
         spatial_index=bool(spatial_index),
         spatial_grid_shape=shape.clone(), # used for writing index filenames
         synapses=bbox_synapses,
@@ -298,6 +299,7 @@ def create_sharded_skeleton_merge_tasks(
   minishard_index_encoding:str = 'gzip', 
   data_encoding:str = 'gzip',
   max_cable_length:Optional[float] = None, 
+  frag_path:Optional[str] = None,
   spatial_index_db:Optional[str] = None,
   max_labels_per_shard:Optional[int] = None,
 ):
@@ -354,6 +356,7 @@ def create_sharded_skeleton_merge_tasks(
       'task': 'ShardedSkeletonMergeTask',
       'cloudpath': layer_path,
       'mip': cv.skeleton.meta.mip,
+      'frag_path': frag_path,
       'dust_threshold': dust_threshold,
       'tick_threshold': tick_threshold,
       'max_cable_length': max_cable_length,
@@ -372,6 +375,7 @@ def create_sharded_skeleton_merge_tasks(
       dust_threshold, tick_threshold,
       max_cable_length=max_cable_length,
       spatial_index_db=spatial_index_db,
+      frag_path=frag_path,
     )
     for shard_no in shard_labels.keys()
   ]

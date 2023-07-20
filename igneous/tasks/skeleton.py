@@ -20,7 +20,7 @@ import cloudfiles
 from cloudfiles import CloudFiles, CloudFile
 
 import cloudvolume
-from cloudvolume import CloudVolume, PrecomputedSkeleton
+from cloudvolume import CloudVolume, PrecomputedSkeleton, paths
 from cloudvolume.lib import Vec, Bbox, sip
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
@@ -71,7 +71,7 @@ class SkeletonTask(RegisteredTask):
     fix_avocados=False, fill_holes=False,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, sharded=False,
-    spatial_index=True, spatial_grid_shape=None,
+    frag_path=None, spatial_index=True, spatial_grid_shape=None,
     synapses=None, dust_global=False
   ):
     super(SkeletonTask, self).__init__(
@@ -81,7 +81,7 @@ class SkeletonTask(RegisteredTask):
       fix_branching, fix_borders, 
       fix_avocados, fill_holes,
       dust_threshold, progress, parallel,
-      fill_missing, bool(sharded), bool(spatial_index),
+      fill_missing, bool(sharded), frag_path, bool(spatial_index),
       spatial_grid_shape, synapses, bool(dust_global)
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
@@ -152,7 +152,10 @@ class SkeletonTask(RegisteredTask):
     strip_integer_attributes(skeletons.values())
 
     if self.sharded:
-      self.upload_batch(vol, path, index_bbox, skeletons)
+      if self.frag_path:
+        self.upload_batch(vol, os.path.join(self.frag_path, skeldir(self.cloudpath)), index_bbox, skeletons)
+      else:
+        self.upload_batch(vol, path, index_bbox, skeletons)
     else:
       self.upload_individuals(vol, path, bbox, skeletons)
 
@@ -355,12 +358,12 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 class ShardedSkeletonMergeTask(RegisteredTask):
   def __init__(
     self, cloudpath, shard_no, 
-    dust_threshold=4000, tick_threshold=6000,
+    dust_threshold=4000, tick_threshold=6000, frag_path=None,
     spatial_index_db=None, max_cable_length=None
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
-      dust_threshold, tick_threshold, spatial_index_db,
+      dust_threshold, tick_threshold, frag_path, spatial_index_db,
       max_cable_length
     )
     self.progress = False
@@ -387,7 +390,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     filenames = set(itertools.chain(*locations.values()))
     labels = set(locations.keys())
     del locations
-    skeletons = self.get_unfused(labels, filenames, cv)
+    skeletons = self.get_unfused(labels, filenames, cv, self.frag_path)
     del labels
     del filenames
     skeletons = self.process_skeletons(skeletons, in_place=True)
@@ -436,7 +439,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
     return skeletons
 
-  def get_unfused(self, labels, filenames, cv):    
+  def get_unfused(self, labels, filenames, cv, frag_path):
     skeldirfn = lambda loc: cv.meta.join(cv.skeleton.meta.skeleton_path, loc)
     filenames = [ skeldirfn(loc) for loc in filenames ]
 
@@ -449,16 +452,21 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       n_blocks = max(len(filenames) // block_size, 1)
       blocks = sip(filenames, block_size)
 
+    frag_prefix = frag_path or cv.cloudpath
+    local_input = False
+    if paths.extract(frag_prefix).protocol == "file":
+       local_input = True
+       frag_prefix = frag_prefix.replace("file://", "", 1)
+
     all_skels = defaultdict(list)
     for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not self.progress)):
-      if cv.meta.path.protocol == "file":
+      if local_input:
         all_files = {}
-        prefix = cv.cloudpath.replace("file://", "")
         for filename in filenames_block:
-          all_files[filename] = open(os.path.join(prefix, filename), "rb")
+          all_files[filename] = open(os.path.join(frag_prefix, filename), "rb")
       else:
         all_files = { 
-          filename: CloudFile(cv.meta.join(cv.cloudpath, filename), cache_meta=True) 
+          filename: CloudFile(cv.meta.join(frag_prefix, filename), cache_meta=True)
           for filename in filenames_block 
         } 
       

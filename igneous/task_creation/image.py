@@ -694,6 +694,9 @@ def create_transfer_cloudvolume(
     dest_vol.mip = src_vol.scale["resolution"]
     dest_vol.commit_info()
 
+  if bounds is None:
+    bounds = Bbox([0,0,0], [1,1,1], dtype=int)
+
   if dest_voxel_offset is not None:
     for i in range(mip + 1):
       dest_vol.info['scales'][i]["voxel_offset"] = intify(

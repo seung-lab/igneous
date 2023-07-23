@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+* fix: using the right variable name for shards
 * fix(image/xfer): cutout for unsharded
 * fix: shards do not recognize voxel offsets so bounds should be expanded
 * fix: handling offsets and dest\_voxel\_offset better for shards

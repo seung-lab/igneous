@@ -291,7 +291,8 @@ class MeshTask(RegisteredTask):
     }
 
     remap = self.options['remap_table']
-    remap[0] = 0
+    if 0 not in remap:
+      remap[0] = 0
 
     data = fastremap.mask_except(data, list(remap.keys()), in_place=True)
     return fastremap.remap(data, remap, in_place=True)

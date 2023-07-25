@@ -12,7 +12,7 @@ from tqdm import tqdm
 import fastremap
 from mapbuffer import MapBuffer
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 from taskqueue.registered_task import RegisteredTask
 
 from cloudvolume import CloudVolume
@@ -561,19 +561,25 @@ def ImageShardTransferTask(
   )
   src_bbox = dst_bbox - translate
 
-  img = src_vol.download(
-    src_bbox, agglomerate=agglomerate, timestamp=timestamp
-  )
-  (filename, shard) = dst_vol.image.make_shard(
-    img, dst_bbox, mip, progress=False
-  )
-  del img
+  fullpathfn = lambda vol, fname: vol.meta.join(vol.cloudpath, vol.meta.key(mip), fname)
 
-  basepath = dst_vol.meta.join(
-    dst_vol.cloudpath, dst_vol.meta.key(mip)
-  )
+  if src_vol.scale == dst_vol.scale and src_bbox == dst_bbox:
+    filename = dst_vol.image.shard_filename(dst_bbox, mip=mip)
+    print("HERE", filename)
+    dst_fullpath = fullpathfn(dst_vol, filename)
+    src_fullpath = fullpathfn(src_vol, filename)
+    CloudFile(dst_fullpath).transfer_from(src_fullpath)
+  else:
+    img = src_vol.download(
+      src_bbox, agglomerate=agglomerate, timestamp=timestamp
+    )
+    (filename, shard) = dst_vol.image.make_shard(
+      img, dst_bbox, mip, progress=False
+    )
+    del img
 
-  CloudFiles(basepath).put(filename, shard)
+    dst_fullpath = fullpathfn(dst_vol, filename)
+    CloudFile(dst_fullpath).put(shard)
 
 @queueable
 def ImageShardDownsampleTask(

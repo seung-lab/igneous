@@ -45,8 +45,8 @@ path_root = "/tmp/removeme/transfertask"
 srcpath = f"file://{path_root}/src"
 destpath = f"file://{path_root}/dest"
 
-def rmdest():
-  directory = f"{path_root}/dest"
+def rmdest(suffix=''):
+  directory = f"{path_root}/dest{suffix}"
   if os.path.exists(directory):
     shutil.rmtree(directory)
 def rmsrc():
@@ -144,4 +144,31 @@ def test_transfer_task_subset(tq, src_cv, transfer_data):
 
   rmsrc()
   rmdest()
+
+def test_transfer_task_sharded(tq, src_cv, transfer_data):
+  tasks = tc.create_image_shard_transfer_tasks(
+    src_cv.cloudpath, destpath
+  )
+  tq.insert_all(tasks)
+
+  dest_cv = CloudVolume(destpath)
+
+  assert np.all(src_cv[:] == dest_cv[:])
+
+  destpath2 = destpath + "2"
+
+  tasks = tc.create_image_shard_transfer_tasks(
+    destpath, destpath2
+  )
+
+  tq.insert_all(tasks)
+
+  dest_cv2 = CloudVolume(destpath2)
+  assert np.all(dest_cv[:] == dest_cv2[:])
+
+  rmsrc()
+  rmdest()
+  rmdest('2')
+
+
 

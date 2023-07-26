@@ -565,7 +565,6 @@ def ImageShardTransferTask(
 
   if src_vol.scale == dst_vol.scale and src_bbox == dst_bbox:
     filename = dst_vol.image.shard_filename(dst_bbox, mip=mip)
-    print("HERE", filename)
     dst_fullpath = fullpathfn(dst_vol, filename)
     src_fullpath = fullpathfn(src_vol, filename)
     CloudFile(dst_fullpath).transfer_from(src_fullpath)

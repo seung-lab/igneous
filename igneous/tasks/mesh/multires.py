@@ -194,12 +194,13 @@ def MultiResShardedMeshMergeTask(
   draco_compression_level:int = 1,
   mesh_dir:Optional[str] = None,
   frag_path:Optional[str] = None,
+  cache:Optional[bool] = False,
   num_lod:int = 1,
   spatial_index_db:Optional[str] = None,
   min_chunk_size:Tuple[int,int,int] = (128,128,128),
   progress:bool = False
 ):
-  cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db, cache=True)
+  cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db, cache=cache)
   cv.mip = cv.mesh.meta.mip
   if mesh_dir is None and 'mesh' in cv.info:
     mesh_dir = cv.info['mesh']

@@ -687,7 +687,8 @@ def create_sharded_multires_mesh_tasks(
   minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 
   spatial_index_db:Optional[str] = None,
-  frag_path = None,
+  frag_path:Optional[str] = None,
+  cache:Optional[bool] = False,
   min_chunk_size:Tuple[int,int,int] = (256,256,256),
   max_labels_per_shard:Optional[int] = None,
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
@@ -773,6 +774,7 @@ def create_sharded_multires_mesh_tasks(
       num_lod=num_lod,
       mesh_dir=mesh_dir, 
       frag_path=frag_path,
+      cache=cache,
       spatial_index_db=spatial_index_db,
       draco_compression_level=draco_compression_level,
       min_chunk_size=min_chunk_size,

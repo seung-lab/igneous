@@ -358,7 +358,7 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 class ShardedSkeletonMergeTask(RegisteredTask):
   def __init__(
     self, cloudpath, shard_no, 
-    dust_threshold=4000, tick_threshold=6000, frag_path=None,
+    dust_threshold=4000, tick_threshold=6000, frag_path=None, cache=False,
     spatial_index_db=None, max_cable_length=None
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
@@ -376,7 +376,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       self.cloudpath, 
       progress=self.progress,
       spatial_index_db=self.spatial_index_db,
-      cache=True
+      cache=self.cache
     )
 
     # This looks messy because we are trying to avoid retaining

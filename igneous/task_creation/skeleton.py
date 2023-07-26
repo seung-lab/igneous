@@ -300,6 +300,7 @@ def create_sharded_skeleton_merge_tasks(
   data_encoding:str = 'gzip',
   max_cable_length:Optional[float] = None, 
   frag_path:Optional[str] = None,
+  cache:Optional[bool] = False,
   spatial_index_db:Optional[str] = None,
   max_labels_per_shard:Optional[int] = None,
 ):
@@ -376,6 +377,7 @@ def create_sharded_skeleton_merge_tasks(
       max_cable_length=max_cable_length,
       spatial_index_db=spatial_index_db,
       frag_path=frag_path,
+      cache=cache,
     )
     for shard_no in shard_labels.keys()
   ]

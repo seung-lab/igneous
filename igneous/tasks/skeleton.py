@@ -363,7 +363,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
-      dust_threshold, tick_threshold, frag_path, spatial_index_db,
+      dust_threshold, tick_threshold, frag_path, cache, spatial_index_db,
       max_cable_length
     )
     self.progress = False

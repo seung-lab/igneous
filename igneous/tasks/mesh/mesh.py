@@ -101,6 +101,7 @@ class MeshTask(RegisteredTask):
       'max_simplification_error': kwargs.get('max_simplification_error', 40),
       'simplification_factor': kwargs.get('simplification_factor', 100),
       'mesh_dir': kwargs.get('mesh_dir', None),
+      'frag_path': kwargs.get('frag_path', None),
       'mip': kwargs.get('mip', 0),
       'object_ids': kwargs.get('object_ids', None),
       'parallel_download': kwargs.get('parallel_download', 1),
@@ -315,7 +316,8 @@ class MeshTask(RegisteredTask):
       self._upload_spatial_index(self._bounds, bounding_boxes)
 
   def _upload_batch(self, meshes, bbox):
-    cf = CloudFiles(self.layer_path, progress=self.options['progress'])
+    frag_path = self.options['frag_path'] or self.layer_path
+    cf = CloudFiles(frag_path, progress=self.options['progress'])
 
     mbuf = MapBuffer(meshes, compress="br")
 

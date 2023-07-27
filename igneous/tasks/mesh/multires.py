@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from cloudfiles import CloudFiles, CloudFile
 
-from cloudvolume import CloudVolume, Mesh, view
+from cloudvolume import CloudVolume, Mesh, view, paths
 from cloudvolume.lib import Vec, Bbox, jsonify, sip, toiter, first
 from cloudvolume.datasource.precomputed.mesh.multilod \
   import MultiLevelPrecomputedMeshManifest, to_stored_model_space
@@ -193,12 +193,14 @@ def MultiResShardedMeshMergeTask(
   shard_no:str,
   draco_compression_level:int = 1,
   mesh_dir:Optional[str] = None,
+  frag_path:Optional[str] = None,
+  cache:Optional[bool] = False,
   num_lod:int = 1,
   spatial_index_db:Optional[str] = None,
   min_chunk_size:Tuple[int,int,int] = (128,128,128),
   progress:bool = False
 ):
-  cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db)
+  cv = CloudVolume(cloudpath, spatial_index_db=spatial_index_db, cache=cache)
   cv.mip = cv.mesh.meta.mip
   if mesh_dir is None and 'mesh' in cv.info:
     mesh_dir = cv.info['mesh']
@@ -212,7 +214,7 @@ def MultiResShardedMeshMergeTask(
   labels = set(locations.keys())
   del locations
   meshes = collect_mesh_fragments(
-    cv, labels, filenames, mesh_dir, progress
+    cv, labels, filenames, mesh_dir, frag_path, progress
   )
   del filenames
 
@@ -372,6 +374,7 @@ def collect_mesh_fragments(
   labels:List[int], 
   filenames:List[str], 
   mesh_dir:str, 
+  frag_path:Optional[str],
   progress:bool = False
 ) -> Dict[int, List[Mesh]]:
   dirfn = lambda loc: cv.meta.join(mesh_dir, loc)
@@ -405,20 +408,25 @@ def collect_mesh_fragments(
 
     return filename
 
+  frag_prefix = frag_path or cv.cloudpath
+  local_input = False
+  if paths.extract(frag_prefix).protocol == "file":
+     local_input = True
+     frag_prefix = frag_prefix.replace("file://", "", 1)
+
   for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not progress)):
-    if cv.meta.path.protocol == "file":
+    if local_input:
       all_files = {}
-      prefix = cv.cloudpath.replace("file://", "")
       for filename in filenames_block:
-        all_files[filename] = open(os.path.join(prefix, filename), "rb")
+        all_files[filename] = open(os.path.join(frag_prefix, filename), "rb")
 
       for item in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not progress)):
         process_shardfile(item)
     else:
-      all_files = { 
-        filename: CloudFile(cv.meta.join(cv.cloudpath, filename), cache_meta=True) 
-        for filename in filenames_block 
-      } 
+      all_files = {
+        filename: CloudFile(cv.meta.join(frag_prefix, filename), cache_meta=True)
+        for filename in filenames_block
+      }
       with ThreadPoolExecutor(max_workers=block_size) as executor:
         for filename in executor.map(process_shardfile, all_files.items()):
           pass

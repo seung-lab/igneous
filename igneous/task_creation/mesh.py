@@ -160,7 +160,7 @@ def create_meshing_tasks(
     simplification=True, max_simplification_error=40,
     mesh_dir=None, cdn_cache=False, dust_threshold=None,
     object_ids=None, progress=False, fill_missing=False,
-    encoding='precomputed', spatial_index=True, sharded=False,
+    encoding='precomputed', spatial_index=True, frag_path=None, sharded=False,
     compress='gzip', closed_dataset_edges=True, dust_global=False
   ):
   shape = Vec(*shape)
@@ -205,6 +205,7 @@ def create_meshing_tasks(
         fill_missing=fill_missing,
         encoding=encoding,
         spatial_index=spatial_index,
+        frag_path=frag_path,
         sharded=sharded,
         compress=compress,
         closed_dataset_edges=closed_dataset_edges,
@@ -226,6 +227,7 @@ def create_meshing_tasks(
           'encoding': encoding,
           'object_ids': object_ids,
           'spatial_index': spatial_index,
+          'frag_path': frag_path,
           'sharded': sharded,
           'compress': compress,
           'closed_dataset_edges': closed_dataset_edges,
@@ -685,6 +687,8 @@ def create_sharded_multires_mesh_tasks(
   minishard_index_encoding="gzip", 
   mesh_dir:Optional[str] = None, 
   spatial_index_db:Optional[str] = None,
+  frag_path:Optional[str] = None,
+  cache:Optional[bool] = False,
   min_chunk_size:Tuple[int,int,int] = (256,256,256),
   max_labels_per_shard:Optional[int] = None,
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
@@ -755,6 +759,7 @@ def create_sharded_multires_mesh_tasks(
       'minishard_bits': minishard_bits, 
       'shard_bits': shard_bits,
       'mesh_dir': mesh_dir,
+      'frag_path': frag_path,
       'draco_compression_level': draco_compression_level,
       'min_chunk_size': min_chunk_size,
     },
@@ -768,6 +773,8 @@ def create_sharded_multires_mesh_tasks(
       cloudpath, shard_no, 
       num_lod=num_lod,
       mesh_dir=mesh_dir, 
+      frag_path=frag_path,
+      cache=cache,
       spatial_index_db=spatial_index_db,
       draco_compression_level=draco_compression_level,
       min_chunk_size=min_chunk_size,

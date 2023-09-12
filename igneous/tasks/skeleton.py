@@ -344,7 +344,8 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
       return cropped
     
     for i in range(len(skeletons)):
-      bbx = bbxs[i] 
+      bbx = bbxs[i]
+      bbx = bbx.astype(self.vol.resolution.dtype) 
       bbx.minpt += self.crop * self.vol.resolution
       bbx.maxpt -= self.crop * self.vol.resolution
 

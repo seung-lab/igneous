@@ -495,7 +495,7 @@ def create_image_shard_transfer_tasks(
     bounds = dest_vol.bbox_to_mip(bounds, mip=bounds_mip, to_mip=dest_vol.mip)
     bounds = Bbox.clamp(bounds, dest_vol.bounds)
 
-  bounds = bounds.expand_to_chunk_size(shape) # offset is always zero for shards
+  bounds = bounds.expand_to_chunk_size(shape, offset=bounds.minpt)
 
   class ImageShardTransferTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):

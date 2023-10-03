@@ -235,6 +235,7 @@ def create_downsampling_tasks(
   memory_target: size in bytes to target for memory usage
   """
   def ds_shape(mip, chunk_size=None, factor=None):
+    nonlocal num_mips
     if chunk_size:
       shape = Vec(*chunk_size)
     else:
@@ -243,9 +244,7 @@ def create_downsampling_tasks(
     if factor is None:
       factor = downsample_scales.axis_to_factor(axis)
 
-    if sharding:
-      num_mips = 1
-    elif num_mips is None:
+    if num_mips is None:
       num_mips = num_mips_from_memory_target(
         memory_target, vol.dtype, shape, factor
       )

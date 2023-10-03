@@ -189,7 +189,7 @@ def imagegroup():
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
-@click.option('--num-mips', default=5, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
+@click.option('--num-mips', default=None, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
 @click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
@@ -224,9 +224,10 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
-  if sharded and num_mips != 1:
-    print("igneous: sharded downsamples only support producing one mip at a time.")
-    return
+  if sharded:
+    if num_mips and num_mips != 1:
+      print("igneous: sharded downsamples only support producing one mip at a time. num_mips set to 1")
+    num_mips = 1
 
   factor = (2,2,1)
   if volumetric:
@@ -250,7 +251,8 @@ def downsample(
       background_color=bg_color, 
       compress=compress,
       factor=factor, bounds=bounds,
-      bounds_mip=mip
+      bounds_mip=mip,
+      memory_target=memory,
     )
 
   enqueue_tasks(ctx, queue, tasks)

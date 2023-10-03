@@ -554,8 +554,54 @@ def test_voxel_counting_task():
     assert cts_dict_task == cts_dict_gt
 
 
+def test_num_mips_from_memory_target():
+    from igneous.task_creation.image import num_mips_from_memory_target
 
+    memory = 0
+    chunk_size = (128,128,64)
+    factor = (2,2,1)
 
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    assert num_mips == 1
 
+    memory = 100e6
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    assert num_mips == 3
 
+    memory = 100e6
+    num_mips = num_mips_from_memory_target(memory, 'uint16', chunk_size, factor)
+    assert num_mips == 2
 
+    memory = 100e6
+    num_mips = num_mips_from_memory_target(memory, 'uint32', chunk_size, factor)
+    assert num_mips == 2
+
+    memory = 100e6
+    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, factor)
+    assert num_mips == 1
+
+    memory = 3.5e9
+    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, factor)
+    assert num_mips == 4
+
+    memory = 12e9
+    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, factor)
+    assert num_mips == 5
+
+    factor = (2,2,2)
+
+    memory = 800e6
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    assert num_mips == 3
+
+    memory = 500e6
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    assert num_mips == 2
+
+    memory = 100e6
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    assert num_mips == 2
+
+    memory = 50e6
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    assert num_mips == 1

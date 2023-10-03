@@ -166,20 +166,53 @@ def create_touch_tasks(
 
   return TouchTaskIterator(bounds, shape)
 
+def num_mips_from_memory_target(memory_target, dtype, chunk_size, factor):
+  num_voxels = memory_target / np.dtype(dtype).itemsize
+  num_chunks = num_voxels // reduce(operator.mul, chunk_size)
+
+  total_factor = reduce(operator.mul, factor)
+  downsample_stack_size = total_factor / (total_factor - 1)
+  num_chunks /= downsample_stack_size
+
+  # square root or cube root etc
+  base_factor = math.log2(total_factor)
+  side_length = num_chunks ** (1/base_factor)
+
+  if side_length <= 0:
+    return 1
+
+  num_mips = math.log2(side_length)
+
+  if math.ceil(num_mips) - num_mips <= 0.01:
+    num_mips = int(math.ceil(num_mips))
+
+  return max(1, int(num_mips))
+
 def create_downsampling_tasks(
-  layer_path, mip=0, fill_missing=False, 
-  axis='z', num_mips=5, preserve_chunk_size=True,
-  sparse=False, bounds=None, chunk_size=None,
-  encoding=None, delete_black_uploads=False, 
-  background_color=0, dest_path=None, compress=None,
-  factor=None, bounds_mip=0
+  layer_path:str, 
+  mip:int = 0, 
+  fill_missing:bool = False, 
+  axis:str = 'z', 
+  num_mips:Optional[int] = None, 
+  preserve_chunk_size:bool = True,
+  sparse:bool = False, 
+  bounds:Optional[Bbox] = None, 
+  chunk_size:Optional[Tuple[int,int,int]] = None,
+  encoding:Optional[str] = None, 
+  delete_black_uploads:bool = False, 
+  background_color:int = 0, 
+  dest_path:Optional[str] = None, 
+  compress:Optional[str] = None,
+  factor:Optional[Tuple[int,int,int]] = None, 
+  bounds_mip:int = 0,
+  memory_target:int = MEMORY_TARGET,
 ):
   """
   mip: Download this mip level, writes to mip levels greater than this one.
   fill_missing: interpret missing chunks as black instead of issuing an EmptyVolumeException
   axis: technically 'x' and 'y' are supported, but no one uses them.
   num_mips: download a block chunk * 2**num_mips size and generate num_mips mips. If you have
-    memory problems, try reducing this number.
+    memory problems, try reducing this number. Overrides memory target when specified.
   preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
     evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
     useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
@@ -199,6 +232,7 @@ def create_downsampling_tasks(
     for new uploaded files.
   factor: (overrides axis) can manually specify what each downsampling round is
     supposed to do: e.g. (2,2,1), (2,2,2), etc
+  memory_target: size in bytes to target for memory usage
   """
   def ds_shape(mip, chunk_size=None, factor=None):
     if chunk_size:
@@ -209,13 +243,21 @@ def create_downsampling_tasks(
     if factor is None:
       factor = downsample_scales.axis_to_factor(axis)
 
+    if sharding:
+      num_mips = 1
+    elif num_mips is None:
+      num_mips = num_mips_from_memory_target(
+        memory_target, vol.dtype, shape, factor
+      )
+
     shape.x *= factor[0] ** num_mips
     shape.y *= factor[1] ** num_mips
     shape.z *= factor[2] ** num_mips
-    return shape
+
+    return shape, num_mips
 
   vol = CloudVolume(layer_path, mip=mip)
-  shape = ds_shape(mip, chunk_size, factor)
+  shape, num_mips = ds_shape(mip, chunk_size, factor)
 
   vol = downsample_scales.create_downsample_scales(
     layer_path, mip, shape, 

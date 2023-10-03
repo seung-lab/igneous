@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+4.19.3
+------
+
+* release(4.19.3): float res, performance enhancements, fix shard imgs
+* fix: accomodate offset volumes for shard transfer
+* fix: skeletonization when resolution is non-integer value (#158)
+* fix: pass cache parameter to ShardedSkeletonMergeTask
+* Reduce read requests when creating sharded skeletons and meshes (#156)
+* fix: remove debugging statement
+* perf: add direct transfer feature to shard transfer
+* fix: default value for bounds.minpt
 * fix: using the right variable name for shards
 * fix(image/xfer): cutout for unsharded
 * fix: shards do not recognize voxel offsets so bounds should be expanded

@@ -189,7 +189,7 @@ def imagegroup():
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build upward from this level of the image pyramid. Default: 0")
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
-@click.option('--num-mips', default=None, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.  Default: 5")
+@click.option('--num-mips', default=None, type=int, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.")
 @click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")

@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+4.20.0
+------
+
+* fix: no reference to sharding in the unsharded function
+* feat: add memory\_target to unsharded downsample
+* chore: update authors
+
 4.19.3
 ------
 

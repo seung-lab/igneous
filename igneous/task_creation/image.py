@@ -206,6 +206,7 @@ def create_downsampling_tasks(
   factor:Optional[Tuple[int,int,int]] = None, 
   bounds_mip:int = 0,
   memory_target:int = MEMORY_TARGET,
+  encoding_level:Optional[int] = None,
 ):
   """
   mip: Download this mip level, writes to mip levels greater than this one.
@@ -263,6 +264,8 @@ def create_downsampling_tasks(
     preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
     encoding=encoding, factor=factor
   )
+  for mip_i in range(mip, mip + num_mips):
+    set_encoding(vol, mip_i, encoding, encoding_level)
 
   if not preserve_chunk_size or chunk_size:
     shape = ds_shape(mip + 1, chunk_size, factor)
@@ -581,7 +584,8 @@ def create_image_shard_downsample_tasks(
   sparse=False, chunk_size=None,
   encoding=None, memory_target=MEMORY_TARGET,
   agglomerate=False, timestamp=None,
-  factor=(2,2,1), bounds=None, bounds_mip=0
+  factor=(2,2,1), bounds=None, bounds_mip=0,
+  encoding_level:Optional[int] = None,
 ):
   """
   Downsamples an existing image layer that may be
@@ -602,6 +606,7 @@ def create_image_shard_downsample_tasks(
     dtype=cv.dtype,
     uncompressed_shard_bytesize=int(memory_target),
   )
+  set_encoding(cv, mip + 1, encoding, encoding_level)
   cv.commit_info()
 
   shape = image_shard_shape_from_spec(

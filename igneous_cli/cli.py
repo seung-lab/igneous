@@ -191,6 +191,7 @@ def imagegroup():
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=None, type=int, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.")
 @click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
+@click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
@@ -205,10 +206,10 @@ def imagegroup():
 @click.pass_context
 def downsample(
   ctx, path, queue, mip, fill_missing, 
-  num_mips, encoding, sparse, 
+  num_mips, encoding, encoding_level, sparse, 
   chunk_size, compress, volumetric,
   delete_bg, bg_color, sharded, memory,
-  xrange, yrange, zrange
+  xrange, yrange, zrange, 
 ):
   """
   Create an image pyramid for grayscale or labeled images.
@@ -240,7 +241,8 @@ def downsample(
       path, mip=mip, fill_missing=fill_missing, 
       sparse=sparse, chunk_size=chunk_size,
       encoding=encoding, memory_target=memory,
-      factor=factor, bounds=bounds, bounds_mip=mip
+      factor=factor, bounds=bounds, bounds_mip=mip,
+      encoding_level=encoding_level,
     )
   else:
     tasks = tc.create_downsampling_tasks(
@@ -253,6 +255,7 @@ def downsample(
       factor=factor, bounds=bounds,
       bounds_mip=mip,
       memory_target=memory,
+      encoding_level=encoding_level,
     )
 
   enqueue_tasks(ctx, queue, tasks)

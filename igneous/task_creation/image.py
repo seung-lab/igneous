@@ -268,7 +268,7 @@ def create_downsampling_tasks(
     set_encoding(vol, mip_i, encoding, encoding_level)
 
   if not preserve_chunk_size or chunk_size:
-    shape = ds_shape(mip + 1, chunk_size, factor)
+    shape, num_mips = ds_shape(mip + 1, chunk_size, factor)
 
   bounds = get_bounds(
     vol, bounds, mip,

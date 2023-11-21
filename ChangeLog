@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+4.20.1
+------
+
+* release(4.20.1): fixes type of num\_mips
+* fix: num\_mips should be interpreted as an int
+
 4.20.0
 ------
 

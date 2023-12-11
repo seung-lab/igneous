@@ -1120,11 +1120,13 @@ def create_contrast_normalization_tasks(
     dvol.info['scales'] = dvol.info['scales'][:mip+1]
     dvol.commit_info()
 
+  dvol.meta.unlock_mips(mip)
+
   if bounds is None:
     bounds = srcvol.bounds.clone()
 
   if shape is None:
-    shape = Bbox( (0,0,0), (2048, 2048, 64) )
+    shape = Bbox( (0,0,0), (2048, 2048, dvol.chunk_size.z) )
     shape = shape.shrink_to_chunk_size(dvol.underlying).size3()
     shape = Vec.clamp(shape, (1,1,1), bounds.size3() )
   

@@ -528,7 +528,7 @@ def equalize(
   """(2) Apply histogram equalization to z-slices."""
   if bounds_mip is None:
     bounds_mip = mip
-  bounds = compute_bounds(path, bounds_mip, xrange, yrange, zrange)
+  bounds = compute_bounds(src, bounds_mip, xrange, yrange, zrange)
 
   tasks = tc.create_contrast_normalization_tasks(
     src, dest, levels_path=None,

@@ -456,7 +456,7 @@ def create_sharded_image_info(
   if preshift_bits + shard_bits + minishard_bits > max_bits:
     raise ValueError(f"{preshift_bits} preshift_bits {shard_bits} shard_bits + {minishard_bits} minishard_bits must be <= {max_bits}. Try reducing the number of minishards.")
 
-  if encoding in ("jpeg", "kempressed", "fpzip", "zfpc"):
+  if encoding in ("jpeg", "png", "kempressed", "fpzip", "zfpc"):
     data_encoding = "raw"
 
   return {

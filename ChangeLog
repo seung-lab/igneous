@@ -1,6 +1,20 @@
 CHANGES
 =======
 
+4.20.3
+------
+
+* release(4.20.3): fixes contrast normalization CLI
+* fix: crashing bug in CLI for contrast normalization
+
+4.20.2
+------
+
+* release(4.20.2): fixes bug in downsample
+* fix: update info file
+* fix: error in refactoring
+* feat: add encoding\_level to downsample
+
 4.20.1
 ------
 

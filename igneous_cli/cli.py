@@ -325,6 +325,9 @@ def xfer(
   if compress and compress.lower() in ("none", "false"):
     compress = False
 
+  if encoding and encoding.lower() in ("jpeg", "png"):
+    compress = False
+
   if bounds_mip is None:
     bounds_mip = mip
   bounds = compute_bounds(src, bounds_mip, xrange, yrange, zrange)

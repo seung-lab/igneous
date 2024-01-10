@@ -265,7 +265,7 @@ def create_downsampling_tasks(
     encoding=encoding, factor=factor
   )
 
-  for mip_i in range(mip, min(mip + num_mips, len(vol.available_mips))):
+  for mip_i in range(mip+1, min(mip + num_mips, len(vol.available_mips))):
     set_encoding(vol, mip_i, encoding, encoding_level)
   vol.commit_info()
 

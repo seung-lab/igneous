@@ -1,4 +1,4 @@
-from typing import Optional,Sequence,Dict
+from typing import Optional, Sequence, Dict, List
 
 from functools import reduce
 import itertools
@@ -24,6 +24,7 @@ from cloudvolume import CloudVolume, Skeleton, paths
 from cloudvolume.lib import Vec, Bbox, sip
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
+import cc3d
 import fastremap
 import kimimaro
 
@@ -89,6 +90,7 @@ class SkeletonTask(RegisteredTask):
     cross_sectional_area_shape_delta:int = 150,
     dry_run:bool = False,
     strip_integer_attributes:bool = True,
+    fix_autapses:bool = False,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -101,7 +103,8 @@ class SkeletonTask(RegisteredTask):
       spatial_grid_shape, synapses, bool(dust_global),
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
       int(cross_sectional_area_shape_delta),
-      bool(dry_run), bool(strip_integer_attributes)
+      bool(dry_run), bool(strip_integer_attributes),
+      bool(fix_autapses),
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
@@ -136,6 +139,10 @@ class SkeletonTask(RegisteredTask):
       dust_threshold = 0
       all_labels = self.apply_global_dust_threshold(vol, all_labels)
 
+    voxel_graph = None
+    if self.fix_autapses:
+      voxel_graph = self.voxel_connectivity_graph(vol, bbox)
+
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, 
@@ -148,6 +155,7 @@ class SkeletonTask(RegisteredTask):
       fill_holes=self.fill_holes,
       parallel=self.parallel,
       extra_targets_after=extra_targets_after.keys(),
+      voxel_graph=voxel_graph,
     )
     del all_labels
 
@@ -189,7 +197,24 @@ class SkeletonTask(RegisteredTask):
 
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
-  
+
+  def voxel_connectivity_graph(self, vol:CloudVolume, bbox:Bbox) -> np.ndarray:
+    layer_2 = vol.download(bbox, stop_layer=2, agglomerate=True)
+
+    sgx, sgy, sgz = list(np.ceil(bbox.size3() / vol.meta.graph_chunk_size).astype(int))
+
+    vcg = np.zeros(layer_2.shape, dtype=np.uint32, order="F")
+
+    for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
+      bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
+      bbx *= vol.meta.graph_chunk_size
+
+      cutout = np.asfortranarray(layer_2[bbx.to_slices()])
+      vcg_cutout = cc3d.voxel_connectivity_graph(cutout, connectivity=26)
+      vcg[bbx.to_slices()] = vcg_cutout
+
+    return vcg
+
   def compute_cross_sectional_area(self, vol, bbox, skeletons):
     # Why redownload a bigger image? In order to avoid clipping the
     # cross sectional areas on the edges.

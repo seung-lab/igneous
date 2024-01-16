@@ -71,7 +71,7 @@ def create_skeletonizing_tasks(
     parallel=1, fill_missing=False, 
     sharded=False, frag_path=None, spatial_index=True,
     synapses=None, num_synapses=None,
-    dust_global=False, 
+    dust_global=False, fix_autapses=False,
     cross_sectional_area=False,
     cross_sectional_area_smoothing_window=5,
   ):
@@ -121,6 +121,17 @@ def create_skeletonizing_tasks(
   fix_borders: Allows trivial merging of single overlap tasks. You'll only
     want to set this to false if you're working on single or non-overlapping
     volumes.
+  fix_autapses: Only possible for graphene volumes. Uses PyChunkGraph (PCG) information
+    to fix autapses (when a neuron synapses onto itself). This requires splitting
+    contacts between the edges of two touching voxels. The algorithm for doing this
+    requires much more memory.
+
+    This works by comparing the PYC L2 and root layers. L1 is watershed. L2 is the
+    connections only within an atomic chunk. The root layer provides the global
+    connectivity. Autapses can be distinguished at the L2 level, above that, they
+    may not be (and certainly not at the root level). We extract the voxel connectivity
+    graph from L2 and perform the overall trace at root connectivity.
+
   dust_threshold: don't skeletonize labels smaller than this number of voxels
     as seen by a single task.
   dust_global: Use global voxel counts for the dust threshold instead of from
@@ -158,6 +169,9 @@ def create_skeletonizing_tasks(
   """
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
+
+  if fix_autapses and vol.meta.path.format != "graphene":
+    raise ValueError("fix_autapses can only be performed on graphene volumes.")
 
   if dust_threshold > 0 and dust_global:
     cf = CloudFiles(cloudpath)
@@ -247,8 +261,7 @@ def create_skeletonizing_tasks(
         spatial_grid_shape=shape.clone(), # used for writing index filenames
         synapses=bbox_synapses,
         dust_global=dust_global,
-        cross_sectional_area=bool(cross_sectional_area),
-        cross_sectional_area_smoothing_window=int(cross_sectional_area_smoothing_window),
+
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -292,6 +305,7 @@ def create_skeletonizing_tasks(
           'spatial_index': bool(spatial_index),
           'synapses': bool(synapses),
           'dust_global': bool(dust_global),
+          'fix_autapses': bool(fix_autapses),
           'cross_sectional_area': bool(cross_sectional_area),
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
         },

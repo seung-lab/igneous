@@ -74,6 +74,7 @@ def create_skeletonizing_tasks(
     dust_global=False, fix_autapses=False,
     cross_sectional_area=False,
     cross_sectional_area_smoothing_window=5,
+    timestamp=None,
   ):
   """
   Assign tasks with one voxel overlap in a regular grid 
@@ -166,6 +167,7 @@ def create_skeletonizing_tasks(
   to the total computation.)
   cross_sectional_area_smoothing_window: Perform a rolling average of the 
     normal vectors across these many vectors.
+  timestamp: for graphene volumes only, you can specify the timepoint to use
   """
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -261,7 +263,8 @@ def create_skeletonizing_tasks(
         spatial_grid_shape=shape.clone(), # used for writing index filenames
         synapses=bbox_synapses,
         dust_global=dust_global,
-
+        fix_autapses=bool(fix_autapses),
+        timestamp=timestamp,
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -306,6 +309,7 @@ def create_skeletonizing_tasks(
           'synapses': bool(synapses),
           'dust_global': bool(dust_global),
           'fix_autapses': bool(fix_autapses),
+          'timestamp': timestamp,
           'cross_sectional_area': bool(cross_sectional_area),
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
         },

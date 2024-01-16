@@ -91,6 +91,7 @@ class SkeletonTask(RegisteredTask):
     dry_run:bool = False,
     strip_integer_attributes:bool = True,
     fix_autapses:bool = False,
+    timestamp:Optional[int] = None,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -104,7 +105,7 @@ class SkeletonTask(RegisteredTask):
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
       int(cross_sectional_area_shape_delta),
       bool(dry_run), bool(strip_integer_attributes),
-      bool(fix_autapses),
+      bool(fix_autapses), timestamp,
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
@@ -115,6 +116,8 @@ class SkeletonTask(RegisteredTask):
       info=self.info, cdn_cache=False,
       parallel=self.parallel, 
       fill_missing=self.fill_missing,
+      agglomerate=True,
+      timestamp=timestamp,
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)

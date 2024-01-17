@@ -59,6 +59,14 @@ def enqueue_tasks(ctx, queue, tasks):
     tq.insert(tasks, parallel=parallel)
   return tq
 
+class TupleN(click.ParamType):
+  """A command line option type consisting of 3 comma-separated integers."""
+  name = 'tupleN'
+  def convert(self, value, param, ctx):
+    if isinstance(value, str):
+      value = tuple(map(int, value.split(',')))
+    return value
+
 class Tuple34(click.ParamType):
   """A command line option type consisting of 3 comma-separated integers."""
   name = 'tuple34'
@@ -1155,13 +1163,14 @@ def skeletongroup():
 @click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float, show_default=True)
 @click.option('--max-paths', default=None, help="Abort skeletonizing an object after this many paths have been traced.", type=float)
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
+@click.option('--labels', type=TupleN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
   fill_missing, dust_threshold, dust_global, spatial_index,
   fix_branching, fix_borders, fix_avocados, 
   fill_holes, scale, const, soma_detect, soma_accept,
-  soma_scale, soma_const, max_paths, sharded
+  soma_scale, soma_const, max_paths, sharded, labels
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1203,7 +1212,7 @@ def skeleton_forge(
     dust_threshold=dust_threshold, progress=False,
     parallel=1, fill_missing=fill_missing, 
     sharded=sharded, spatial_index=spatial_index,
-    dust_global=dust_global,
+    dust_global=dust_global, object_ids=labels,
   )
 
   enqueue_tasks(ctx, queue, tasks)

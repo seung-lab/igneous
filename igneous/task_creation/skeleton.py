@@ -172,8 +172,15 @@ def create_skeletonizing_tasks(
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
 
-  if fix_autapses and vol.meta.path.format != "graphene":
-    raise ValueError("fix_autapses can only be performed on graphene volumes.")
+  if fix_autapses:
+    if vol.meta.path.format != "graphene":
+      raise ValueError("fix_autapses can only be performed on graphene volumes.")
+
+    if not np.all(shape % vol.meta.graph_chunk_size == 0):
+      raise ValueError(
+        f"shape must be a multiple of the graph chunk size. Got: {shape}, "
+        f"{vol.meta.graph_chunk_size}"
+      )
 
   if dust_threshold > 0 and dust_global:
     cf = CloudFiles(cloudpath)

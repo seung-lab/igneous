@@ -204,13 +204,15 @@ class SkeletonTask(RegisteredTask):
   def voxel_connectivity_graph(self, vol:CloudVolume, bbox:Bbox) -> np.ndarray:
     layer_2 = vol.download(bbox, stop_layer=2, agglomerate=True)
 
-    sgx, sgy, sgz = list(np.ceil(bbox.size3() / vol.meta.graph_chunk_size).astype(int))
+    shape = bbox.size()[:3]
+    sgx, sgy, sgz = list(np.ceil(shape / vol.meta.graph_chunk_size).astype(int))
 
     vcg = np.zeros(layer_2.shape, dtype=np.uint32, order="F")
 
     for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
       bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
       bbx *= vol.meta.graph_chunk_size
+      bbx = Bbox.clamp(bbx, (0,0,0), shape)
 
       cutout = np.asfortranarray(layer_2[bbx.to_slices()])
       vcg_cutout = cc3d.voxel_connectivity_graph(cutout, connectivity=26)

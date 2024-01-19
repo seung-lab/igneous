@@ -214,11 +214,14 @@ def compute_scales(vol, mip, shape, axis, factor, chunk_size=None):
 def create_downsample_scales(
     layer_path, mip, ds_shape, axis='z', 
     preserve_chunk_size=False, chunk_size=None,
-    encoding=None, factor=None
+    encoding=None, factor=None, max_mips=None,
   ):
   vol = CloudVolume(layer_path, mip)
 
   resolutions = compute_scales(vol, mip, ds_shape, axis, factor, chunk_size)
+
+  if max_mips is not None:
+    resolutions = resolutions[:max_mips]
 
   if len(resolutions) == 0:
     print("WARNING: No scales generated.")

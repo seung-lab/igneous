@@ -245,14 +245,18 @@ def create_downsampling_tasks(
     if factor is None:
       factor = downsample_scales.axis_to_factor(axis)
 
-    if num_mips is None:
-      num_mips = num_mips_from_memory_target(
-        memory_target, vol.dtype, shape, factor
-      )
+    viable_mips = num_mips_from_memory_target(
+      memory_target, vol.dtype, shape, factor
+    )
 
-    shape.x *= factor[0] ** num_mips
-    shape.y *= factor[1] ** num_mips
-    shape.z *= factor[2] ** num_mips
+    if viable_mips < num_mips:
+      raise ValueError(
+        f"Memory limit ({memory_target} bytes) too low to "
+        "compute {num_mips} mips at a time. {viable_mips} mips possible.")
+
+    shape.x *= factor[0] ** viable_mips
+    shape.y *= factor[1] ** viable_mips
+    shape.z *= factor[2] ** viable_mips
 
     return shape, num_mips
 
@@ -262,7 +266,7 @@ def create_downsampling_tasks(
   vol = downsample_scales.create_downsample_scales(
     layer_path, mip, shape, 
     preserve_chunk_size=preserve_chunk_size, chunk_size=chunk_size,
-    encoding=encoding, factor=factor
+    encoding=encoding, factor=factor, max_mips=num_mips,
   )
 
   for mip_i in range(mip+1, min(mip + num_mips, len(vol.available_mips))):
@@ -293,6 +297,7 @@ def create_downsampling_tasks(
         dest_path=dest_path,
         compress=compress,
         factor=factor,
+        max_mips=num_mips,
       )
 
     def on_finish(self):

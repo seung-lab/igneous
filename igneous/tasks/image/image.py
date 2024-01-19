@@ -35,7 +35,7 @@ from .obsolete import (
 def downsample_and_upload(
     image, bounds, vol, ds_shape,
     mip=0, axis='z', skip_first=False,
-    sparse=False, factor=None
+    sparse=False, factor=None, max_mips=None
   ):
     ds_shape = min2(vol.volume_size, ds_shape[:3])
     underlying_mip = (mip + 1) if (mip + 1) in vol.available_mips else mip
@@ -44,6 +44,9 @@ def downsample_and_upload(
     if factor is None:
       factor = downsample_scales.axis_to_factor(axis)
     factors = downsample_scales.compute_factors(ds_shape, factor, chunk_size, vol.volume_size)
+
+    if max_mips is not None:
+      factors = factors[:max_mips]
 
     if len(factors) == 0:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
@@ -365,20 +368,21 @@ class LuminanceLevelsTask(RegisteredTask):
 
 @queueable
 def TransferTask(
-  src_path, dest_path,
-  mip, shape, offset,
+  src_path:str, dest_path:str,
+  mip:int, shape, offset,
   translate=(0,0,0),
-  fill_missing=False,
-  skip_first=False,
-  skip_downsamples=False,
-  delete_black_uploads=False,
-  background_color=0,
-  sparse=False,
-  axis='z',
-  agglomerate=False,
-  timestamp=None,
+  fill_missing:bool = False,
+  skip_first:bool = False,
+  skip_downsamples:bool = False,
+  delete_black_uploads:bool = False,
+  background_color:int = 0,
+  sparse:bool = False,
+  axis:chr = 'z',
+  agglomerate:bool = False,
+  timestamp:Optional[int] = None,
   compress='gzip',
   factor=None,
+  max_mips:Optional[int] = None,
 ):
   """
   Transfer an image to a new location while enabling
@@ -436,7 +440,7 @@ def TransferTask(
       shape, mip=mip,
       skip_first=skip_first,
       sparse=sparse, axis=axis,
-      factor=factor
+      factor=factor, max_mips=max_mips,
     )
 
 @queueable
@@ -444,7 +448,8 @@ def DownsampleTask(
   layer_path, mip, shape, offset,
   fill_missing=False, axis='z', sparse=False,
   delete_black_uploads=False, background_color=0,
-  dest_path=None, compress="gzip", factor=None
+  dest_path=None, compress="gzip", factor=None,
+  max_mips=None,
 ):
   """
   Downsamples a cutout of the volume. By default it performs
@@ -467,6 +472,7 @@ def DownsampleTask(
     axis=axis,
     compress=compress,
     factor=factor,
+    max_mips=max_mips,
   )
 
 @queueable

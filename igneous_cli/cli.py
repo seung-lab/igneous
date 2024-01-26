@@ -1304,16 +1304,21 @@ def skeleton_sharded_merge(
 @click.option('--mip', default=0, help="Which mip level to start deleting from. Default: 0")
 @click.option('--num-mips', default=5, help="The number of mip levels to delete at once. Default: 5")
 @click.option('--shape', default=None, help="The size of each deletion task as a comma delimited list. Must be a multiple of the chunk size.", type=Tuple3())
+@click.option('--xrange', type=Tuple2(), default=None, help="Only delete in this range of x values. Default: None. Must be a multiple of the chunk size.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="Only delete in this range of y values. Default: None. Must be a multiple of the chunk size.", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="Only delete in this range of z values. Default: None. Must be a multiple of the chunk size.", show_default=True)
 @click.pass_context
 def delete_images(
   ctx, path, queue, 
-  mip, num_mips, shape
+  mip, num_mips, shape, xrange, yrange, zrange
 ):
   """
   Delete the image layer of a dataset.
   """
+  bounds = compute_bounds(path, mip, xrange, yrange, zrange)
+
   tasks = tc.create_deletion_tasks(
-    path, mip, num_mips=num_mips, shape=shape
+    path, mip, num_mips=num_mips, shape=shape, bounds=bounds
   )
   enqueue_tasks(ctx, queue, tasks)
 

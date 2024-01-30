@@ -49,7 +49,9 @@ def create_skeletonizing_tasks(
     parallel=1, fill_missing=False, 
     sharded=False, frag_path=None, spatial_index=True,
     synapses=None, num_synapses=None,
-    dust_global=False
+    dust_global=False, 
+    cross_sectional_area=False,
+    cross_sectional_area_smoothing_window=5,
   ):
   """
   Assign tasks with one voxel overlap in a regular grid 
@@ -124,6 +126,13 @@ def create_skeletonizing_tasks(
     Iterable yielding ((x,y,z),segid,swc_label)
 
   num_synapses: If synapses is an iterator, you must provide the total number of synapses.
+
+  cross_sectional_area: At each vertex, compute the area covered by a 
+  section plane whose direction is defined by the normal vector pointing
+  to the next vertex in the sequence. (n.b. this will add significant time
+  to the total computation.)
+  cross_sectional_area_smoothing_window: Perform a rolling average of the 
+    normal vectors across these many vectors.
   """
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -152,7 +161,18 @@ def create_skeletonizing_tasks(
     vol.skeleton.meta.info['spatial_index']['chunk_size'] = tuple(shape * vol.resolution)
   
   vol.skeleton.meta.info['mip'] = int(mip)
-  vol.skeleton.meta.info['vertex_attributes'] = vol.skeleton.meta.info['vertex_attributes'][:1]
+  vol.skeleton.meta.info['vertex_attributes'] = [ 
+    attr for attr in vol.skeleton.meta.info['vertex_attributes']
+    if attr["data_type"] == "float32"
+  ]
+
+  if cross_sectional_area:
+    vol.skeleton.meta.info['vertex_attributes'].append({
+      "id": "cross_sectional_area",
+      "data_type": "float32",
+      "num_components": 1,
+    })
+
   vol.skeleton.meta.commit_info()
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
@@ -187,6 +207,8 @@ def create_skeletonizing_tasks(
         spatial_grid_shape=shape.clone(), # used for writing index filenames
         synapses=bbox_synapses,
         dust_global=dust_global,
+        cross_sectional_area=bool(cross_sectional_area),
+        cross_sectional_area_smoothing_window=int(cross_sectional_area_smoothing_window),
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -230,6 +252,8 @@ def create_skeletonizing_tasks(
           'spatial_index': bool(spatial_index),
           'synapses': bool(synapses),
           'dust_global': bool(dust_global),
+          'cross_sectional_area': bool(cross_sectional_area),
+          'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

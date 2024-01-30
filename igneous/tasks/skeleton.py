@@ -72,9 +72,11 @@ class SkeletonTask(RegisteredTask):
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, sharded=False,
     frag_path=None, spatial_index=True, spatial_grid_shape=None,
-    synapses=None, dust_global=False
+    synapses=None, dust_global=False,
+    cross_sectional_area=False,
+    cross_sectional_area_smoothing_window=1,
   ):
-    super(SkeletonTask, self).__init__(
+    super().__init__(
       cloudpath, shape, offset, mip, 
       teasar_params, will_postprocess, 
       info, object_ids, mask_ids,
@@ -82,7 +84,8 @@ class SkeletonTask(RegisteredTask):
       fix_avocados, fill_holes,
       dust_threshold, progress, parallel,
       fill_missing, bool(sharded), frag_path, bool(spatial_index),
-      spatial_grid_shape, synapses, bool(dust_global)
+      spatial_grid_shape, synapses, bool(dust_global),
+      bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
@@ -129,7 +132,15 @@ class SkeletonTask(RegisteredTask):
       fill_holes=self.fill_holes,
       parallel=self.parallel,
       extra_targets_after=extra_targets_after.keys(),
-    )    
+    )
+
+    if cross_sectional_area:
+      skeletons = kimimaro.cross_sectional_area(
+        all_labels, skeletons,
+        anisotropy=vol.resolution,
+        smoothing_window=cross_sectional_area_smoothing_window,
+        progress=self.progress,
+      )
 
     # voxel centered (+0.5) and uses more accurate bounding box from mip 0
     corrected_offset = (bbox.minpt.astype(np.float32) - vol.meta.voxel_offset(self.mip) + 0.5) * vol.meta.resolution(self.mip)

@@ -467,7 +467,9 @@ Of note: Meshing is a memory intensive operation. The underlying zmesh library h
 Igneous provides the engine for performing out-of-core skeletonization of labeled images. 
 The in-core part of the algorithm is provided by the [Kimimaro](https://github.com/seung-lab/kimimaro) library.  
 
-The strategy is to apply Kimimaro mass skeletonization to 1 voxel overlapping chunks of the segmentation and then fuse them in a second pass. Both sharded and unsharded formats are supported. For very large datasets, note that sharded runs better on a local cluster as it can make use of `mmap`.
+The strategy is to apply Kimimaro mass skeletonization to 1 voxel overlapping chunks of the segmentation and then fuse them in a second pass. Both sharded and unsharded formats are supported. For very large datasets, note that sharded runs better on a local cluster as it can make use of `mmap`.  
+
+We also support computing the cross sectional area at each vertex, but be aware that this will add significant time to the computation (currently many hours for a densely labeled task). This is practical for sparse labeling though. This should be improved substantially in the future.
 
 #### CLI Skeletonization
 
@@ -513,6 +515,8 @@ tasks = tc.create_skeletonizing_tasks(
     parallel=1, # Number of parallel processes to use (more useful locally)
     spatial_index=True, # generate a spatial index for querying skeletons by bounding box
     sharded=False, # generate intermediate shard fragments for later processing into sharded format
+    cross_sectional_area=False, # Compute the cross sectional area for each vertex.
+    cross_sectional_area_smoothing_window=5, # Rolling average of vertices.
   )
 
 # Second Pass: Fuse Skeletons (unsharded version)

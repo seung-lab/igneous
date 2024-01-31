@@ -1164,13 +1164,15 @@ def skeletongroup():
 @click.option('--max-paths', default=None, help="Abort skeletonizing an object after this many paths have been traced.", type=float)
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
 @click.option('--labels', type=TupleN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
+@click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
   fill_missing, dust_threshold, dust_global, spatial_index,
   fix_branching, fix_borders, fix_avocados, 
   fill_holes, scale, const, soma_detect, soma_accept,
-  soma_scale, soma_const, max_paths, sharded, labels
+  soma_scale, soma_const, max_paths, sharded, labels,
+  cross_section,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1213,6 +1215,8 @@ def skeleton_forge(
     parallel=1, fill_missing=fill_missing, 
     sharded=sharded, spatial_index=spatial_index,
     dust_global=dust_global, object_ids=labels,
+    cross_sectional_area=(cross_section > 0),
+    cross_sectional_area_smoothing_window=int(cross_section),
   )
 
   enqueue_tasks(ctx, queue, tasks)

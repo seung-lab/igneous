@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+4.21.0
+------
+
+* chore: update setup.cfg
+* feat: support --xrange,--yrange,--zrange in (#165)
+* feat(downsample): use memory limit shape when doing limited downsamples
+* feat: add --labels to skeleton forging
+* fix: downsampling should not affect the current mips encoding
+* fix: exclude png in another location from adding gzip encoding
+* fix: don't allow gzip/br on top of jpeg or png encoding
+
 4.20.3
 ------
 

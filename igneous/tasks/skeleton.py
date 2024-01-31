@@ -134,11 +134,11 @@ class SkeletonTask(RegisteredTask):
       extra_targets_after=extra_targets_after.keys(),
     )
 
-    if cross_sectional_area:
+    if self.cross_sectional_area:
       skeletons = kimimaro.cross_sectional_area(
         all_labels, skeletons,
         anisotropy=vol.resolution,
-        smoothing_window=cross_sectional_area_smoothing_window,
+        smoothing_window=self.cross_sectional_area_smoothing_window,
         progress=self.progress,
       )
 

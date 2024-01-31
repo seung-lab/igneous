@@ -505,26 +505,40 @@ def test_contrast_normalization_task():
     tq.insert_all(tasks)
 
 
-def test_skeletonization_task():
+@pytest.mark.parametrize("cross_sectional_area", [False, True])
+def test_skeletonization_task(cross_sectional_area):
     directory = '/tmp/removeme/skeleton/'
     layer_path = 'file://' + directory
     delete_layer(layer_path)
 
-    img = np.ones((256,256,256), dtype=np.uint64)
+    img = np.ones((128,128,128), dtype=np.uint64)
     img[:,:,:] = 2
     cv = CloudVolume.from_numpy(
         img,
         layer_type='segmentation',
-        vol_path=layer_path, 
+        vol_path=layer_path,
     )
 
     tq = MockTaskQueue()
-    tasks = tc.create_skeletonizing_tasks(layer_path, mip=0, teasar_params={
-        'scale': 10,
-        'const': 10,
-    })
+    tasks = tc.create_skeletonizing_tasks(
+        layer_path,
+        mip=0,
+        teasar_params={
+            'scale': 10,
+            'const': 10,
+        },
+        cross_sectional_area=cross_sectional_area,
+        cross_sectional_area_smoothing_window=1,
+    )
     tq.insert_all(tasks)
 
+    cv = CloudVolume(layer_path)
+    skel = cv.skeleton.get(2)
+
+    assert len(skel.vertices) > 0
+    if cross_sectional_area:
+        assert len(skel.cross_sectional_area) > 0
+        assert np.all(skel.cross_sectional_area >= 0)
 
 def test_voxel_counting_task():
     directory = '/tmp/removeme/voxelcounting/'

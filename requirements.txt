@@ -1,13 +1,13 @@
 click>=6.7
 cloud-files>=4.11.0
-cloud-volume>=8.11.1
+cloud-volume>=8.29.0
 crackle-codec
 connected-components-3d>=3.10.1
 DracoPy>=1.0.1,<2.0.0
 fastremap>=1.13.2
 google-cloud-logging
-kimimaro>=0.5.0
-mapbuffer>=0.6.0
+kimimaro>=3.4.0
+mapbuffer>=0.7.1
 networkx
 numpy>=1.14.2
 pathos

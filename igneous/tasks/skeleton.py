@@ -20,7 +20,7 @@ import cloudfiles
 from cloudfiles import CloudFiles, CloudFile
 
 import cloudvolume
-from cloudvolume import CloudVolume, PrecomputedSkeleton, paths
+from cloudvolume import CloudVolume, Skeleton, paths
 from cloudvolume.lib import Vec, Bbox, sip
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
@@ -335,7 +335,7 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 
   def fuse_skeletons(self, skels):
     if len(skels) == 0:
-      return PrecomputedSkeleton()
+      return Skeleton()
 
     bbxs = [ item[0] for item in skels ]
     skeletons = [ item[1] for item in skels ]
@@ -344,9 +344,9 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     skeletons = [ s for s in skeletons if not s.empty() ]
 
     if len(skeletons) == 0:
-      return PrecomputedSkeleton()
+      return Skeleton()
 
-    return PrecomputedSkeleton.simple_merge(skeletons).consolidate()
+    return Skeleton.simple_merge(skeletons).consolidate()
 
   def crop_skels(self, bbxs, skeletons):
     cropped = [ s.clone() for s in skeletons ]
@@ -433,7 +433,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
 
     for label in tqdm(unfused_skeletons.keys(), desc="Postprocessing", disable=(not self.progress)):
       skels = unfused_skeletons[label]
-      skel = PrecomputedSkeleton.simple_merge(skels)
+      skel = Skeleton.simple_merge(skels)
       skel.id = label
       skel.extra_attributes = [ 
         attr for attr in skel.extra_attributes \
@@ -484,7 +484,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
       
       for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not self.progress)):
         try:
-          fragment = MapBuffer(content, frombytesfn=PrecomputedSkeleton.from_precomputed)
+          fragment = MapBuffer(content, frombytesfn=Skeleton.from_precomputed)
           fragment.validate()
         except mapbuffer.ValidationError:
           fragment = pickle.loads(content)

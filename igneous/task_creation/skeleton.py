@@ -167,11 +167,15 @@ def create_skeletonizing_tasks(
   ]
 
   if cross_sectional_area:
-    vol.skeleton.meta.info['vertex_attributes'].append({
-      "id": "cross_sectional_area",
-      "data_type": "float32",
-      "num_components": 1,
-    })
+    has_cross_sectional_area_attr = any(
+      [ attr["id"] == "cross_sectional_area" for attr in vol.skeleton.meta.info['vertex_attributes'] ]
+    )
+    if not has_cross_sectional_area_attr:
+      vol.skeleton.meta.info['vertex_attributes'].append({
+        "id": "cross_sectional_area",
+        "data_type": "float32",
+        "num_components": 1,
+      })
 
   vol.skeleton.meta.commit_info()
 

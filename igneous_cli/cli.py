@@ -1676,6 +1676,9 @@ def create(
 def normalize_file_ext(filename):
   filename, ext = os.path.splitext(filename)
 
+  if ext in (".npy", ".ckl", ".cpso", ".hdf5", ".h5"):
+    return ext
+
   while True:
     filename, ext2 = os.path.splitext(filename)
     if ext2 in ('.ckl', '.cpso'):

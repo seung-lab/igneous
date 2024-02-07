@@ -1659,7 +1659,7 @@ def create(
     file = h5py.File(src, 'r')
     arr = np.array(file[h5_dataset])
   else:
-    print("Format not supported.")
+    print(f"Format not supported: {ext}")
     return
 
   CloudVolume.from_numpy(

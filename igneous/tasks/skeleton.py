@@ -75,6 +75,8 @@ class SkeletonTask(RegisteredTask):
     synapses=None, dust_global=False,
     cross_sectional_area=False,
     cross_sectional_area_smoothing_window=1,
+    cross_sectional_area_shape_delta=150,
+    dry_run=False,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -86,6 +88,8 @@ class SkeletonTask(RegisteredTask):
       fill_missing, bool(sharded), frag_path, bool(spatial_index),
       spatial_grid_shape, synapses, bool(dust_global),
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
+      int(cross_sectional_area_shape_delta),
+      bool(dry_run)
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
@@ -133,14 +137,10 @@ class SkeletonTask(RegisteredTask):
       parallel=self.parallel,
       extra_targets_after=extra_targets_after.keys(),
     )
+    del all_labels
 
-    if self.cross_sectional_area:
-      skeletons = kimimaro.cross_sectional_area(
-        all_labels, skeletons,
-        anisotropy=vol.resolution,
-        smoothing_window=self.cross_sectional_area_smoothing_window,
-        progress=self.progress,
-      )
+    if self.cross_sectional_area: # This is expensive!
+      skeletons = self.compute_cross_sectional_area(vol, bbox, skeletons)
 
     # voxel centered (+0.5) and uses more accurate bounding box from mip 0
     corrected_offset = (bbox.minpt.astype(np.float32) - vol.meta.voxel_offset(self.mip) + 0.5) * vol.meta.resolution(self.mip)
@@ -162,6 +162,9 @@ class SkeletonTask(RegisteredTask):
     # neuroglancer doesn't support int attributes
     strip_integer_attributes(skeletons.values())
 
+    if self.dry_run:
+      return skeletons
+
     if self.sharded:
       if self.frag_path:
         self.upload_batch(vol, os.path.join(self.frag_path, skeldir(self.cloudpath)), index_bbox, skeletons)
@@ -173,6 +176,44 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
   
+  def compute_cross_sectional_area(self, vol, bbox, skeletons):
+    # Why redownload a bigger image? In order to avoid clipping the
+    # cross sectional areas on the edges.
+    delta = int(self.cross_sectional_area_shape_delta)
+
+    big_bbox = bbox.clone()
+    big_bbox.maxpt += delta
+    big_bbox.minpt -= delta
+    big_bbox = Bbox.clamp(big_bbox, vol.bounds)
+
+    all_labels = vol[big_bbox][...,0]
+
+    delta = bbox.minpt - big_bbox.minpt
+
+    # place the skeletons in exactly the same position
+    # in the enlarged image
+    for skel in skeletons.values():
+      skel.vertices += delta * vol.resolution
+
+    if self.mask_ids:
+      all_labels = fastremap.mask(all_labels, self.mask_ids)
+
+    skeletons = kimimaro.cross_sectional_area(
+      all_labels, skeletons,
+      anisotropy=vol.resolution,
+      smoothing_window=self.cross_sectional_area_smoothing_window,
+      progress=self.progress,
+      in_place=True,
+    )
+
+    del all_labels
+
+    # move the vertices back to their old smaller image location
+    for skel in skeletons.values():
+      skel.vertices -= delta * vol.resolution
+
+    return skeletons
+
   def apply_global_dust_threshold(self, vol, all_labels):
     path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.im')
     cf = CloudFile(path)

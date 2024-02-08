@@ -204,6 +204,7 @@ class SkeletonTask(RegisteredTask):
       smoothing_window=self.cross_sectional_area_smoothing_window,
       progress=self.progress,
       in_place=True,
+      fill_holes=self.fill_holes,
     )
 
     del all_labels

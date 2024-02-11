@@ -249,7 +249,7 @@ def create_downsampling_tasks(
       memory_target, vol.dtype, shape, factor
     )
 
-    if viable_mips < num_mips:
+    if num_mips is not None and viable_mips < num_mips:
       raise ValueError(
         f"Memory limit ({memory_target} bytes) too low to "
         "compute {num_mips} mips at a time. {viable_mips} mips possible.")

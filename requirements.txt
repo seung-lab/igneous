@@ -21,5 +21,5 @@ tinybrain
 task-queue>=2.4.0
 tqdm
 trimesh[easy]
-xs3d>=0.2.0
+xs3d>=1.2.0
 zmesh>=1.4,<2.0

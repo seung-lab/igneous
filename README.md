@@ -557,7 +557,7 @@ determines how much of the ends of the distribution to lop off, perhaps 1% on ea
 
 ```bash
 # first pass: create per z-slice histogram
-igneous image contrast histogam $PATH --queue $QUEUE --coverage 0.01 --mip 0
+igneous image contrast histogram $PATH --queue $QUEUE --coverage 0.01 --mip 0
 # second pass: apply histogram equalization
 igneous image contrast equalize $PATH --queue $QUEUE --clip-fraction 0.01 --mip 0
 ```

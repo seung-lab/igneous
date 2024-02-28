@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional,Sequence,Dict
 
 from functools import reduce
 import itertools
@@ -64,19 +64,30 @@ class SkeletonTask(RegisteredTask):
   They will be merged in the stage 2 task SkeletonMergeTask.
   """
   def __init__(
-    self, cloudpath, shape, offset, 
-    mip, teasar_params, will_postprocess, 
-    info=None, object_ids=None, mask_ids=None,
-    fix_branching=True, fix_borders=True, 
-    fix_avocados=False, fill_holes=False,
-    dust_threshold=1000, progress=False,
-    parallel=1, fill_missing=False, sharded=False,
-    frag_path=None, spatial_index=True, spatial_grid_shape=None,
-    synapses=None, dust_global=False,
-    cross_sectional_area=False,
-    cross_sectional_area_smoothing_window=1,
-    cross_sectional_area_shape_delta=150,
-    dry_run=False,
+    self, cloudpath:str, 
+    shape:Sequence[int], offset:Sequence[int], 
+    mip:int, teasar_params:dict, will_postprocess:bool,
+    info:dict = None, 
+    object_ids:Optional[Sequence[int]] = None,
+    mask_ids:Optional[Sequence[int]] = None,
+    fix_branching:bool = True,
+    fix_borders:bool = True,
+    fix_avocados:bool = False,
+    fill_holes:bool = False,
+    dust_threshold:int = 1000, 
+    progress:bool = False,
+    parallel:int = 1,
+    fill_missing:bool = False,
+    sharded:bool = False,
+    frag_path:Optional[str] = None, 
+    spatial_index:bool = True,
+    spatial_grid_shape:Optional[Sequence[int]] = None,
+    synapses:Optional[Sequence[Sequence[float]]] = None, 
+    dust_global:bool = False,
+    cross_sectional_area:bool = False,
+    cross_sectional_area_smoothing_window:int = 1,
+    cross_sectional_area_shape_delta:int = 150,
+    dry_run:bool = False,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 

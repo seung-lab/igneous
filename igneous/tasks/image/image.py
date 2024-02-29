@@ -530,6 +530,7 @@ def ImageShardTransferTask(
   translate: ShapeType = (0, 0, 0),
   agglomerate: bool = False,
   timestamp: Optional[int] = None,
+  stop_layer: Optional[int] = None,
 ):
   """
   Generates a sharded image volume from
@@ -569,14 +570,21 @@ def ImageShardTransferTask(
 
   fullpathfn = lambda vol, fname: vol.meta.join(vol.cloudpath, vol.meta.key(mip), fname)
 
-  if src_vol.scale == dst_vol.scale and src_bbox == dst_bbox:
+  if (
+    src_vol.scale == dst_vol.scale 
+    and src_bbox == dst_bbox 
+    and agglomerate == False
+  ):
     filename = dst_vol.image.shard_filename(dst_bbox, mip=mip)
     dst_fullpath = fullpathfn(dst_vol, filename)
     src_fullpath = fullpathfn(src_vol, filename)
     CloudFile(dst_fullpath).transfer_from(src_fullpath)
   else:
     img = src_vol.download(
-      src_bbox, agglomerate=agglomerate, timestamp=timestamp
+      src_bbox, 
+      agglomerate=agglomerate, 
+      timestamp=timestamp,
+      stop_layer=stop_layer,
     )
     (filename, shard) = dst_vol.image.make_shard(
       img, dst_bbox, mip, progress=False

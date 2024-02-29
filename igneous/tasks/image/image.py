@@ -383,6 +383,7 @@ def TransferTask(
   compress='gzip',
   factor=None,
   max_mips:Optional[int] = None,
+  stop_layer:Optional[int] = None,
 ):
   """
   Transfer an image to a new location while enabling
@@ -429,7 +430,10 @@ def TransferTask(
 
   src_bbox = dst_bbox - translate
   image = src_cv.download(
-    src_bbox, agglomerate=agglomerate, timestamp=timestamp
+    src_bbox, 
+    agglomerate=agglomerate, 
+    timestamp=timestamp,
+    stop_layer=stop_layer,
   )
 
   if skip_downsamples:

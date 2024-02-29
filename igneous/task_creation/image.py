@@ -799,6 +799,7 @@ def create_transfer_tasks(
   encoding_level:Optional[int] = None,
   truncate_scales:bool = True,
   cutout:bool = False,
+  stop_layer:Optional[int] = None,
 ) -> Iterator:
   """
   Transfer data to a new data layer. You can use this operation
@@ -873,6 +874,8 @@ def create_transfer_tasks(
   agglomerate: (graphene only) remap the watershed layer to a proofread segmentation.
   timestamp: (graphene only) integer UNIX timestamp indicating the proofreading state
     to represent.
+  stop_layer: (graphene only) limit agglomeration to the lowest graph layer at
+    or above this layer.
   """
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -960,6 +963,7 @@ def create_transfer_tasks(
         compress=compress,
         factor=factor,
         sparse=sparse,
+        stop_layer=stop_layer,
       )
 
     def on_finish(self):
@@ -987,6 +991,7 @@ def create_transfer_tasks(
           'factor': (tuple(factor) if factor else None),
           'sparse': bool(sparse),
           'encoding_level': encoding_level,
+          'stop_layer': stop_layer,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

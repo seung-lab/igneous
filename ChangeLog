@@ -1,6 +1,30 @@
 CHANGES
 =======
 
+4.22.1
+------
+
+* release(4.22.1): fixes downsampling issue
+* fix: really fix num\_mips issue
+* fix(downsample): check num\_mips is not none before comparison
+* test: update tests to 3.12, remove 3.7
+* feat: support fill\_holes feature for cross section estimation
+* fix: vastly reduce cross section underestimates
+* fix: handle numpy files with a '.' in the name more gracefully
+* fix: add help message to unsupported formats for igneous image create
+* refactor: PrecomputedSkeleton -> Skeleton
+* feat: remove queue requirement for skeleton merging
+* fix: don't duplicate cross\_sectional\_area attr in info file
+* fix(cli): show default for fix branching
+* feat(cli): add -n to execute a certain number of tasks
+
+4.22.0
+------
+
+* release(4.22.0): adds --cross-section to skeleton forging
+* feat(SkeletonTask): compute cross sectional area (#166)
+* docs: add Ryan to authors (thank you!)
+
 4.21.0
 ------
 

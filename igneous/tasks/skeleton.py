@@ -88,6 +88,7 @@ class SkeletonTask(RegisteredTask):
     cross_sectional_area_smoothing_window:int = 1,
     cross_sectional_area_shape_delta:int = 150,
     dry_run:bool = False,
+    strip_integer_attributes:bool = True,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -100,7 +101,7 @@ class SkeletonTask(RegisteredTask):
       spatial_grid_shape, synapses, bool(dust_global),
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
       int(cross_sectional_area_shape_delta),
-      bool(dry_run)
+      bool(dry_run), bool(strip_integer_attributes)
     )
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
@@ -170,8 +171,10 @@ class SkeletonTask(RegisteredTask):
           if vert in extra_targets_after.keys():
             skel.vertex_types[i] = extra_targets_after[vert]
     
-    # neuroglancer doesn't support int attributes
-    strip_integer_attributes(skeletons.values())
+    # old versions of neuroglancer don't
+    # support int attributes
+    if self.strip_integer_attributes:
+      strip_integer_attributes(skeletons.values())
 
     if self.dry_run:
       return skeletons

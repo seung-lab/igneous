@@ -227,6 +227,48 @@ class SkeletonTask(RegisteredTask):
     for skel in skeletons.values():
       skel.vertices -= delta * vol.resolution
 
+    return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+
+  def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
+    repair_skels = [
+      skel for skel in skeletons.values()
+      if np.any(skel.cross_sectional_area_contacts > 0)
+    ]
+
+    delta = int(self.cross_sectional_area_shape_delta)
+
+    shape = bbox.size3()
+    
+    for skel in repair_skels:
+      pts = (skel.vertices // vol.resolution).astype(int)
+      pts_bbx = Bbox.from_points(pts)
+
+      pts_bbx_vol = pts_bbx + bbox.minpt
+      center = pts_bbx_vol.center()
+      skel_bbx = Bbox(center, center+1)
+      skel_bbx.grow(delta + shape // 2)
+
+      skel_bbx = Bbox.clamp(skel_bbx, vol.bounds)
+
+      binary_image = vol.download(
+        skel_bbx, mip=vol.mip, label=skel.id
+      )[...,0]
+
+      diff = bbox.minpt - skel_bbx.minpt
+      skel.vertices += diff * vol.resolution
+
+      kimimaro.cross_sectional_area(
+        binary_image, skel,
+        anisotropy=vol.resolution,
+        smoothing_window=self.cross_sectional_area_smoothing_window,
+        progress=self.progress,
+        in_place=True,
+        fill_holes=self.fill_holes,
+        repair_contacts=True,
+      )
+
+      skel.vertices -= diff * vol.resolution
+
     return skeletons
 
   def apply_global_dust_threshold(self, vol, all_labels):

@@ -244,7 +244,7 @@ class SkeletonTask(RegisteredTask):
       pts_bbx = Bbox.from_points(pts)
 
       pts_bbx_vol = pts_bbx + bbox.minpt
-      center = pts_bbx_vol.center()
+      center = pts_bbx_vol.center().astype(int)
       skel_bbx = Bbox(center, center+1)
       skel_bbx.grow(delta + shape // 2)
 

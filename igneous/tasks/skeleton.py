@@ -230,6 +230,8 @@ class SkeletonTask(RegisteredTask):
     return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
 
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
+    from dbscan import DBSCAN
+
     repair_skels = [
       skel for skel in skeletons.values()
       if np.any(skel.cross_sectional_area_contacts > 0)
@@ -239,8 +241,7 @@ class SkeletonTask(RegisteredTask):
 
     shape = bbox.size3()
     
-    for skel in repair_skels:
-      pts = (skel.vertices // vol.resolution).astype(int)
+    def reprocess_skel(pts, skel):
       pts_bbx = Bbox.from_points(pts)
 
       pts_bbx_vol = pts_bbx + bbox.minpt
@@ -268,6 +269,19 @@ class SkeletonTask(RegisteredTask):
       )
 
       skel.vertices -= diff * vol.resolution
+
+    for skel in repair_skels:
+      verts = (skel.vertices // vol.resolution).astype(int)
+      reprocess_skel(verts, skel)
+
+      pts = verts[skel.cross_sectional_area_contacts > 0]
+      if len(pts) == 0:
+        continue
+
+      labels, core_samples_mask = DBSCAN(pts, eps=5, min_samples=2)
+      uniq = fastremap.unique(labels)
+      for lbl in uniq:
+        reprocess_skel(pts[labels == lbl], skel)
 
     return skeletons
 

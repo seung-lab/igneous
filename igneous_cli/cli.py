@@ -754,6 +754,26 @@ def ccl_auto(
 @main.command()
 @click.argument("queue", type=str)
 @click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
+@click.pass_context
+def execute(
+  ctx, queue, aws_region,
+  lease_sec, tally, min_sec,
+  exit_on_empty, quiet, num_tasks,
+):
+  """Check igneous tasks from a queue.
+
+  The queue must be an AWS SQS queue or a FileQueue directory. 
+  Examples: (SQS) sqs://my-queue (FileQueue) fq://./my-queue
+  (the fq:// is optional).
+
+  See https://github.com/seung-lab/python-task-queue
+  """
+  tq = TaskQueue(normalize_path(queue), region_name=aws_region)
+  print(f"Queue has been completed {tq.completed} of {tq.inserted} tasks.")
+
+@main.command()
+@click.argument("queue", type=str)
+@click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
 @click.option('--lease-sec', default=LEASE_SECONDS, help=f"Seconds to lease a task for.", type=int, show_default=True)
 @click.option('--tally/--no-tally', is_flag=True, default=True, help="Tally completed fq tasks. Does not apply to SQS.", show_default=True)
 @click.option('--min-sec', default=-1, help='Execute for at least this many seconds and quit after the last task finishes. Special values: (0) Run at most a single task. (-1) Loop forever (default).', type=float)

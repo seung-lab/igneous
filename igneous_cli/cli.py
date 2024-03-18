@@ -754,11 +754,8 @@ def ccl_auto(
 @main.command()
 @click.argument("queue", type=str)
 @click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
-@click.pass_context
 def check(
-  ctx, queue, aws_region,
-  lease_sec, tally, min_sec,
-  exit_on_empty, quiet, num_tasks,
+  queue, aws_region
 ):
   """Check igneous tasks from a queue.
 
@@ -769,7 +766,7 @@ def check(
   See https://github.com/seung-lab/python-task-queue
   """
   tq = TaskQueue(normalize_path(queue), region_name=aws_region)
-  print(f"Queue has been completed {tq.completed} of {tq.inserted} tasks.")
+  print(f"Queue has been completed {tq.completed} of total {tq.inserted} tasks.")
 
 @main.command()
 @click.argument("queue", type=str)

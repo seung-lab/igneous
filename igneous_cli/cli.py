@@ -755,7 +755,7 @@ def ccl_auto(
 @click.argument("queue", type=str)
 @click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
 @click.pass_context
-def execute(
+def check(
   ctx, queue, aws_region,
   lease_sec, tally, min_sec,
   exit_on_empty, quiet, num_tasks,

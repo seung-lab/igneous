@@ -196,11 +196,17 @@ class SkeletonTask(RegisteredTask):
     delta = int(self.cross_sectional_area_shape_delta)
 
     big_bbox = bbox.clone()
-    big_bbox.maxpt += delta
-    big_bbox.minpt -= delta
+    big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
 
-    all_labels = vol[big_bbox][...,0]
+    huge_bbox = big_bbox.clone()
+    huge_bbox.grow(int(np.max(bbox.size()) / 2) + 1)
+    mem_vol = vol.image.memory_cutout(
+      huge_bbox, mip=vol.mip, 
+      encoding="crackle", compress=False
+    )
+
+    all_labels = mem_vol[big_bbox][...,0]
 
     delta = bbox.minpt - big_bbox.minpt
 
@@ -227,7 +233,7 @@ class SkeletonTask(RegisteredTask):
     for skel in skeletons.values():
       skel.vertices -= delta * vol.resolution
 
-    return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+    return self.repair_cross_sectional_area_contacts(mem_vol, bbox, skeletons)
 
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
     from dbscan import DBSCAN

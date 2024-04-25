@@ -1,5 +1,6 @@
 from collections import defaultdict
 import copy
+import itertools
 from functools import reduce, partial
 import re
 from typing import Any, Dict, Tuple, cast, Optional, Iterator, Union
@@ -19,7 +20,8 @@ from cloudfiles import CloudFiles
 from igneous.tasks import ( 
   SkeletonTask, UnshardedSkeletonMergeTask, 
   ShardedSkeletonMergeTask, DeleteSkeletonFilesTask,
-  ShardedFromUnshardedSkeletonMergeTask, SpatialIndexTask
+  ShardedFromUnshardedSkeletonMergeTask, SpatialIndexTask,
+  TransferSkeletonFilesTask
 )
 
 from .common import (

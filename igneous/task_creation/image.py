@@ -209,11 +209,13 @@ def create_downsampling_tasks(
   encoding_level:Optional[int] = None,
 ):
   """
+  Creates a set of unsharded downsampling tasks and inserts them into the queue.
+
   mip: Download this mip level, writes to mip levels greater than this one.
   fill_missing: interpret missing chunks as black instead of issuing an EmptyVolumeException
   axis: technically 'x' and 'y' are supported, but no one uses them.
   num_mips: download a block chunk * 2**num_mips size and generate num_mips mips. If you have
-    memory problems, try reducing this number. Overrides memory target when specified.
+    memory problems, try reducing this number.
   preserve_chunk_size: if true, maintain chunk size of starting mip, else, find the closest
     evenly divisible chunk size to 64,64,64 for this shape and use that. The latter can be
     useful when mip 0 uses huge chunks and you want to simply visualize the upper mips.
@@ -253,9 +255,10 @@ def create_downsampling_tasks(
       num_mips = viable_mips
 
     if viable_mips < num_mips:
-      raise ValueError(
-        f"Memory limit ({memory_target} bytes) too low to "
-        f"compute {num_mips} mips at a time. {viable_mips} mips possible.")
+      print(yellow(
+        f"WARNING: Memory limit ({memory_target} bytes) too low to "
+        f"compute {num_mips} mips at a time. {viable_mips} mips possible."
+      ))
 
     shape.x *= factor[0] ** viable_mips
     shape.y *= factor[1] ** viable_mips

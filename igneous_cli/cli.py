@@ -1165,7 +1165,7 @@ def skeletongroup():
 
 @skeletongroup.command("forge")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Perform skeletonizing using this level of the image pyramid.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=(512, 512, 512), help="Set the task shape in voxels.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)

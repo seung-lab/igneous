@@ -82,6 +82,8 @@ This procedure is more robust as tasks can be restarted if they fail. The queue 
 
 This mode is very new, so please report any issues. You can read about the queue design [here](https://github.com/seung-lab/python-task-queue/wiki/FileQueue-Design). In particular, we expect you may see problems with NFS or other filesystems that have problems with networked file locking. However, purely local use should generally be issue free. You can read more tips on using FileQueue [here](https://github.com/seung-lab/python-task-queue#notes-on-file-queue). You can remove a FileQueue by deleting its containing directory.
 
+Note that the command line tool `ptq` ("Python Task Queue") is co-installed with Igneous and can be used to monitor queue status using e.g. `ptq status $QUEUENAME`.
+
 #### Producer Script
 
 ```python

@@ -2,7 +2,7 @@ from collections import defaultdict
 import copy
 from functools import reduce, partial
 import re
-from typing import Any, Dict, Tuple, cast, Optional, Iterator, Union
+from typing import Any, Dict, Tuple, cast, Optional, List, Iterator, Sequence, Union
 
 from time import strftime
 
@@ -37,6 +37,26 @@ __all__ = [
   "create_sharded_skeletons_from_unsharded_tasks",
   "create_spatial_index_skeleton_tasks",
 ]
+
+def bounds_from_mesh(
+  vol:CloudVolume, 
+  shape:Sequence[int], 
+  labels:List[int],
+) -> Bbox:
+  """Estimate the bounding box of a label from its mesh if available."""
+  bbxes = []
+  for label in labels:
+    mesh = vol.mesh.get(labels)[label]
+    if mesh is None:
+      raise ValueError(f"Mesh {label} is not available.")
+
+    bounds = Bbox.from_points(mesh.vertices // vol.resolution)
+    bounds.grow(1)
+    bounds = bounds.expand_to_chunk_size(shape, offset=vol.voxel_offset)
+    bbxes.append(bounds)
+
+  bounds = Bbox.expand(*bbxes)
+  return Bbox.clamp(bounds, vol.bounds)
 
 def create_skeletonizing_tasks(
     cloudpath, mip, 
@@ -181,6 +201,20 @@ def create_skeletonizing_tasks(
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
   bounds = vol.bounds.clone()
+
+  # this should probably be a cloudvolume feature:
+  # estimate the bounding box of an object using whatever
+  # is available: meshes, skeletons, spatial index, etc
+  if (
+    vol.info.get("mesh", None) 
+    and object_ids is not None
+    and hasattr(object_ids, "__len__") 
+    and len(object_ids) < 5
+  ):
+    try:
+      bounds = bounds_from_mesh(vol, shape, object_ids)
+    except ValueError: # if one of the meshes is None, then we can't make assumptions
+      pass
 
   class SkeletonTaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):

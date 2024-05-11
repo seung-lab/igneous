@@ -7,7 +7,6 @@ import itertools
 import json
 import math
 import os
-import pickle
 import random
 import re
 import struct
@@ -393,7 +392,6 @@ def collect_mesh_fragments(
   def process_shardfile(item):
     filename, content = item
     fragment = MapBuffer(content, frombytesfn=Mesh.from_precomputed)
-    fragment.validate()
 
     for label in labels:
       try:

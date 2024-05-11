@@ -603,11 +603,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         } 
       
       for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not self.progress)):
-        try:
-          fragment = MapBuffer(content, frombytesfn=Skeleton.from_precomputed)
-          fragment.validate()
-        except mapbuffer.ValidationError:
-          fragment = pickle.loads(content)
+        fragment = MapBuffer(content, frombytesfn=Skeleton.from_precomputed)
 
         for label in labels:
           try:

@@ -21,7 +21,7 @@ from cloudfiles import CloudFiles, CloudFile
 
 import cloudvolume
 from cloudvolume import CloudVolume, Skeleton, paths
-from cloudvolume.lib import Vec, Bbox, sip
+from cloudvolume.lib import Vec, Bbox, sip, xyzrange
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
 import cc3d

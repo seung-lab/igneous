@@ -118,8 +118,6 @@ class SkeletonTask(RegisteredTask):
       info=self.info, cdn_cache=False,
       parallel=self.parallel, 
       fill_missing=self.fill_missing,
-      agglomerate=True,
-      timestamp=timestamp,
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
@@ -130,7 +128,11 @@ class SkeletonTask(RegisteredTask):
     else:
       path = CloudFiles(self.frag_path).join(path)
 
-    all_labels = vol[ bbox.to_slices() ]
+    all_labels = vol.download(
+      bbox.to_slices(), 
+      agglomerate=True, 
+      timestamp=self.timestamp
+    )
     all_labels = all_labels[:,:,:,0]
 
     if self.mask_ids:

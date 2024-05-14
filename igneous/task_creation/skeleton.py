@@ -272,6 +272,8 @@ def create_skeletonizing_tasks(
         dust_global=dust_global,
         fix_autapses=bool(fix_autapses),
         timestamp=timestamp,
+        cross_sectional_area=bool(cross_sectional_area),
+        cross_sectional_area_smoothing_window=int(cross_sectional_area_smoothing_window),
       )
 
     def synapses_for_bbox(self, shape, offset):

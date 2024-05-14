@@ -107,6 +107,8 @@ class SkeletonTask(RegisteredTask):
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
     )
+    if isinstance(self.frag_path, str):
+      self.frag_path = cloudfiles.paths.normalize(self.frag_path)
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
 
@@ -123,7 +125,10 @@ class SkeletonTask(RegisteredTask):
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
 
     path = skeldir(self.cloudpath)
-    path = os.path.join(self.cloudpath, path)
+    if self.frag_path is None:
+      path = vol.meta.join(self.cloudpath, path)
+    else:
+      path = CloudFiles(self.frag_path).join(path)
 
     all_labels = vol[ bbox.to_slices() ]
     all_labels = all_labels[:,:,:,0]
@@ -191,10 +196,7 @@ class SkeletonTask(RegisteredTask):
       return skeletons
 
     if self.sharded:
-      if self.frag_path:
-        self.upload_batch(vol, os.path.join(self.frag_path, skeldir(self.cloudpath)), index_bbox, skeletons)
-      else:
-        self.upload_batch(vol, path, index_bbox, skeletons)
+      self.upload_batch(vol, path, index_bbox, skeletons)
     else:
       self.upload_individuals(vol, path, bbox, skeletons)
 

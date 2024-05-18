@@ -206,7 +206,7 @@ class SkeletonTask(RegisteredTask):
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
 
   def voxel_connectivity_graph(self, vol:CloudVolume, bbox:Bbox) -> np.ndarray:
-    layer_2 = vol.download(bbox, stop_layer=2, agglomerate=True)
+    layer_2 = vol.download(bbox, stop_layer=2, agglomerate=True, timestamp=self.timestamp)
 
     shape = bbox.size()[:3]
     sgx, sgy, sgz = list(np.ceil(shape / vol.meta.graph_chunk_size).astype(int))

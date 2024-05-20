@@ -166,8 +166,11 @@ def create_touch_tasks(
 
   return TouchTaskIterator(bounds, shape)
 
-def num_mips_from_memory_target(memory_target, dtype, chunk_size, factor):
-  num_voxels = memory_target / np.dtype(dtype).itemsize
+def num_mips_from_memory_target(
+  memory_target:int, dtype, chunk_size, 
+  num_channels:int, factor
+) -> int:
+  num_voxels = memory_target / np.dtype(dtype).itemsize / num_channels
   num_chunks = num_voxels // reduce(operator.mul, chunk_size)
 
   total_factor = reduce(operator.mul, factor)
@@ -248,7 +251,7 @@ def create_downsampling_tasks(
       factor = downsample_scales.axis_to_factor(axis)
 
     viable_mips = num_mips_from_memory_target(
-      memory_target, vol.dtype, shape, factor
+      memory_target, vol.dtype, shape, vol.num_channels, factor
     )
 
     if num_mips is None:

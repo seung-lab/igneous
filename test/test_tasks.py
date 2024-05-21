@@ -574,48 +574,49 @@ def test_num_mips_from_memory_target():
     memory = 0
     chunk_size = (128,128,64)
     factor = (2,2,1)
+    num_channels = 1
 
-    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, num_channels, factor)
     assert num_mips == 1
 
     memory = 100e6
-    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, num_channels, factor)
     assert num_mips == 3
 
     memory = 100e6
-    num_mips = num_mips_from_memory_target(memory, 'uint16', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint16', chunk_size, num_channels, factor)
     assert num_mips == 2
 
     memory = 100e6
-    num_mips = num_mips_from_memory_target(memory, 'uint32', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint32', chunk_size, num_channels, factor)
     assert num_mips == 2
 
     memory = 100e6
-    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, num_channels, factor)
     assert num_mips == 1
 
     memory = 3.5e9
-    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, num_channels, factor)
     assert num_mips == 4
 
     memory = 12e9
-    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint64', chunk_size, num_channels, factor)
     assert num_mips == 5
 
     factor = (2,2,2)
 
     memory = 800e6
-    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, num_channels, factor)
     assert num_mips == 3
 
     memory = 500e6
-    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, num_channels, factor)
     assert num_mips == 2
 
     memory = 100e6
-    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, num_channels, factor)
     assert num_mips == 2
 
     memory = 50e6
-    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, factor)
+    num_mips = num_mips_from_memory_target(memory, 'uint8', chunk_size, num_channels, factor)
     assert num_mips == 1

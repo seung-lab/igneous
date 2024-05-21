@@ -39,7 +39,7 @@ from igneous.tasks import (
 )
 
 from igneous.shards import image_shard_shape_from_spec
-from igneous.types import ShapeType
+from igneous.types import ShapeType, DownsampleMethods
 
 from .common import (
   operator_contact, FinelyDividedTaskIterator, 
@@ -210,6 +210,7 @@ def create_downsampling_tasks(
   bounds_mip:int = 0,
   memory_target:int = MEMORY_TARGET,
   encoding_level:Optional[int] = None,
+  method:int = DownsampleMethods.AUTO,
 ):
   """
   Creates a set of unsharded downsampling tasks and inserts them into the queue.
@@ -307,6 +308,7 @@ def create_downsampling_tasks(
         compress=compress,
         factor=factor,
         max_mips=num_mips,
+        method=method,
       )
 
     def on_finish(self):
@@ -329,6 +331,7 @@ def create_downsampling_tasks(
           'dest_path': dest_path,
           'compress': compress,
           'factor': (tuple(factor) if factor else None),
+          'method': method,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),
@@ -605,6 +608,7 @@ def create_image_shard_downsample_tasks(
   agglomerate=False, timestamp=None,
   factor=(2,2,1), bounds=None, bounds_mip=0,
   encoding_level:Optional[int] = None,
+  method=DownsampleMethods.AUTO,
 ):
   """
   Downsamples an existing image layer that may be
@@ -652,6 +656,7 @@ def create_image_shard_downsample_tasks(
         agglomerate=bool(agglomerate),
         timestamp=timestamp,
         factor=tuple(factor),
+        method=method,
       )
 
     def on_finish(self):
@@ -666,6 +671,7 @@ def create_image_shard_downsample_tasks(
           "mip": mip,
           "agglomerate": agglomerate,
           "timestamp": timestamp,
+          "method": method,
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),
@@ -806,6 +812,7 @@ def create_transfer_tasks(
   truncate_scales:bool = True,
   cutout:bool = False,
   stop_layer:Optional[int] = None,
+  downsample_method:int = DownsampleMethods.AUTO,
 ) -> Iterator:
   """
   Transfer data to a new data layer. You can use this operation
@@ -970,6 +977,7 @@ def create_transfer_tasks(
         factor=factor,
         sparse=sparse,
         stop_layer=stop_layer,
+        downsample_method=int(downsample_method),
       )
 
     def on_finish(self):
@@ -998,6 +1006,7 @@ def create_transfer_tasks(
           'sparse': bool(sparse),
           'encoding_level': encoding_level,
           'stop_layer': stop_layer,
+          'downsample_method': int(downsample_method),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

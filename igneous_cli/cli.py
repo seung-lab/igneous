@@ -23,6 +23,7 @@ from tqdm import tqdm
 from igneous import task_creation as tc
 from igneous import downsample_scales
 from igneous.secrets import LEASE_SECONDS, SQS_REGION_NAME
+from igneous.types import DownsampleMethods
 
 from igneous_cli.humanbytes import format_bytes
 
@@ -123,6 +124,24 @@ class CloudPath(click.ParamType):
   def convert(self, value, param, ctx):
     return cloudfiles.paths.normalize(value)
 
+class DownsampleMethodType(click.ParamType):
+  name = "DownsampleMethod"
+  def convert(self, value, param, ctx):
+    if value == "auto":
+      return DownsampleMethods.AUTO
+    elif value == "avg":
+      return DownsampleMethods.AVERAGE_POOLING
+    elif value == "mode":
+      return DownsampleMethods.MODE_POOLING
+    elif value == "min":
+      return DownsampleMethods.MIN_POOLING
+    elif value == "max":
+      return DownsampleMethods.MAX_POOLING
+    elif value == "striding":
+      return DownsampleMethods.STRIDING
+    else:
+      raise ValueError(f"Downsample method {value} not supported.")
+
 def compute_bounds(path, mip, xrange, yrange, zrange):
   bounds = None
   if xrange or yrange or zrange:
@@ -208,6 +227,7 @@ def imagegroup():
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background. Default: 0")
 @click.option('--sharded', is_flag=True, default=False, help="Generate sharded downsamples which reduces the number of files.")
 @click.option('--memory', default=3.5e9, type=int, help="(sharded only) Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
+@click.option('--method', default="auto", type=DownsampleMethodType(), help="Select the downsample method type. Options: auto, avg, mode, min, max, striding", show_default=True)
 @click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for downsampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1024.", show_default=True)
 @click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for downsampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1024", show_default=True)
 @click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for downsampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1", show_default=True)
@@ -217,7 +237,7 @@ def downsample(
   num_mips, encoding, encoding_level, sparse, 
   chunk_size, compress, volumetric,
   delete_bg, bg_color, sharded, memory,
-  xrange, yrange, zrange, 
+  xrange, yrange, zrange, method,
 ):
   """
   Create an image pyramid for grayscale or labeled images.
@@ -250,7 +270,7 @@ def downsample(
       sparse=sparse, chunk_size=chunk_size,
       encoding=encoding, memory_target=memory,
       factor=factor, bounds=bounds, bounds_mip=mip,
-      encoding_level=encoding_level,
+      encoding_level=encoding_level, method=method,
     )
   else:
     tasks = tc.create_downsampling_tasks(
@@ -264,6 +284,7 @@ def downsample(
       bounds_mip=mip,
       memory_target=memory,
       encoding_level=encoding_level,
+      downsample_method=method,
     )
 
   enqueue_tasks(ctx, queue, tasks)

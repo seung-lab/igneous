@@ -18,7 +18,7 @@ pytest>=3.3.1
 pytz
 scipy
 shard-computer
-tinybrain>=1.15.0
+tinybrain>=1.5.0
 task-queue>=2.4.0
 tqdm
 trimesh[easy]

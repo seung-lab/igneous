@@ -33,6 +33,26 @@ from .obsolete import (
   MaskAffinitymapTask, InferenceTask
 )
 
+def downsample_method_to_fn(method, sparse, vol):
+  if method == DownsampleMethods.AUTO:
+    if vol.layer_type == 'image':
+      method = DownsampleMethods.AVERAGE_POOLING
+    elif vol.layer_type == 'segmentation':
+      method = DownsampleMethods.MODE_POOLING
+    else:
+      method = DownsampleMethods.STRIDING
+
+  if method == DownsampleMethods.MIN_POOLING:
+    return tinybrain.downsample_with_min_pooling
+  elif method == DownsampleMethods.MAX_POOLING:
+    return tinybrain.downsample_with_max_pooling
+  elif method == DownsampleMethods.AVERAGE_POOLING:
+    return partial(tinybrain.downsample_with_averaging, sparse=sparse)
+  elif method == DownsampleMethods.MODE_POOLING:
+    return partial(tinybrain.downsample_segmentation, sparse=sparse)
+  else:
+    return tinybrain.downsample_with_striding
+
 def downsample_and_upload(
   image, bounds, vol, ds_shape,
   mip=0, axis='z', skip_first=False,
@@ -66,37 +86,9 @@ def downsample_and_upload(
 
     mips = []
 
-    if method == DownsampleMethods.AUTO:
-      if vol.layer_type == 'image':
-        method = DownsampleMethods.AVERAGE_POOLING
-      elif vol.layer_type == 'segmentation':
-        method = DownsampleMethods.MODE_POOLING
-      else:
-        method = DownsampleMethods.STRIDING
-
-    if method == DownsampleMethods.MIN_POOLING:
-      mips = tinybrain.downsample_with_min_pooling(
-        image, factors[0], num_mips=num_mips
-      )
-    elif method == DownsampleMethods.MAX_POOLING:
-      mips = tinybrain.downsample_with_max_pooling(
-        image, factors[0], num_mips=num_mips
-      )
-    elif method == DownsampleMethods.AVERAGE_POOLING:
-      mips = tinybrain.downsample_with_averaging(
-        image, factors[0], 
-        num_mips=num_mips, sparse=sparse
-      )
-    elif method == DownsampleMethods.MODE_POOLING:
-      mips = tinybrain.downsample_segmentation(
-        image, factors[0],
-        num_mips=num_mips, sparse=sparse
-      )
-    else:
-      mips = tinybrain.downsample_with_striding(
-        image, factors[0], num_mips=num_mips
-      )
-    
+    fn = downsample_method_to_fn(method, sparse, vol)
+    mips = fn(image, factors[0], num_mips=num_mips)
+        
     new_bounds = bounds.clone()
 
     for factor3 in factors:
@@ -621,26 +613,6 @@ def ImageShardTransferTask(
 
     dst_fullpath = fullpathfn(dst_vol, filename)
     CloudFile(dst_fullpath).put(shard)
-
-def downsample_method_to_fn(method, sparse, vol):
-  if method == DownsampleMethods.AUTO:
-    if vol.layer_type == 'image':
-      method = DownsampleMethods.AVERAGE_POOLING
-    elif vol.layer_type == 'segmentation':
-      method = DownsampleMethods.MODE_POOLING
-    else:
-      method = DownsampleMethods.STRIDING
-
-  if method == DownsampleMethods.MIN_POOLING:
-    return tinybrain.downsample_with_min_pooling
-  elif method == DownsampleMethods.MAX_POOLING:
-    return tinybrain.downsample_with_max_pooling
-  elif method == DownsampleMethods.AVERAGE_POOLING:
-    return partial(tinybrain.downsample_with_averaging, sparse=sparse)
-  elif method == DownsampleMethods.MODE_POOLING:
-    return partial(tinybrain.downsample_segmentation, sparse=sparse)
-  else:
-    return tinybrain.downsample_with_striding
 
 @queueable
 def ImageShardDownsampleTask(

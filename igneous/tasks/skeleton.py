@@ -151,7 +151,7 @@ class SkeletonTask(RegisteredTask):
 
     voxel_graph = None
     if self.fix_autapses:
-      voxel_graph = self.voxel_connectivity_graph(vol, bbox)
+      voxel_graph = self.voxel_connectivity_graph(vol, bbox, all_labels)
 
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
@@ -205,8 +205,18 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
 
-  def voxel_connectivity_graph(self, vol:CloudVolume, bbox:Bbox) -> np.ndarray:
-    layer_2 = vol.download(bbox, stop_layer=2, agglomerate=True, timestamp=self.timestamp)
+  def voxel_connectivity_graph(
+    self, 
+    vol:CloudVolume, 
+    bbox:Bbox, 
+    root_labels:np.ndarray,
+  ) -> np.ndarray:
+    layer_2 = vol.download(
+      bbox, 
+      stop_layer=2,
+      agglomerate=True,
+      timestamp=self.timestamp
+    )
 
     shape = bbox.size()[:3]
     sgx, sgy, sgz = list(np.ceil(shape / vol.meta.graph_chunk_size).astype(int))
@@ -221,6 +231,35 @@ class SkeletonTask(RegisteredTask):
       cutout = np.asfortranarray(layer_2[bbx.to_slices()])
       vcg_cutout = cc3d.voxel_connectivity_graph(cutout, connectivity=26)
       vcg[bbx.to_slices()] = vcg_cutout
+      del vcg_cutout
+
+    del layer_2
+
+    # the proper way to do this would be to get the lowest the L3..LN root
+    # as needed, but the lazy way to do this is to get the root labels
+    # which will retain a few errors, but overall the error rate should be
+    # over 100x less. We need to shade in the sides of the connectivity graph
+    # with edges that represent the connections between the adjacent boxes.
+
+    root_vcg = cc3d.voxel_connectivity_graph(root_labels, connectivity=26)
+
+    for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
+      bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
+      bbx *= vol.meta.graph_chunk_size
+      bbx = Bbox.clamp(bbx, (0,0,0), shape)
+
+      slicearr = []
+      for i in range(3):
+        bbx1 = bbx.clone()
+        bbx1.maxpt[i] = bbx1.minpt[i] + 1
+        slicearr.append(bbx1)
+
+        bbx1 = bbx.clone()
+        bbx1.minpt[i] = bbx1.maxpt[i] - 1
+        slicearr.append(bbx1)
+
+      for bbx1 in slicearr:
+        vcg[bbx1.to_slices()] = root_vcg[bbx1.to_slices()] 
 
     return vcg
 

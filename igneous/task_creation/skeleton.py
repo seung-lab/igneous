@@ -58,6 +58,7 @@ def bounds_from_mesh(
     bbxes.append(bounds)
 
   bounds = Bbox.expand(*bbxes)
+  bounds = bounds.expand_to_chunk_size(shape, offset=vol.voxel_offset)
   return Bbox.clamp(bounds, vol.bounds)
 
 def create_skeletonizing_tasks(

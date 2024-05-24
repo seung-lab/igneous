@@ -40,15 +40,6 @@ def filename_to_segid(filename):
   segid, = matches.groups()
   return int(segid)
 
-def skeldir(cloudpath):
-  cf = CloudFiles(cloudpath)
-  info = cf.get_json('info')
-
-  skel_dir = 'skeletons/'
-  if 'skeletons' in info:
-    skel_dir = info['skeletons']
-  return skel_dir
-
 def strip_integer_attributes(skeletons):
   for skel in skeletons:
     skel.extra_attributes = [ 
@@ -122,7 +113,7 @@ class SkeletonTask(RegisteredTask):
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
 
-    path = skeldir(self.cloudpath)
+    path = vol.info.get("skeletons", "skeletons")
     if self.frag_path is None:
       path = vol.meta.join(self.cloudpath, path)
     else:

@@ -209,8 +209,11 @@ class SkeletonTask(RegisteredTask):
       timestamp=self.timestamp
     )
 
+    graph_chunk_size = np.array(vol.meta.graph_chunk_size) / vol.meta.downsample_ratio(vol.mip)
+    graph_chunk_size = graph_chunk_size.astype(int)
+
     shape = bbox.size()[:3]
-    sgx, sgy, sgz = list(np.ceil(shape / vol.meta.graph_chunk_size).astype(int))
+    sgx, sgy, sgz = list(np.ceil(shape / graph_chunk_size).astype(int))
 
     vcg = np.zeros(layer_2.shape[:3], dtype=np.uint32, order="F")
 
@@ -218,7 +221,7 @@ class SkeletonTask(RegisteredTask):
 
     for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
       bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
-      bbx *= vol.meta.graph_chunk_size
+      bbx *= graph_chunk_size
       bbx = Bbox.clamp(bbx, clamp_box)
 
       cutout = np.asfortranarray(layer_2[bbx.to_slices()][:,:,:,0])
@@ -238,7 +241,7 @@ class SkeletonTask(RegisteredTask):
 
     for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
       bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
-      bbx *= vol.meta.graph_chunk_size
+      bbx *= graph_chunk_size
       bbx = Bbox.clamp(bbx, clamp_box)
 
       slicearr = []

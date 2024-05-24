@@ -117,7 +117,7 @@ class SkeletonTask(RegisteredTask):
     if self.frag_path is None:
       path = vol.meta.join(self.cloudpath, path)
     else:
-      path = CloudFiles(self.frag_path).join(path)
+      path = CloudFiles(self.frag_path).join(self.frag_path, path)
 
     all_labels = vol.download(
       bbox.to_slices(), 

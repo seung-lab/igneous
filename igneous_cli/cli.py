@@ -1181,6 +1181,7 @@ def skeletongroup():
 @click.option('--fix-branching', is_flag=True, default=True, help="Trades speed for quality of branching at forks.", show_default=True)
 @click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task.", show_default=True)
 @click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
+@click.option('--fix-autapses', is_flag=True, default=False, help="(graphene only) Fixes autapses by using the PyChunkGraph.", show_default=True)
 @click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions.", show_default=True)
 @click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
 @click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
@@ -1195,14 +1196,15 @@ def skeletongroup():
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
 @click.option('--labels', type=TupleN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
+@click.option('--output', '-o', type=CloudPath(), default=None, help="Output the results to a different place.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
   fill_missing, dust_threshold, dust_global, spatial_index,
-  fix_branching, fix_borders, fix_avocados, 
+  fix_branching, fix_borders, fix_avocados, fix_autapses,
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
-  cross_section,
+  cross_section, output,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1247,6 +1249,7 @@ def skeleton_forge(
     dust_global=dust_global, object_ids=labels,
     cross_sectional_area=(cross_section > 0),
     cross_sectional_area_smoothing_window=int(cross_section),
+    frag_path=output, fix_autapses=fix_autapses,
   )
 
   enqueue_tasks(ctx, queue, tasks)

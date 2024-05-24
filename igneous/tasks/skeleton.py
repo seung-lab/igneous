@@ -212,14 +212,16 @@ class SkeletonTask(RegisteredTask):
     shape = bbox.size()[:3]
     sgx, sgy, sgz = list(np.ceil(shape / vol.meta.graph_chunk_size).astype(int))
 
-    vcg = np.zeros(layer_2.shape, dtype=np.uint32, order="F")
+    vcg = np.zeros(layer_2.shape[:3], dtype=np.uint32, order="F")
+
+    clamp_box = Bbox([0,0,0], shape)
 
     for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
       bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
       bbx *= vol.meta.graph_chunk_size
-      bbx = Bbox.clamp(bbx, (0,0,0), shape)
+      bbx = Bbox.clamp(bbx, clamp_box)
 
-      cutout = np.asfortranarray(layer_2[bbx.to_slices()])
+      cutout = np.asfortranarray(layer_2[bbx.to_slices()][:,:,:,0])
       vcg_cutout = cc3d.voxel_connectivity_graph(cutout, connectivity=26)
       vcg[bbx.to_slices()] = vcg_cutout
       del vcg_cutout
@@ -237,7 +239,7 @@ class SkeletonTask(RegisteredTask):
     for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
       bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
       bbx *= vol.meta.graph_chunk_size
-      bbx = Bbox.clamp(bbx, (0,0,0), shape)
+      bbx = Bbox.clamp(bbx, clamp_box)
 
       slicearr = []
       for i in range(3):

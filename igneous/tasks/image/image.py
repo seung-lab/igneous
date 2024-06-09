@@ -673,7 +673,7 @@ def ImageShardDownsampleTask(
   output_img = np.zeros(shard_shape, dtype=src_vol.dtype, order="F")
   nz = int(math.ceil(bbox.dz / (chunk_size.z * factor[2])))
 
-  dsfn = downsample_method_to_fn(method, sparse, vol)
+  dsfn = downsample_method_to_fn(method, sparse, src_vol)
 
   zbox = bbox.clone()
   zbox.maxpt.z = zbox.minpt.z + (chunk_size.z * factor[2])

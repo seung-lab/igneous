@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from cloudfiles import CloudFiles, CloudFile
 
-from cloudvolume import CloudVolume, Mesh, view, paths
+from cloudvolume import CloudVolume, Mesh, paths
 from cloudvolume.lib import Vec, Bbox, jsonify, sip, toiter, first
 from cloudvolume.datasource.precomputed.mesh.multilod \
   import MultiLevelPrecomputedMeshManifest, to_stored_model_space

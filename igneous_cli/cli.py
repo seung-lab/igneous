@@ -605,8 +605,8 @@ def cclgroup():
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -631,8 +631,8 @@ def ccl_faces(
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -670,8 +670,8 @@ def ccl_calc_labels(ctx, src, mip, shape):
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--encoding', type=EncodingType(), default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -712,8 +712,8 @@ def ccl_clean(src, mip):
 @click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--clean/--no-clean', default=True, is_flag=True, help="Delete intermediate files on completion.", show_default=True)
-@click.option('--threshold-gte', default=None, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context

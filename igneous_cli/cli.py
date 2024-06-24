@@ -318,6 +318,7 @@ def downsample(
 @click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
 @click.option('--bounds-mip', default=None, type=int, help="Which mip level are xrange, yrange, and zrange specified in?", show_default=True)
 @click.option('--cutout', is_flag=True, default=False, help="If bounds are specified and creating a new volume, restrict the new volume to the specified bounds.", show_default=True)
+@click.option('--downsample-method', default="auto", type=DownsampleMethodType(), help="Select the downsample method type. Options: auto, avg, mode, min, max, striding", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, 
@@ -327,7 +328,8 @@ def xfer(
   volumetric, delete_bg, bg_color, sharded,
   dest_voxel_offset, clean_info, no_src_update,
   truncate_scales, 
-  xrange, yrange, zrange, bounds_mip, cutout
+  xrange, yrange, zrange, bounds_mip, cutout, 
+  downsample_method
 ):
   """
   Copy, re-encode, or shard an image layer.
@@ -383,6 +385,7 @@ def xfer(
       clean_info=clean_info, no_src_update=no_src_update,
       encoding_level=encoding_level, truncate_scales=truncate_scales,
       bounds=bounds, bounds_mip=bounds_mip, cutout=cutout,
+      downsample_method=downsample_method,
     )
 
   enqueue_tasks(ctx, queue, tasks)

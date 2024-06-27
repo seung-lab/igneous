@@ -1618,7 +1618,7 @@ void main() {
     "layers": [
       {
         "type": cv.layer_type,
-        "source": f"precomputed://{cloudpath}",
+        "source": f"{cv.meta.path.format}://{cloudpath}",
         "tab": "source",
         "name": layer_name
       }

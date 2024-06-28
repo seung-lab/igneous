@@ -284,7 +284,7 @@ def downsample(
       bounds_mip=mip,
       memory_target=memory,
       encoding_level=encoding_level,
-      downsample_method=method,
+      method=method,
     )
 
   enqueue_tasks(ctx, queue, tasks)

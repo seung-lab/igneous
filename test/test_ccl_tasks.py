@@ -7,7 +7,7 @@ import os.path
 import shutil
 
 import numpy as np
-from cloudvolume import CloudVolume, EmptyVolumeException, view
+from cloudvolume import CloudVolume, EmptyVolumeException
 import cloudvolume.lib as lib
 from cloudfiles import CloudFiles
 from taskqueue import MockTaskQueue, TaskQueue

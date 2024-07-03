@@ -1614,7 +1614,30 @@ void main() {
     cloudpath = cv.cloudpath
     layer_name = posixpath.basename(cloudpath)
 
+  res = cv.meta.resolution(0)
+
+  dimensions = {
+    "x": [
+      res.x,
+      "nm"
+    ],
+    "y": [
+      res.y,
+      "nm"
+    ],
+    "z": [
+      res.z,
+      "nm"
+    ],
+  }
+
+  if cv.meta.path.format == "zarr":
+    dimensions["t"] = [
+      cv.meta.time_resolution_in_seconds(0), "s"
+    ]
+
   config = {
+    "dimensions": dimensions,
     "layers": [
       {
         "type": cv.layer_type,

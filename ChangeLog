@@ -1,6 +1,52 @@
 CHANGES
 =======
 
+4.25.0
+------
+
+* release(4.25.0): zarr support, downsample method selection
+* install: bump cloudvolume version
+* feat: zarr volumes should display x,y,z,c,t instead of t,c,z,y,x
+* fix: incorrect parameter for downsampling
+* feat: igneous view supports more than precomputed
+* install: ensure forward-compatibility with future cloud-volumes
+* feat: add downsample method support to image xfer
+* fix(cli): show threshold-gte and theshold-lte as integers in --help
+* refactor: remove cloudvolume view import
+* fix: wrong variable name in shard downsample
+
+4.24.0
+------
+
+* release(4.24.0): some fixes, adds min and max pooling to downsampling
+* feat: support min and max pooling for downsampling (#176)
+* Add missing task creation imports to skeleton.py (#174)
+* fix: account for num\_channels in downsample mip calculation
+
+4.23.0
+------
+
+* release(4.23.0): support for cross section analysis on skels
+* docs: mention ptq tool
+* feat: for small numbers of skel labels, estimate bounding box from meshes
+* redesign: remove support for pickled frag files
+* fix: clamp huge\_bbox
+* fix: don't require a queue for skeleton forging
+* redesign: change memory target conflicting with num mips to a warning
+* fix: make error message an f-string
+* fix: don't expand zero-volume sharded downsamples
+* perf: reduce number of external requests with crackle encoded cache
+* fix: target shape centroid and then cluster bad points
+* fix: floating point error downstream of center calculation
+* fix: improve handling of cross sectional area contacts
+* feat: allow skeletons to have integer attributes by setting flag
+* feat: add stop\_layer to TransferTask
+* feat: support stop\_layer for ImageShardTransferTask
+* chore: update changelog
+* refactor: add type annotations to SkeletonTask
+* docs: Fix Typo in README (#170)
+* docs: Update contrast eq command in README (#171)
+
 4.22.1
 ------
 

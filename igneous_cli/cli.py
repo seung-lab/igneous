@@ -11,7 +11,9 @@ import webbrowser
 
 import click
 from cloudvolume import CloudVolume, Bbox
-from cloudvolume.lib import max2
+from cloudvolume.lib import max2, jsonify
+import cloudvolume.paths
+
 from cloudfiles import CloudFiles
 import cloudfiles.paths
 import numpy as np
@@ -1610,6 +1612,9 @@ void main() {
   if cv.meta.path.protocol == "file":
     cloudpath = f"http://localhost:{port}"
     layer_name = "igneous"
+  elif cv.meta.path.protocol in ['matrix', 'tigerdata']:
+    cloudpath = cloudvolume.paths.to_https_protocol(cv.cloudpath)
+    layer_name = posixpath.basename(cloudpath)
   else:
     cloudpath = cv.cloudpath
     layer_name = posixpath.basename(cloudpath)
@@ -1656,7 +1661,7 @@ void main() {
   if cv.num_channels == 3:
     config["layers"][0]["shader"] = rgb_shader
 
-  fragment = urllib.parse.quote(json.dumps(config))
+  fragment = urllib.parse.quote(jsonify(config))
 
   url = f"{ng}#!{fragment}"
   if browser:

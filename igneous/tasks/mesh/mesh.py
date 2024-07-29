@@ -12,7 +12,7 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles, CloudFile
 import cloudfiles.paths
 
-from cloudvolume import CloudVolume, view
+from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, jsonify
 import mapbuffer
 from mapbuffer import MapBuffer, IntMap

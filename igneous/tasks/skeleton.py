@@ -117,7 +117,14 @@ class SkeletonTask(RegisteredTask):
     if self.frag_path is None:
       path = vol.meta.join(self.cloudpath, path)
     else:
-      path = CloudFiles(self.frag_path).join(self.frag_path, path)
+      # if the path is to a volume root, follow the info instructions,
+      # otherwise place the files exactly where frag path says to
+      test_path = CloudFiles(self.frag_path).join(self.frag_path, "info")
+      test_info = CloudFile(test_path).get_json()
+      if test_info is None or 'scales' in test_info:
+        path = CloudFiles(self.frag_path).join(self.frag_path, path)
+      else:
+        path = self.frag_path
 
     all_labels = vol.download(
       bbox.to_slices(), 

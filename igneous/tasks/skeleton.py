@@ -342,6 +342,11 @@ class SkeletonTask(RegisteredTask):
       diff = bbox.minpt - skel_bbx.minpt
       skel.vertices += diff * vol.resolution
 
+      # we binarized the label for memory's sake, 
+      # so need to harmonize that with the skeleton ID
+      segid = skel.id
+      skel.id = 1
+
       kimimaro.cross_sectional_area(
         binary_image, skel,
         anisotropy=vol.resolution,
@@ -351,7 +356,7 @@ class SkeletonTask(RegisteredTask):
         fill_holes=self.fill_holes,
         repair_contacts=True,
       )
-
+      skel.id = segid
       skel.vertices -= diff * vol.resolution
 
     for skel in repair_skels:

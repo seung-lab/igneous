@@ -267,6 +267,9 @@ class SkeletonTask(RegisteredTask):
     return vcg
 
   def compute_cross_sectional_area(self, vol, bbox, skeletons):
+    if len(skeletons) == 0:
+      return skeletons
+
     # Why redownload a bigger image? In order to avoid clipping the
     # cross sectional areas on the edges.
     delta = int(self.cross_sectional_area_shape_delta)

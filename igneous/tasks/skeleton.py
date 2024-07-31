@@ -121,7 +121,7 @@ class SkeletonTask(RegisteredTask):
       # otherwise place the files exactly where frag path says to
       test_path = CloudFiles(self.frag_path).join(self.frag_path, "info")
       test_info = CloudFile(test_path).get_json()
-      if test_info is None or 'scales' in test_info:
+      if test_info is not None and 'scales' in test_info:
         path = CloudFiles(self.frag_path).join(self.frag_path, path)
       else:
         path = self.frag_path

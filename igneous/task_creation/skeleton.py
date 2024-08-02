@@ -15,7 +15,7 @@ import shardcomputer
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 
 from igneous.tasks import ( 
   SkeletonTask, UnshardedSkeletonMergeTask, 
@@ -224,6 +224,15 @@ def create_skeletonizing_tasks(
       })
 
   vol.skeleton.meta.commit_info()
+
+  if frag_path:
+    frag_info_path = CloudFiles(frag_path).join(frag_path, "info")
+    frag_info = CloudFile(frag_info_path).get_json()
+    if not frag_info:
+      CloudFile(frag_info_path).put_json(vol.skeleton.meta.info)
+    elif frag_info["scales"]:
+      frag_info_path = CloudFiles(frag_path).join(frag_path, vol.info["skeletons"], "info")
+      CloudFile(frag_info_path).put_json(vol.skeleton.meta.info)
 
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
   bounds = vol.bounds.clone()

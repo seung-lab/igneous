@@ -230,7 +230,7 @@ def create_skeletonizing_tasks(
     frag_info = CloudFile(frag_info_path).get_json()
     if not frag_info:
       CloudFile(frag_info_path).put_json(vol.skeleton.meta.info)
-    elif frag_info["scales"]:
+    elif 'scales' in frag_info:
       frag_info_path = CloudFiles(frag_path).join(frag_path, vol.info["skeletons"], "info")
       CloudFile(frag_info_path).put_json(vol.skeleton.meta.info)
 

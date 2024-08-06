@@ -282,9 +282,13 @@ class SkeletonTask(RegisteredTask):
     huge_bbox.grow(int(np.max(bbox.size()) / 2) + 1)
     huge_bbox = Bbox.clamp(huge_bbox, vol.bounds)
     
-    mem_vol = vol.image.memory_cutout(
-      huge_bbox, mip=vol.mip, 
-      encoding="crackle", compress=False
+    mem_vol = vol.memory_cutout(
+      huge_bbox, 
+      mip=vol.mip, 
+      encoding="crackle",
+      compress=False,
+      agglomerate=True,
+      timestamp=self.timestamp,
     )
 
     all_labels = mem_vol[big_bbox][...,0]

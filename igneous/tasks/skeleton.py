@@ -83,6 +83,7 @@ class SkeletonTask(RegisteredTask):
     strip_integer_attributes:bool = True,
     fix_autapses:bool = False,
     timestamp:Optional[int] = None,
+    root_ids_cloudpath:Optional[str] = None,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -97,6 +98,7 @@ class SkeletonTask(RegisteredTask):
       int(cross_sectional_area_shape_delta),
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
+      root_ids_cloudpath,
     )
     if isinstance(self.frag_path, str):
       self.frag_path = cloudfiles.paths.normalize(self.frag_path)
@@ -104,8 +106,15 @@ class SkeletonTask(RegisteredTask):
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
 
   def execute(self):
+    # For graphene volumes, if we've materialized the root IDs
+    # into a static archive, let's use that because it's way more
+    # efficient for fetching root IDs.
+    cloudpath = self.cloudpath
+    if self.root_ids_cloudpath:
+      cloudpath = self.root_ids_cloudpath
+
     vol = CloudVolume(
-      self.cloudpath, mip=self.mip, 
+      cloudpath, mip=self.mip, 
       info=self.info, cdn_cache=False,
       parallel=self.parallel, 
       fill_missing=self.fill_missing,
@@ -209,6 +218,18 @@ class SkeletonTask(RegisteredTask):
     bbox:Bbox, 
     root_labels:np.ndarray,
   ) -> np.ndarray:
+
+    if vol.meta.path.format != "graphene":
+      vol = CloudVolume(
+        self.cloudpath, mip=self.mip, 
+        info=self.info, cdn_cache=False,
+        parallel=self.parallel, 
+        fill_missing=self.fill_missing,
+      )
+
+    if vol.meta.path.format != "graphene":
+      raise ValueError("Can't extract a voxel connectivity graph from non-graphene volumes.")
+
     layer_2 = vol.download(
       bbox, 
       stop_layer=2,

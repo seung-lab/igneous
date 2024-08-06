@@ -76,6 +76,7 @@ def create_skeletonizing_tasks(
     cross_sectional_area=False,
     cross_sectional_area_smoothing_window=5,
     timestamp=None,
+    root_ids_cloudpath=None,
   ):
   """
   Assign tasks with one voxel overlap in a regular grid 
@@ -169,6 +170,9 @@ def create_skeletonizing_tasks(
   cross_sectional_area_smoothing_window: Perform a rolling average of the 
     normal vectors across these many vectors.
   timestamp: for graphene volumes only, you can specify the timepoint to use
+  root_ids_cloudpath: for graphene volumes, if you have a materialized archive
+    if your desired timepoint, you can use this path for fetching root ID 
+    segmentation as it is far more efficient.
   """
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -284,6 +288,7 @@ def create_skeletonizing_tasks(
         timestamp=timestamp,
         cross_sectional_area=bool(cross_sectional_area),
         cross_sectional_area_smoothing_window=int(cross_sectional_area_smoothing_window),
+        root_ids_cloudpath=root_ids_cloudpath,
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -331,6 +336,7 @@ def create_skeletonizing_tasks(
           'timestamp': timestamp,
           'cross_sectional_area': bool(cross_sectional_area),
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
+          'root_ids_cloudpath': root_ids_cloudpath,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

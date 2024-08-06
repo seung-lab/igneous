@@ -1197,6 +1197,8 @@ def skeletongroup():
 @click.option('--labels', type=TupleN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
 @click.option('--output', '-o', type=CloudPath(), default=None, help="Output the results to a different place.", show_default=True)
+@click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)
+@click.option('--root-ids', type=CloudPath(), default=None, help="(graphene) If you have a materialization of graphene root ids for this timepoint, it's more efficient to use it than making requests to the graphene server.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
@@ -1204,7 +1206,7 @@ def skeleton_forge(
   fix_branching, fix_borders, fix_avocados, fix_autapses,
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
-  cross_section, output,
+  cross_section, output, timestamp, root_ids,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1250,6 +1252,7 @@ def skeleton_forge(
     cross_sectional_area=(cross_section > 0),
     cross_sectional_area_smoothing_window=int(cross_section),
     frag_path=output, fix_autapses=fix_autapses,
+    timestamp=timestamp, root_ids_cloudpath=root_ids,
   )
 
   enqueue_tasks(ctx, queue, tasks)

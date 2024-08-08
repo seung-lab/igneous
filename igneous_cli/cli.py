@@ -896,7 +896,7 @@ def meshgroup():
 @meshgroup.command("xfer")
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option("--dir", "mesh_dir", type=str, default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
@@ -933,7 +933,7 @@ def mesh_xfer(
 
 @meshgroup.command("forge")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels.", show_default=True)
 @click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification.", show_default=True)
@@ -984,7 +984,7 @@ def mesh_forge(
 
 @meshgroup.command("merge")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
 @click.option('--nlod', default=0, help="(multires) How many extra levels of detail to create.", show_default=True)
 @click.option('--vqb', default=16, help="(multires) Vertex quantization bits for stored model representation. 10 or 16 only.", show_default=True)
@@ -1016,7 +1016,7 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
 
 @meshgroup.command("merge-sharded")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--nlod', default=1, help="Number of levels of detail to create.", type=int, show_default=True)
 @click.option('--vqb', default=16, help="Vertex quantization bits. Can be 10 or 16.", type=int, show_default=True)
 @click.option('--compress-level', default=7, help="Draco compression level.", type=int, show_default=True)
@@ -1065,7 +1065,7 @@ def mesh_sharded_merge(
 
 @meshgroup.command("rm")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
 @click.option('--dir', 'mesh_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
 @click.pass_context
@@ -1114,7 +1114,7 @@ def spatialindexgroup():
 
 @spatialindexgroup.command("create")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--shape', default="448,448,448", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
@@ -1181,6 +1181,7 @@ def skeletongroup():
 @click.option('--fix-branching', is_flag=True, default=True, help="Trades speed for quality of branching at forks.", show_default=True)
 @click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task.", show_default=True)
 @click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
+@click.option('--fix-autapses', is_flag=True, default=False, help="(graphene only) Fixes autapses by using the PyChunkGraph.", show_default=True)
 @click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions.", show_default=True)
 @click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
 @click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
@@ -1195,14 +1196,17 @@ def skeletongroup():
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
 @click.option('--labels', type=TupleN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
+@click.option('--output', '-o', type=CloudPath(), default=None, help="Output the results to a different place.", show_default=True)
+@click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)
+@click.option('--root-ids', type=CloudPath(), default=None, help="(graphene) If you have a materialization of graphene root ids for this timepoint, it's more efficient to use it than making requests to the graphene server.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
   fill_missing, dust_threshold, dust_global, spatial_index,
-  fix_branching, fix_borders, fix_avocados, 
+  fix_branching, fix_borders, fix_avocados, fix_autapses,
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
-  cross_section,
+  cross_section, output, timestamp, root_ids,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1247,6 +1251,8 @@ def skeleton_forge(
     dust_global=dust_global, object_ids=labels,
     cross_sectional_area=(cross_section > 0),
     cross_sectional_area_smoothing_window=int(cross_section),
+    frag_path=output, fix_autapses=fix_autapses,
+    timestamp=timestamp, root_ids_cloudpath=root_ids,
   )
 
   enqueue_tasks(ctx, queue, tasks)
@@ -1283,7 +1289,7 @@ def skeleton_merge(
 
 @skeletongroup.command("merge-sharded")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--min-cable-length', default=1000, help="Skip objects smaller than this physical path length.", type=float, show_default=True)
 @click.option('--max-cable-length', default=None, help="Skip objects larger than this physical path length. Default: no limit", type=float)
 @click.option('--tick-threshold', default=0, help="Remove small \"ticks\", or branches from the main skeleton one at a time from smallest to largest. Branches larger than this are preserved. Default: no elimination", type=float)
@@ -1334,7 +1340,7 @@ def skeleton_sharded_merge(
 
 @imagegroup.command("rm")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--mip', default=0, help="Which mip level to start deleting from. Default: 0")
 @click.option('--num-mips', default=5, help="The number of mip levels to delete at once. Default: 5")
 @click.option('--shape', default=None, help="The size of each deletion task as a comma delimited list. Must be a multiple of the chunk size.", type=Tuple3())
@@ -1358,7 +1364,7 @@ def delete_images(
 
 @skeletongroup.command("rm")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks. Default: 2 (100 tasks)")
 @click.option('--dir', 'skel_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
 @click.pass_context
@@ -1376,7 +1382,7 @@ def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
 @skeletongroup.command("xfer")
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option("--dir", "skel_dir", type=str, default=None, help="Write skeletons into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
@@ -1440,7 +1446,7 @@ def spatialindexgroupskel():
 
 @spatialindexgroupskel.command("create")
 @click.argument("path", type=CloudPath())
-@click.option('--queue', required=True, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Shape in voxels of each indexing task.", show_default=True)
 @click.option('--mip', default=0, help="Perform indexing using this level of the image pyramid.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)

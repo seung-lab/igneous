@@ -234,8 +234,8 @@ class SkeletonTask(RegisteredTask):
       bbox, 
       stop_layer=2,
       agglomerate=True,
-      timestamp=self.timestamp
-    )
+      timestamp=self.timestamp,
+    )[...,0]
 
     graph_chunk_size = np.array(vol.meta.graph_chunk_size) / vol.meta.downsample_ratio(vol.mip)
     graph_chunk_size = graph_chunk_size.astype(int)
@@ -243,20 +243,7 @@ class SkeletonTask(RegisteredTask):
     shape = bbox.size()[:3]
     sgx, sgy, sgz = list(np.ceil(shape / graph_chunk_size).astype(int))
 
-    vcg = np.zeros(layer_2.shape[:3], dtype=np.uint32, order="F")
-
-    clamp_box = Bbox([0,0,0], shape)
-
-    for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
-      bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
-      bbx *= graph_chunk_size
-      bbx = Bbox.clamp(bbx, clamp_box)
-
-      cutout = np.asfortranarray(layer_2[bbx.to_slices()][:,:,:,0])
-      vcg_cutout = cc3d.voxel_connectivity_graph(cutout, connectivity=26)
-      vcg[bbx.to_slices()] = vcg_cutout
-      del vcg_cutout
-
+    vcg = cc3d.voxel_connectivity_graph(layer_2, connectivity=26)
     del layer_2
 
     # the proper way to do this would be to get the lowest the L3..LN root
@@ -266,6 +253,7 @@ class SkeletonTask(RegisteredTask):
     # with edges that represent the connections between the adjacent boxes.
 
     root_vcg = cc3d.voxel_connectivity_graph(root_labels, connectivity=26)
+    clamp_box = Bbox([0,0,0], shape)
 
     for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
       bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))

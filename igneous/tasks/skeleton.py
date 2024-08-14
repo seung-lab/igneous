@@ -1,4 +1,4 @@
-from typing import Optional,Sequence,Dict
+from typing import Optional, Sequence, Dict, List
 
 from functools import reduce
 import itertools
@@ -21,9 +21,10 @@ from cloudfiles import CloudFiles, CloudFile
 
 import cloudvolume
 from cloudvolume import CloudVolume, Skeleton, paths
-from cloudvolume.lib import Vec, Bbox, sip
+from cloudvolume.lib import Vec, Bbox, sip, xyzrange
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
+import cc3d
 import fastremap
 import kimimaro
 
@@ -38,15 +39,6 @@ def filename_to_segid(filename):
 
   segid, = matches.groups()
   return int(segid)
-
-def skeldir(cloudpath):
-  cf = CloudFiles(cloudpath)
-  info = cf.get_json('info')
-
-  skel_dir = 'skeletons/'
-  if 'skeletons' in info:
-    skel_dir = info['skeletons']
-  return skel_dir
 
 def strip_integer_attributes(skeletons):
   for skel in skeletons:
@@ -89,6 +81,9 @@ class SkeletonTask(RegisteredTask):
     cross_sectional_area_shape_delta:int = 150,
     dry_run:bool = False,
     strip_integer_attributes:bool = True,
+    fix_autapses:bool = False,
+    timestamp:Optional[int] = None,
+    root_ids_cloudpath:Optional[str] = None,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -101,14 +96,25 @@ class SkeletonTask(RegisteredTask):
       spatial_grid_shape, synapses, bool(dust_global),
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
       int(cross_sectional_area_shape_delta),
-      bool(dry_run), bool(strip_integer_attributes)
+      bool(dry_run), bool(strip_integer_attributes),
+      bool(fix_autapses), timestamp,
+      root_ids_cloudpath,
     )
+    if isinstance(self.frag_path, str):
+      self.frag_path = cloudfiles.paths.normalize(self.frag_path)
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
 
   def execute(self):
+    # For graphene volumes, if we've materialized the root IDs
+    # into a static archive, let's use that because it's way more
+    # efficient for fetching root IDs.
+    cloudpath = self.cloudpath
+    if self.root_ids_cloudpath:
+      cloudpath = self.root_ids_cloudpath
+
     vol = CloudVolume(
-      self.cloudpath, mip=self.mip, 
+      cloudpath, mip=self.mip, 
       info=self.info, cdn_cache=False,
       parallel=self.parallel, 
       fill_missing=self.fill_missing,
@@ -116,10 +122,24 @@ class SkeletonTask(RegisteredTask):
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
 
-    path = skeldir(self.cloudpath)
-    path = os.path.join(self.cloudpath, path)
+    path = vol.info.get("skeletons", "skeletons")
+    if self.frag_path is None:
+      path = vol.meta.join(self.cloudpath, path)
+    else:
+      # if the path is to a volume root, follow the info instructions,
+      # otherwise place the files exactly where frag path says to
+      test_path = CloudFiles(self.frag_path).join(self.frag_path, "info")
+      test_info = CloudFile(test_path).get_json()
+      if test_info is not None and 'scales' in test_info:
+        path = CloudFiles(self.frag_path).join(self.frag_path, path)
+      else:
+        path = self.frag_path
 
-    all_labels = vol[ bbox.to_slices() ]
+    all_labels = vol.download(
+      bbox.to_slices(), 
+      agglomerate=True, 
+      timestamp=self.timestamp
+    )
     all_labels = all_labels[:,:,:,0]
 
     if self.mask_ids:
@@ -136,6 +156,10 @@ class SkeletonTask(RegisteredTask):
       dust_threshold = 0
       all_labels = self.apply_global_dust_threshold(vol, all_labels)
 
+    voxel_graph = None
+    if self.fix_autapses:
+      voxel_graph = self.voxel_connectivity_graph(vol, bbox, all_labels)
+
     skeletons = kimimaro.skeletonize(
       all_labels, self.teasar_params, 
       object_ids=self.object_ids, 
@@ -148,6 +172,7 @@ class SkeletonTask(RegisteredTask):
       fill_holes=self.fill_holes,
       parallel=self.parallel,
       extra_targets_after=extra_targets_after.keys(),
+      voxel_graph=voxel_graph,
     )
     del all_labels
 
@@ -180,17 +205,80 @@ class SkeletonTask(RegisteredTask):
       return skeletons
 
     if self.sharded:
-      if self.frag_path:
-        self.upload_batch(vol, os.path.join(self.frag_path, skeldir(self.cloudpath)), index_bbox, skeletons)
-      else:
-        self.upload_batch(vol, path, index_bbox, skeletons)
+      self.upload_batch(vol, path, index_bbox, skeletons)
     else:
       self.upload_individuals(vol, path, bbox, skeletons)
 
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
-  
+
+  def voxel_connectivity_graph(
+    self, 
+    vol:CloudVolume, 
+    bbox:Bbox, 
+    root_labels:np.ndarray,
+  ) -> np.ndarray:
+
+    if vol.meta.path.format != "graphene":
+      vol = CloudVolume(
+        self.cloudpath, mip=self.mip, 
+        info=self.info, cdn_cache=False,
+        parallel=self.parallel, 
+        fill_missing=self.fill_missing,
+      )
+
+    if vol.meta.path.format != "graphene":
+      raise ValueError("Can't extract a voxel connectivity graph from non-graphene volumes.")
+
+    layer_2 = vol.download(
+      bbox, 
+      stop_layer=2,
+      agglomerate=True,
+      timestamp=self.timestamp,
+    )[...,0]
+
+    graph_chunk_size = np.array(vol.meta.graph_chunk_size) / vol.meta.downsample_ratio(vol.mip)
+    graph_chunk_size = graph_chunk_size.astype(int)
+
+    shape = bbox.size()[:3]
+    sgx, sgy, sgz = list(np.ceil(shape / graph_chunk_size).astype(int))
+
+    vcg = cc3d.voxel_connectivity_graph(layer_2, connectivity=26)
+    del layer_2
+
+    # the proper way to do this would be to get the lowest the L3..LN root
+    # as needed, but the lazy way to do this is to get the root labels
+    # which will retain a few errors, but overall the error rate should be
+    # over 100x less. We need to shade in the sides of the connectivity graph
+    # with edges that represent the connections between the adjacent boxes.
+
+    root_vcg = cc3d.voxel_connectivity_graph(root_labels, connectivity=26)
+    clamp_box = Bbox([0,0,0], shape)
+
+    for gx,gy,gz in xyzrange([sgx, sgy, sgz]):
+      bbx = Bbox((gx,gy,gz), (gx+1, gy+1, gz+1))
+      bbx *= graph_chunk_size
+      bbx = Bbox.clamp(bbx, clamp_box)
+
+      slicearr = []
+      for i in range(3):
+        bbx1 = bbx.clone()
+        bbx1.maxpt[i] = bbx1.minpt[i] + 1
+        slicearr.append(bbx1)
+
+        bbx1 = bbx.clone()
+        bbx1.minpt[i] = bbx1.maxpt[i] - 1
+        slicearr.append(bbx1)
+
+      for bbx1 in slicearr:
+        vcg[bbx1.to_slices()] = root_vcg[bbx1.to_slices()] 
+
+    return vcg
+
   def compute_cross_sectional_area(self, vol, bbox, skeletons):
+    if len(skeletons) == 0:
+      return skeletons
+
     # Why redownload a bigger image? In order to avoid clipping the
     # cross sectional areas on the edges.
     delta = int(self.cross_sectional_area_shape_delta)
@@ -203,9 +291,13 @@ class SkeletonTask(RegisteredTask):
     huge_bbox.grow(int(np.max(bbox.size()) / 2) + 1)
     huge_bbox = Bbox.clamp(huge_bbox, vol.bounds)
     
-    mem_vol = vol.image.memory_cutout(
-      huge_bbox, mip=vol.mip, 
-      encoding="crackle", compress=False
+    mem_vol = vol.memory_cutout(
+      huge_bbox, 
+      mip=vol.mip, 
+      encoding="crackle",
+      compress=False,
+      agglomerate=True,
+      timestamp=self.timestamp,
     )
 
     all_labels = mem_vol[big_bbox][...,0]
@@ -266,6 +358,11 @@ class SkeletonTask(RegisteredTask):
       diff = bbox.minpt - skel_bbx.minpt
       skel.vertices += diff * vol.resolution
 
+      # we binarized the label for memory's sake, 
+      # so need to harmonize that with the skeleton ID
+      segid = skel.id
+      skel.id = 1
+
       kimimaro.cross_sectional_area(
         binary_image, skel,
         anisotropy=vol.resolution,
@@ -275,7 +372,7 @@ class SkeletonTask(RegisteredTask):
         fill_holes=self.fill_holes,
         repair_contacts=True,
       )
-
+      skel.id = segid
       skel.vertices -= diff * vol.resolution
 
     for skel in repair_skels:

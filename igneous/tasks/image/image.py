@@ -70,7 +70,7 @@ def downsample_and_upload(
     if max_mips is not None:
       factors = factors[:max_mips]
 
-    if len(factors) == 0:
+    if len(factors) == 0 and max_mips:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
           image.shape, ds_shape, vol.volume_size, bounds)
       )
@@ -327,6 +327,9 @@ class LuminanceLevelsTask(RegisteredTask):
       cts = np.bincount(img2d)
       levels[0:len(cts)] += cts.astype(np.uint64)
 
+    if len(bboxes) == 0:
+      return
+
     covered_area = sum([bbx.volume() for bbx in bboxes])
 
     bboxes = [(bbox.volume(), bbox.size3()) for bbox in bboxes]
@@ -376,7 +379,8 @@ class LuminanceLevelsTask(RegisteredTask):
       patch_start += self.offset
       bbox = Bbox(patch_start, patch_start + sample_shape.size3())
       bbox = Bbox.clamp(bbox, dataset_bounds)
-      bboxes.append(bbox)
+      if not bbox.subvoxel():
+        bboxes.append(bbox)
     return bboxes
 
 @queueable

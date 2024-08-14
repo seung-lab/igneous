@@ -70,7 +70,7 @@ def downsample_and_upload(
     if max_mips is not None:
       factors = factors[:max_mips]
 
-    if len(factors) == 0:
+    if len(factors) == 0 and max_mips:
       print("No factors generated. Image Shape: {}, Downsample Shape: {}, Volume Shape: {}, Bounds: {}".format(
           image.shape, ds_shape, vol.volume_size, bounds)
       )

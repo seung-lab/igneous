@@ -226,6 +226,8 @@ def set_encoding(cv, mip, encoding, encoding_level):
 
   if encoding == "jpeg":
     scale["jpeg_quality"] = encoding_level
+  elif encoding == "jpegxl":
+    scale["jpegxl_quality"] = encoding_level
   elif encoding == "png":
     scale["png_level"] = encoding_level
   elif encoding == "fpzip":

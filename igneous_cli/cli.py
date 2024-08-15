@@ -223,7 +223,7 @@ def imagegroup():
 @click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
-@click.option('--compress', default=None, help="Set the image compression scheme. Options: 'gzip', 'br'")
+@click.option('--compress', default=None, help="Set the image compression scheme. Options: 'none', 'gzip', 'br'")
 @click.option('--volumetric', is_flag=True, default=False, help="Use 2x2x2 downsampling.")
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background. Default: 0")
@@ -263,6 +263,12 @@ def downsample(
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
+
+  if compress and compress.lower() in ("none", "false"):
+    compress = False
+
+  if encoding and encoding.lower() in ("jpeg", "png", "fpzip", "zfpc"):
+    compress = False
 
   bounds = compute_bounds(path, mip, xrange, yrange, zrange)
 

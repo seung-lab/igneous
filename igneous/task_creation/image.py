@@ -520,6 +520,7 @@ def create_image_shard_transfer_tasks(
   cutout:bool = False,
   minishard_index_encoding:str = "gzip",
   stop_layer:Optional[int] = None,
+  encoding_effort:Optional[int] = None,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -602,6 +603,7 @@ def create_image_shard_transfer_tasks(
           "mip": mip,
           "encoding_level": encoding_level,
           "stop_layer": stop_layer,
+          "encoding_effort": encoding_effort,
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),

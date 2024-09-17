@@ -44,12 +44,15 @@ def normalize_encoding(encoding):
     return "crackle"
   elif encoding == "cpso":
     return "compresso"
+  elif encoding == "jxl":
+    return "jpegxl"
   elif encoding == "auto":
     return None
 
   return encoding
 
-ENCODING_HELP = "Which image encoding to use. Options: [all] raw, png; [images] jpeg; [segmentations] compressed_segmentation (cseg), compresso (cpso), crackle (ckl); [floats] fpzip, kempressed, zfpc"
+ENCODING_HELP = "Which image encoding to use. Options: [all] raw, png; [images] jpeg, jpegxl (jxl); [segmentations] compressed_segmentation (cseg), compresso (cpso), crackle (ckl); [floats] fpzip, kempressed, zfpc"
+ENCODING_EFFORT = 5
 
 def enqueue_tasks(ctx, queue, tasks):
   parallel = int(ctx.obj.get("parallel", 1))
@@ -220,7 +223,8 @@ def imagegroup():
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--num-mips', default=None, type=int, help="Build this many additional pyramid levels. Each increment increases memory requirements per task 4-8x.")
 @click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
-@click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
+@click.option('--encoding-level', default=None, help="For some encodings (png level, jpeg & jpeg xl quality, fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
+@click.option('--encoding-effort', default=ENCODING_EFFORT, help="(JPEG XL) Set effort (1-10) used by JPEG XL to hit the quality target.", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.")
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of new layers. e.g. 128,128,64")
 @click.option('--compress', default=None, help="Set the image compression scheme. Options: 'none', 'gzip', 'br'")
@@ -236,8 +240,8 @@ def imagegroup():
 @click.pass_context
 def downsample(
   ctx, path, queue, mip, fill_missing, 
-  num_mips, encoding, encoding_level, sparse, 
-  chunk_size, compress, volumetric,
+  num_mips, encoding, encoding_level, encoding_effort, 
+  sparse, chunk_size, compress, volumetric,
   delete_bg, bg_color, sharded, memory,
   xrange, yrange, zrange, method,
 ):
@@ -279,6 +283,7 @@ def downsample(
       encoding=encoding, memory_target=memory,
       factor=factor, bounds=bounds, bounds_mip=mip,
       encoding_level=encoding_level, method=method,
+      encoding_effort=encoding_effort,
     )
   else:
     tasks = tc.create_downsampling_tasks(
@@ -293,6 +298,7 @@ def downsample(
       memory_target=memory,
       encoding_level=encoding_level,
       method=method,
+      encoding_effort=encoding_effort,
     )
 
   enqueue_tasks(ctx, queue, tasks)
@@ -308,7 +314,8 @@ def downsample(
 @click.option('--memory', default=3.5e9, type=int, help="Task memory limit in bytes. Task shape will be chosen to fit and maximize downsamples.", show_default=True)
 @click.option('--max-mips', default=5, help="Maximum number of additional pyramid levels.", show_default=True)
 @click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
-@click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
+@click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg & jpegxl quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
+@click.option('--encoding-effort', default=ENCODING_EFFORT, help="(JPEG XL) Set effort (1-10) used by JPEG XL to hit the quality target.", show_default=True)
 @click.option('--sparse', is_flag=True, default=False, help="Don't count black pixels in mode or average calculations. For images, eliminates edge ghosting in 2x2x2 downsample. For segmentation, prevents small objects from disappearing at high mip levels.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=None, help="(overrides --memory) Set the task shape in voxels. This also determines how many downsamples you get. e.g. 2048,2048,64", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64", show_default=True)
@@ -332,7 +339,8 @@ def xfer(
 	ctx, src, dest, queue, translate, 
   downsample, mip, fill_missing, 
   memory, max_mips, shape, sparse, 
-  encoding, encoding_level, chunk_size, compress,
+  encoding, encoding_level, encoding_effort,
+  chunk_size, compress,
   volumetric, delete_bg, bg_color, sharded,
   dest_voxel_offset, clean_info, no_src_update,
   truncate_scales, 
@@ -379,7 +387,7 @@ def xfer(
       encoding=encoding, memory_target=memory, clean_info=clean_info,
       encoding_level=encoding_level, truncate_scales=truncate_scales,
       compress=compress, bounds=bounds, bounds_mip=bounds_mip,
-      cutout=cutout,
+      cutout=cutout, encoding_effort=encoding_effort,
     )
   else:
     tasks = tc.create_transfer_tasks(
@@ -393,7 +401,7 @@ def xfer(
       clean_info=clean_info, no_src_update=no_src_update,
       encoding_level=encoding_level, truncate_scales=truncate_scales,
       bounds=bounds, bounds_mip=bounds_mip, cutout=cutout,
-      downsample_method=downsample_method,
+      downsample_method=downsample_method, encoding_effort=encoding_effort,
     )
 
   enqueue_tasks(ctx, queue, tasks)
@@ -425,6 +433,7 @@ def image_roi(src, progress, suppress_faint, dust, z_step, max_axial_len):
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--encoding', type=EncodingType(), default="auto", help=ENCODING_HELP, show_default=True)
 @click.option('--encoding-level', default=None, help="For some encodings (png level,jpeg quality,fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
+@click.option('--encoding-effort', default=ENCODING_EFFORT, help="(JPEG XL) Set effort (1-10) used by JPEG XL to hit the quality target.", show_default=True)
 @click.option('--compress', default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
@@ -434,7 +443,7 @@ def image_reorder(
   ctx, src, dest, 
   queue, mip,
   fill_missing, 
-  encoding, encoding_level,
+  encoding, encoding_level, encoding_effort,
   compress, 
   delete_bg, bg_color,
   clean_info, 
@@ -471,6 +480,7 @@ def image_reorder(
     background_color=bg_color,
     encoding=encoding, 
     encoding_level=encoding_level,
+    encoding_effort=encoding_effort,
   )
 
   enqueue_tasks(ctx, queue, tasks)
@@ -1689,6 +1699,8 @@ void main() {
 @click.option('--offset', type=Tuple3(), default=(0,0,0), help="Voxel offset in x,y, and z.", show_default=True)
 @click.option('--seg', is_flag=True, default=False, help="Sets layer type to segmentation (default image).", show_default=True)
 @click.option('--encoding', type=EncodingType(), default="raw", help=ENCODING_HELP, show_default=True)
+@click.option('--encoding-level', default=None, help="For some encodings (png level, jpeg & jpeg xl quality, fpzip precision) a simple scalar value can adjust the compression efficiency.", show_default=True)
+@click.option('--encoding-effort', default=ENCODING_EFFORT, help="(JPEG XL) Set effort (1-10) used by JPEG XL to hit the quality target.", show_default=True)
 @click.option('--compress', type=CompressType(), default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--chunk-size', type=Tuple3(), default=(128,128,64), help="Chunk size of new layers. e.g. 128,128,64", show_default=True)
 @click.option('--h5-dataset', default="main", help="Which h5 dataset to acccess (hdf5 imports only).", show_default=True)
@@ -1696,7 +1708,8 @@ void main() {
 def create(
   ctx, src, dest, 
   resolution, offset, 
-  seg, encoding,
+  seg, 
+  encoding, encoding_level, encoding_effort,
   compress, chunk_size,
   h5_dataset
 ):
@@ -1735,6 +1748,8 @@ def create(
     encoding=encoding,
     compress=compress,
     progress=True,
+    encoding_level=encoding_level,
+    encoding_effort=encoding_effort,
   )
 
 def normalize_file_ext(filename):

@@ -48,8 +48,9 @@ def bounds_from_mesh(
   """Estimate the bounding box of a label from its mesh if available."""
   bbxes = []
   for label in labels:
-    mesh = vol.mesh.get(labels)[label]
-    if mesh is None:
+    try:
+      mesh = vol.mesh.get(label)
+    except ValueError:
       raise ValueError(f"Mesh {label} is not available.")
 
     bounds = Bbox.from_points(mesh.vertices // vol.resolution)

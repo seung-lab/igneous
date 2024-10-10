@@ -212,7 +212,7 @@ def compute_shard_params_for_hashed(
 
   return (int(shard_bits), int(minishard_bits), 0)
 
-def set_encoding(cv, mip, encoding, encoding_level):
+def set_encoding(cv, mip, encoding, encoding_level, encoding_effort):
   scale = cv.meta.scale(mip)
   if encoding is not None:
     scale['encoding'] = encoding
@@ -226,8 +226,10 @@ def set_encoding(cv, mip, encoding, encoding_level):
 
   if encoding == "jpeg":
     scale["jpeg_quality"] = encoding_level
-  elif encoding == "jpegxl":
-    scale["jpegxl_quality"] = encoding_level
+  elif encoding == "jxl":
+    scale["jxl_quality"] = encoding_level
+    if encoding_effort is not None:
+      scale["jxl_effort"] = int(encoding_effort)
   elif encoding == "png":
     scale["png_level"] = encoding_level
   elif encoding == "fpzip":

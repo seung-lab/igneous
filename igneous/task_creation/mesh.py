@@ -168,7 +168,10 @@ def create_meshing_tasks(
   vol = CloudVolume(layer_path, mip)
 
   if mesh_dir is None:
-    mesh_dir = 'mesh_mip_{}_err_{}'.format(mip, max_simplification_error)
+    if 'mesh' in vol.info:
+      mesh_dir = vol.info['mesh']
+    else:
+      mesh_dir = 'mesh_mip_{}_err_{}'.format(mip, max_simplification_error)
 
   if not 'mesh' in vol.info:
     vol.info['mesh'] = mesh_dir

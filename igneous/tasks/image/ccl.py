@@ -93,16 +93,12 @@ def threshold_image(
 ) -> np.ndarray:
   if threshold_gte is None and threshold_lte is None:
     return image
-
-  thresholded = np.zeros(image.shape, dtype=np.uint8, order="F")
-  if threshold_gte is not None:
-    thresholded += image >= threshold_gte
-  if threshold_lte is not None:
-    if threshold_gte is not None:
-      thresholded *= image <= threshold_lte
-    else:
-      thresholded += image <= threshold_lte
-  return thresholded
+  elif threshold_gte is None and threshold_lte is not None:
+    return image <= threshold_lte
+  elif threshold_gte is not None and threshold_lte is None:
+    return image >= threshold_gte
+  else:
+    return (image >= threshold_gte) & (image <= threshold_lte)
 
 def blackout_non_face_rails(
   labels:np.ndarray, shape:ShapeType

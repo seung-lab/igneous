@@ -44,8 +44,8 @@ def normalize_encoding(encoding):
     return "crackle"
   elif encoding == "cpso":
     return "compresso"
-  elif encoding == "jxl":
-    return "jpegxl"
+  elif encoding == "jpegxl":
+    return "jxl"
   elif encoding == "auto":
     return None
 

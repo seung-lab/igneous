@@ -298,6 +298,7 @@ def generate_lods(
   assert num_lods >= 0, num_lods
 
   lods = [ mesh ]
+  next_mesh = mesh
 
   # from pyfqmr documentation:
   # threshold = alpha * (iteration + K) ** agressiveness
@@ -306,9 +307,9 @@ def generate_lods(
   # deleting a vertex.
   for i in range(1, num_lods+1):
     simplifier = pyfqmr.Simplify()
-    simplifier.setMesh(mesh.vertices, mesh.faces)
+    simplifier.setMesh(next_mesh.vertices, next_mesh.faces)
     simplifier.simplify_mesh(
-      target_count=max(int(len(mesh.faces) / (decimation_factor ** i)), 4),
+      target_count=max(int(len(next_mesh.faces) / decimation_factor), 4),
       aggressiveness=aggressiveness,
       preserve_border=True,
       verbose=False,
@@ -324,6 +325,7 @@ def generate_lods(
     lods.append(
       Mesh(*simplifier.getMesh())
     )
+    next_mesh = lods[-1]
 
   return lods
 
@@ -500,46 +502,29 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
   if lod == num_lods - 1:
     return ([ mesh ], ((0,0,0),) )
 
-  mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
-
   scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
-  offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
-  grid_size = Vec(*np.ceil((mesh.vertices.max(axis=0) - offset) / scale), dtype=int)
+  chunked_meshes = zmesh.chunk_mesh(mesh, scale)
+  gpts = list(chunked_meshes.keys())
 
-  nx, ny, nz = np.eye(3)
-  ox, oy, oz = offset * np.eye(3)
-
-  submeshes = []
   nodes = []
-  for x in range(0, grid_size.x):
-    # list(...) required b/c it doesn't like Vec classes
-    mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
-    mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nx, plane_origin=list(nx*(x+1)*scale.x+ox))
-    for y in range(0, grid_size.y):
-      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=ny, plane_origin=list(ny*y*scale.y+oy))
-      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-ny, plane_origin=list(ny*(y+1)*scale.y+oy))
-      for z in range(0, grid_size.z):
-        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
-        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
 
-        if len(mesh_z.vertices) == 0:
-          continue
+  for gpt in gpts:
+    mesh = chunked_meshes[gpt]
+    if mesh.is_empty():
+      continue
+    # test for totally degenerate meshes by checking if 
+    # all of two axes match, meaning the mesh must be a 
+    # point or a line.
+    if np.sum([ np.all(mesh.vertices[:,i] == mesh.vertices[0,i]) for i in range(3) ]) >= 2:
+      continue
 
-        # test for totally degenerate meshes by checking if 
-        # all of two axes match, meaning the mesh must be a 
-        # point or a line.
-        if np.sum([ np.all(mesh_z.vertices[:,i] == mesh_z.vertices[0,i]) for i in range(3) ]) >= 2:
-          continue
-
-        submeshes.append(mesh_z)
-        nodes.append((x, y, z))
+    nodes.append(gpt)
 
   # Sort in Z-curve order
-  submeshes, nodes = zip(
-    *sorted(zip(submeshes, nodes),
-    key=functools.cmp_to_key(lambda x, y: cmp_zorder(x[1], y[1])))
+  nodes.sort(
+    key=functools.cmp_to_key(lambda x, y: cmp_zorder(x, y))
   )
-  # convert back from trimesh to CV Mesh class
-  submeshes = [ Mesh(m.vertices, m.faces) for m in submeshes ]
+
+  submeshes = [ chunked_meshes[node] for node in nodes ]
 
   return (submeshes, nodes)

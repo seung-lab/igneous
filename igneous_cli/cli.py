@@ -372,7 +372,7 @@ def xfer(
   if compress and compress.lower() in ("none", "false"):
     compress = False
 
-  if encoding and encoding.lower() in ("jpeg", "png"):
+  if encoding and encoding.lower() in ("jpeg", "png", "jxl"):
     compress = False
 
   if bounds_mip is None:

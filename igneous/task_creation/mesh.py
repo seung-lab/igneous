@@ -53,7 +53,7 @@ __all__ = [
 # split the work up into ~1000 tasks (magnitude 3)
 def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
   assert int(magnitude) == magnitude
-  assert magnitude >= 0
+  assert magnitude > 0
 
   protocol = cloudfiles.paths.get_protocol(layer_path)
   if protocol == "file":
@@ -64,8 +64,8 @@ def create_mesh_manifest_tasks(layer_path, magnitude=3, mesh_dir=None):
       )
     ]
 
-  start = 10 ** (magnitude - 1)
-  end = 10 ** magnitude
+  start = int(10 ** (magnitude - 1))
+  end = int(10 ** magnitude)
 
   class MeshManifestTaskIterator(object):
     def __len__(self):
@@ -467,6 +467,7 @@ def create_unsharded_multires_mesh_tasks(
   """
   # split the work up into ~1000 tasks (magnitude 3)
   assert int(magnitude) == magnitude
+  assert magnitude > 0
 
   configure_multires_info(
     cloudpath, 

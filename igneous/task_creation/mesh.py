@@ -474,8 +474,8 @@ def create_unsharded_multires_mesh_tasks(
     mesh_dir
   )
 
-  start = 10 ** (magnitude - 1)
-  end = 10 ** magnitude
+  start = int(10 ** (magnitude - 1))
+  end = int(10 ** magnitude)
 
   class UnshardedMultiResTaskIterator:
     def __len__(self):

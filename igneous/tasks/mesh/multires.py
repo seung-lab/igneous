@@ -499,6 +499,17 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
 
   This creates (2^lod)^3 submeshes.
   """
+  try:
+    return create_octree_level_from_mesh_accelerated(mesh, chunk_shape, lod, num_lods)
+  except RuntimeError:
+    return create_octree_level_from_mesh_generalized(mesh, chunk_shape, lod, num_lods)
+
+def create_octree_level_from_mesh_accelerated(mesh, chunk_shape, lod, num_lods):
+  """
+  Uses zmesh.chunk_mesh to accelerate slicing meshes, but it can only handle
+  vertices that are one 26-connected grid space apart and raises a RuntimeError
+  if this condition isn't met.
+  """
   if lod == num_lods - 1:
     return ([ mesh ], ((0,0,0),) )
 
@@ -526,5 +537,59 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
   )
 
   submeshes = [ chunked_meshes[node] for node in nodes ]
+
+  return (submeshes, nodes)
+
+def create_octree_level_from_mesh_generalized(mesh, chunk_shape, lod, num_lods):
+  """
+  Create submeshes by slicing the orignal mesh to produce smaller chunks
+  by slicing them from x,y,z dimensions.
+
+  This creates (2^lod)^3 submeshes.
+  """
+  if lod == num_lods - 1:
+    return ([ mesh ], ((0,0,0),) )
+
+  mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+
+  scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
+  offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
+  grid_size = Vec(*np.ceil((mesh.vertices.max(axis=0) - offset) / scale), dtype=int)
+
+  nx, ny, nz = np.eye(3)
+  ox, oy, oz = offset * np.eye(3)
+
+  submeshes = []
+  nodes = []
+  for x in range(0, grid_size.x):
+    # list(...) required b/c it doesn't like Vec classes
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nx, plane_origin=list(nx*(x+1)*scale.x+ox))
+    for y in range(0, grid_size.y):
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=ny, plane_origin=list(ny*y*scale.y+oy))
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-ny, plane_origin=list(ny*(y+1)*scale.y+oy))
+      for z in range(0, grid_size.z):
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
+
+        if len(mesh_z.vertices) == 0:
+          continue
+
+        # test for totally degenerate meshes by checking if 
+        # all of two axes match, meaning the mesh must be a 
+        # point or a line.
+        if np.sum([ np.all(mesh_z.vertices[:,i] == mesh_z.vertices[0,i]) for i in range(3) ]) >= 2:
+          continue
+
+        submeshes.append(mesh_z)
+        nodes.append((x, y, z))
+
+  # Sort in Z-curve order
+  submeshes, nodes = zip(
+    *sorted(zip(submeshes, nodes),
+    key=functools.cmp_to_key(lambda x, y: cmp_zorder(x[1], y[1])))
+  )
+  # convert back from trimesh to CV Mesh class
+  submeshes = [ Mesh(m.vertices, m.faces) for m in submeshes ]
 
   return (submeshes, nodes)

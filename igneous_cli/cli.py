@@ -1617,9 +1617,8 @@ def memory_used(data_width, shape, factor):
 @click.argument("path", type=CloudPath())
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
-@click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
+@click.option('--ng', default=None, help="Alternative Neuroglancer webpage to use.", show_default=True)
 @click.option('--pos', type=Tuple3(), default=None, help="Position in volume to open to.", show_default=True)
-
 def view(path, browser, port, ng, pos):
   """
   Open an on-disk dataset for viewing in neuroglancer.
@@ -1688,6 +1687,17 @@ void main() {
     config["layers"][0]["shader"] = rgb_shader
 
   fragment = urllib.parse.quote(jsonify(config))
+  
+  has_alternative_codec = any([
+     scale["encoding"] in ["crackle", "zfpc", "kempressed", "fpzip"]
+     for scale in cv.scales
+  ])
+
+  if ng is None:
+    if has_alternative_codec:
+      ng = "https://allcodecs-dot-neuromancer-seung-import.appspot.com/"
+    else:
+      ng = "https://neuroglancer-demo.appspot.com/"
 
   url = f"{ng}#!{fragment}"
   if browser:

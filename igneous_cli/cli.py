@@ -1613,13 +1613,14 @@ def memory_used(data_width, shape, factor):
     memory_bytes *= constant / (constant - 1)
 
   return memory_bytes
-
 @main.command("view")
 @click.argument("path", type=CloudPath())
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
 @click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
-def view(path, browser, port, ng):
+@click.option('--pos', type=Tuple3(), default=None, help="Position in volume to open to.", show_default=True)
+
+def view(path, browser, port, ng, pos):
   """
   Open an on-disk dataset for viewing in neuroglancer.
   """
@@ -1628,7 +1629,6 @@ void main() {
   vec3 data = vec3(toNormalized(getDataValue(0)), toNormalized(getDataValue(1)), toNormalized(getDataValue(2)));
   emitRGB(data);
 }"""
-  
   cv = CloudVolume(path)
 
   if cv.meta.path.protocol == "file":
@@ -1680,6 +1680,10 @@ void main() {
     "layout": "4panel"
   }
 
+  if pos:
+    x, y, z = pos
+    config["position"] = [float(x), float(y), float(z)]
+
   if cv.num_channels == 3:
     config["layers"][0]["shader"] = rgb_shader
 
@@ -1688,6 +1692,8 @@ void main() {
   url = f"{ng}#!{fragment}"
   if browser:
     webbrowser.open(url, new=2)
+  else:
+    print(url)
 
   if cv.meta.path.protocol == "file":
     cv.viewer(port=port)

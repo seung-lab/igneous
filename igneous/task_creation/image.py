@@ -244,7 +244,7 @@ def create_downsampling_tasks(
   """
   def ds_shape(mip, chunk_size=None, factor=None):
     nonlocal num_mips
-    if chunk_size:
+    if chunk_size is not None:
       shape = Vec(*chunk_size)
     else:
       shape = vol.meta.chunk_size(mip)[:3]

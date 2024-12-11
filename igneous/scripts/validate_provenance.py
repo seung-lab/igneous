@@ -33,7 +33,7 @@ for dataset in datasets:
 
     cf = CloudFiles(layer)
 
-    if not cf.exists('provenance')
+    if not cf.exists('provenance'):
       missing_report.append(layer)
     else:
       prov = cf.get('provenance')

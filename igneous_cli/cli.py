@@ -508,7 +508,7 @@ def count_voxels(ctx, path, mip, queue):
 @voxelgroup.command("sum")
 @click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Count this mip level of the image pyramid.", show_default=True)
-@click.option('--compress', default=None, help="", show_default=True)
+@click.option('--compress', default="zstd", help="What compression algorithm to apply. These files can be pretty big and must be downloaded by workers.", show_default=True)
 @click.pass_context
 def sum_voxel_counts(ctx, path, mip, compress):
   """Accumulate counts from each task.

@@ -190,7 +190,7 @@ def create_skeletonizing_tasks(
 
   if dust_threshold > 0 and dust_global:
     cf = CloudFiles(cloudpath)
-    vxctfile = cf.join(vol.key, 'stats', 'voxel_counts.mb')
+    vxctfile = cf.join(vol.key, 'stats', 'voxel_counts.im')
     if not cf.exists(vxctfile):
       raise FileNotFoundError(
         f"To use global dust thresholds, you must pre-compute the global voxel"

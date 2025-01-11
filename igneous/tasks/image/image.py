@@ -677,6 +677,7 @@ def ImageShardDownsampleTask(
   timestamp: Optional[int] = None,
   factor: ShapeType = (2,2,1),
   method: int = DownsampleMethods.AUTO,
+  num_mips: int = 1,
 ):
   """
   Generate a single downsample level for a shard.
@@ -695,17 +696,28 @@ def ImageShardDownsampleTask(
   )
   chunk_size = src_vol.meta.chunk_size(mip)
 
+  full_shape = shape * (factor ** num_mips)
+
+  wide_bbox = Bbox(offset, offset + full_shape)
+  wide_bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
+  wide_bbox = wide_bbox.expand_to_chunk_size(
+    chunk_size, offset=src_vol.meta.voxel_offset(mip)
+  )
+
   bbox = Bbox(offset, offset + shape)
   bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
   bbox = bbox.expand_to_chunk_size(
     chunk_size, offset=src_vol.meta.voxel_offset(mip)
   )
 
-  shard_shape = igneous.shards.image_shard_shape_from_spec(
-    src_vol.scales[mip + 1]["sharding"], 
-    src_vol.meta.volume_size(mip + 1), 
-    src_vol.meta.chunk_size(mip + 1)
-  )
+  def shard_shapefn(mip):
+    return igneous.shards.image_shard_shape_from_spec(
+      src_vol.scales[mip]["sharding"], 
+      src_vol.meta.volume_size(mip), 
+      src_vol.meta.chunk_size(mip)
+    )    
+
+  shard_shape = shard_shapefn(mip + 1)
   upper_offset = offset // Vec(*factor)
   shape_bbox = Bbox(upper_offset, upper_offset + shard_shape)
   shape_bbox = shape_bbox.astype(np.int64)
@@ -721,38 +733,69 @@ def ImageShardDownsampleTask(
 
   shard_shape = list(shape_bbox.size3()) + [ 1 ]
 
-  output_img = np.zeros(shard_shape, dtype=src_vol.dtype, order="F")
-  nz = int(math.ceil(bbox.dz / (chunk_size.z * factor[2])))
+  output_shards_by_mip = []
+  for mip_i in range(mip + 1, mip + num_mips + 1):
+    output_shards = []
+    shard_shape = shard_shapefn(mip_i)
+    num_shards_per_mip = int((factor[0] * factor[1] * factor[2]) ** (num_mips - mip_i))
+    for i in range(num_shards_per_mip):
+      output_shards.append({})
+    output_shards_by_mip.append(output_shards)
+
+  nz = int(math.ceil(wide_bbox.dz / (chunk_size.z * factor[2])))
 
   dsfn = downsample_method_to_fn(method, sparse, src_vol)
 
-  zbox = bbox.clone()
-  z_thickness = chunk_size.z * factor[2]
-  zbox.maxpt.z = zbox.minpt.z + z_thickness
+  zbox = wide_bbox.clone()
+  zbox.maxpt.z = zbox.minpt.z + (chunk_size.z * factor[2])
   for z in range(nz):
     img = src_vol.download(
       zbox, agglomerate=agglomerate, timestamp=timestamp
     )
-    (ds_img,) = dsfn(img, factor, num_mips=1, sparse=sparse)
+    ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     # ds_img[slc] b/c sometimes the size round up in tinybrain
     # makes this too large by one voxel on an axis
     xlim, ylim = tuple(ds_img.shape[:2])
     zs = z * chunk_size.z
     ze = (z+1) * chunk_size.z
-    output_img[:xlim,:ylim,zs:ze] = ds_img
+    # output_img[:xlim,:ylim,zs:ze] = ds_img
+    for i in range(num_mips):
+      num_x_shards = int(factor[0] ** (num_mips - i))
+      num_y_shards = int(factor[1] ** (num_mips - i))
+      shard_shape = shard_shapefn(mip + i)
+      for shard_y in range(num_y_shards):
+        for shard_x in range(num_x_shards):
+          xoff = shard_x * shard_shape[0]
+          yoff = num_x_shards * shard_y * shard_shape[1]
+
+          shard_z_cutout = ds_imgs[i][xoff:xoff+shard_shape[0], yoff:yoff+shard_shape[1]]
+          shard_z_bbox = zbox.clone()
+
+          shard_z_bbox.minpt += np.array([ xoff, yoff, 0 ])
+          shard_z_bbox.maxpt = shard_z_bbox.minpt + np.array([ shard_shape[0], shard_shape[1], chunk_size.z ])
+
+          chunk_dict = cv.image.make_shard_chunks(shard_z_cutout, shard_z_bbox, mip + i + 1)
+
+          k = shard_x + num_x_shards * shard_y
+          output_shards_by_mip[i][k].update(chunk_dict)
 
     del img
-    del ds_img
-    zbox.minpt.z += z_thickness
-    zbox.maxpt.z += z_thickness
+    del ds_imgs
+    zbox.minpt.z += chunk_size.z
+    zbox.maxpt.z += chunk_size.z
 
-  (filename, shard) = src_vol.image.make_shard(
-    output_img, shape_bbox, (mip + 1), progress=False
-  )
-  basepath = src_vol.meta.join(
-    src_vol.cloudpath, src_vol.meta.key(mip + 1)
-  )
-  CloudFiles(basepath).put(filename, shard)
+  for i in range(num_mips):
+    shard_shape = shard_shapefn(mip + i)
+    for k, chunk_dict in enumerate(output_shards_by_mip[i]):
+      shard_bbox = ...
+      (filename, shard) = src_vol.image.make_shard(
+        output_img, shape_bbox, (mip + i + 1), progress=False
+      )
+      basepath = src_vol.meta.join(
+        src_vol.cloudpath, src_vol.meta.key(mip + 1)
+      )
+      CloudFiles(basepath).put(filename, shard)
+      output_shards_by_mip[k] = None # free RAM
 
 @queueable
 def CountVoxelsTask(

@@ -281,7 +281,7 @@ def downsample(
   if compress and compress.lower() in ("none", "false"):
     compress = False
 
-  if encoding and encoding.lower() in ("jpeg", "png", "fpzip", "zfpc"):
+  if encoding and encoding.lower() in ("jpeg", "jxl", "png", "fpzip", "zfpc"):
     compress = False
 
   bounds = compute_bounds(path, mip, xrange, yrange, zrange)

@@ -639,23 +639,26 @@ def create_image_shard_downsample_tasks(
   
   Only 2x2x1 downsamples are supported for now.
   """
-  cv = downsample_scales.add_scale(
-    cloudpath, mip, 
+  if num_mips is None:
+    num_mips = 3
+
+  cv = downsample_scales.add_scales(
+    cloudpath, mip, num_mips, 
     preserve_chunk_size=True, chunk_size=chunk_size,
     encoding=encoding, factor=factor
   )
-  cv.mip = mip + 1
-
-  cv.scale["sharding"] = create_sharded_image_info(
-    dataset_size=cv.scale["size"], 
-    chunk_size=cv.scale["chunk_sizes"][0], 
-    encoding=cv.scale["encoding"], 
-    dtype=cv.dtype,
-    uncompressed_shard_bytesize=int(memory_target),
-  )
-
-  if num_mips is None:
-    num_mips = 3
+  
+  for i in range(1, num_mips + 1):
+    cv.mip = mip + i
+    cv.scale["sharding"] = create_sharded_image_info(
+      dataset_size=cv.scale["size"], 
+      chunk_size=cv.scale["chunk_sizes"][0], 
+      encoding=cv.scale["encoding"], 
+      dtype=cv.dtype,
+      uncompressed_shard_bytesize=int(memory_target),
+    )
+  
+  cv.mip = mip
 
   for i in range(num_mips - 1):
     set_encoding(cv, mip + i + 1, encoding, encoding_level, encoding_effort)
@@ -670,8 +673,9 @@ def create_image_shard_downsample_tasks(
 
   cv.commit_info()
 
+  sharding = cv.info["scales"][mip + 1]["sharding"]
   shape = image_shard_shape_from_spec(
-    cv.scale["sharding"], cv.volume_size, cv.chunk_size
+    sharding, cv.volume_size, cv.chunk_size
   )
   shape = Vec(*shape) * factor
 

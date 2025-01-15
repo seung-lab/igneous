@@ -243,8 +243,8 @@ def create_downsample_scales(
   vol.commit_info()
   return vol
 
-def add_scale(
-  layer_path, mip,
+def add_scales(
+  layer_path, mip, num_mips,
   preserve_chunk_size=True, chunk_size=None,
   encoding=None, factor=None
 ):
@@ -253,23 +253,27 @@ def add_scale(
   if factor is None:
     factor = (2,2,1)
 
-  new_resolution = vol.resolution * Vec(*factor)
-  vol.meta.add_resolution(
-    new_resolution, encoding=encoding, chunk_size=chunk_size
-  )
+  for i in range(num_mips):
+    new_resolution = vol.resolution * Vec(*factor)
+    vol.meta.add_resolution(
+      new_resolution, encoding=encoding, chunk_size=chunk_size
+    )
 
-  if chunk_size is None:
-    if preserve_chunk_size:
-      chunk_size = vol.scales[mip]['chunk_sizes']
+    if chunk_size is None:
+      if preserve_chunk_size:
+        chunk_size_ds = vol.scales[mip]['chunk_sizes']
+      else:
+        chunk_size_ds = vol.scales[mip + 1]['chunk_sizes']
     else:
-      chunk_size = vol.scales[mip + 1]['chunk_sizes']
-  else:
-    chunk_size = [ chunk_size ]
+      chunk_size_ds = [ chunk_size ]
 
-  if encoding is None:
-    encoding = vol.scales[mip]['encoding']
+    if encoding is None:
+      encoding = vol.scales[mip]['encoding']
 
-  vol.scales[mip + 1]['chunk_sizes'] = chunk_size
+    vol.scales[mip + 1]['chunk_sizes'] = chunk_size_ds
+
+    mip += 1
+    vol.mip = mip
 
   return vol
 

@@ -44,8 +44,9 @@ SCALES = [
   },
 ]
 
+@pytest.mark.parametrize("dtype", [np.uint8, np.float32])
 @pytest.mark.parametrize("scale", SCALES)
-def test_sharded_image_bits(scale):
+def test_sharded_image_bits(scale, dtype):
   dataset_size = Vec(*scale["size"])
   chunk_size = Vec(*scale["chunk_sizes"][0])
 
@@ -53,7 +54,7 @@ def test_sharded_image_bits(scale):
     dataset_size=dataset_size,
     chunk_size=chunk_size,
     encoding=scale["encoding"],
-    dtype=np.uint8
+    dtype=dtype
   )
 
   shape = image_shard_shape_from_spec(

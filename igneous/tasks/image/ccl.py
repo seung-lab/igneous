@@ -171,7 +171,7 @@ def CCLFacesTask(
       connectivity=6, in_place=True
     )
   cc_labels = cc3d.connected_components(labels, connectivity=6, out_dtype=np.uint64)
-  cc_labels += label_offset
+  cc_labels += np.uint64(label_offset)
   cc_labels[labels == 0] = 0
 
   # Uploads leading faces for adjacent tasks to examine
@@ -236,7 +236,7 @@ def CCLEquivalancesTask(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
   )
-  cc_labels += label_offset
+  cc_labels += np.uint64(label_offset)
   cc_labels[labels == 0] = 0
 
   for i in range(1, N+1):
@@ -340,7 +340,7 @@ def RelabelCCLTask(
     labels, connectivity=6, 
     out_dtype=np.uint64, return_N=True
   )
-  cc_labels += label_offset
+  cc_labels += np.uint64(label_offset)
   cc_labels[labels == 0] = 0
 
   task_voxels = shape.x * shape.y * shape.z

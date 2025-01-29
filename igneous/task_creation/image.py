@@ -397,10 +397,14 @@ def create_sharded_image_info(
   """
   if isinstance(dtype, int):
     byte_width = dtype
-  elif isinstance(dtype, str) or np.issubdtype(dtype, np.integer):
+  elif (
+    isinstance(dtype, str) 
+    or np.issubdtype(dtype, np.integer) 
+    or np.issubdtype(dtype, np.floating)
+  ):
     byte_width = np.dtype(dtype).itemsize
   else:
-    raise ValueError(f"{dtype} must be int, str, or np.integer.")
+    raise ValueError(f"{dtype} must be int, str, np.integer, or np.floating.")
 
   voxels = prod(dataset_size)
   chunk_voxels = prod(chunk_size)

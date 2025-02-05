@@ -555,7 +555,13 @@ def test_voxel_counting_task():
     tq = MockTaskQueue()
     tasks = tc.create_voxel_counting_tasks(layer_path, mip=0)
     tq.insert_all(tasks)
-    tc.accumulate_voxel_counts(layer_path, mip=0)
+
+    additional_path = os.path.join(directory, "voxel_counts_additional.im")
+
+    tc.accumulate_voxel_counts(
+        layer_path, mip=0,
+        additional_output=additional_path,
+    )
 
     from mapbuffer import IntMap
     im = CloudFiles(layer_path).get(f"{cv.key}/stats/voxel_counts.im")
@@ -567,6 +573,13 @@ def test_voxel_counting_task():
 
     assert cts_dict_task == cts_dict_gt
 
+    with open(additional_path, "rb") as f:
+        im = IntMap(f)
+
+    cts_dict_task = im.todict()
+    assert cts_dict_task == cts_dict_gt
+
+    os.remove(additional_path)
 
 def test_num_mips_from_memory_target():
     from igneous.task_creation.image import num_mips_from_memory_target

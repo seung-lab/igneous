@@ -1762,7 +1762,8 @@ def create_voxel_counting_tasks(
 
 def accumulate_voxel_counts(
   cloudpath, mip, 
-  progress=True, compress=None
+  progress=True, compress=None,
+  additional_output:Optional[str] = None,
 ):
   """
   Accumulate counts from each task.
@@ -1801,10 +1802,17 @@ def accumulate_voxel_counts(
   cf = CloudFiles(final_path)
   im = IntMap(final_counts)
 
+  binary = im.tobytes()
+  del im
   del final_counts
+
+  if additional_output:
+    with open(additional_output, "wb") as f:
+      f.write(binary)
+
   cf.put(
     'voxel_counts.im', 
-    im.tobytes(),
+    binary,
     content_type="application/x-intmap",
     compress=compress,
   )

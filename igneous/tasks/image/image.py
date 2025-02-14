@@ -744,29 +744,29 @@ def ImageShardDownsampleTask(
 
   zbox = wide_bbox.clone()
   zbox.maxpt.z = zbox.minpt.z + (chunk_size.z * factor[2])
-  # src_vol.fill_missing= True
-  for z in range(nz):
-    print("zbox", zbox)
+
+  for z in tqdm(range(nz)):
     img = src_vol.download(
       zbox, agglomerate=agglomerate, timestamp=timestamp
     )
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
-    # ds_img[slc] b/c sometimes the size round up in tinybrain
-    # makes this too large by one voxel on an axis
-    # xlim, ylim = tuple(ds_img.shape[:2])
+
     zs = z * chunk_size.z
     ze = (z+1) * chunk_size.z
-    # output_img[:xlim,:ylim,zs:ze] = ds_img
+
     for i in range(num_mips):
-      num_x_shards =  int(factor[0] ** (num_mips - i))
-      num_y_shards = int(factor[1] ** (num_mips - i))
       shard_shape = shard_shapefn(mip + i + 1)
-      import pdb; pdb.set_trace()
-      print(i, num_x_shards, num_y_shards)
+
+      num_x_shards = int(factor[0] ** (num_mips - i))
+      num_y_shards = int(factor[1] ** (num_mips - i))
+      num_x_shards = int(min(num_x_shards, src_vol.meta.volume_size(mip+i+1).x // shard_shape[0]))
+      num_y_shards = int(min(num_y_shards, src_vol.meta.volume_size(mip+i+1).y // shard_shape[1]))
+      num_x_shards = max(num_x_shards, 1)
+      num_y_shards = max(num_y_shards, 1)
+
       for shard_y in range(num_y_shards):
         for shard_x in range(num_x_shards):
-          print("x", shard_x)
           xoff = int(shard_shape[0] * shard_x)
           yoff = int(shard_shape[1] * num_x_shards * shard_y)
 
@@ -789,16 +789,16 @@ def ImageShardDownsampleTask(
     zbox.maxpt.z += chunk_size.z
 
   for i in range(num_mips):
-    shard_shape = shard_shapefn(mip + i)
-    for (shard_x, shard_y), chunk_dict in enumerate(output_shards_by_mip[i]):
-      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[0] ])
-      shard_bbox = Bbox(minpt, minpts + shard_shape)
+    shard_shape = shard_shapefn(mip + i + 1)
+    for k, ((shard_x, shard_y), chunk_dict) in enumerate(output_shards_by_mip[i].items()):
+      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[0], wide_bbox.minpt.z ])
+      shard_bbox = Bbox(minpt, minpt + shard_shape)
       shard_bbox += src_vol.meta.voxel_offset(mip + i + 1)
       (filename, shard) = src_vol.image.make_shard(
         output_img, shape_bbox, (mip + i + 1), progress=False
       )
       basepath = src_vol.meta.join(
-        src_vol.cloudpath, src_vol.meta.key(mip + 1)
+        src_vol.cloudpath, src_vol.meta.key(mip + i + 1)
       )
       CloudFiles(basepath).put(filename, shard)
       output_shards_by_mip[k] = None # free RAM

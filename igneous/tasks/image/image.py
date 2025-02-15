@@ -790,18 +790,18 @@ def ImageShardDownsampleTask(
 
   for i in range(num_mips):
     shard_shape = shard_shapefn(mip + i + 1)
-    for k, ((shard_x, shard_y), chunk_dict) in enumerate(output_shards_by_mip[i].items()):
+    for (shard_x, shard_y), chunk_dict in output_shards_by_mip[i].items():
       minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[0], wide_bbox.minpt.z ])
       shard_bbox = Bbox(minpt, minpt + shard_shape)
       shard_bbox += src_vol.meta.voxel_offset(mip + i + 1)
       (filename, shard) = src_vol.image.make_shard(
-        output_img, shape_bbox, (mip + i + 1), progress=False
+        chunk_dict, shape_bbox, (mip + i + 1), progress=False
       )
       basepath = src_vol.meta.join(
         src_vol.cloudpath, src_vol.meta.key(mip + i + 1)
       )
       CloudFiles(basepath).put(filename, shard)
-      output_shards_by_mip[k] = None # free RAM
+    output_shards_by_mip[i] = None # Free RAM
 
 @queueable
 def CountVoxelsTask(

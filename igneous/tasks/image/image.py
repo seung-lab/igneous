@@ -705,12 +705,6 @@ def ImageShardDownsampleTask(
     chunk_size, offset=src_vol.meta.voxel_offset(mip)
   )
 
-  bbox = Bbox(offset, offset + shape)
-  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
-  bbox = bbox.expand_to_chunk_size(
-    chunk_size, offset=src_vol.meta.voxel_offset(mip)
-  )
-
   def shard_shapefn(mip):
     return igneous.shards.image_shard_shape_from_spec(
       src_vol.scales[mip]["sharding"], 
@@ -745,7 +739,7 @@ def ImageShardDownsampleTask(
   zbox = wide_bbox.clone()
   zbox.maxpt.z = zbox.minpt.z + (chunk_size.z * factor[2])
 
-  for z in tqdm(range(nz)):
+  for z in range(nz):
     img = src_vol.download(
       zbox, agglomerate=agglomerate, timestamp=timestamp
     )
@@ -760,6 +754,8 @@ def ImageShardDownsampleTask(
 
       num_x_shards = int(factor[0] ** (num_mips - i))
       num_y_shards = int(factor[1] ** (num_mips - i))
+      num_x_shards = int(min(num_x_shards, zbox.size().x // shard_shape[0]) // (2**(i+1)))
+      num_y_shards = int(min(num_y_shards, zbox.size().y // shard_shape[1]) // (2**(i+1)))
       num_x_shards = int(min(num_x_shards, src_vol.meta.volume_size(mip+i+1).x // shard_shape[0]))
       num_y_shards = int(min(num_y_shards, src_vol.meta.volume_size(mip+i+1).y // shard_shape[1]))
       num_x_shards = max(num_x_shards, 1)
@@ -768,7 +764,7 @@ def ImageShardDownsampleTask(
       for shard_y in range(num_y_shards):
         for shard_x in range(num_x_shards):
           xoff = int(shard_shape[0] * shard_x)
-          yoff = int(shard_shape[1] * num_x_shards * shard_y)
+          yoff = int(shard_shape[1] * shard_y)
 
           shard_z_cutout = ds_imgs[i][
             xoff:int(xoff+shard_shape[0]), 

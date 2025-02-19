@@ -298,6 +298,7 @@ def generate_lods(
   assert num_lods >= 0, num_lods
 
   lods = [ mesh ]
+  next_mesh = mesh
 
   # from pyfqmr documentation:
   # threshold = alpha * (iteration + K) ** agressiveness
@@ -306,9 +307,9 @@ def generate_lods(
   # deleting a vertex.
   for i in range(1, num_lods+1):
     simplifier = pyfqmr.Simplify()
-    simplifier.setMesh(mesh.vertices, mesh.faces)
+    simplifier.setMesh(next_mesh.vertices, next_mesh.faces)
     simplifier.simplify_mesh(
-      target_count=max(int(len(mesh.faces) / (decimation_factor ** i)), 4),
+      target_count=max(int(len(next_mesh.faces) / decimation_factor), 4),
       aggressiveness=aggressiveness,
       preserve_border=True,
       verbose=False,
@@ -324,6 +325,7 @@ def generate_lods(
     lods.append(
       Mesh(*simplifier.getMesh())
     )
+    next_mesh = lods[-1]
 
   return lods
 
@@ -491,6 +493,54 @@ def cmp_zorder(lhs, rhs) -> bool:
   return lhs[msd] - rhs[msd]
 
 def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
+  """
+  Create submeshes by slicing the orignal mesh to produce smaller chunks
+  by slicing them from x,y,z dimensions.
+
+  This creates (2^lod)^3 submeshes.
+  """
+  try:
+    return create_octree_level_from_mesh_accelerated(mesh, chunk_shape, lod, num_lods)
+  except RuntimeError:
+    return create_octree_level_from_mesh_generalized(mesh, chunk_shape, lod, num_lods)
+
+def create_octree_level_from_mesh_accelerated(mesh, chunk_shape, lod, num_lods):
+  """
+  Uses zmesh.chunk_mesh to accelerate slicing meshes, but it can only handle
+  vertices that are one 26-connected grid space apart and raises a RuntimeError
+  if this condition isn't met.
+  """
+  if lod == num_lods - 1:
+    return ([ mesh ], ((0,0,0),) )
+
+  scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
+  chunked_meshes = zmesh.chunk_mesh(mesh, scale)
+  gpts = list(chunked_meshes.keys())
+
+  nodes = []
+
+  for gpt in gpts:
+    mesh = chunked_meshes[gpt]
+    if mesh.is_empty():
+      continue
+    # test for totally degenerate meshes by checking if 
+    # all of two axes match, meaning the mesh must be a 
+    # point or a line.
+    if np.sum([ np.all(mesh.vertices[:,i] == mesh.vertices[0,i]) for i in range(3) ]) >= 2:
+      continue
+
+    nodes.append(gpt)
+
+  # Sort in Z-curve order
+  nodes.sort(
+    key=functools.cmp_to_key(lambda x, y: cmp_zorder(x, y))
+  )
+
+  submeshes = [ chunked_meshes[node] for node in nodes ]
+
+  return (submeshes, nodes)
+
+def create_octree_level_from_mesh_generalized(mesh, chunk_shape, lod, num_lods):
   """
   Create submeshes by slicing the orignal mesh to produce smaller chunks
   by slicing them from x,y,z dimensions.

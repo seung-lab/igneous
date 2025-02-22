@@ -65,12 +65,12 @@ def enqueue_tasks(ctx, queue, tasks):
     tq.insert(tasks, parallel=parallel)
   return tq
 
-class TupleN(click.ParamType):
+class ListN(click.ParamType):
   """A command line option type consisting of 3 comma-separated integers."""
-  name = 'tupleN'
+  name = 'ListN'
   def convert(self, value, param, ctx):
     if isinstance(value, str):
-      value = tuple(map(int, value.split(',')))
+      value = list(map(int, value.split(',')))
     return value
 
 class Tuple34(click.ParamType):
@@ -1236,7 +1236,7 @@ def skeletongroup():
 @click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float, show_default=True)
 @click.option('--max-paths', default=None, help="Abort skeletonizing an object after this many paths have been traced.", type=float)
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
-@click.option('--labels', type=TupleN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
+@click.option('--labels', type=ListN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
 @click.option('--output', '-o', type=CloudPath(), default=None, help="Output the results to a different place.", show_default=True)
 @click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)

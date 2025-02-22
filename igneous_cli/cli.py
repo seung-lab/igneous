@@ -437,7 +437,7 @@ def image_roi(src, progress, suppress_faint, dust, z_step, max_axial_len):
 @click.option('--compress', default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
-@click.option('--mapping-file', required=True, help="JSON filename containing a sparse mapping of each moved z to its new position. e.g. '\{ \"5\": 6 \}'")
+@click.option('--mapping-file', required=True, help="JSON filename containing a sparse mapping of each moved z to its new position. e.g. '{ \"5\": 6 }'")
 @click.pass_context
 def image_reorder(
   ctx, src, dest, 

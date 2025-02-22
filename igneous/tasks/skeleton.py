@@ -332,6 +332,18 @@ class SkeletonTask(RegisteredTask):
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
     from dbscan import DBSCAN
 
+    boundaries = [
+      bbox.minpt.x == vol.bounds.minpt.x,
+      bbox.maxpt.x == vol.bounds.maxpt.x,
+      bbox.minpt.y == vol.bounds.minpt.y,
+      bbox.maxpt.y == vol.bounds.maxpt.y,
+      bbox.minpt.z == vol.bounds.minpt.z,
+      bbox.maxpt.z == vol.bounds.maxpt.z,
+    ]
+
+    if all(boundaries):
+      return skeletons
+
     repair_skels = [
       skel for skel in skeletons.values()
       if np.any(skel.cross_sectional_area_contacts > 0)

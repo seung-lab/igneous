@@ -332,10 +332,32 @@ class SkeletonTask(RegisteredTask):
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
     from dbscan import DBSCAN
 
-    repair_skels = [
-      skel for skel in skeletons.values()
-      if np.any(skel.cross_sectional_area_contacts > 0)
+    boundaries = [
+      bbox.minpt.x == vol.bounds.minpt.x,
+      bbox.maxpt.x == vol.bounds.maxpt.x,
+      bbox.minpt.y == vol.bounds.minpt.y,
+      bbox.maxpt.y == vol.bounds.maxpt.y,
+      bbox.minpt.z == vol.bounds.minpt.z,
+      bbox.maxpt.z == vol.bounds.maxpt.z,
     ]
+
+    if all(boundaries):
+      return skeletons
+
+    invalid_repairs = 0
+    for i, bnd in enumerate(boundaries):
+      invalid_repairs |= (bnd << i)
+
+    invalid_repairs = (~np.uint8(invalid_repairs)) & np.uint8(0b00111111)
+
+    # We want to repair any skeleton that has a contact with the
+    # edge except those that are contacting the volume boundary due to futility
+
+    repair_skels = []
+    for skel in skeletons.values():
+      contacts = skel.cross_sectional_area_contacts & invalid_repairs
+      if np.any(contacts):
+        repair_skels.append(skel)
 
     delta = int(self.cross_sectional_area_shape_delta)
 

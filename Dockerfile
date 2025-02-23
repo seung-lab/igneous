@@ -29,4 +29,4 @@ RUN apt-get update \
         \( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
       \) -exec rm -rf '{}' +
 
-CMD igneous execute -q --aws-region $SQS_REGION_NAME --lease-sec $LEASE_SECONDS $SQS_URL
+CMD sh -c "igneous execute -q --lease-sec $LEASE_SECONDS $SQS_URL"

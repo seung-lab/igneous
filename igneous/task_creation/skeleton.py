@@ -53,6 +53,9 @@ def bounds_from_mesh(
     except ValueError:
       raise ValueError(f"Mesh {label} is not available.")
 
+    if isinstance(mesh, dict):
+      mesh = mesh[label]
+
     bounds = Bbox.from_points(mesh.vertices // vol.resolution)
     bounds.grow(1)
     bounds = bounds.expand_to_chunk_size(shape, offset=vol.voxel_offset)

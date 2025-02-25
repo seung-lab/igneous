@@ -153,12 +153,15 @@ def compute_bounds(path, mip, xrange, yrange, zrange):
     bounds = CloudVolume(path).meta.bounds(mip)
 
   if xrange:
+    xrange = sorted(xrange)
     bounds.minpt.x = xrange[0]
     bounds.maxpt.x = xrange[1]
   if yrange:
+    yrange = sorted(yrange)
     bounds.minpt.y = yrange[0]
     bounds.maxpt.y = yrange[1]
   if zrange:
+    zrange = sorted(zrange)
     bounds.minpt.z = zrange[0]
     bounds.maxpt.z = zrange[1]
 

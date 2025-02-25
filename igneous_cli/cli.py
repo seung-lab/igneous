@@ -991,13 +991,14 @@ def mesh_xfer(
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option('--closed-edge/--open-edge', is_flag=True, default=True, help="Whether meshes are closed on the side that contacts the dataset boundary.", show_default=True)
+@click.option('--labels', type=ListN(), default=None, help="Mesh only this comma separated list of labels.", show_default=True)
 @click.pass_context
 def mesh_forge(
   ctx, path, queue, mip, shape, 
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
   spatial_index, sharded, closed_edge,
-  dust_global
+  dust_global, labels,
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -1019,10 +1020,10 @@ def mesh_forge(
     path, mip, shape, 
     simplification=simplify, max_simplification_error=max_error,
     mesh_dir=dir, cdn_cache=False, dust_threshold=dust_threshold,
-    object_ids=None, progress=False, fill_missing=fill_missing,
+    object_ids=labels, progress=False, fill_missing=fill_missing,
     encoding='precomputed', spatial_index=spatial_index, 
     sharded=sharded, compress=compress, closed_dataset_edges=closed_edge,
-    dust_global=dust_global
+    dust_global=dust_global,
   )
 
   enqueue_tasks(ctx, queue, tasks)

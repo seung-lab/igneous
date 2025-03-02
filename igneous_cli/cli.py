@@ -1644,13 +1644,13 @@ def memory_used(data_width, shape, factor):
     memory_bytes *= constant / (constant - 1)
 
   return memory_bytes
+
 @main.command("view")
 @click.argument("path", type=CloudPath())
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
 @click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
 @click.option('--pos', type=Tuple3(), default=None, help="Position in volume to open to.", show_default=True)
-
 def view(path, browser, port, ng, pos):
   """
   Open an on-disk dataset for viewing in neuroglancer.

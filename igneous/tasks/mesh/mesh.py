@@ -85,6 +85,9 @@ class MeshTask(RegisteredTask):
         UNIX timestamp.
       fill_holes (int):
         0: off
+        1: simple hole filling
+        2: also fill borders in 2d on sides of image
+        3: also perform a morphological closing using 3x3x3 stencil
     """
     super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
     self.shape = Vec(*shape)

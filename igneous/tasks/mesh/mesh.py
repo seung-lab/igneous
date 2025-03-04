@@ -146,12 +146,17 @@ class MeshTask(RegisteredTask):
 
     self._mesher = zmesh.Mesher(self._volume.resolution)
 
+    # aggressive morphological hole filling has a 1-2vx 
+    # edge effect that needs to be cropped away
+    fill_level = self.options["fill_holes"]
+    hole_filling_padding = int(fill_level >= 3) * 2
+
     # Marching cubes loves its 1vx overlaps.
     # This avoids lines appearing between
     # adjacent chunks.
     data_bounds = self._bounds.clone()
-    data_bounds.minpt -= self.options['low_padding']
-    data_bounds.maxpt += self.options['high_padding']
+    data_bounds.minpt -= self.options['low_padding'] + hole_filling_padding
+    data_bounds.maxpt += self.options['high_padding'] + hole_filling_padding
 
     self._mesh_dir = self.get_mesh_dir()
 
@@ -197,9 +202,6 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
 
-
-    fill_level = self.options["fill_holes"]
-
     if fill_level > 0:
       filled_data, hole_labels = fastmorph.fill_holes(
         data[...,0],
@@ -208,6 +210,11 @@ class MeshTask(RegisteredTask):
         fix_borders=(fill_level > 1),
         morphological_closing=(fill_level > 2),
       )
+
+      if fill_level >= 3:
+        hp = hole_filling_padding
+        data = np.asfortranarray(data[hp:-hp,hp:-hp,hp:-hp])
+        filled_data = np.asfortranarray(filled_data[hp:-hp,hp:-hp,hp:-hp])
 
       data = crackle.compress(data)
       self._mesher.mesh(filled_data)

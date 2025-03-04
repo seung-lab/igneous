@@ -188,7 +188,7 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
 
-    self._mesher.mesh(data[..., 0].T)
+    self._mesher.mesh(data[..., 0])
     del data
 
     self.compute_meshes(renumbermap, left_offset)
@@ -363,10 +363,10 @@ class MeshTask(RegisteredTask):
       )
 
   def _create_mesh(self, obj_id, left_bound_offset):
-    mesh = self._mesher.get_mesh(
+    mesh = self._mesher.get(
       obj_id,
-      simplification_factor=self.options['simplification_factor'],
-      max_simplification_error=self.options['max_simplification_error'],
+      reduction_factor=self.options['simplification_factor'],
+      max_error=self.options['max_simplification_error'],
       voxel_centered=True,
     )
 

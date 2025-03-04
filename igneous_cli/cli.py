@@ -982,8 +982,9 @@ def mesh_xfer(
 @click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels.", show_default=True)
 @click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification.", show_default=True)
-@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--max-error', default=40, help="Maximum simplification error in physical units.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--fill-holes', type=int, default=0, help="Fill holes at different levels of aggressiveness. 0: no hole filling 1: simple hole filling 2: also fix borders 3: also morphological closing.", show_default=True)
 @click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
 @click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
@@ -998,7 +999,7 @@ def mesh_forge(
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
   spatial_index, sharded, closed_edge,
-  dust_global, labels,
+  dust_global, labels, fill_holes,
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -1008,10 +1009,11 @@ def mesh_forge(
   marching cubes and a quadratic mesh simplifier.
 
   Note that using task shapes with axes less than
-  or equal to 511x1023x511 (don't ask) will be more
+  or equal to 1023x1023x511 will be more
   memory efficient as it can use a 32-bit mesher.
 
   zmesh is used: https://github.com/seung-lab/zmesh
+  fastmorph is used for hole filling: https://github.com/seung-lab/fastmorph/
   """
   if compress.lower() == "none":
     compress = False
@@ -1023,7 +1025,7 @@ def mesh_forge(
     object_ids=labels, progress=False, fill_missing=fill_missing,
     encoding='precomputed', spatial_index=spatial_index, 
     sharded=sharded, compress=compress, closed_dataset_edges=closed_edge,
-    dust_global=dust_global,
+    dust_global=dust_global, fill_holes=fill_holes,
   )
 
   enqueue_tasks(ctx, queue, tasks)

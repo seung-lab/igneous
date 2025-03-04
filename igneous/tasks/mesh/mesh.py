@@ -18,7 +18,9 @@ import mapbuffer
 from mapbuffer import MapBuffer, IntMap
 from taskqueue import RegisteredTask, queueable
 
+import crackle
 import DracoPy
+import fastmorph
 import fastremap
 import zmesh
 
@@ -81,6 +83,8 @@ class MeshTask(RegisteredTask):
         fragment file. 
       timestamp: (int: None) (graphene only) use the segmentation existing at this
         UNIX timestamp.
+      fill_holes (int):
+        0: off
     """
     super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
     self.shape = Vec(*shape)
@@ -114,6 +118,7 @@ class MeshTask(RegisteredTask):
       'stop_layer': kwargs.get('stop_layer', 2),
       'compress': kwargs.get('compress', 'gzip'),
       'closed_dataset_edges': kwargs.get('closed_dataset_edges', True),
+      'fill_holes': kwargs.get("fill_holes", 0),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -178,7 +183,8 @@ class MeshTask(RegisteredTask):
 
     data = self._remove_dust(
       data, 
-      self.options['dust_threshold'], self.options['dust_global']
+      self.options['dust_threshold'],
+      self.options['dust_global'],
     )
     data = self._remap(data)
 
@@ -188,10 +194,34 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
 
-    self._mesher.mesh(data[..., 0])
-    del data
 
-    self.compute_meshes(renumbermap, left_offset)
+    fill_level = self.options["fill_holes"]
+
+    if fill_level > 0:
+      filled_data, hole_labels = fastmorph.fill_holes(
+        data[...,0],
+        remove_enclosed=True,
+        return_removed=True,
+        fix_borders=(fill_level > 1),
+        morphological_closing=(fill_level > 2),
+      )
+
+      data = crackle.compress(data)
+      self._mesher.mesh(filled_data)
+      self.compute_meshes(renumbermap, left_offset)
+      del filled_data
+      data = crackle.decompress(data)
+
+      hole_data = data * np.isin(data, list(hole_labels))
+      del data
+
+      self._mesher.mesh(hole_data)
+      self.compute_meshes(renumbermap, left_offset)
+    else:
+      self._mesher.mesh(data[..., 0])
+      del data
+
+      self.compute_meshes(renumbermap, left_offset)
 
   def _handle_dataset_boundary(self, data, bbox):
     """

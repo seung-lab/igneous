@@ -25,6 +25,8 @@ from cloudvolume.lib import Vec, Bbox, sip, xyzrange
 from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
 import cc3d
+import crackle
+import fastmorph
 import fastremap
 import kimimaro
 
@@ -65,7 +67,7 @@ class SkeletonTask(RegisteredTask):
     fix_branching:bool = True,
     fix_borders:bool = True,
     fix_avocados:bool = False,
-    fill_holes:bool = False,
+    fill_holes:int = 0,
     dust_threshold:int = 1000, 
     progress:bool = False,
     parallel:int = 1,
@@ -105,6 +107,10 @@ class SkeletonTask(RegisteredTask):
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
 
+    # aggressive morphological hole filling has a 1-2vx 
+    # edge effect that needs to be cropped away
+    self.hole_filling_padding = (self.fill_holes >= 3) * 2
+
   def execute(self):
     # For graphene volumes, if we've materialized the root IDs
     # into a static archive, let's use that because it's way more
@@ -114,13 +120,19 @@ class SkeletonTask(RegisteredTask):
       cloudpath = self.root_ids_cloudpath
 
     vol = CloudVolume(
-      cloudpath, mip=self.mip, 
-      info=self.info, cdn_cache=False,
-      parallel=self.parallel, 
+      cloudpath,
+      mip=self.mip,
+      bounded=(self.hole_filling_padding == 0),
+      info=self.info,
+      cdn_cache=False,
+      parallel=self.parallel,
       fill_missing=self.fill_missing,
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
+
+    bbox.minpt -= self.hole_filling_padding
+    bbox.maxpt += self.hole_filling_padding
 
     path = vol.info.get("skeletons", "skeletons")
     if self.frag_path is None:
@@ -156,23 +168,19 @@ class SkeletonTask(RegisteredTask):
       dust_threshold = 0
       all_labels = self.apply_global_dust_threshold(vol, all_labels)
 
+    if self.fill_holes and self.fix_autapses:
+      raise ValueError("fill_holes is not currently compatible with fix_autapses")
+
     voxel_graph = None
     if self.fix_autapses:
       voxel_graph = self.voxel_connectivity_graph(vol, bbox, all_labels)
 
-    skeletons = kimimaro.skeletonize(
-      all_labels, self.teasar_params, 
-      object_ids=self.object_ids, 
-      anisotropy=vol.resolution,
-      dust_threshold=dust_threshold, 
-      progress=self.progress, 
-      fix_branching=self.fix_branching,
-      fix_borders=self.fix_borders,
-      fix_avocados=self.fix_avocados,
-      fill_holes=self.fill_holes,
-      parallel=self.parallel,
-      extra_targets_after=extra_targets_after.keys(),
-      voxel_graph=voxel_graph,
+    skeletons = self.skeletonize(
+      all_labels, 
+      vol, 
+      dust_threshold, 
+      extra_targets_after, 
+      voxel_graph,
     )
     del all_labels
 
@@ -211,6 +219,61 @@ class SkeletonTask(RegisteredTask):
 
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
+
+  def skeletonize(
+    self, 
+    all_labels:np.ndarray, 
+    vol:CloudVolume, 
+    dust_threshold:int, 
+    extra_targets_after:dict, 
+    voxel_graph:np.ndarray,
+  ) -> dict:
+    def do_skeletonize(labels):
+      return kimimaro.skeletonize(
+        labels, self.teasar_params, 
+        object_ids=self.object_ids, 
+        anisotropy=vol.resolution,
+        dust_threshold=dust_threshold, 
+        progress=self.progress, 
+        fix_branching=self.fix_branching,
+        fix_borders=self.fix_borders,
+        fix_avocados=self.fix_avocados,
+        fill_holes=False, # moved this logic into SkeletonTask / fastmorph
+        parallel=self.parallel,
+        extra_targets_after=extra_targets_after.keys(),
+        voxel_graph=voxel_graph,
+      )
+
+    if self.fill_holes > 0:
+      filled_labels, hole_labels = fastmorph.fill_holes(
+        all_labels,
+        remove_enclosed=True,
+        return_removed=True,
+        fix_borders=(self.fill_holes >= 2),
+        morphological_closing=(self.fill_holes >= 3),
+      )
+
+      if self.fill_holes >= 3:
+        hp = self.hole_filling_padding
+        all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
+        filled_labels= np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
+
+      all_labels = crackle.compress(all_labels)
+      skeletons = do_skeletonize(filled_labels)
+      del filled_labels
+
+      all_labels = crackle.decompress(all_labels)
+      hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
+      del all_labels
+
+      hole_skeletons = do_skeletonize(hole_labels)
+      skeletons.update(hole_skeletons)
+      del hole_labels
+      del hole_skeletons
+    else:
+      skeletons = do_skeletonize(all_labels)
+
+    return skeletons
 
   def voxel_connectivity_graph(
     self, 

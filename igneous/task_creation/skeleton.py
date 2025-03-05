@@ -71,7 +71,7 @@ def create_skeletonizing_tasks(
     teasar_params={'scale':10, 'const': 10}, 
     info=None, object_ids=None, mask_ids=None,
     fix_branching=True, fix_borders=True, 
-    fix_avocados=False, fill_holes=False,
+    fix_avocados=False, fill_holes=0,
     dust_threshold=1000, progress=False,
     parallel=1, fill_missing=False, 
     sharded=False, frag_path=None, spatial_index=True,
@@ -95,7 +95,7 @@ def create_skeletonizing_tasks(
   WARNING: If you are processing hundreds of millions of labels or more and
   are using Cloud Storage this can get expensive ($8 per million labels typically
   accounting for fragment generation and postprocessing)! This scale is when 
-  the experimental sharded format generator becomes crucial to use.
+  the sharded format generator becomes crucial to use.
 
   cloudpath: cloudvolume path
   mip: which mip level to skeletonize 
@@ -177,7 +177,14 @@ def create_skeletonizing_tasks(
   root_ids_cloudpath: for graphene volumes, if you have a materialized archive
     if your desired timepoint, you can use this path for fetching root ID 
     segmentation as it is far more efficient.
+  fill_holes (int): fills holes in labels
+    0: off
+    1: simple hole filling
+    2: also fill borders in 2d on sides of image
+    3: also perform a morphological closing using 3x3x3 stencil
   """
+  assert 0 <= fill_holes <= 3, "fill_holes must be between 0 to 3 inclusive."
+
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
 
@@ -293,6 +300,7 @@ def create_skeletonizing_tasks(
         cross_sectional_area=bool(cross_sectional_area),
         cross_sectional_area_smoothing_window=int(cross_sectional_area_smoothing_window),
         root_ids_cloudpath=root_ids_cloudpath,
+        fill_holes=fill_holes,
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -341,6 +349,7 @@ def create_skeletonizing_tasks(
           'cross_sectional_area': bool(cross_sectional_area),
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
           'root_ids_cloudpath': root_ids_cloudpath,
+          'fill_holes': int(fill_holes)
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

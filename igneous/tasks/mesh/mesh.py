@@ -230,6 +230,7 @@ class MeshTask(RegisteredTask):
       hole_meshes, hole_bounding_boxes = self.compute_meshes(renumbermap, left_offset)
       meshes.update(hole_meshes)
       bounding_boxes.update(hole_bounding_boxes)
+      del hole_data
       del hole_meshes
       del hole_bounding_boxes
     else:

@@ -223,14 +223,13 @@ class MeshTask(RegisteredTask):
       del filled_data
       data = crackle.decompress(data)
 
-      hole_data = data * np.isin(data, list(hole_labels))
-      del data
+      data *= np.isin(data, list(hole_labels))
 
-      self._mesher.mesh(hole_data)
+      self._mesher.mesh(data)
       hole_meshes, hole_bounding_boxes = self.compute_meshes(renumbermap, left_offset)
       meshes.update(hole_meshes)
       bounding_boxes.update(hole_bounding_boxes)
-      del hole_data
+      del data
       del hole_meshes
       del hole_bounding_boxes
     else:

@@ -230,6 +230,38 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
 
+  def _do_operation(self, all_labels, fn):
+    if self.fill_holes > 0:
+      filled_labels, hole_labels = fastmorph.fill_holes(
+        all_labels,
+        remove_enclosed=True,
+        return_removed=True,
+        fix_borders=(self.fill_holes >= 2),
+        morphological_closing=(self.fill_holes >= 3),
+      )
+
+      if self.fill_holes >= 3:
+        hp = self.hole_filling_padding
+        all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
+        filled_labels= np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
+
+      all_labels = crackle.compress(all_labels)
+      skeletons = fn(filled_labels)
+      del filled_labels
+
+      all_labels = crackle.decompress(all_labels)
+      hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
+      del all_labels
+
+      hole_skeletons = fn(hole_labels)
+      skeletons.update(hole_skeletons)
+      del hole_labels
+      del hole_skeletons
+    else:
+      skeletons = fn(all_labels)
+
+    return skeletons
+
   def skeletonize(
     self, 
     all_labels:np.ndarray, 
@@ -254,36 +286,7 @@ class SkeletonTask(RegisteredTask):
         voxel_graph=voxel_graph,
       )
 
-    if self.fill_holes > 0:
-      filled_labels, hole_labels = fastmorph.fill_holes(
-        all_labels,
-        remove_enclosed=True,
-        return_removed=True,
-        fix_borders=(self.fill_holes >= 2),
-        morphological_closing=(self.fill_holes >= 3),
-      )
-
-      if self.fill_holes >= 3:
-        hp = self.hole_filling_padding
-        all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
-        filled_labels= np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
-
-      all_labels = crackle.compress(all_labels)
-      skeletons = do_skeletonize(filled_labels)
-      del filled_labels
-
-      all_labels = crackle.decompress(all_labels)
-      hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
-      del all_labels
-
-      hole_skeletons = do_skeletonize(hole_labels)
-      skeletons.update(hole_skeletons)
-      del hole_labels
-      del hole_skeletons
-    else:
-      skeletons = do_skeletonize(all_labels)
-
-    return skeletons
+    return self._do_operation(all_labels, do_skeletonize)
 
   def voxel_connectivity_graph(
     self, 
@@ -360,9 +363,8 @@ class SkeletonTask(RegisteredTask):
     big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
 
-    huge_bbox = big_bbox.clone()
-    huge_bbox.grow(int(np.max(bbox.size()) / 2) + 1)
-    huge_bbox = Bbox.clamp(huge_bbox, vol.bounds)
+    big_bbox.minpt -= self.hole_filling_padding
+    big_bbox.maxpt += self.hole_filling_padding
 
     all_labels = vol[big_bbox][...,0]
 
@@ -376,15 +378,17 @@ class SkeletonTask(RegisteredTask):
     if self.mask_ids:
       all_labels = fastremap.mask(all_labels, self.mask_ids)
 
-    skeletons = kimimaro.cross_sectional_area(
-      all_labels, skeletons,
-      anisotropy=vol.resolution,
-      smoothing_window=self.cross_sectional_area_smoothing_window,
-      progress=self.progress,
-      in_place=True,
-      fill_holes=self.fill_holes,
-    )
+    def do_cross_section(labels):
+      return kimimaro.cross_sectional_area(
+        labels, skeletons,
+        anisotropy=vol.resolution,
+        smoothing_window=self.cross_sectional_area_smoothing_window,
+        progress=self.progress,
+        in_place=True,
+        fill_holes=False,
+      )
 
+    skeletons = self._do_operation(all_labels, do_cross_section)
     del all_labels
 
     # move the vertices back to their old smaller image location

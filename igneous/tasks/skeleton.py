@@ -119,6 +119,14 @@ class SkeletonTask(RegisteredTask):
     if self.root_ids_cloudpath:
       cloudpath = self.root_ids_cloudpath
 
+    lru_bytes = 0
+    lru_encoding = 'same'
+
+    if self.cross_sectional_area:
+      lru_bytes = self.bounds.size() + 2 * self.cross_sectional_area_shape_delta
+      lru_bytes = lru_bytes[0] * lru_bytes[1] * lru_bytes[2] * 8 // 500
+      lru_encoding = 'crackle'
+
     vol = CloudVolume(
       cloudpath,
       mip=self.mip,
@@ -127,6 +135,8 @@ class SkeletonTask(RegisteredTask):
       cdn_cache=False,
       parallel=self.parallel,
       fill_missing=self.fill_missing,
+      lru_bytes=lru_bytes,
+      lru_encoding=lru_encoding,
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
@@ -353,17 +363,8 @@ class SkeletonTask(RegisteredTask):
     huge_bbox = big_bbox.clone()
     huge_bbox.grow(int(np.max(bbox.size()) / 2) + 1)
     huge_bbox = Bbox.clamp(huge_bbox, vol.bounds)
-    
-    mem_vol = vol.memory_cutout(
-      huge_bbox, 
-      mip=vol.mip, 
-      encoding="crackle",
-      compress=False,
-      agglomerate=True,
-      timestamp=self.timestamp,
-    )
 
-    all_labels = mem_vol[big_bbox][...,0]
+    all_labels = vol[big_bbox][...,0]
 
     delta = bbox.minpt - big_bbox.minpt
 
@@ -390,7 +391,7 @@ class SkeletonTask(RegisteredTask):
     for skel in skeletons.values():
       skel.vertices -= delta * vol.resolution
 
-    return self.repair_cross_sectional_area_contacts(mem_vol, bbox, skeletons)
+    return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
 
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
     from dbscan import DBSCAN

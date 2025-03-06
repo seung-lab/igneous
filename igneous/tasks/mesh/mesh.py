@@ -122,6 +122,7 @@ class MeshTask(RegisteredTask):
       'compress': kwargs.get('compress', 'gzip'),
       'closed_dataset_edges': kwargs.get('closed_dataset_edges', True),
       'fill_holes': kwargs.get("fill_holes", 0),
+      'dry_run': kwargs.get('dry_run', False),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -218,7 +219,7 @@ class MeshTask(RegisteredTask):
 
       data = crackle.compress(data)
       self._mesher.mesh(filled_data)
-      self.compute_meshes(renumbermap, left_offset)
+      meshes, bounding_boxes = self.compute_meshes(renumbermap, left_offset)
       del filled_data
       data = crackle.decompress(data)
 
@@ -226,12 +227,27 @@ class MeshTask(RegisteredTask):
       del data
 
       self._mesher.mesh(hole_data)
-      self.compute_meshes(renumbermap, left_offset)
+      hole_meshes, hole_bounding_boxes = self.compute_meshes(renumbermap, left_offset)
+      meshes.update(hole_meshes)
+      bounding_boxes.update(hole_bounding_boxes)
+      del hole_meshes
+      del hole_bounding_boxes
     else:
       self._mesher.mesh(data[..., 0])
       del data
 
-      self.compute_meshes(renumbermap, left_offset)
+      meshes, bounding_boxes = self.compute_meshes(renumbermap, left_offset)
+
+    if self.options['dry_run']:
+      return (meshes, bounding_boxes)
+
+    if self.options['sharded']:
+      self._upload_batch(meshes, self._bounds)
+    else:
+      self._upload_individuals(meshes, self.options['generate_manifests'])
+
+    if self.options['spatial_index']:
+      self._upload_spatial_index(self._bounds, bounding_boxes)
 
   def _handle_dataset_boundary(self, data, bbox):
     """
@@ -347,13 +363,7 @@ class MeshTask(RegisteredTask):
       bounding_boxes[remapped_id] = mesh_bounds.to_list()
       meshes[remapped_id] = mesh_binary
 
-    if self.options['sharded']:
-      self._upload_batch(meshes, self._bounds)
-    else:
-      self._upload_individuals(meshes, self.options['generate_manifests'])
-
-    if self.options['spatial_index']:
-      self._upload_spatial_index(self._bounds, bounding_boxes)
+    return meshes, bounding_boxes
 
   def _upload_batch(self, meshes, bbox):
     frag_path = self.options['frag_path'] or self.layer_path

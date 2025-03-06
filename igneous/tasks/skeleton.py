@@ -441,6 +441,9 @@ class SkeletonTask(RegisteredTask):
 
       skel_bbx = Bbox.clamp(skel_bbx, vol.bounds)
 
+      skel_bbx.minpt -= self.hole_filling_padding
+      skel_bbx.maxpt += self.hole_filling_padding
+
       binary_image = vol.download(
         skel_bbx, mip=vol.mip, label=skel.id
       )[...,0]
@@ -453,13 +456,23 @@ class SkeletonTask(RegisteredTask):
       segid = skel.id
       skel.id = 1
 
+      if self.fill_holes > 0:
+        binary_image = fastmorph.fill_holes(
+          binary_image,
+          fix_borders=(self.fill_holes >= 2),
+          morphological_closing=(self.fill_holes >= 3),
+        )
+        if self.fill_holes >= 3:
+          hp = self.hole_filling_padding
+          binary_image = np.asfortranarray(binary_image[hp:-hp,hp:-hp,hp:-hp])
+
       kimimaro.cross_sectional_area(
         binary_image, skel,
         anisotropy=vol.resolution,
         smoothing_window=self.cross_sectional_area_smoothing_window,
         progress=self.progress,
         in_place=True,
-        fill_holes=self.fill_holes,
+        fill_holes=False,
         repair_contacts=True,
       )
       skel.id = segid

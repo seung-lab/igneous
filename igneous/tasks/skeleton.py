@@ -907,7 +907,7 @@ def TransferSkeletonFilesTask(
   cv_src = CloudVolume(src)
   cv_dest = CloudVolume(dest, skel_dir=skel_dir)
 
-  cf_src = CloudFiles(cv_src.mesh.meta.layerpath)
-  cf_dest = CloudFiles(cv_dest.mesh.meta.layerpath)
+  cf_src = CloudFiles(cv_src.skeleton.meta.layerpath)
+  cf_dest = CloudFiles(cv_dest.skeleton.meta.layerpath)
 
   cf_src.transfer_to(cf_dest, paths=cf_src.list(prefix=prefix))

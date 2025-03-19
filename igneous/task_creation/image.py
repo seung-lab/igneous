@@ -608,6 +608,7 @@ def create_image_shard_transfer_tasks(
           "encoding_level": encoding_level,
           "stop_layer": stop_layer,
           "encoding_effort": encoding_effort,
+          "timestamp": timestamp,
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),

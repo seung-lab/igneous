@@ -680,7 +680,8 @@ def ImageShardDownsampleTask(
   dsfn = downsample_method_to_fn(method, sparse, src_vol)
 
   zbox = bbox.clone()
-  zbox.maxpt.z = zbox.minpt.z + (chunk_size.z * factor[2])
+  z_thickness = chunk_size.z * factor[2]
+  zbox.maxpt.z = zbox.minpt.z + z_thickness
   for z in range(nz):
     img = src_vol.download(
       zbox, agglomerate=agglomerate, timestamp=timestamp
@@ -695,8 +696,8 @@ def ImageShardDownsampleTask(
 
     del img
     del ds_img
-    zbox.minpt.z += chunk_size.z
-    zbox.maxpt.z += chunk_size.z
+    zbox.minpt.z += z_thickness
+    zbox.maxpt.z += z_thickness
 
   (filename, shard) = src_vol.image.make_shard(
     output_img, shape_bbox, (mip + 1), progress=False

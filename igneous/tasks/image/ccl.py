@@ -158,7 +158,7 @@ def CCLFacesTask(
   cv = CloudVolume(cloudpath, mip=mip, fill_missing=fill_missing)
   bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
 
-  grid_size = np.ceil((cv.bounds / shape).size3())
+  grid_size = np.ceil(cv.bounds.size() / shape)
   gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   
@@ -219,7 +219,7 @@ def CCLEquivalancesTask(
   cv = CloudVolume(cloudpath, mip=mip, fill_missing=fill_missing)
   bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
 
-  grid_size = np.ceil((cv.bounds / shape).size3())
+  grid_size = np.ceil(cv.bounds.size() / shape)
   gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   
@@ -318,7 +318,7 @@ def RelabelCCLTask(
   cv = CloudVolume(src_path, mip=mip, fill_missing=fill_missing)
   bounds = Bbox.clamp(bounds, cv.meta.bounds(mip))
 
-  grid_size = np.ceil((cv.bounds / shape).size3())
+  grid_size = np.ceil(cv.bounds.size() / shape)
   gridpoint = np.floor(bounds.center() / shape).astype(int)
   label_offset = compute_label_offset(shape + 1, grid_size, gridpoint)
   task_num = compute_task_number(grid_size, gridpoint)

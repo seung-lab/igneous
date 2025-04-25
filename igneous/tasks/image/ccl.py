@@ -400,20 +400,11 @@ def create_relabeling(cloudpath, mip, shape):
   cf.put_json(max_label_fname, [ next_label - 1 ])
 
   task_size = Vec(*shape) + 1
-  txy = task_size.x * task_size.y
-  tx, ty, tz = (task_size.x, task_size.y, task_size.z)
+  task_voxels = task_size.x * task_size.y * task_size.z
 
   buckets = defaultdict(dict)
   for before_val, after_val in relabel.items():
-    gz = before_val // txy
-    gy = (before_val - gz * txy) // tx
-    gx = before_val - tx * gy - txy * gz
-
-    gz //= tz
-    gy //= ty
-    gx //= tx
-
-    task_num = gx + tx * (gy + ty * gz)
+    task_num = int(before_val // task_voxels)
     buckets[task_num][before_val] = after_val
 
   del relabel

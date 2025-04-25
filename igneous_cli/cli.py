@@ -768,7 +768,7 @@ def ccl_auto(
   )
   enqueue_tasks(ctx, queue, tasks)
   if queue:
-    parallel_execute_helper(parallel, args)
+    parallel_execute_helper(parallel, args + (len(tasks),))
 
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
@@ -779,7 +779,7 @@ def ccl_auto(
   )
   enqueue_tasks(ctx, queue, tasks)
   if queue:
-    parallel_execute_helper(parallel, args)
+    parallel_execute_helper(parallel, args + (len(tasks),))
 
   import igneous.tasks.image.ccl
   igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
@@ -795,7 +795,7 @@ def ccl_auto(
   )
   enqueue_tasks(ctx, queue, tasks)
   if queue:
-    parallel_execute_helper(parallel, args)
+    parallel_execute_helper(parallel, args + (len(tasks),))
 
   if clean:
     igneous.tasks.image.ccl.clean_intermediate_files(src, mip)

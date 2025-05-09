@@ -612,10 +612,10 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     skeletons = []
     for segid, frags in skels.items():
       skeleton = self.fuse_skeletons(frags)
-      if self.max_cable_length is None or skeleton.cable_length() <= self.max_cable_length:
-        skeleton = kimimaro.postprocess(
-          skeleton, self.dust_threshold, self.tick_threshold
-        )
+      # if self.max_cable_length is None or skeleton.cable_length() <= self.max_cable_length:
+      #   skeleton = kimimaro.postprocess(
+      #     skeleton, self.dust_threshold, self.tick_threshold
+      #   )
       skeleton.id = segid
       skeletons.append(skeleton)
 
@@ -760,14 +760,15 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         if attr['data_type'] == 'float32' 
       ]
       skel = skel.consolidate()
-      if self.max_cable_length is not None and skel.cable_length() > self.max_cable_length:
-        skeletons[label] = skel.to_precomputed()
-      else:
-        skeletons[label] = kimimaro.postprocess(
-          skel, 
-          dust_threshold=self.dust_threshold, # voxels 
-          tick_threshold=self.tick_threshold, # nm
-        ).to_precomputed()
+      # if self.max_cable_length is not None and skel.cable_length() > self.max_cable_length:
+      #   skeletons[label] = skel.to_precomputed()
+      # else:
+      #   skeletons[label] = kimimaro.postprocess(
+      #     skel, 
+      #     dust_threshold=self.dust_threshold, # voxels 
+      #     tick_threshold=self.tick_threshold, # nm
+      #   ).to_precomputed()
+      skeletons[label] = skel.to_precomputed()
 
     return skeletons
 

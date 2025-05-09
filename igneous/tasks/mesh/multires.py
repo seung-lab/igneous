@@ -101,13 +101,14 @@ def process_mesh(
   max_lod = min(max_lod, num_lod)
 
   lods = generate_lods(label, mesh, max_lod)
+  grid_origin, mesh_shape = determine_mesh_shape_from_lods(lods)
   chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
 
   if np.any(chunk_shape == 0):
     return (None, None)
 
   lods = [
-    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods)) 
+    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods), grid_origin, mesh_shape)
     for lod in range(len(lods)) 
   ]
   fragment_positions = [ nodes for submeshes, nodes in lods ]
@@ -490,22 +491,28 @@ def cmp_zorder(lhs, rhs) -> bool:
       msd = dim
   return lhs[msd] - rhs[msd]
 
-def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
+def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid_length):
   """
   Create submeshes by slicing the orignal mesh to produce smaller chunks
   by slicing them from x,y,z dimensions.
 
   This creates (2^lod)^3 submeshes.
   """
-  if lod == num_lods - 1:
-    return ([ mesh ], ((0,0,0),) )
-
   mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+  scale = Vec(*(np.array(chunk_shape) * (2**lod)))
+  grid_size = Vec(*(np.ceil(grid_length / scale)), dtype=int)
 
-  scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
-  offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
-  grid_size = Vec(*np.ceil((mesh.vertices.max(axis=0) - offset) / scale), dtype=int)
+  # If not LOD 0 need to retriangulate the input mush to avoid any cases where
+  # the boundaries of a triangle are split across the boundaries of the submeshes
+  # at the higher level of the octree
+  if lod > 0:
+      upper_grid_scale = Vec(*(np.array(chunk_shape) * (2 ** (lod - 1))))
+      upper_grid_shape = Vec(*np.ceil(grid_length / upper_grid_scale), dtype=int)
+      mesh = retriangulate_mesh(mesh, offset, upper_grid_shape, upper_grid_scale)
 
+  if lod == num_lods - 1:
+      return ([Mesh(mesh.vertices, mesh.faces)], ((0, 0, 0),))
+  
   nx, ny, nz = np.eye(3)
   ox, oy, oz = offset * np.eye(3)
 

@@ -1696,12 +1696,16 @@ void main() {
       cv.meta.time_resolution_in_seconds(0), "s"
     ]
 
+  if isinstance(cv.meta, cloudvolume.datasource.zarr.ZarrMetadata):
+    source_format = "zarr"
+  else:
+    source_format = cv.meta.path.format
   config = {
     "dimensions": dimensions,
     "layers": [
       {
         "type": cv.layer_type,
-        "source": f"{cv.meta.path.format}://{cloudpath}",
+        "source": f"{source_format}://{cloudpath}",
         "tab": "source",
         "name": layer_name
       }

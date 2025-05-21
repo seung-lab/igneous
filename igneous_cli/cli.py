@@ -34,8 +34,18 @@ def normalize_path(queuepath):
     return "fq://" + toabs(queuepath)
   return queuepath
 
-def intify(x):
-  return None if x is None else int(x)
+
+def numberify(x):
+  if x is None:
+    return None
+  elif isinstance(x, str) and '.' in x:
+    return float(x)
+  elif isinstance(x, (int, np.integer)):
+    return int(x)
+  elif isinstance(x, (float, np.floating)):
+    return float(x)
+  else:
+    return int(x)
 
 def normalize_encoding(encoding):
   if encoding == "cseg":
@@ -633,8 +643,8 @@ def cclgroup():
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -646,8 +656,8 @@ def ccl_faces(
   """(1) Generate back face images."""
   tasks = tc.create_ccl_face_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -659,8 +669,8 @@ def ccl_faces(
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -672,8 +682,8 @@ def ccl_equivalences(
   """(2) Generate links between tasks."""
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -698,8 +708,8 @@ def ccl_calc_labels(ctx, src, mip, shape):
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--encoding', type=EncodingType(), default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -715,8 +725,8 @@ def ccl_relabel(
     src, dest, 
     mip=mip, shape=shape, 
     chunk_size=chunk_size, encoding=encoding,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -740,8 +750,8 @@ def ccl_clean(src, mip):
 @click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--clean/--no-clean', default=True, is_flag=True, help="Delete intermediate files on completion.", show_default=True)
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -761,8 +771,8 @@ def ccl_auto(
 
   tasks = tc.create_ccl_face_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -772,8 +782,8 @@ def ccl_auto(
 
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -788,8 +798,8 @@ def ccl_auto(
     src, dest, 
     mip=mip, shape=shape, 
     chunk_size=chunk_size, encoding=encoding,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )

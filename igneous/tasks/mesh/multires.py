@@ -79,6 +79,46 @@ def MultiResUnshardedMeshMergeTask(
     cf.put(f"{label}.index", manifest.to_binary(), cache_control="no-cache")
     cf.put(f"{label}", mesh, cache_control="no-cache")
 
+def retriangulate_mesh(mesh: trimesh.Trimesh, offset: "Vec", grid_size: "Vec", scale: "Vec"):
+  """
+  Retriangulate the input mesh to avoid any cases where the boundaries of a triangle are split across the boundaries of the submeshes
+  """
+  new_mesh = trimesh.Trimesh()
+
+  nx, ny, nz = np.eye(3)
+  ox, oy, oz = offset * np.eye(3)
+
+  for x in range(0, grid_size.x):
+    # list(...) required b/c it doesn't like Vec classes
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
+    mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nx, plane_origin=list(nx*(x+1)*scale.x+ox))
+    for y in range(0, grid_size.y):
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=ny, plane_origin=list(ny*y*scale.y+oy))
+      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-ny, plane_origin=list(ny*(y+1)*scale.y+oy))
+      for z in range(0, grid_size.z):
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
+        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
+
+        if len(mesh_z.vertices) == 0:
+          continue
+
+        # test for totally degenerate meshes by checking if 
+        # all of two axes match, meaning the mesh must be a 
+        # point or a line.
+        if np.sum([ np.all(mesh_z.vertices[:,i] == mesh_z.vertices[0,i]) for i in range(3) ]) >= 2:
+          continue
+
+        new_mesh = trimesh.util.concatenate(new_mesh, mesh_z)
+  return new_mesh
+
+def determine_mesh_shape_from_lods(lods: list[trimesh.Trimesh]):
+  mesh_starts = [np.min(lod.vertices, axis=0) for lod in lods]
+  mesh_ends = [np.max(lod.vertices, axis=0) for lod in lods]
+  grid_origin = np.floor(np.min(mesh_starts, axis=0))
+  grid_end = np.ceil(np.max(mesh_ends, axis=0))
+  mesh_shape = (grid_end - grid_origin).astype(int)
+  return grid_origin, mesh_shape
+
 def process_mesh(
   cv:CloudVolume,
   label:int,
@@ -101,13 +141,14 @@ def process_mesh(
   max_lod = min(max_lod, num_lod)
 
   lods = generate_lods(label, mesh, max_lod)
+  grid_origin, mesh_shape = determine_mesh_shape_from_lods(lods)
   chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
 
   if np.any(chunk_shape == 0):
     return (None, None)
 
   lods = [
-    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods)) 
+    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods), grid_origin, mesh_shape)
     for lod in range(len(lods)) 
   ]
   fragment_positions = [ nodes for submeshes, nodes in lods ]
@@ -490,22 +531,28 @@ def cmp_zorder(lhs, rhs) -> bool:
       msd = dim
   return lhs[msd] - rhs[msd]
 
-def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
+def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid_length):
   """
   Create submeshes by slicing the orignal mesh to produce smaller chunks
   by slicing them from x,y,z dimensions.
 
   This creates (2^lod)^3 submeshes.
   """
-  if lod == num_lods - 1:
-    return ([ mesh ], ((0,0,0),) )
-
   mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+  scale = Vec(*(np.array(chunk_shape) * (2**lod)))
+  grid_size = Vec(*(np.ceil(grid_length / scale)), dtype=int)
 
-  scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
-  offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
-  grid_size = Vec(*np.ceil((mesh.vertices.max(axis=0) - offset) / scale), dtype=int)
+  # If not LOD 0 need to retriangulate the input mush to avoid any cases where
+  # the boundaries of a triangle are split across the boundaries of the submeshes
+  # at the higher level of the octree
+  if lod > 0:
+      upper_grid_scale = Vec(*(np.array(chunk_shape) * (2 ** (lod - 1))))
+      upper_grid_shape = Vec(*np.ceil(grid_length / upper_grid_scale), dtype=int)
+      mesh = retriangulate_mesh(mesh, offset, upper_grid_shape, upper_grid_scale)
 
+  if lod == num_lods - 1:
+      return ([Mesh(mesh.vertices, mesh.faces)], ((0, 0, 0),))
+  
   nx, ny, nz = np.eye(3)
   ox, oy, oz = offset * np.eye(3)
 

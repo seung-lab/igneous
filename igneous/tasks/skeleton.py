@@ -690,8 +690,13 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 class ShardedSkeletonMergeTask(RegisteredTask):
   def __init__(
     self, cloudpath, shard_no, 
-    dust_threshold=4000, tick_threshold=6000, frag_path=None, cache=False,
-    spatial_index_db=None, max_cable_length=None
+    dust_threshold=4000, 
+    tick_threshold=6000, 
+    frag_path=None, 
+    cache=False,
+    spatial_index_db=None, 
+    max_cable_length=None,
+    dry_run=False,
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
@@ -700,6 +705,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     )
     self.progress = False
     self.max_cable_length = float(max_cable_length) if max_cable_length is not None else None
+    self.dry_run = dry_run
 
   def execute(self):
     # cache is necessary for local computation, but on GCE download is very fast
@@ -728,7 +734,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     skeletons = self.process_skeletons(skeletons, in_place=True)
 
     if len(skeletons) == 0:
-      return
+      return (skeletons, None)
 
     shard_files = synthesize_shard_files(cv.skeleton.reader.spec, skeletons)
 
@@ -737,6 +743,9 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         "Only one shard file should be generated per task. Expected: {} Got: {} ".format(
           str(self.shard_no), ", ".join(shard_files.keys())
       ))
+
+    if self.dry_run:
+      return (skeletons, shard_files)
 
     cf = CloudFiles(cv.skeleton.meta.layerpath, progress=self.progress)
     cf.puts( 

@@ -137,6 +137,8 @@ class CompressType(click.ParamType):
 class CloudPath(click.ParamType):
   name = "CloudPath"
   def convert(self, value, param, ctx):
+    if value == '-':
+      return value
     return cloudfiles.paths.normalize(value)
 
 class DownsampleMethodType(click.ParamType):
@@ -1548,6 +1550,40 @@ def skel_spatial_index_download(ctx, path, database, progress, allow_missing):
     allow_missing=allow_missing, 
     parallel=parallel,
   )
+
+
+@skeletongroup.command("convert")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+@click.argument("labels", type=ListN(), required=False)
+@click.pass_context
+def skel_convert(
+  ctx, src, dest, labels,
+):
+  """Convert skeletons to SWC files."""
+  use_stdin = (src == '-')
+  use_stdout = (dest == '-')
+
+  if use_stdin:
+    labels = sys.stdin.readlines()
+    labels = [ int(x) for x in labels ]
+
+  if labels is None:
+    return
+
+  cv = CloudVolume(src)
+  skels = cv.skeleton.get(labels)
+
+  if use_stdout:
+    for skel in skels:
+      print(f"# FILENAME {skel.id}.swc")
+      print(skel.to_swc())
+      print()
+  else:
+    cf = CloudFiles(dest)
+    cf.puts(
+      ( (f"{skel.id}.swc", skel.to_swc().encode("utf-8") ) for skel in skels )
+    )
 
 @main.group("design")
 def designgroup():

@@ -1568,7 +1568,7 @@ def skel_convert(
     labels = sys.stdin.readlines()
     labels = [ int(x) for x in labels ]
 
-  if labels is None:
+  if not labels:
     return
 
   cv = CloudVolume(src)

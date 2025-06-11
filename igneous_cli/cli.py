@@ -896,6 +896,10 @@ def parallel_execute_helper(parallel, args):
     execute_helper(*args)
     return
 
+  # Don't fork, spawn entirely new processes. This
+  # avoids accidental deadlocks.
+  mp.set_start_method("spawn", force=True)
+
   pool = mp.Pool(processes=parallel)
   try:
     for _ in range(parallel):

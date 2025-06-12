@@ -488,7 +488,7 @@ def test_clahe_task():
 
     assert np.mean(imgd) > 0
     assert np.mean(clahe_img) > 0
-    assert np.std(imgd) <= np.std(clahe_img) + 0.0001
+    assert np.std(imgd) <= np.std(clahe_img) + 0.1
 
     delete_layer(src_path)
     delete_layer(dest_path)

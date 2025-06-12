@@ -35,7 +35,7 @@ from igneous.tasks import (
   HyperSquareConsensusTask, # HyperSquareTask,
   ImageShardTransferTask, ImageShardDownsampleTask,
   CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
-  CountVoxelsTask
+  CountVoxelsTask, CLAHETask,
 )
 
 from igneous.shards import image_shard_shape_from_spec
@@ -66,6 +66,7 @@ __all__  = [
   "create_voxel_counting_tasks",
   "accumulate_voxel_counts",
   "compute_rois",
+  "create_clahe_tasks",
 ]
 
 # A reasonable size for processing large
@@ -1343,7 +1344,7 @@ def create_luminance_levels_tasks(
 
   return LuminanceLevelsTaskIterator()
 
-def create_CLAHE_tasks(
+def create_clahe_tasks(
   src:str, 
   dest:str,
   shape:Optional[tuple[int,int,int]] = None,
@@ -1352,19 +1353,19 @@ def create_CLAHE_tasks(
   bounds:Optional[Bbox] = None,
   bounds_mip:int = 0,
   clip_limit:float = 40.0, # opencv default
-  tile_grid_size:tiple[int,int] = (8,8) # opencv default
+  tile_grid_size:tuple[int,int] = (8,8) # opencv default
 ) -> Iterator:
   """
   Use CLAHE ("Contrast Limited Adaptive Histogram Equalization")
   to adjust the contrast of 
   """
-  srcvol = CloudVolume(src_path, mip=mip)
+  srcvol = CloudVolume(src, mip=mip)
   
   try:
-    dvol = CloudVolume(dest_path, mip=mip)
+    dvol = CloudVolume(dest, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:
     info = copy.deepcopy(srcvol.info)
-    dvol = CloudVolume(dest_path, mip=mip, info=info)
+    dvol = CloudVolume(dest, mip=mip, info=info)
     dvol.info['scales'] = dvol.info['scales'][:mip+1]
     dvol.commit_info()
 
@@ -1381,7 +1382,7 @@ def create_CLAHE_tasks(
   shape = Vec(*shape)
 
   downsample_scales.create_downsample_scales(
-    dest_path, 
+    dest, 
     mip=mip, 
     ds_shape=shape, 
     preserve_chunk_size=True
@@ -1392,7 +1393,7 @@ def create_CLAHE_tasks(
 
   class CLAHETaskIterator(FinelyDividedTaskIterator):
     def task(self, shape, offset):
-      return CLAHETask(
+      return partial(CLAHETask, 
         src=src, 
         dest=dest,
         shape=shape.clone(), 

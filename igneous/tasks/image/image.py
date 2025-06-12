@@ -181,14 +181,14 @@ def CLAHETask(
   src_cv = CloudVolume(src, mip=mip, fill_missing=fill_missing)
 
   bounds = Bbox(offset, shape + offset)
-  bounds = Bbox.clamp(bounds, cv.bounds)
+  bounds = Bbox.clamp(bounds, src_cv.bounds)
 
   overlapped_bbx = bounds.clone()
   overlapped_bbx.minpt.x -= tile_grid_size[0]
   overlapped_bbx.maxpt.x += tile_grid_size[0]
   overlapped_bbx.minpt.y -= tile_grid_size[1]
   overlapped_bbx.maxpt.y += tile_grid_size[1]
-  overlapped_bbx = Bbox.clamp(overlapped_bbx, cv.bounds)
+  overlapped_bbx = Bbox.clamp(overlapped_bbx, src_cv.bounds)
 
   image_stack = src_cv[overlapped_bbx][...,0]
 

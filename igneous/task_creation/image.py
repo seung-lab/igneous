@@ -1343,6 +1343,88 @@ def create_luminance_levels_tasks(
 
   return LuminanceLevelsTaskIterator()
 
+def create_CLAHE_tasks(
+  src:str, 
+  dest:str,
+  shape:Optional[tuple[int,int,int]] = None,
+  mip:int = 0,
+  fill_missing:bool = False,
+  bounds:Optional[Bbox] = None,
+  bounds_mip:int = 0,
+  clip_limit:float = 40.0, # opencv default
+  tile_grid_size:tiple[int,int] = (8,8) # opencv default
+) -> Iterator:
+  """
+  Use CLAHE ("Contrast Limited Adaptive Histogram Equalization")
+  to adjust the contrast of 
+  """
+  srcvol = CloudVolume(src_path, mip=mip)
+  
+  try:
+    dvol = CloudVolume(dest_path, mip=mip)
+  except cloudvolume.exceptions.InfoUnavailableError:
+    info = copy.deepcopy(srcvol.info)
+    dvol = CloudVolume(dest_path, mip=mip, info=info)
+    dvol.info['scales'] = dvol.info['scales'][:mip+1]
+    dvol.commit_info()
+
+  dvol.meta.unlock_mips(mip)
+
+  if bounds is None:
+    bounds = srcvol.bounds.clone()
+
+  if shape is None:
+    shape = Bbox( (0,0,0), (2048, 2048, dvol.chunk_size.z) )
+    shape = shape.shrink_to_chunk_size(dvol.chunk_size).size3()
+    shape = Vec.clamp(shape, (1,1,1), bounds.size3() )
+  
+  shape = Vec(*shape)
+
+  downsample_scales.create_downsample_scales(
+    dest_path, 
+    mip=mip, 
+    ds_shape=shape, 
+    preserve_chunk_size=True
+  )
+  dvol.refresh_info()
+
+  bounds = get_bounds(srcvol, bounds, mip, bounds_mip=bounds_mip)
+
+  class CLAHETaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return CLAHETask(
+        src=src, 
+        dest=dest,
+        shape=shape.clone(), 
+        offset=offset.clone(), 
+        mip=mip,
+        fill_missing=fill_missing,
+        clip_limit=clip_limit,
+        tile_grid_size=tile_grid_size,
+      )
+    
+    def on_finish(self):
+      dvol.provenance.processing.append({
+        'method': {
+          'task': 'CLAHETask',
+          'src': src,
+          'dest': dest,
+          'shape': Vec(*shape).tolist(),
+          'clip_limit': clip_limit,
+          'tile_grid_size': tile_grid_size,
+          'mip': mip,
+          'bounds': [
+            bounds.minpt.tolist(),
+            bounds.maxpt.tolist()
+          ],
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      dvol.commit_provenance()
+
+  return CLAHETaskIterator(bounds, shape)
+
 def compute_fixup_offsets(vol, points, shape):
   pts = map(np.array, points)
 

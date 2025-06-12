@@ -79,11 +79,12 @@ def connectomics_cv(connectomics_data):
     max_mip=0,
   )
 
-def test_threshold_image():
+@pytest.mark.parametrize("dtype", [ np.uint32, np.float32 ])
+def test_threshold_image(dtype):
   import igneous.tasks.image.ccl as ccl
   sz = 100
   image = np.arange(0,sz**3).reshape((sz,sz,sz), order="F")
-  image = image.astype(np.uint32)
+  image = image.astype(dtype)
 
   res = ccl.threshold_image(image, None, None)  
   assert np.all(image == res)
@@ -249,4 +250,15 @@ def test_ccl_tasks_connectomics(
 
   rmsrc()
   rmdest()
+
+def test_numberify():
+  import igneous_cli
+
+  assert igneous_cli.numberify('.111') == float(0.111)
+  assert igneous_cli.numberify('33') == int(33)
+  assert igneous_cli.numberify(33) == int(33)
+  assert igneous_cli.numberify(12.2342) == 12.2342
+  assert igneous_cli.numberify('1.23') == float('1.23')
+  assert igneous_cli.numberify(1) == 1
+  assert igneous_cli.numberify(0) == 0
 

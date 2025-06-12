@@ -18,7 +18,9 @@ import mapbuffer
 from mapbuffer import MapBuffer, IntMap
 from taskqueue import RegisteredTask, queueable
 
+import crackle
 import DracoPy
+import fastmorph
 import fastremap
 import zmesh
 
@@ -81,6 +83,11 @@ class MeshTask(RegisteredTask):
         fragment file. 
       timestamp: (int: None) (graphene only) use the segmentation existing at this
         UNIX timestamp.
+      fill_holes (int):
+        0: off
+        1: simple hole filling
+        2: also fill borders in 2d on sides of image
+        3: also perform a morphological closing using 3x3x3 stencil
     """
     super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
     self.shape = Vec(*shape)
@@ -114,6 +121,8 @@ class MeshTask(RegisteredTask):
       'stop_layer': kwargs.get('stop_layer', 2),
       'compress': kwargs.get('compress', 'gzip'),
       'closed_dataset_edges': kwargs.get('closed_dataset_edges', True),
+      'fill_holes': kwargs.get("fill_holes", 0),
+      'dry_run': kwargs.get('dry_run', False),
     }
     supported_encodings = ['precomputed', 'draco']
     if not self.options['encoding'] in supported_encodings:
@@ -138,12 +147,17 @@ class MeshTask(RegisteredTask):
 
     self._mesher = zmesh.Mesher(self._volume.resolution)
 
+    # aggressive morphological hole filling has a 1-2vx 
+    # edge effect that needs to be cropped away
+    fill_level = self.options["fill_holes"]
+    hole_filling_padding = int(fill_level >= 3) * 2
+
     # Marching cubes loves its 1vx overlaps.
     # This avoids lines appearing between
     # adjacent chunks.
     data_bounds = self._bounds.clone()
-    data_bounds.minpt -= self.options['low_padding']
-    data_bounds.maxpt += self.options['high_padding']
+    data_bounds.minpt -= self.options['low_padding'] + hole_filling_padding
+    data_bounds.maxpt += self.options['high_padding'] + hole_filling_padding
 
     self._mesh_dir = self.get_mesh_dir()
 
@@ -178,7 +192,8 @@ class MeshTask(RegisteredTask):
 
     data = self._remove_dust(
       data, 
-      self.options['dust_threshold'], self.options['dust_global']
+      self.options['dust_threshold'],
+      self.options['dust_global'],
     )
     data = self._remap(data)
 
@@ -188,10 +203,51 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
 
-    self._mesher.mesh(data[..., 0].T)
-    del data
+    if fill_level > 0:
+      filled_data, hole_labels = fastmorph.fill_holes(
+        data[...,0],
+        remove_enclosed=True,
+        return_removed=True,
+        fix_borders=(fill_level > 1),
+        morphological_closing=(fill_level > 2),
+      )
 
-    self.compute_meshes(renumbermap, left_offset)
+      if fill_level >= 3:
+        hp = hole_filling_padding
+        data = np.asfortranarray(data[hp:-hp,hp:-hp,hp:-hp])
+        filled_data = np.asfortranarray(filled_data[hp:-hp,hp:-hp,hp:-hp])
+
+      data = crackle.compress(data)
+      self._mesher.mesh(filled_data)
+      meshes, bounding_boxes = self.compute_meshes(renumbermap, left_offset)
+      del filled_data
+      data = crackle.decompress(data)
+
+      data *= np.isin(data, list(hole_labels))
+
+      self._mesher.mesh(data)
+      hole_meshes, hole_bounding_boxes = self.compute_meshes(renumbermap, left_offset)
+      meshes.update(hole_meshes)
+      bounding_boxes.update(hole_bounding_boxes)
+      del data
+      del hole_meshes
+      del hole_bounding_boxes
+    else:
+      self._mesher.mesh(data[..., 0])
+      del data
+
+      meshes, bounding_boxes = self.compute_meshes(renumbermap, left_offset)
+
+    if self.options['dry_run']:
+      return (meshes, bounding_boxes)
+
+    if self.options['sharded']:
+      self._upload_batch(meshes, self._bounds)
+    else:
+      self._upload_individuals(meshes, self.options['generate_manifests'])
+
+    if self.options['spatial_index']:
+      self._upload_spatial_index(self._bounds, bounding_boxes)
 
   def _handle_dataset_boundary(self, data, bbox):
     """
@@ -307,13 +363,7 @@ class MeshTask(RegisteredTask):
       bounding_boxes[remapped_id] = mesh_bounds.to_list()
       meshes[remapped_id] = mesh_binary
 
-    if self.options['sharded']:
-      self._upload_batch(meshes, self._bounds)
-    else:
-      self._upload_individuals(meshes, self.options['generate_manifests'])
-
-    if self.options['spatial_index']:
-      self._upload_spatial_index(self._bounds, bounding_boxes)
+    return meshes, bounding_boxes
 
   def _upload_batch(self, meshes, bbox):
     frag_path = self.options['frag_path'] or self.layer_path
@@ -363,10 +413,10 @@ class MeshTask(RegisteredTask):
       )
 
   def _create_mesh(self, obj_id, left_bound_offset):
-    mesh = self._mesher.get_mesh(
+    mesh = self._mesher.get(
       obj_id,
-      simplification_factor=self.options['simplification_factor'],
-      max_simplification_error=self.options['max_simplification_error'],
+      reduction_factor=self.options['simplification_factor'],
+      max_error=self.options['max_simplification_error'],
       voxel_centered=True,
     )
 

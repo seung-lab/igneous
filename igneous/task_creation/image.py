@@ -397,10 +397,14 @@ def create_sharded_image_info(
   """
   if isinstance(dtype, int):
     byte_width = dtype
-  elif isinstance(dtype, str) or np.issubdtype(dtype, np.integer):
+  elif (
+    isinstance(dtype, str) 
+    or np.issubdtype(dtype, np.integer) 
+    or np.issubdtype(dtype, np.floating)
+  ):
     byte_width = np.dtype(dtype).itemsize
   else:
-    raise ValueError(f"{dtype} must be int, str, or np.integer.")
+    raise ValueError(f"{dtype} must be int, str, np.integer, or np.floating.")
 
   voxels = prod(dataset_size)
   chunk_voxels = prod(chunk_size)
@@ -604,6 +608,7 @@ def create_image_shard_transfer_tasks(
           "encoding_level": encoding_level,
           "stop_layer": stop_layer,
           "encoding_effort": encoding_effort,
+          "timestamp": timestamp,
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),
@@ -1780,7 +1785,8 @@ def create_voxel_counting_tasks(
 
 def accumulate_voxel_counts(
   cloudpath, mip, 
-  progress=True, compress=None
+  progress=True, compress=None,
+  additional_output:Optional[str] = None,
 ):
   """
   Accumulate counts from each task.
@@ -1819,10 +1825,17 @@ def accumulate_voxel_counts(
   cf = CloudFiles(final_path)
   im = IntMap(final_counts)
 
+  binary = im.tobytes()
+  del im
   del final_counts
+
+  if additional_output:
+    with open(additional_output, "wb") as f:
+      f.write(binary)
+
   cf.put(
     'voxel_counts.im', 
-    im.tobytes(),
+    binary,
     content_type="application/x-intmap",
     compress=compress,
   )

@@ -161,9 +161,12 @@ def create_meshing_tasks(
     mesh_dir=None, cdn_cache=False, dust_threshold=None,
     object_ids=None, progress=False, fill_missing=False,
     encoding='precomputed', spatial_index=True, frag_path=None, sharded=False,
-    compress='gzip', closed_dataset_edges=True, dust_global=False
+    compress='gzip', closed_dataset_edges=True, dust_global=False,
+    fill_holes=0, dry_run=False,
   ):
   shape = Vec(*shape)
+
+  assert 0 <= fill_holes <= 3, "fill_holes must be between 0 to 3 inclusive."
 
   vol = CloudVolume(layer_path, mip)
 
@@ -212,6 +215,8 @@ def create_meshing_tasks(
         sharded=sharded,
         compress=compress,
         closed_dataset_edges=closed_dataset_edges,
+        fill_holes=fill_holes,
+        dry_run=dry_run,
       )
 
     def on_finish(self):
@@ -235,6 +240,8 @@ def create_meshing_tasks(
           'compress': compress,
           'closed_dataset_edges': closed_dataset_edges,
           'dust_global': bool(dust_global),
+          'fill_holes': int(fill_holes),
+          'dry_run': bool(dry_run),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

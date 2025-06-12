@@ -5,7 +5,7 @@ metadata:
   labels:
     app: igneous
 spec:
-  replicas: 16
+  replicas: 1
   selector:
     matchLabels:
       app: igneous
@@ -33,12 +33,10 @@ spec:
             requests:
               memory: 2.5Gi
             limits:
-              memory: 7.0Gi
+              memory: 7.5Gi
           env:
-            - name: QUEUE_TYPE
-              value: aws
             - name: SQS_URL
-              value: 'https://sqs.us-east-1.amazonaws.com/$DIGITS/$QUEUE_NAME'
+              value: 'sqs://QUEUE_NAME'
             - name: LEASE_SECONDS
               value: "800"
       volumes:

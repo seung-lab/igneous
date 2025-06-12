@@ -34,8 +34,18 @@ def normalize_path(queuepath):
     return "fq://" + toabs(queuepath)
   return queuepath
 
-def intify(x):
-  return None if x is None else int(x)
+
+def numberify(x):
+  if x is None:
+    return None
+  elif isinstance(x, str) and '.' in x:
+    return float(x)
+  elif isinstance(x, (int, np.integer)):
+    return int(x)
+  elif isinstance(x, (float, np.floating)):
+    return float(x)
+  else:
+    return int(x)
 
 def normalize_encoding(encoding):
   if encoding == "cseg":
@@ -65,12 +75,12 @@ def enqueue_tasks(ctx, queue, tasks):
     tq.insert(tasks, parallel=parallel)
   return tq
 
-class TupleN(click.ParamType):
+class ListN(click.ParamType):
   """A command line option type consisting of 3 comma-separated integers."""
-  name = 'tupleN'
+  name = 'ListN'
   def convert(self, value, param, ctx):
     if isinstance(value, str):
-      value = tuple(map(int, value.split(',')))
+      value = list(map(int, value.split(',')))
     return value
 
 class Tuple34(click.ParamType):
@@ -127,6 +137,8 @@ class CompressType(click.ParamType):
 class CloudPath(click.ParamType):
   name = "CloudPath"
   def convert(self, value, param, ctx):
+    if value == '-':
+      return value
     return cloudfiles.paths.normalize(value)
 
 class DownsampleMethodType(click.ParamType):
@@ -153,12 +165,15 @@ def compute_bounds(path, mip, xrange, yrange, zrange):
     bounds = CloudVolume(path).meta.bounds(mip)
 
   if xrange:
+    xrange = sorted(xrange)
     bounds.minpt.x = xrange[0]
     bounds.maxpt.x = xrange[1]
   if yrange:
+    yrange = sorted(yrange)
     bounds.minpt.y = yrange[0]
     bounds.maxpt.y = yrange[1]
   if zrange:
+    zrange = sorted(zrange)
     bounds.minpt.z = zrange[0]
     bounds.maxpt.z = zrange[1]
 
@@ -167,7 +182,7 @@ def compute_bounds(path, mip, xrange, yrange, zrange):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="4.25.1")
+@click.version_option(version="4.29.0")
 @click.pass_context
 def main(ctx, parallel):
   """
@@ -432,7 +447,7 @@ def image_roi(src, progress, suppress_faint, dust, z_step, max_axial_len):
 @click.option('--compress', default="br", help="Set the image compression scheme. Options: 'none', 'gzip', 'br'", show_default=True)
 @click.option('--delete-bg', is_flag=True, default=False, help="Issue a delete instead of uploading a background tile. This is helpful on systems that don't like tiny files.")
 @click.option('--bg-color', default=0, help="Determines which color is regarded as background.", show_default=True)
-@click.option('--mapping-file', required=True, help="JSON filename containing a sparse mapping of each moved z to its new position. e.g. '\{ \"5\": 6 \}'")
+@click.option('--mapping-file', required=True, help="JSON filename containing a sparse mapping of each moved z to its new position. e.g. '{ \"5\": 6 }'")
 @click.pass_context
 def image_reorder(
   ctx, src, dest, 
@@ -504,15 +519,19 @@ def count_voxels(ctx, path, mip, queue):
 @click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Count this mip level of the image pyramid.", show_default=True)
 @click.option('--compress', default="zstd", help="What compression algorithm to apply. These files can be pretty big and must be downloaded by workers.", show_default=True)
+@click.option('-o', '--output', default=None, help="Also output the result as an IntMap file locally at this path. This is an additional output to avoid needing to re-download the result.", show_default=True)
 @click.pass_context
-def sum_voxel_counts(ctx, path, mip, compress):
+def sum_voxel_counts(ctx, path, mip, compress, output):
   """Accumulate counts from each task.
 
   Results are saved in a mapbuffer IntMap file:
   $cloudpath/$KEY/stats/voxel_counts.im
   """
   tc.accumulate_voxel_counts(
-    path, mip=mip, compress=compress
+    path, 
+    mip=mip, 
+    compress=compress, 
+    additional_output=output,
   )
 
 @imagegroup.group("contrast")
@@ -621,8 +640,8 @@ def cclgroup():
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -634,8 +653,8 @@ def ccl_faces(
   """(1) Generate back face images."""
   tasks = tc.create_ccl_face_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -647,8 +666,8 @@ def ccl_faces(
 @click.option('--shape', default="512,512,512", type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
 @click.option('--mip', default=0, help="Apply to this level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -660,8 +679,8 @@ def ccl_equivalences(
   """(2) Generate links between tasks."""
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -686,8 +705,8 @@ def ccl_calc_labels(ctx, src, mip, shape):
 @click.option('--chunk-size', type=Tuple3(), default=None, help="Chunk size of destination layer. e.g. 128,128,64")
 @click.option('--encoding', type=EncodingType(), default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -703,8 +722,8 @@ def ccl_relabel(
     src, dest, 
     mip=mip, shape=shape, 
     chunk_size=chunk_size, encoding=encoding,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
@@ -728,8 +747,8 @@ def ccl_clean(src, mip):
 @click.option('--encoding', default="compresso", help="Which image encoding to use. Options: raw, cseg, compresso, crackle", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--clean/--no-clean', default=True, is_flag=True, help="Delete intermediate files on completion.", show_default=True)
-@click.option('--threshold-gte', default=None, type=int, help="Threshold source image using image >= value.", show_default=True)
-@click.option('--threshold-lte', default=None, type=int, help="Threshold source image using image <= value.", show_default=True)
+@click.option('--threshold-gte', default=None, type=str, help="Threshold source image using image >= value.", show_default=True)
+@click.option('--threshold-lte', default=None, type=str, help="Threshold source image using image <= value.", show_default=True)
 @click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.", show_default=True)
 @click.option('--dust', default=0, help="Delete objects smaller than this number of voxels within a cutout.", show_default=True)
 @click.pass_context
@@ -749,25 +768,25 @@ def ccl_auto(
 
   tasks = tc.create_ccl_face_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
   enqueue_tasks(ctx, queue, tasks)
   if queue:
-    parallel_execute_helper(parallel, args)
+    parallel_execute_helper(parallel, args + (len(tasks),))
 
   tasks = tc.create_ccl_equivalence_tasks(
     src, mip, shape,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
   enqueue_tasks(ctx, queue, tasks)
   if queue:
-    parallel_execute_helper(parallel, args)
+    parallel_execute_helper(parallel, args + (len(tasks),))
 
   import igneous.tasks.image.ccl
   igneous.tasks.image.ccl.create_relabeling(src, mip, shape)
@@ -776,14 +795,14 @@ def ccl_auto(
     src, dest, 
     mip=mip, shape=shape, 
     chunk_size=chunk_size, encoding=encoding,
-    threshold_lte=intify(threshold_lte),
-    threshold_gte=intify(threshold_gte),
+    threshold_lte=numberify(threshold_lte),
+    threshold_gte=numberify(threshold_gte),
     fill_missing=fill_missing,
     dust_threshold=dust,
   )
   enqueue_tasks(ctx, queue, tasks)
   if queue:
-    parallel_execute_helper(parallel, args)
+    parallel_execute_helper(parallel, args + (len(tasks),))
 
   if clean:
     igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
@@ -871,6 +890,10 @@ def parallel_execute_helper(parallel, args):
   if parallel == 1:
     execute_helper(*args)
     return
+
+  # Don't fork, spawn entirely new processes. This
+  # avoids accidental deadlocks.
+  mp.set_start_method("spawn", force=True)
 
   pool = mp.Pool(processes=parallel)
   try:
@@ -970,8 +993,9 @@ def mesh_xfer(
 @click.option('--mip', default=0, help="Perform meshing using this level of the image pyramid.", show_default=True)
 @click.option('--shape', type=Tuple3(), default=(448, 448, 448), help="Set the task shape in voxels.", show_default=True)
 @click.option('--simplify/--skip-simplify', is_flag=True, default=True, help="Enable mesh simplification.", show_default=True)
-@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.option('--max-error', default=40, help="Maximum simplification error in physical units.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--fill-holes', type=int, default=0, help="Fill holes at different levels of aggressiveness. 0: no hole filling 1: simple hole filling 2: also fix borders 3: also morphological closing.", show_default=True)
 @click.option('--dust-threshold', default=None, help="Skip meshing objects smaller than this number of voxels within a cutout. No default limit. Typical value: 1000.", type=int)
 @click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
 @click.option('--dir', default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
@@ -979,13 +1003,14 @@ def mesh_xfer(
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option('--closed-edge/--open-edge', is_flag=True, default=True, help="Whether meshes are closed on the side that contacts the dataset boundary.", show_default=True)
+@click.option('--labels', type=ListN(), default=None, help="Mesh only this comma separated list of labels.", show_default=True)
 @click.pass_context
 def mesh_forge(
   ctx, path, queue, mip, shape, 
   simplify, fill_missing, max_error, 
   dust_threshold, dir, compress, 
   spatial_index, sharded, closed_edge,
-  dust_global
+  dust_global, labels, fill_holes,
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -995,10 +1020,11 @@ def mesh_forge(
   marching cubes and a quadratic mesh simplifier.
 
   Note that using task shapes with axes less than
-  or equal to 511x1023x511 (don't ask) will be more
+  or equal to 1023x1023x511 will be more
   memory efficient as it can use a 32-bit mesher.
 
   zmesh is used: https://github.com/seung-lab/zmesh
+  fastmorph is used for hole filling: https://github.com/seung-lab/fastmorph/
   """
   if compress.lower() == "none":
     compress = False
@@ -1007,10 +1033,10 @@ def mesh_forge(
     path, mip, shape, 
     simplification=simplify, max_simplification_error=max_error,
     mesh_dir=dir, cdn_cache=False, dust_threshold=dust_threshold,
-    object_ids=None, progress=False, fill_missing=fill_missing,
+    object_ids=labels, progress=False, fill_missing=fill_missing,
     encoding='precomputed', spatial_index=spatial_index, 
     sharded=sharded, compress=compress, closed_dataset_edges=closed_edge,
-    dust_global=dust_global
+    dust_global=dust_global, fill_holes=fill_holes,
   )
 
   enqueue_tasks(ctx, queue, tasks)
@@ -1215,7 +1241,7 @@ def skeletongroup():
 @click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task.", show_default=True)
 @click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
 @click.option('--fix-autapses', is_flag=True, default=False, help="(graphene only) Fixes autapses by using the PyChunkGraph.", show_default=True)
-@click.option('--fill-holes', is_flag=True, default=False, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions.", show_default=True)
+@click.option('--fill-holes', default=0, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions. 0: off, 1: simple fill 2: +close sides of box 3: +morphological closing", show_default=True)
 @click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
 @click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
 @click.option('--spatial-index/--skip-spatial-index', is_flag=True, default=True, help="Create the spatial index.", show_default=True)
@@ -1227,11 +1253,12 @@ def skeletongroup():
 @click.option('--soma-const', default=300, help="Const factor for soma invalidation.", type=float, show_default=True)
 @click.option('--max-paths', default=None, help="Abort skeletonizing an object after this many paths have been traced.", type=float)
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
-@click.option('--labels', type=TupleN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
+@click.option('--labels', type=ListN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
 @click.option('--output', '-o', type=CloudPath(), default=None, help="Output the results to a different place.", show_default=True)
 @click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)
 @click.option('--root-ids', type=CloudPath(), default=None, help="(graphene) If you have a materialization of graphene root ids for this timepoint, it's more efficient to use it than making requests to the graphene server.", show_default=True)
+@click.option('--progress', is_flag=True, default=False, help="Print progress bars.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
@@ -1239,7 +1266,7 @@ def skeleton_forge(
   fix_branching, fix_borders, fix_avocados, fix_autapses,
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
-  cross_section, output, timestamp, root_ids,
+  cross_section, output, timestamp, root_ids, progress,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1278,7 +1305,7 @@ def skeleton_forge(
     teasar_params=teasar_params, 
     fix_branching=fix_branching, fix_borders=fix_borders, 
     fix_avocados=fix_avocados, fill_holes=fill_holes,
-    dust_threshold=dust_threshold, progress=False,
+    dust_threshold=dust_threshold, progress=progress,
     parallel=1, fill_missing=fill_missing, 
     sharded=sharded, spatial_index=spatial_index,
     dust_global=dust_global, object_ids=labels,
@@ -1523,6 +1550,40 @@ def skel_spatial_index_download(ctx, path, database, progress, allow_missing):
     parallel=parallel,
   )
 
+
+@skeletongroup.command("convert")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+@click.argument("labels", type=ListN(), required=False)
+@click.pass_context
+def skel_convert(
+  ctx, src, dest, labels,
+):
+  """Convert skeletons to SWC files."""
+  use_stdin = (src == '-')
+  use_stdout = (dest == '-')
+
+  if use_stdin:
+    labels = sys.stdin.readlines()
+    labels = [ int(x) for x in labels ]
+
+  if not labels:
+    return
+
+  cv = CloudVolume(src)
+  skels = cv.skeleton.get(labels)
+
+  if use_stdout:
+    for skel in skels:
+      print(f"# FILENAME {skel.id}.swc")
+      print(skel.to_swc())
+      print()
+  else:
+    cf = CloudFiles(dest)
+    cf.puts(
+      ( (f"{skel.id}.swc", skel.to_swc().encode("utf-8") ) for skel in skels )
+    )
+
 @main.group("design")
 def designgroup():
   """
@@ -1630,13 +1691,13 @@ def memory_used(data_width, shape, factor):
     memory_bytes *= constant / (constant - 1)
 
   return memory_bytes
+
 @main.command("view")
 @click.argument("path", type=CloudPath())
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
 @click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
 @click.option('--pos', type=Tuple3(), default=None, help="Position in volume to open to.", show_default=True)
-
 def view(path, browser, port, ng, pos):
   """
   Open an on-disk dataset for viewing in neuroglancer.

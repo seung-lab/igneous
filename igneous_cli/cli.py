@@ -274,11 +274,6 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
-  if sharded:
-    if num_mips and num_mips != 1:
-      print("igneous: sharded downsamples only support producing one mip at a time. num_mips set to 1")
-    num_mips = 1
-
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
@@ -286,7 +281,7 @@ def downsample(
   if compress and compress.lower() in ("none", "false"):
     compress = False
 
-  if encoding and encoding.lower() in ("jpeg", "png", "fpzip", "zfpc"):
+  if encoding and encoding.lower() in ("jpeg", "jxl", "png", "fpzip", "zfpc"):
     compress = False
 
   bounds = compute_bounds(path, mip, xrange, yrange, zrange)
@@ -298,7 +293,7 @@ def downsample(
       encoding=encoding, memory_target=memory,
       factor=factor, bounds=bounds, bounds_mip=mip,
       encoding_level=encoding_level, method=method,
-      encoding_effort=encoding_effort,
+      encoding_effort=encoding_effort, num_mips=num_mips,
     )
   else:
     tasks = tc.create_downsampling_tasks(

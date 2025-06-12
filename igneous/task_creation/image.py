@@ -629,7 +629,8 @@ def create_image_shard_downsample_tasks(
   factor=(2,2,1), bounds=None, bounds_mip=0,
   encoding_level:Optional[int] = None,
   encoding_effort:Optional[int] = None,
-  method=DownsampleMethods.AUTO,
+  method=DownsampleMethods.AUTO, 
+  num_mips:Optional[int] = None,
 ):
   """
   Downsamples an existing image layer that may be
@@ -637,24 +638,43 @@ def create_image_shard_downsample_tasks(
   
   Only 2x2x1 downsamples are supported for now.
   """
-  cv = downsample_scales.add_scale(
-    cloudpath, mip, 
+  if num_mips is None:
+    num_mips = 3
+
+  cv = downsample_scales.add_scales(
+    cloudpath, mip, num_mips, 
     preserve_chunk_size=True, chunk_size=chunk_size,
     encoding=encoding, factor=factor
   )
-  cv.mip = mip + 1
-  cv.scale["sharding"] = create_sharded_image_info(
-    dataset_size=cv.scale["size"], 
-    chunk_size=cv.scale["chunk_sizes"][0], 
-    encoding=cv.scale["encoding"], 
-    dtype=cv.dtype,
-    uncompressed_shard_bytesize=int(memory_target),
-  )
-  set_encoding(cv, mip + 1, encoding, encoding_level, encoding_effort)
+  
+  for i in range(1, num_mips + 1):
+    cv.mip = mip + i
+    cv.scale["sharding"] = create_sharded_image_info(
+      dataset_size=cv.scale["size"], 
+      chunk_size=cv.scale["chunk_sizes"][0], 
+      encoding=cv.scale["encoding"], 
+      dtype=cv.dtype,
+      uncompressed_shard_bytesize=int(memory_target),
+    )
+  
+  cv.mip = mip
+
+  for i in range(num_mips - 1):
+    set_encoding(cv, mip + i + 1, encoding, encoding_level, encoding_effort)
+
+  # set final level to lossless unless someone is being explicit
+  # about building levels one at a time
+  if num_mips > 1:
+    if encoding == "jxl":
+      set_encoding(cv, mip + num_mips, encoding, 100, encoding_effort)
+    elif encoding == "jpeg":
+      set_encoding(cv, mip + num_mips, "png", 9, encoding_effort)
+
   cv.commit_info()
 
+  sharding = cv.info["scales"][mip + 1]["sharding"]
   shape = image_shard_shape_from_spec(
-    cv.scale["sharding"], cv.volume_size, cv.chunk_size
+    sharding, cv.volume_size, cv.chunk_size
   )
   shape = Vec(*shape) * factor
 
@@ -678,6 +698,7 @@ def create_image_shard_downsample_tasks(
         timestamp=timestamp,
         factor=tuple(factor),
         method=method,
+        num_mips=int(num_mips),
       )
 
     def on_finish(self):
@@ -695,6 +716,7 @@ def create_image_shard_downsample_tasks(
           "method": method,
           "encoding_level": encoding_level,
           "encoding_effort": encoding_effort,
+          "num_mips": int(num_mips),
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),

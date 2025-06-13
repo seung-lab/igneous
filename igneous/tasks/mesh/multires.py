@@ -561,7 +561,7 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid
   scale = Vec(*(np.array(chunk_shape) * (2**lod)))
   grid_size = Vec(*(np.ceil(grid_length / scale)), dtype=int)
 
-  # If not LOD 0 need to retriangulate the input mush to avoid any cases where
+  # If not LOD 0 need to retriangulate the input mesh to avoid any cases where
   # the boundaries of a triangle are split across the boundaries of the submeshes
   # at the higher level of the octree
   if lod > 0:

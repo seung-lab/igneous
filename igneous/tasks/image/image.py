@@ -160,6 +160,48 @@ def QuantizeTask(
   destvol = CloudVolume(dest_layer_path, mip=mip)
   downsample_and_upload(image, bounds, destvol, shape, mip=mip, axis='z')
 
+@queueable
+def CLAHETask(
+  src:str, 
+  dest:str, 
+  mip:int, 
+  fill_missing:bool,
+  shape:tuple[int,int,int], 
+  offset:tuple[int,int,int],
+  clip_limit:float = 40.0, 
+  tile_grid_size:tuple[int,int] = (8,8),
+):
+  import cv2
+
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+
+  clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+
+  src_cv = CloudVolume(src, mip=mip, fill_missing=fill_missing)
+
+  bounds = Bbox(offset, shape + offset)
+  bounds = Bbox.clamp(bounds, src_cv.bounds)
+
+  overlapped_bbx = bounds.clone()
+  overlapped_bbx.minpt.x -= tile_grid_size[0]
+  overlapped_bbx.maxpt.x += tile_grid_size[0]
+  overlapped_bbx.minpt.y -= tile_grid_size[1]
+  overlapped_bbx.maxpt.y += tile_grid_size[1]
+  overlapped_bbx = Bbox.clamp(overlapped_bbx, src_cv.bounds)
+
+  image_stack = src_cv[overlapped_bbx][...,0]
+
+  for z in range(image_stack.shape[2]):
+    image_stack[:,:,z] = clahe.apply(image_stack[:,:,z])
+
+  crop_bbx = bounds.clone()
+  crop_bbx.minpt -= overlapped_bbx.minpt
+  crop_bbx.maxpt -= overlapped_bbx.minpt
+
+  dest_cv = CloudVolume(dest, mip=mip)
+  dest_cv[bounds] = image_stack[crop_bbx.to_slices()]
+
 class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""
   # translate = change of origin

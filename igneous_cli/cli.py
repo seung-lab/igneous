@@ -545,6 +545,45 @@ def contrastgroup():
   pass
 
 @contrastgroup.command()
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+@click.option('--shape', default=None, type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
+@click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--mip', default=0, help="Apply normalization to this level of the image pyramid.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
+@click.option('--bounds-mip', default=None, type=int, help="Bounds are written in terms of this image pyramid level.", show_default=True)
+@click.option('--clip-limit', default=40.0, type=float, help="Apply CLAHE clip threshold. This prevents magnifying noise by truncating the histogram and redistributing the quantity.", show_default=True)
+@click.option('--tile-grid-size', default="8,8", type=Tuple2(), help="Size of the adaptive grid.", show_default=True)
+@click.pass_context
+def clahe(
+  ctx, src, dest, queue,
+  shape, mip,
+  fill_missing, 
+  xrange, yrange, zrange, bounds_mip,
+  clip_limit, tile_grid_size,
+):
+  """Contrast Limited Adaptive Histogram Equalization (CLAHE)."""
+  if bounds_mip is None:
+    bounds_mip = mip
+  bounds = compute_bounds(src, bounds_mip, xrange, yrange, zrange)
+
+  tasks = tc.create_clahe_tasks(
+    src, dest,
+    shape=shape, 
+    mip=mip,
+    fill_missing=fill_missing,
+    bounds=bounds,
+    bounds_mip=bounds_mip,
+    clip_limit=clip_limit,
+    tile_grid_size=tile_grid_size,
+  )
+
+  enqueue_tasks(ctx, queue, tasks)
+
+@contrastgroup.command()
 @click.argument("path", type=CloudPath())
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
 @click.option('--mip', default=0, help="Build histogram from this level of the image pyramid.", show_default=True)
@@ -597,7 +636,7 @@ def equalize(
   minval, maxval,
   xrange, yrange, zrange, bounds_mip
 ):
-  """(2) Apply histogram equalization to z-slices."""
+  """(2) Apply global histogram equalization to z-slices."""
   if bounds_mip is None:
     bounds_mip = mip
   bounds = compute_bounds(src, bounds_mip, xrange, yrange, zrange)

@@ -20,6 +20,6 @@ from .image import (
   MaskAffinitymapTask, InferenceTask, BlackoutTask,
   TouchTask, ImageShardTransferTask, ImageShardDownsampleTask,
   CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
-  CountVoxelsTask
+  CountVoxelsTask, CLAHETask,
 )
 from .spatial_index import SpatialIndexTask

@@ -466,6 +466,33 @@ def test_luminance_levels_task():
     assert levels['coverage_ratio'] == 1.0
     assert levels['levels'] == gt
 
+def test_clahe_task():
+    directory = '/tmp/removeme/clahe/'
+    src_path = 'file://' + directory
+    dest_path = src_path[:-1] + '2'
+
+    delete_layer(src_path)
+    delete_layer(dest_path)
+
+    cf, imgd = create_layer(
+        size=(1024,1024,129,1), offset=(0,0,0), 
+        layer_type="image", layer_name='clahe'
+    )
+    tq = MockTaskQueue()
+    tasks = tc.create_clahe_tasks(src_path, dest_path, shape=(512,512,64))
+    tq.insert_all(tasks)
+
+    cv2 = CloudVolume(dest_path, progress=True)
+
+    clahe_img = cv2[:]
+
+    assert np.mean(imgd) > 0
+    assert np.mean(clahe_img) > 0
+    assert np.std(imgd) <= np.std(clahe_img) + 0.1
+
+    delete_layer(src_path)
+    delete_layer(dest_path)
+
 def test_contrast_normalization_task():
     directory = '/tmp/removeme/contrast_normalization/'
     src_path = 'file://' + directory

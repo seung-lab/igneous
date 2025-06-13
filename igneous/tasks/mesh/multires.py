@@ -79,7 +79,12 @@ def MultiResUnshardedMeshMergeTask(
     cf.put(f"{label}.index", manifest.to_binary(), cache_control="no-cache")
     cf.put(f"{label}", mesh, cache_control="no-cache")
 
-def retriangulate_mesh(mesh: trimesh.Trimesh, offset: "Vec", grid_size: "Vec", scale: "Vec"):
+def retriangulate_mesh(
+    mesh: trimesh.Trimesh,
+    offset: Vec,
+    grid_size: Vec,
+    scale: Vec,
+  ) -> trimesh.Trimesh:
   """
   Retriangulate the input mesh to avoid any cases where the boundaries of a triangle are split across the boundaries of the submeshes
   """
@@ -111,7 +116,9 @@ def retriangulate_mesh(mesh: trimesh.Trimesh, offset: "Vec", grid_size: "Vec", s
         new_mesh = trimesh.util.concatenate(new_mesh, mesh_z)
   return new_mesh
 
-def determine_mesh_shape_from_lods(lods: list[trimesh.Trimesh]):
+def determine_mesh_shape_from_lods(
+    lods: list[trimesh.Trimesh],
+  ) -> Tuple[np.ndarray, np.ndarray]:
   mesh_starts = [np.min(lod.vertices, axis=0) for lod in lods]
   mesh_ends = [np.max(lod.vertices, axis=0) for lod in lods]
   grid_origin = np.floor(np.min(mesh_starts, axis=0))

@@ -546,7 +546,7 @@ def retriangulate_mesh(
 
   for submesh, _ in generate_gridded_submeshes(
       mesh, offset, grid_size, scale):
-      trimesh.util.concatenate(new_mesh, submesh)
+      new_mesh = trimesh.util.concatenate(new_mesh, submesh)
 
   return new_mesh
 

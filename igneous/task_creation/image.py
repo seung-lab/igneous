@@ -1,7 +1,7 @@
 from collections import defaultdict
 from functools import reduce, partial
 import operator
-from typing import Any, Dict, List, Union, Tuple, cast, Optional, Iterator
+from typing import Any, Dict, List, Union, Tuple, cast, Optional, Iterator, Function
 
 import copy
 import json
@@ -16,7 +16,8 @@ from tqdm import tqdm
 
 from mapbuffer import IntMap
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
+import cloudfiles.paths
 
 import cloudvolume
 import cloudvolume.exceptions
@@ -24,7 +25,7 @@ from cloudvolume import CloudVolume
 from cloudvolume.lib import (
   sip, Vec, Bbox, max2, min2, 
   xyzrange, find_closest_divisor, 
-  yellow, jsonify
+  yellow, jsonify, sip,
 )
 
 from igneous import downsample_scales
@@ -35,7 +36,7 @@ from igneous.tasks import (
   HyperSquareConsensusTask, # HyperSquareTask,
   ImageShardTransferTask, ImageShardDownsampleTask,
   CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
-  CountVoxelsTask, CLAHETask,
+  CountVoxelsTask, CLAHETask, CrackleSingleSlices,
 )
 
 from igneous.shards import image_shard_shape_from_spec
@@ -1965,4 +1966,74 @@ def compute_rois(
   cv.commit_info()
 
   return bboxes
+
+def create_crackle_single_slice_tasks(
+  src:str, dest:str, mip:int
+) -> Iterator[Function]:
+  """
+  The first step of synthesizing a giant crackle file.
+  """
+  cv = CloudVolume(src, mip=mip)
+
+  cv.provenance.processing.append({
+    'method': {
+      'task': 'CrackleSingleSlices',
+      'src': src,
+      'dest': dest,
+      'mip': mip,
+    },
+    'by': operator_contact(),
+    'date': strftime('%Y-%m-%d %H:%M %Z'),
+  })
+  cv.commit_provenance()
+
+  def CrackleSingleSlicesTaskIterator():
+    for z in range(cv.bounds.minpt.z, cv.bounds.maxpt.z + 1):
+      yield partial(CrackleSingleSlices, 
+        src=src,
+        dest=dest,
+        mip=mip,
+        z=int(z),
+      )
+
+  return CrackleSingleSlicesTaskIterator()
+
+def synthesize_single_crackle_file(
+  single_slices_cloudpath:str, 
+  dest:str, 
+  mip:int,
+):
+  import mmap
+  import crackle
+
+  pth = cloudfiles.paths.extract(single_slices_cloudpath)
+
+  cf = CloudFiles(single_slices_cloudpath)
+
+  filenames = list(cf.list())
+  filenames.sort()
+
+  binaries = []
+
+  if pth.protocol == "file":
+    for fname in filenames:
+      fname = fname.replace("file://", "")
+      with open(fname, "rb") as f:
+        binary = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+      binaries.append(binary)
+      del binary
+  else:
+    binaries = cf.get(filenames)
+    binaries = sorted(binaries, key=lambda x: x["path"])
+    binaries = [ x["content"] for x in binaries ]
+
+  binary = crackle.zstack(binaries)
+  CloudFile(dest).put(binary)
+  
+
+
+
+
+
+
 

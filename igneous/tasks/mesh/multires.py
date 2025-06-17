@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Iterator
 
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -12,6 +12,7 @@ import re
 import struct
 
 import numpy as np
+import numpy.typing as npt
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles, CloudFile
@@ -101,13 +102,14 @@ def process_mesh(
   max_lod = min(max_lod, num_lod)
 
   lods = generate_lods(label, mesh, max_lod)
+  grid_origin, mesh_shape = determine_mesh_shape_from_lods(lods)
   chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
 
   if np.any(chunk_shape == 0):
     return (None, None)
 
   lods = [
-    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods)) 
+    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods), grid_origin, mesh_shape)
     for lod in range(len(lods)) 
   ]
   fragment_positions = [ nodes for submeshes, nodes in lods ]
@@ -490,27 +492,26 @@ def cmp_zorder(lhs, rhs) -> bool:
       msd = dim
   return lhs[msd] - rhs[msd]
 
-def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
-  """
-  Create submeshes by slicing the orignal mesh to produce smaller chunks
-  by slicing them from x,y,z dimensions.
+def determine_mesh_shape_from_lods(
+    lods: list[trimesh.Trimesh],
+  ) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.int_]]:
+  mesh_starts = [np.min(lod.vertices, axis=0) for lod in lods]
+  mesh_ends = [np.max(lod.vertices, axis=0) for lod in lods]
+  grid_origin = np.floor(np.min(mesh_starts, axis=0))
+  grid_end = np.ceil(np.max(mesh_ends, axis=0))
+  mesh_shape = (grid_end - grid_origin).astype(int)
 
-  This creates (2^lod)^3 submeshes.
-  """
-  if lod == num_lods - 1:
-    return ([ mesh ], ((0,0,0),) )
+  return grid_origin, mesh_shape
 
-  mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
-
-  scale = Vec(*(np.array(chunk_shape) * (2 ** lod)))
-  offset = Vec(*np.floor(mesh.vertices.min(axis=0)))
-  grid_size = Vec(*np.ceil((mesh.vertices.max(axis=0) - offset) / scale), dtype=int)
-
+def generate_gridded_submeshes(
+  mesh: trimesh.Trimesh,
+  offset: np.ndarray,
+  grid_size: Vec,
+  scale: Vec,
+) -> Iterator[Tuple[trimesh.Trimesh, Tuple[int, int, int]]]:
   nx, ny, nz = np.eye(3)
   ox, oy, oz = offset * np.eye(3)
 
-  submeshes = []
-  nodes = []
   for x in range(0, grid_size.x):
     # list(...) required b/c it doesn't like Vec classes
     mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
@@ -531,8 +532,55 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods):
         if np.sum([ np.all(mesh_z.vertices[:,i] == mesh_z.vertices[0,i]) for i in range(3) ]) >= 2:
           continue
 
-        submeshes.append(mesh_z)
-        nodes.append((x, y, z))
+        yield mesh_z, (x, y, z)
+
+def retriangulate_mesh(
+    mesh: trimesh.Trimesh,
+    offset: np.ndarray,
+    grid_size: Vec,
+    scale: Vec,
+  ) -> trimesh.Trimesh:
+  """
+  Retriangulate the input mesh to avoid any cases where the boundaries of a triangle are split across the boundaries of the submeshes
+  """
+  new_mesh = trimesh.Trimesh()
+
+  for submesh, _ in generate_gridded_submeshes(
+      mesh, offset, grid_size, scale
+  ):
+      new_mesh = trimesh.util.concatenate(new_mesh, submesh)
+
+  return new_mesh
+
+def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid_length):
+  """
+  Create submeshes by slicing the orignal mesh to produce smaller chunks
+  by slicing them from x,y,z dimensions.
+
+  This creates (2^lod)^3 submeshes.
+  """
+  mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+  scale = Vec(*(np.array(chunk_shape) * (2**lod)))
+  grid_size = Vec(*(np.ceil(grid_length / scale)), dtype=int)
+
+  # If not LOD 0 need to retriangulate the input mesh to avoid any cases where
+  # the boundaries of a triangle are split across the boundaries of the submeshes
+  # at the higher level of the octree
+  if lod > 0:
+      upper_grid_scale = Vec(*(np.array(chunk_shape) * (2 ** (lod - 1))))
+      upper_grid_shape = Vec(*np.ceil(grid_length / upper_grid_scale), dtype=int)
+      mesh = retriangulate_mesh(mesh, offset, upper_grid_shape, upper_grid_scale)
+
+  if lod == num_lods - 1:
+      return ([Mesh(mesh.vertices, mesh.faces)], ((0, 0, 0),))
+  
+  submeshes = []
+  nodes = []
+  for submesh, node in generate_gridded_submeshes(
+      mesh, offset, grid_size, scale
+  ):
+    submeshes.append(submesh)
+    nodes.append(node)
 
   # Sort in Z-curve order
   submeshes, nodes = zip(

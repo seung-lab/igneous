@@ -12,6 +12,7 @@ import re
 import struct
 
 import numpy as np
+import numpy.typing as npt
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles, CloudFile
@@ -493,7 +494,7 @@ def cmp_zorder(lhs, rhs) -> bool:
 
 def determine_mesh_shape_from_lods(
     lods: list[trimesh.Trimesh],
-  ) -> Tuple[np.ndarray, np.ndarray]:
+  ) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.int_]]:
   mesh_starts = [np.min(lod.vertices, axis=0) for lod in lods]
   mesh_ends = [np.max(lod.vertices, axis=0) for lod in lods]
   grid_origin = np.floor(np.min(mesh_starts, axis=0))
@@ -545,7 +546,8 @@ def retriangulate_mesh(
   new_mesh = trimesh.Trimesh()
 
   for submesh, _ in generate_gridded_submeshes(
-      mesh, offset, grid_size, scale):
+      mesh, offset, grid_size, scale
+  ):
       new_mesh = trimesh.util.concatenate(new_mesh, submesh)
 
   return new_mesh

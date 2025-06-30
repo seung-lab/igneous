@@ -543,6 +543,14 @@ tasks = tc.create_sharded_skeleton_merge_tasks(
 )
 ```
 
+### CLAHE Contrast Normalization (CLAHETask)
+
+Applies CLAHE (Contrast Limited Adaptive Histogram Equalization) to each z-slice. The CLAHE parameters clip limit and tile grid size are adjustable.
+
+```bash
+igneous image contrast clahe $PATH --queue $QUEUE
+```
+
 ### Contrast Normalization (LuminanceLevelsTask & ContrastNormalizationTask)
 
 Sometimes a dataset's luminance values cluster into a tight band and make the image unnecessarily bright or dark and above all

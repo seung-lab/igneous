@@ -1808,7 +1808,11 @@ def create_ccl_relabel_tasks(
   return RelabelCCLTaskIterator(bounds, shape)
 
 def create_voxel_counting_tasks(
-  cloudpath, mip
+  cloudpath:str, 
+  mip:int,
+  fill_missing:bool = False,
+  agglomerate:bool = False,
+  timestamp:Optional[int] = None,
 ):
   """
   Counts voxels in 512^3 tasks and uploads the JSON files
@@ -1826,6 +1830,9 @@ def create_voxel_counting_tasks(
         shape=bounded_shape.clone(),
         offset=offset.clone(),
         mip=mip,
+        fill_missing=fill_missing,
+        agglomerate=agglomerate,
+        timestamp=timestamp,
       )
 
     def on_finish(self):
@@ -1836,6 +1843,9 @@ def create_voxel_counting_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
+          'fill_missing': fill_missing,
+          'agglomerate': agglomerate,
+          'timestamp': timestamp,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

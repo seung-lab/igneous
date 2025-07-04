@@ -509,15 +509,16 @@ def voxelgroup():
 @click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Count this mip level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.pass_context
-def count_voxels(ctx, path, mip, queue):
+def count_voxels(ctx, path, mip, queue, fill_missing):
   """Create voxel counting tasks.
 
   These tasks are 512x512x512 voxels and result
   in a JSON file that lives at:
   $cloudpath/$KEY/stats/voxel_counts/$BBOX.json
   """
-  tasks = tc.create_voxel_counting_tasks(path, mip=mip)
+  tasks = tc.create_voxel_counting_tasks(path, mip=mip, fill_missing=fill_missing)
   enqueue_tasks(ctx, queue, tasks)
 
 @voxelgroup.command("sum")

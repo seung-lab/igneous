@@ -516,7 +516,7 @@ def create_image_shard_transfer_tasks(
   translate: ShapeType = (0, 0, 0),
   dest_voxel_offset: Optional[ShapeType] = None,
   agglomerate: bool = False, 
-  timestamp: int = None,
+  timestamp: Optional[int] = None,
   memory_target: int = MEMORY_TARGET,
   clean_info: bool = False,
   encoding_level: Optional[int] = None,

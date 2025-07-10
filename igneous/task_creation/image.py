@@ -769,6 +769,9 @@ def create_transfer_cloudvolume(
   intify = lambda lst: [ int(x) for x in lst ]
   bounds_resolution = src_vol.meta.resolution(bounds_mip)
 
+  if encoding is None and src_vol.meta.path.format != "precomputed":
+    encoding = "raw"
+
   try:
     dest_vol = CloudVolume(dst_cloudpath, mip=mip)
   except cloudvolume.exceptions.InfoUnavailableError:

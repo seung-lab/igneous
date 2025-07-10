@@ -1743,7 +1743,8 @@ def memory_used(data_width, shape, factor):
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
 @click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
 @click.option('--pos', type=Tuple3(), default=None, help="Position in volume to open to.", show_default=True)
-def view(path, browser, port, ng, pos):
+@click.option('--indirect', is_flag=True, default=False, help="Route the visualization through CloudVolume (useful if data is not public).", show_default=True)
+def view(path, browser, port, ng, pos, indirect):
   """
   Open an on-disk dataset for viewing in neuroglancer.
   """
@@ -1754,7 +1755,9 @@ void main() {
 }"""
   cv = CloudVolume(path)
 
-  if cv.meta.path.protocol == "file":
+  indirect = indirect or cv.meta.path.protocol == "file"
+
+  if indirect:
     cloudpath = f"http://localhost:{port}"
     layer_name = "igneous"
   elif cv.meta.path.protocol in ['matrix', 'tigerdata']:
@@ -1818,7 +1821,7 @@ void main() {
   else:
     print(url)
 
-  if cv.meta.path.protocol == "file":
+  if indirect:
     cv.viewer(port=port)
 
 @imagegroup.command()

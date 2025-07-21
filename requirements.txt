@@ -12,7 +12,7 @@ kimimaro>=3.4.0
 mapbuffer>=0.7.1
 networkx
 numpy>=1.14.2
-opencv-python
+opencv-python-headless
 pathos
 Pillow>=4.2.1
 pyfqmr

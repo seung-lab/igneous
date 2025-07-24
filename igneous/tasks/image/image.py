@@ -173,6 +173,11 @@ def CLAHETask(
 ):
   import cv2
 
+  # OpenCV will "try" to use the specified number of threads. 0 means run sequentially.
+  # Igneous uses a multiprocessing model, so threads just fight with each other.
+  # https://docs.opencv.org/3.4/db/de0/group__core__utils.html#gae78625c3c2aa9e0b83ed31b73c6549c0
+  cv2.setNumThreads(0)
+
   shape = Vec(*shape)
   offset = Vec(*offset)
 

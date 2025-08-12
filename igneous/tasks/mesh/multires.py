@@ -511,36 +511,25 @@ def determine_mesh_shape_from_lods(
 
   return grid_origin, mesh_shape
 
-def generate_gridded_submeshes(
-  mesh: Mesh,
-  offset: np.ndarray,
-  scale: Vec,
-) -> Iterator[tuple[Mesh, tuple[int, int, int]]]:
-  
-  chunked_meshes = zmesh.chunk_mesh(
-    mesh, 
-    chunk_size=scale, 
-    grid_origin=offset,
-  )
-  yield from chunked_meshes.items()
-
 def retriangulate_mesh(
-    mesh: trimesh.Trimesh,
+    mesh: Mesh,
     offset: np.ndarray,
     grid_size: Vec,
     scale: Vec,
-  ) -> trimesh.Trimesh:
+  ) -> Mesh:
   """
   Retriangulate the input mesh to avoid any cases where the boundaries of a triangle are split across the boundaries of the submeshes
   """
   new_mesh = Mesh()
 
-  for _, submesh in generate_gridded_submeshes(
-      mesh, offset, scale
-  ):
-      new_mesh = zmesh.Mesh.concatenate(new_mesh, submesh, id=mesh.id)
+  chunks = zmesh.chunk_mesh(
+    mesh, 
+    chunk_size=scale, 
+    grid_origin=offset,
+  )
 
-  return new_mesh
+  new_mesh = zmesh.Mesh.concatenate(*chunks.values(), id=mesh.segid)
+  return new_mesh.merge_close_vertices(radius=1e-3)
 
 def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid_length):
   """
@@ -563,20 +552,20 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid
   if lod == num_lods - 1:
       return ([Mesh(mesh.vertices, mesh.faces)], ((0, 0, 0),))
   
-  submeshes = []
-  nodes = []
-  for node, submesh in generate_gridded_submeshes(
-      mesh, offset, scale
-  ):
-    submeshes.append(submesh)
-    nodes.append(node)
+  grid = zmesh.chunk_mesh(
+    mesh, 
+    chunk_size=scale, 
+    grid_origin=offset,
+  )
 
   # Sort in Z-curve order
-  submeshes, nodes = zip(
-    *sorted(zip(submeshes, nodes),
-    key=functools.cmp_to_key(lambda x, y: cmp_zorder(x[1], y[1])))
+  nodes, submeshes = zip(
+    *sorted(
+      grid.items(),
+      key=functools.cmp_to_key(lambda x, y: cmp_zorder(x[0], y[0]))
+    )
   )
   # convert back from zmesh.Mesh to CV Mesh class
-  submeshes = [ Mesh(m.vertices, m.faces, segid=mesh.id) for m in submeshes ]
+  submeshes = [ Mesh(m.vertices, m.faces, segid=mesh.segid) for m in submeshes ]
 
   return (submeshes, nodes)

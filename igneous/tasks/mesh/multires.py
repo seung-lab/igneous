@@ -109,7 +109,11 @@ def process_mesh(
     return (None, None)
 
   lods = [
-    create_octree_level_from_mesh(lods[lod], chunk_shape, lod, len(lods), grid_origin, mesh_shape)
+    create_octree_level_from_mesh(
+      lods[lod], chunk_shape, 
+      lod, len(lods), 
+      grid_origin, mesh_shape
+    )
     for lod in range(len(lods)) 
   ]
   fragment_positions = [ nodes for submeshes, nodes in lods ]
@@ -132,6 +136,9 @@ def process_mesh(
   mesh_binaries = []
   for lod, submeshes in enumerate(lods):
     for frag_no, submesh in enumerate(submeshes):
+      if submesh.empty():
+        continue
+
       submesh.vertices = to_stored_model_space(
         submesh.vertices, manifest, 
         lod=lod,
@@ -222,7 +229,8 @@ def MultiResShardedMeshMergeTask(
   # important to iterate this way to avoid
   # creating a copy of meshes vs. { ... for in }
   for label in labels:
-    meshes[label] = Mesh.concatenate(*meshes[label])
+    mesh = Mesh.concatenate(*meshes[label], segid=label)
+    meshes[label] = mesh.consolidate()
   del labels
 
   fname, shard = create_mesh_shard(
@@ -324,7 +332,7 @@ def generate_lods(
     )
 
     lods.append(
-      Mesh(*simplifier.getMesh())
+      Mesh(*simplifier.getMesh(), segid=label)
     )
 
   return lods
@@ -493,7 +501,7 @@ def cmp_zorder(lhs, rhs) -> bool:
   return lhs[msd] - rhs[msd]
 
 def determine_mesh_shape_from_lods(
-    lods: list[trimesh.Trimesh],
+    lods: list[Mesh],
   ) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.int_]]:
   mesh_starts = [np.min(lod.vertices, axis=0) for lod in lods]
   mesh_ends = [np.max(lod.vertices, axis=0) for lod in lods]
@@ -504,35 +512,17 @@ def determine_mesh_shape_from_lods(
   return grid_origin, mesh_shape
 
 def generate_gridded_submeshes(
-  mesh: trimesh.Trimesh,
+  mesh: Mesh,
   offset: np.ndarray,
-  grid_size: Vec,
   scale: Vec,
-) -> Iterator[Tuple[trimesh.Trimesh, Tuple[int, int, int]]]:
-  nx, ny, nz = np.eye(3)
-  ox, oy, oz = offset * np.eye(3)
-
-  for x in range(0, grid_size.x):
-    # list(...) required b/c it doesn't like Vec classes
-    mesh_x = trimesh.intersections.slice_mesh_plane(mesh, plane_normal=nx, plane_origin=list(nx*x*scale.x+ox))
-    mesh_x = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=-nx, plane_origin=list(nx*(x+1)*scale.x+ox))
-    for y in range(0, grid_size.y):
-      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_x, plane_normal=ny, plane_origin=list(ny*y*scale.y+oy))
-      mesh_y = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=-ny, plane_origin=list(ny*(y+1)*scale.y+oy))
-      for z in range(0, grid_size.z):
-        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_y, plane_normal=nz, plane_origin=list(nz*z*scale.z+oz))
-        mesh_z = trimesh.intersections.slice_mesh_plane(mesh_z, plane_normal=-nz, plane_origin=list(nz*(z+1)*scale.z+oz))
-
-        if len(mesh_z.vertices) == 0:
-          continue
-
-        # test for totally degenerate meshes by checking if 
-        # all of two axes match, meaning the mesh must be a 
-        # point or a line.
-        if np.sum([ np.all(mesh_z.vertices[:,i] == mesh_z.vertices[0,i]) for i in range(3) ]) >= 2:
-          continue
-
-        yield mesh_z, (x, y, z)
+) -> Iterator[tuple[Mesh, tuple[int, int, int]]]:
+  
+  chunked_meshes = zmesh.chunk_mesh(
+    mesh, 
+    chunk_size=scale, 
+    grid_origin=offset,
+  )
+  yield from chunked_meshes.items()
 
 def retriangulate_mesh(
     mesh: trimesh.Trimesh,
@@ -543,12 +533,12 @@ def retriangulate_mesh(
   """
   Retriangulate the input mesh to avoid any cases where the boundaries of a triangle are split across the boundaries of the submeshes
   """
-  new_mesh = trimesh.Trimesh()
+  new_mesh = Mesh()
 
-  for submesh, _ in generate_gridded_submeshes(
-      mesh, offset, grid_size, scale
+  for _, submesh in generate_gridded_submeshes(
+      mesh, offset, scale
   ):
-      new_mesh = trimesh.util.concatenate(new_mesh, submesh)
+      new_mesh = zmesh.Mesh.concatenate(new_mesh, submesh, id=mesh.id)
 
   return new_mesh
 
@@ -559,7 +549,6 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid
 
   This creates (2^lod)^3 submeshes.
   """
-  mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
   scale = Vec(*(np.array(chunk_shape) * (2**lod)))
   grid_size = Vec(*(np.ceil(grid_length / scale)), dtype=int)
 
@@ -576,8 +565,8 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid
   
   submeshes = []
   nodes = []
-  for submesh, node in generate_gridded_submeshes(
-      mesh, offset, grid_size, scale
+  for node, submesh in generate_gridded_submeshes(
+      mesh, offset, scale
   ):
     submeshes.append(submesh)
     nodes.append(node)
@@ -587,7 +576,7 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid
     *sorted(zip(submeshes, nodes),
     key=functools.cmp_to_key(lambda x, y: cmp_zorder(x[1], y[1])))
   )
-  # convert back from trimesh to CV Mesh class
-  submeshes = [ Mesh(m.vertices, m.faces) for m in submeshes ]
+  # convert back from zmesh.Mesh to CV Mesh class
+  submeshes = [ Mesh(m.vertices, m.faces, segid=mesh.id) for m in submeshes ]
 
   return (submeshes, nodes)

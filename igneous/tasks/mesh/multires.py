@@ -529,7 +529,7 @@ def retriangulate_mesh(
   )
 
   new_mesh = zmesh.Mesh.concatenate(*chunks.values(), id=mesh.segid)
-  return new_mesh.merge_close_vertices(radius=1e-3)
+  return new_mesh.merge_close_vertices(radius=1e-5)
 
 def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid_length):
   """

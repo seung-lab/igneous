@@ -520,7 +520,7 @@ def retriangulate_mesh(
   """
   Retriangulate the input mesh to avoid any cases where the boundaries of a triangle are split across the boundaries of the submeshes
   """
-  chunks = zmesh.chunk_mesh(mesh, scale)
+  chunks = zmesh.chunk_mesh(mesh, scale, offset)
   new_mesh = zmesh.Mesh.concatenate(*chunks.values(), id=mesh.segid)
   return new_mesh.merge_close_vertices(radius=1e-5)
 
@@ -545,7 +545,7 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid
   if lod == num_lods - 1:
       return ([Mesh(mesh.vertices, mesh.faces)], ((0, 0, 0),))
   
-  grid = zmesh.chunk_mesh(mesh, scale)
+  grid = zmesh.chunk_mesh(mesh, scale, offset)
 
   # Sort in Z-curve order
   nodes, submeshes = zip(

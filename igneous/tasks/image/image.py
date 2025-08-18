@@ -697,9 +697,9 @@ def ImageShardDownsampleTask(
   )
   chunk_size = src_vol.meta.chunk_size(mip)
 
-  wide_bbox = Bbox(offset, offset + shape)
-  wide_bbox = Bbox.clamp(wide_bbox, src_vol.meta.bounds(mip))
-  wide_bbox = wide_bbox.expand_to_chunk_size(
+  bbox = Bbox(offset, offset + shape)
+  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
+  bbox = bbox.expand_to_chunk_size(
     chunk_size, offset=src_vol.meta.voxel_offset(mip)
   )
 
@@ -724,17 +724,19 @@ def ImageShardDownsampleTask(
     output_shards_by_mip.append(defaultdict(dict))
 
   cz = chunk_size.z * factor[2]
-  nz = int(math.ceil(wide_bbox.dz / cz))
+  nz = int(math.ceil(bbox.dz / cz))
 
   dsfn = downsample_method_to_fn(method, sparse, src_vol)
 
-  zbox = wide_bbox.clone()
+  zbox = bbox.clone()
   zbox.maxpt.z = zbox.minpt.z + cz
 
   for z in range(nz):
     zbox = Bbox.clamp(zbox, src_vol.meta.bounds(mip))
     img = src_vol.download(
-      zbox, agglomerate=agglomerate, timestamp=timestamp
+      zbox, 
+      agglomerate=agglomerate, 
+      timestamp=timestamp,
     )
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
@@ -760,6 +762,7 @@ def ImageShardDownsampleTask(
             xoff:int(xoff+shard_shape[0]), 
             yoff:int(yoff+shard_shape[1])
           ]
+
           shard_z_bbox = zbox.clone()
           shard_z_bbox.minpt[:2] //= (2 ** (i+1))
           shard_z_bbox.maxpt[:2] //= (2 ** (i+1))
@@ -776,7 +779,7 @@ def ImageShardDownsampleTask(
   for i in range(num_mips):
     shard_shape = shard_shapefn(mip + i + 1)
     for (shard_x, shard_y), chunk_dict in output_shards_by_mip[i].items():
-      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], wide_bbox.minpt.z ])
+      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], bbox.minpt.z ])
       shard_bbox = Bbox(minpt, minpt + shard_shape)
       shard_bbox += src_vol.meta.voxel_offset(mip + i + 1)
       (filename, shard) = src_vol.image.make_shard(

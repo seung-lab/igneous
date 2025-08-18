@@ -763,6 +763,9 @@ def ImageShardDownsampleTask(
             yoff:int(yoff+shard_shape[1])
           ]
 
+          if shard_z_cutout.size == 0:
+            continue
+
           shard_z_bbox = zbox.clone()
           shard_z_bbox.minpt[:2] //= (2 ** (i+1))
           shard_z_bbox.maxpt[:2] //= (2 ** (i+1))

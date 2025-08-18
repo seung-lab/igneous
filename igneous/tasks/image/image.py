@@ -723,22 +723,21 @@ def ImageShardDownsampleTask(
   for mip_i in range(mip + 1, mip + num_mips + 1):
     output_shards_by_mip.append(defaultdict(dict))
 
-  nz = int(math.ceil(wide_bbox.dz / (chunk_size.z * factor[2])))
+  cz = chunk_size.z * factor[2]
+  nz = int(math.ceil(wide_bbox.dz / cz))
 
   dsfn = downsample_method_to_fn(method, sparse, src_vol)
 
   zbox = wide_bbox.clone()
-  zbox.maxpt.z = zbox.minpt.z + (chunk_size.z * factor[2])
+  zbox.maxpt.z = zbox.minpt.z + cz
 
   for z in range(nz):
+    zbox = Bbox.clamp(zbox, src_vol.meta.bounds(mip))
     img = src_vol.download(
       zbox, agglomerate=agglomerate, timestamp=timestamp
     )
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
-
-    zs = z * chunk_size.z
-    ze = (z+1) * chunk_size.z
 
     for i in range(num_mips):
       shard_shape = shard_shapefn(mip + i + 1)
@@ -771,8 +770,8 @@ def ImageShardDownsampleTask(
           output_shards_by_mip[i][(shard_x, shard_y)].update(chunk_dict)
 
     del ds_imgs
-    zbox.minpt.z += chunk_size.z
-    zbox.maxpt.z += chunk_size.z
+    zbox.minpt.z += cz
+    zbox.maxpt.z += cz
 
   for i in range(num_mips):
     shard_shape = shard_shapefn(mip + i + 1)

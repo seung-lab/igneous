@@ -767,8 +767,10 @@ def ImageShardDownsampleTask(
             continue
 
           shard_z_bbox = zbox.clone()
-          shard_z_bbox.minpt[:2] //= (2 ** (i+1))
-          shard_z_bbox.maxpt[:2] //= (2 ** (i+1))
+          shard_z_bbox.minpt[:2] //= (factor[0] ** (i+1))
+          shard_z_bbox.maxpt[:2] //= (factor[1] ** (i+1))
+          shard_z_bbox.minpt[2] //= factor[2]
+          shard_z_bbox.maxpt[2] //= factor[2]
 
           shard_z_bbox.minpt += np.array([ xoff, yoff, 0 ])
           shard_z_bbox.maxpt = shard_z_bbox.minpt + np.array([ shard_shape[0], shard_shape[1], chunk_size.z ])

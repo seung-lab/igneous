@@ -514,7 +514,6 @@ def determine_mesh_shape_from_lods(
 def retriangulate_mesh(
     mesh: Mesh,
     offset: np.ndarray,
-    grid_size: Vec,
     scale: Vec,
   ) -> Mesh:
   """
@@ -539,8 +538,7 @@ def create_octree_level_from_mesh(mesh, chunk_shape, lod, num_lods, offset, grid
   # at the higher level of the octree
   if lod > 0:
       upper_grid_scale = Vec(*(np.array(chunk_shape) * (2 ** (lod - 1))))
-      upper_grid_shape = Vec(*np.ceil(grid_length / upper_grid_scale), dtype=int)
-      mesh = retriangulate_mesh(mesh, offset, upper_grid_shape, upper_grid_scale)
+      mesh = retriangulate_mesh(mesh, offset, upper_grid_scale)
 
   if lod == num_lods - 1:
       return ([Mesh(mesh.vertices, mesh.faces)], ((0, 0, 0),))

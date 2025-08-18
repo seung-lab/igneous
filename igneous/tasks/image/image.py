@@ -776,7 +776,7 @@ def ImageShardDownsampleTask(
   for i in range(num_mips):
     shard_shape = shard_shapefn(mip + i + 1)
     for (shard_x, shard_y), chunk_dict in output_shards_by_mip[i].items():
-      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[0], wide_bbox.minpt.z ])
+      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], wide_bbox.minpt.z ])
       shard_bbox = Bbox(minpt, minpt + shard_shape)
       shard_bbox += src_vol.meta.voxel_offset(mip + i + 1)
       (filename, shard) = src_vol.image.make_shard(

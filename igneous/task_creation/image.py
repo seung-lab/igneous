@@ -637,7 +637,7 @@ def create_image_shard_downsample_tasks(
   Downsamples an existing image layer that may be
   sharded or unsharded to create a sharded layer.
   
-  Only 2x2x1 downsamples are supported for now.
+  Only 2x2x1 and 2x2x2 downsamples are supported for now.
   """
   if num_mips is None:
     num_mips = 3
@@ -677,7 +677,7 @@ def create_image_shard_downsample_tasks(
   shape = image_shard_shape_from_spec(
     sharding, cv.volume_size, cv.chunk_size
   )
-  shape = Vec(*shape) * factor
+  shape = Vec(*shape) * (np.array(factor) ** num_mips)
 
   cv.mip = mip
   bounds = get_bounds(

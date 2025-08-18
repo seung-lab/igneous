@@ -697,9 +697,7 @@ def ImageShardDownsampleTask(
   )
   chunk_size = src_vol.meta.chunk_size(mip)
 
-  full_shape = shape * (np.array(factor) ** num_mips)
-
-  wide_bbox = Bbox(offset, offset + full_shape)
+  wide_bbox = Bbox(offset, offset + shape)
   wide_bbox = Bbox.clamp(wide_bbox, src_vol.meta.bounds(mip))
   wide_bbox = wide_bbox.expand_to_chunk_size(
     chunk_size, offset=src_vol.meta.voxel_offset(mip)
@@ -720,13 +718,6 @@ def ImageShardDownsampleTask(
   
   if shape_bbox.subvoxel():
     return
-
-  shape_bbox = shape_bbox.expand_to_chunk_size(
-    src_vol.meta.chunk_size(mip + 1), 
-    offset=src_vol.meta.voxel_offset(mip + 1)
-  )
-
-  shard_shape = list(shape_bbox.size3()) + [ 1 ]
 
   output_shards_by_mip = []
   for mip_i in range(mip + 1, mip + num_mips + 1):
@@ -754,8 +745,8 @@ def ImageShardDownsampleTask(
 
       num_x_shards = int(factor[0] ** (num_mips - i))
       num_y_shards = int(factor[1] ** (num_mips - i))
-      num_x_shards = int(min(num_x_shards, zbox.size().x // shard_shape[0]) // (2**(i+1)))
-      num_y_shards = int(min(num_y_shards, zbox.size().y // shard_shape[1]) // (2**(i+1)))
+      num_x_shards = int(min(num_x_shards, zbox.size().x // shard_shape[0]) // (2**i))
+      num_y_shards = int(min(num_y_shards, zbox.size().y // shard_shape[1]) // (2**i))
       num_x_shards = int(min(num_x_shards, src_vol.meta.volume_size(mip+i+1).x // shard_shape[0]))
       num_y_shards = int(min(num_y_shards, src_vol.meta.volume_size(mip+i+1).y // shard_shape[1]))
       num_x_shards = max(num_x_shards, 1)
@@ -776,7 +767,6 @@ def ImageShardDownsampleTask(
 
           shard_z_bbox.minpt += np.array([ xoff, yoff, 0 ])
           shard_z_bbox.maxpt = shard_z_bbox.minpt + np.array([ shard_shape[0], shard_shape[1], chunk_size.z ])
-
           chunk_dict = src_vol.image.make_shard_chunks(shard_z_cutout, shard_z_bbox, mip + i + 1)
           output_shards_by_mip[i][(shard_x, shard_y)].update(chunk_dict)
 

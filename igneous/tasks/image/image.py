@@ -744,10 +744,10 @@ def ImageShardDownsampleTask(
 
       num_x_shards = int(factor[0] ** (num_mips - i))
       num_y_shards = int(factor[1] ** (num_mips - i))
-      num_x_shards = int(min(num_x_shards, zbox.size().x // shard_shape[0]) // (2**i))
-      num_y_shards = int(min(num_y_shards, zbox.size().y // shard_shape[1]) // (2**i))
-      num_x_shards = int(min(num_x_shards, src_vol.meta.volume_size(mip+i+1).x // shard_shape[0]))
-      num_y_shards = int(min(num_y_shards, src_vol.meta.volume_size(mip+i+1).y // shard_shape[1]))
+      num_x_shards = int(min(num_x_shards, np.ceil(zbox.size().x / shard_shape[0])) // (2**i))
+      num_y_shards = int(min(num_y_shards, np.ceil(zbox.size().y / shard_shape[1])) // (2**i))
+      num_x_shards = int(min(num_x_shards, np.ceil(src_vol.meta.volume_size(mip+i).x / shard_shape[0])))
+      num_y_shards = int(min(num_y_shards, np.ceil(src_vol.meta.volume_size(mip+i).y / shard_shape[1])))
       num_x_shards = max(num_x_shards, 1)
       num_y_shards = max(num_y_shards, 1)
 

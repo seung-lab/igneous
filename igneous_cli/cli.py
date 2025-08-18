@@ -1737,6 +1737,12 @@ def memory_used(data_width, shape, factor):
 
   return memory_bytes
 
+# https://stackoverflow.com/questions/2470971/fast-way-to-test-if-a-port-is-in-use-using-python/52872579#52872579
+def is_port_in_use(port:int) -> bool:
+  import socket
+  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    return s.connect_ex(('localhost', port)) == 0
+
 @main.command("view")
 @click.argument("path", type=CloudPath())
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
@@ -1748,6 +1754,16 @@ def view(path, browser, port, ng, pos, indirect):
   """
   Open an on-disk dataset for viewing in neuroglancer.
   """
+
+  for i in range(10):
+    if is_port_in_use(port):
+      port += 1
+    else:
+      break
+  else:
+    print("Next ten ports were unavailable.")
+    return
+
   rgb_shader = """#uicontrol invlerp normalized
 void main() {
   vec3 data = vec3(toNormalized(getDataValue(0)), toNormalized(getDataValue(1)), toNormalized(getDataValue(2)));

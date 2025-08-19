@@ -639,6 +639,7 @@ def create_image_shard_downsample_tasks(
   encoding_effort:Optional[int] = None,
   method=DownsampleMethods.AUTO, 
   num_mips:Optional[int] = None,
+  truncate_scales:bool = True,
 ) -> Iterator:
   """
   Downsamples an existing image layer that may be
@@ -648,6 +649,11 @@ def create_image_shard_downsample_tasks(
   """
   if num_mips is None:
     num_mips = 3
+
+  cv = CloudVolume(cloudpath)
+  if truncate_scales:
+    cv.scales = cv.scales[:mip+1]
+    cv.commit_info()
 
   cv = downsample_scales.add_scales(
     cloudpath, mip, num_mips, 

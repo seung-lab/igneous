@@ -786,9 +786,14 @@ def ImageShardDownsampleTask(
     for (shard_x, shard_y), chunk_dict in output_shards_by_mip[i].items():
       minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], bbox.minpt.z ])
       shard_bbox = Bbox(minpt, minpt + shard_shape)
-      shard_bbox += src_vol.meta.voxel_offset(mip + i + 1)
+      offset = src_vol.meta.voxel_offset(mip + i + 1)
+      shard_bbox.minpt.x += offset[0]
+      shard_bbox.maxpt.x += offset[0]
+      shard_bbox.minpt.y += offset[1]
+      shard_bbox.maxpt.y += offset[1]
+
       (filename, shard) = src_vol.image.make_shard(
-        chunk_dict, shape_bbox, (mip + i + 1), progress=False
+        chunk_dict, shard_bbox, (mip + i + 1), progress=False
       )
       basepath = src_vol.meta.join(
         src_vol.cloudpath, src_vol.meta.key(mip + i + 1)

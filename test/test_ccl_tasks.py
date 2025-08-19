@@ -10,7 +10,7 @@ import numpy as np
 from cloudvolume import CloudVolume, EmptyVolumeException
 import cloudvolume.lib as lib
 from cloudfiles import CloudFiles
-from taskqueue import MockTaskQueue, TaskQueue
+from taskqueue import LocalTaskQueue, TaskQueue
 import tinybrain
 
 import igneous
@@ -49,7 +49,7 @@ def rmsrc():
 
 @pytest.fixture(scope="module")
 def tq():
-  return MockTaskQueue()
+  return LocalTaskQueue()
 
 @pytest.fixture(scope="function")
 def src_cv(checker_data):

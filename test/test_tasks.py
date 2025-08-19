@@ -12,7 +12,7 @@ from cloudvolume import CloudVolume, EmptyVolumeException
 import cloudvolume.lib as lib
 from cloudfiles import CloudFiles
 import fastremap
-from taskqueue import MockTaskQueue, TaskQueue
+from taskqueue import LocalTaskQueue, TaskQueue
 import tinybrain
 
 from igneous import (
@@ -36,7 +36,7 @@ def test_downsample_no_offset(compression_method):
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=4, compress=compression_method)
     tq.insert_all(tasks)
 
@@ -79,7 +79,7 @@ def test_downsample_no_offset_2x2x2():
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = create_downsampling_tasks(
         cf.cloudpath, mip=0, num_mips=3, 
         compress=None, factor=(2,2,2)
@@ -120,7 +120,7 @@ def test_downsample_with_offset():
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3)
     tq.insert_all(tasks)
 
@@ -159,7 +159,7 @@ def test_downsample_w_missing():
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
 
     try:
         tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3, fill_missing=False)
@@ -167,7 +167,7 @@ def test_downsample_w_missing():
     except EmptyVolumeException:
         pass
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
 
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3, fill_missing=True)
     tq.insert_all(tasks)
@@ -192,7 +192,7 @@ def test_downsample_higher_mip():
     cv = CloudVolume(cf.cloudpath)
     cv.info['scales'] = cv.info['scales'][:1]
     
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
 
     cv.commit_info()
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=2)
@@ -445,7 +445,7 @@ def test_luminance_levels_task():
         layer_type="image", layer_name='luminance_levels'
     )
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_luminance_levels_tasks( 
         layer_path=layer_path,
         coverage_factor=0.01, 
@@ -505,7 +505,7 @@ def test_contrast_normalization_task():
         size=(300,300,129,1), offset=(0,0,0), 
         layer_type="image", layer_name='contrast_normalization'
     )
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_luminance_levels_tasks( 
         layer_path=src_path,
         coverage_factor=0.01, 
@@ -546,7 +546,7 @@ def test_skeletonization_task(cross_sectional_area):
         vol_path=layer_path,
     )
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_skeletonizing_tasks(
         layer_path,
         mip=0,
@@ -579,7 +579,7 @@ def test_voxel_counting_task():
         vol_path=layer_path,
     )
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_voxel_counting_tasks(layer_path, mip=0)
     tq.insert_all(tasks)
 

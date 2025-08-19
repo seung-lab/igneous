@@ -747,35 +747,48 @@ def ImageShardDownsampleTask(
 
       num_x_shards = int(factor[0] ** (num_mips - i))
       num_y_shards = int(factor[1] ** (num_mips - i))
+      num_z_shards = int(factor[2] ** (num_mips - i))
+      
       num_x_shards = int(min(num_x_shards, np.ceil(zbox.size().x / shard_shape[0])) // (2**i))
       num_y_shards = int(min(num_y_shards, np.ceil(zbox.size().y / shard_shape[1])) // (2**i))
+      num_z_shards = int(min(num_z_shards, np.ceil(zbox.size().z / shard_shape[2])) // (2**i))
+
       num_x_shards = int(min(num_x_shards, np.ceil(src_vol.meta.volume_size(mip+i).x / shard_shape[0])))
       num_y_shards = int(min(num_y_shards, np.ceil(src_vol.meta.volume_size(mip+i).y / shard_shape[1])))
+      num_z_shards = int(min(num_z_shards, np.ceil(src_vol.meta.volume_size(mip+i).z / shard_shape[2])))
+      
       num_x_shards = max(num_x_shards, 1)
       num_y_shards = max(num_y_shards, 1)
+      num_z_shards = max(num_z_shards, 1)
 
-      for shard_y in range(num_y_shards):
-        for shard_x in range(num_x_shards):
-          xoff = int(shard_shape[0] * shard_x)
-          yoff = int(shard_shape[1] * shard_y)
+      for shard_z in range(num_z_shards):
+        for shard_y in range(num_y_shards):
+          for shard_x in range(num_x_shards):
+            xoff = int(shard_shape[0] * shard_x)
+            yoff = int(shard_shape[1] * shard_y)
+            zoff = int(shard_shape[2] * shard_z)
 
-          shard_z_cutout = ds_imgs[i][
-            xoff:int(xoff+shard_shape[0]), 
-            yoff:int(yoff+shard_shape[1])
-          ]
+            shard_cutout = ds_imgs[i][
+              xoff:int(xoff+shard_shape[0]), 
+              yoff:int(yoff+shard_shape[1]),
+              zoff:int(zoff+shard_shape[2]),
+            ]
 
-          if shard_z_cutout.size == 0:
-            continue
+            if shard_cutout.size == 0:
+              continue
 
-          shard_z_bbox = zbox.clone()
-          shard_z_bbox.minpt //= (factor ** (i+1))
-          shard_z_bbox.maxpt //= (factor ** (i+1))
+            shard_bbox = zbox.clone()
+            shard_bbox.minpt //= (factor ** (i+1))
+            shard_bbox.maxpt //= (factor ** (i+1))
 
-          shard_z_bbox.minpt += np.array([ xoff, yoff, 0 ])
-          shard_z_bbox.maxpt = shard_z_bbox.minpt + np.array([ shard_shape[0], shard_shape[1], chunk_size.z ])
+            shard_bbox.minpt += np.array([ xoff, yoff, zoff ])
+            shard_bbox.maxpt = shard_bbox.minpt + np.array([ shard_shape[0], shard_shape[1], shard_shape[2] ])
 
-          chunk_dict = src_vol.image.make_shard_chunks(shard_z_cutout, shard_z_bbox, mip + i + 1)
-          output_shards_by_mip[i][(shard_x, shard_y)].update(chunk_dict)
+            if shard_bbox.minpt.z >= src_vol.meta.bounds(i+1).maxpt.z:
+              continue
+
+            chunk_dict = src_vol.image.make_shard_chunks(shard_cutout, shard_bbox, mip + i + 1)
+            output_shards_by_mip[i][(shard_x, shard_y, shard_z)].update(chunk_dict)
 
     del ds_imgs
     zbox.minpt.z += cz
@@ -783,15 +796,14 @@ def ImageShardDownsampleTask(
 
   for i in range(num_mips):
     shard_shape = shard_shapefn(mip + i + 1)
-    for (shard_x, shard_y), chunk_dict in output_shards_by_mip[i].items():
-      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], bbox.minpt.z ])
-      shard_bbox = Bbox(minpt, minpt + shard_shape)
-      offset = src_vol.meta.voxel_offset(mip + i + 1)
-      shard_bbox.minpt.x += offset[0]
-      shard_bbox.maxpt.x += offset[0]
-      shard_bbox.minpt.y += offset[1]
-      shard_bbox.maxpt.y += offset[1]
 
+    for (shard_x, shard_y, shard_z), chunk_dict in output_shards_by_mip[i].items():
+      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], shard_z * shard_shape[2] ])
+      shard_bbox = Bbox(minpt, minpt + shard_shape)
+      mip_offset = src_vol.meta.voxel_offset(mip + i + 1)
+      shard_bbox.minpt += mip_offset
+      shard_bbox.maxpt += mip_offset
+      
       (filename, shard) = src_vol.image.make_shard(
         chunk_dict, shard_bbox, (mip + i + 1), progress=False
       )

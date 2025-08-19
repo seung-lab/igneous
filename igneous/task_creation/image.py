@@ -623,16 +623,23 @@ def create_image_shard_transfer_tasks(
   return ImageShardTransferTaskIterator(bounds, shape)
 
 def create_image_shard_downsample_tasks(
-  cloudpath, mip=0, fill_missing=False, 
-  sparse=False, chunk_size=None,
-  encoding=None, memory_target=MEMORY_TARGET,
-  agglomerate=False, timestamp=None,
-  factor=(2,2,1), bounds=None, bounds_mip=0,
+  cloudpath:str,
+  mip:int = 0, 
+  fill_missing:bool = False, 
+  sparse:bool = False, 
+  chunk_size:Optional[tuple[int,int,int]] = None,
+  encoding:Optional[str] = None,
+  memory_target:int = MEMORY_TARGET,
+  agglomerate:bool = False, 
+  timestamp:Optional[int] = None,
+  factor:tuple[int,int,int] = (2,2,1), 
+  bounds:Optional[Bbox] = None, 
+  bounds_mip:int = 0,
   encoding_level:Optional[int] = None,
   encoding_effort:Optional[int] = None,
   method=DownsampleMethods.AUTO, 
   num_mips:Optional[int] = None,
-):
+) -> Iterator:
   """
   Downsamples an existing image layer that may be
   sharded or unsharded to create a sharded layer.

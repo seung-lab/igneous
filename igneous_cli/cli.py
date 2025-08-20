@@ -184,7 +184,7 @@ def compute_bounds(path, mip, xrange, yrange, zrange):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="4.32.0")
+@click.version_option(version="4.33.0")
 @click.pass_context
 def main(ctx, parallel):
   """

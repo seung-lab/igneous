@@ -1,6 +1,49 @@
 CHANGES
 =======
 
+4.33.0
+------
+
+* release(4.33.0): adds multi-mip sharded downsampling
+* docs: explain why 3 was chosen
+* redesign: change jxl effort to 3 based on TEM experiments
+* feat: multi-mip sharded downsampling (#192)
+* docs: missing comma
+* feat(cli): allow view to find the next available port
+* feat(view): easily visualize alternative codecs
+* perf: try to stop clahe thread contention
+* install: bump kimimaro to 5.4.0 to get huge improvements in cross section analysis
+* install: bump kimimaro requirements to get fastest postprocessing
+
+4.32.0
+------
+
+* release(4.31.1): easier install of opencv, igneous queue, better zarr, cli indirect
+* install: switch opencv-python to opencv-python-headless
+* fix(zarr): better compatibility for igneous image xfer zarr://
+* feat(cli:view): adds --indirect flag to route viz through cloudvolume
+* feat(cli): adds "igneous queue" submenu
+
+4.31.0
+------
+
+* release(4.31.0): Adds --fill-missing to voxel counting
+* feat(voxels count): Add --fill-missing flag to CLI
+* feat(CountVoxelsTask): add fill\_missing, agglomerate, and timestamp
+* fix: incorrect type
+* docs: show that CLAHE is available
+
+4.30.0
+------
+
+* release(4.30.0): adds CLAHE support and makes display of upper LOD meshes neater
+* install: update license info, upgrade from BETA to PRODUCTION
+* chore: update CHANGELOG
+* fix(multires mesh): Eliminate mesh cracks between resolutions in neuroglancer (#200)
+* feat(clahe): Add Contrast Limited Adaptive Histogram Equalization (#202)
+* chore: remove py38 add py313 from classifiers
+* fix: avoid multiprocessing deadlocks
+
 4.29.0
 ------
 

@@ -568,7 +568,7 @@ def test_clahe_task():
         size=(1024,1024,129,1), offset=(0,0,0), 
         layer_type="image", layer_name='clahe'
     )
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_clahe_tasks(src_path, dest_path, shape=(512,512,64))
     tq.insert_all(tasks)
 

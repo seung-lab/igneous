@@ -646,6 +646,13 @@ def create_image_shard_downsample_tasks(
   sharded or unsharded to create a sharded layer.
   
   Only 2x2x1 and 2x2x2 downsamples are supported for now.
+
+  Note that doing > 1 mip level at a time will use significantly
+  more memory unless your data is compressible.
+
+  Lossy compressed images with num_mips > 1 will have the top mip
+  level be losslessly compressed to enable reliably building 
+  additional downsamples on top of it.
   """
   if num_mips is None:
     num_mips = 3

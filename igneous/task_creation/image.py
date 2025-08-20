@@ -687,10 +687,13 @@ def create_image_shard_downsample_tasks(
   cv.commit_info()
 
   sharding = cv.info["scales"][mip + 1]["sharding"]
-  shape = image_shard_shape_from_spec(
-    sharding, cv.volume_size, cv.chunk_size
+  base_shape = image_shard_shape_from_spec(
+    sharding, 
+    cv.meta.volume_size(mip + 1), 
+    cv.meta.chunk_size(mip + 1),
   )
-  shape = Vec(*shape) * (np.array(factor) ** num_mips)
+
+  shape = Vec(*base_shape) * (np.array(factor) ** num_mips)
 
   cv.mip = mip
   bounds = get_bounds(

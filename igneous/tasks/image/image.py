@@ -803,7 +803,7 @@ def ImageShardDownsampleTask(
       mip_offset = src_vol.meta.voxel_offset(mip + i + 1)
       shard_bbox.minpt += mip_offset
       shard_bbox.maxpt += mip_offset
-      
+
       (filename, shard) = src_vol.image.make_shard(
         chunk_dict, shard_bbox, (mip + i + 1), progress=False
       )

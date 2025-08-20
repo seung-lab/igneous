@@ -22,9 +22,9 @@ from igneous import (
     DeleteTask, BlackoutTask, ContrastNormalizationTask
 )
 import igneous.task_creation as tc
-from igneous.task_creation import create_downsampling_tasks, create_quantized_affinity_info
+from igneous.task_creation import create_downsampling_tasks, create_image_shard_downsample_tasks, create_quantized_affinity_info
 from igneous.downsample_scales import create_downsample_scales
-from .layer_harness import delete_layer, create_layer
+from .layer_harness import delete_layer, create_layer, create_connectomics
 
 @pytest.mark.parametrize("compression_method", ( None, 'gzip', 'br',))
 def test_downsample_no_offset(compression_method):
@@ -69,6 +69,51 @@ def test_downsample_no_offset(compression_method):
     data_ds4, = tinybrain.downsample_with_averaging(data, factor=[16, 16, 1, 1])
     cv.mip = 4
     assert np.all(cv[slice64] == data_ds4[slice64])
+
+def test_downsample_no_offset_sharded():
+    layer_path = "downsample_no_offset_sharded"
+    delete_layer(layer_path)
+    cv, data = create_connectomics(layer_path)
+    
+    assert len(cv.scales) == 1
+    assert len(cv.available_mips) == 1
+
+    cv.commit_info()
+
+    tq = LocalTaskQueue()
+    tasks = create_image_shard_downsample_tasks(
+        cv.cloudpath, 
+        mip=0, 
+        num_mips=3, 
+        factor=(2,2,1),
+    )
+    tq.insert_all(tasks)
+
+    cv.refresh_info()
+
+    assert len(cv.available_mips) == 4
+    assert np.array_equal(cv.meta.volume_size(0), [ 512,  512, 512 ])
+    assert np.array_equal(cv.meta.volume_size(1), [ 256,  256, 512 ])
+    assert np.array_equal(cv.meta.volume_size(2), [ 128,  128, 512 ])
+    assert np.array_equal(cv.meta.volume_size(3), [  64,   64, 512 ])
+
+    cv.mip = 0
+    assert np.all(cv[:][...,0] == data)
+
+    data_ds = tinybrain.downsample_segmentation(data, factor=[2, 2, 1, 1], num_mips=3)
+    cv.mip = 1
+    labels = cv[:]
+    labels2 = data_ds[1][:]
+
+    assert np.all(cv[:][...,0] == data_ds[0][:])
+
+    cv.mip = 2
+    assert np.all(cv[:][...,0] == data_ds[1][:])
+
+    cv.mip = 3
+    assert np.all(cv[:][...,0] == data_ds[2][:])
+
+    delete_layer(layer_path)
 
 def test_downsample_no_offset_2x2x2():
     delete_layer()

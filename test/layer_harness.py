@@ -14,6 +14,20 @@ def create_storage(layer_name='layer'):
     stor_path = os.path.join(layer_path, layer_name)
     return CloudFiles('file://' + stor_path)
 
+def create_connectomics(layer_name="layer"):
+    import crackle
+    arr = crackle.load("test/connectomics.npy.ckl.gz")
+    cv = CloudVolume.from_numpy(
+        arr, 
+        vol_path='file://' + layer_path + '/' + layer_name,
+        resolution=(16,16,40), 
+        voxel_offset=[0,0,0], 
+        chunk_size=(64,64,64), 
+        layer_type="segmentation", 
+        max_mip=0,
+    )
+    return cv, arr
+
 def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=None):
 
     default = lambda dt: dtype or dt

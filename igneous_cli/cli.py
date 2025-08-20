@@ -62,7 +62,9 @@ def normalize_encoding(encoding):
   return encoding
 
 ENCODING_HELP = "Which image encoding to use. Options: [all] raw, png; [images] jpeg, jpegxl (jxl); [segmentations] compressed_segmentation (cseg), compresso (cpso), crackle (ckl); [floats] fpzip, kempressed, zfpc"
-ENCODING_EFFORT = 3
+# 2 or 3 is appropriate for lossless compression
+# of TEM images
+ENCODING_EFFORT = 3 
 
 def enqueue_tasks(ctx, queue, tasks):
   parallel = int(ctx.obj.get("parallel", 1))

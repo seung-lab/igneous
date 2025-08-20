@@ -623,41 +623,84 @@ def create_image_shard_transfer_tasks(
   return ImageShardTransferTaskIterator(bounds, shape)
 
 def create_image_shard_downsample_tasks(
-  cloudpath, mip=0, fill_missing=False, 
-  sparse=False, chunk_size=None,
-  encoding=None, memory_target=MEMORY_TARGET,
-  agglomerate=False, timestamp=None,
-  factor=(2,2,1), bounds=None, bounds_mip=0,
+  cloudpath:str,
+  mip:int = 0, 
+  fill_missing:bool = False, 
+  sparse:bool = False, 
+  chunk_size:Optional[tuple[int,int,int]] = None,
+  encoding:Optional[str] = None,
+  memory_target:int = MEMORY_TARGET,
+  agglomerate:bool = False, 
+  timestamp:Optional[int] = None,
+  factor:tuple[int,int,int] = (2,2,1), 
+  bounds:Optional[Bbox] = None, 
+  bounds_mip:int = 0,
   encoding_level:Optional[int] = None,
   encoding_effort:Optional[int] = None,
-  method=DownsampleMethods.AUTO,
-):
+  method=DownsampleMethods.AUTO, 
+  num_mips:Optional[int] = None,
+  truncate_scales:bool = True,
+) -> Iterator:
   """
   Downsamples an existing image layer that may be
   sharded or unsharded to create a sharded layer.
   
-  Only 2x2x1 downsamples are supported for now.
+  Only 2x2x1 and 2x2x2 downsamples are supported for now.
+
+  Note that doing > 1 mip level at a time will use significantly
+  more memory unless your data is compressible.
+
+  Lossy compressed images with num_mips > 1 will have the top mip
+  level be losslessly compressed to enable reliably building 
+  additional downsamples on top of it.
   """
-  cv = downsample_scales.add_scale(
-    cloudpath, mip, 
+  if num_mips is None:
+    num_mips = 3
+
+  cv = CloudVolume(cloudpath)
+  if truncate_scales:
+    cv.scales = cv.scales[:mip+1]
+    cv.commit_info()
+
+  cv = downsample_scales.add_scales(
+    cloudpath, mip, num_mips, 
     preserve_chunk_size=True, chunk_size=chunk_size,
     encoding=encoding, factor=factor
   )
-  cv.mip = mip + 1
-  cv.scale["sharding"] = create_sharded_image_info(
-    dataset_size=cv.scale["size"], 
-    chunk_size=cv.scale["chunk_sizes"][0], 
-    encoding=cv.scale["encoding"], 
-    dtype=cv.dtype,
-    uncompressed_shard_bytesize=int(memory_target),
-  )
-  set_encoding(cv, mip + 1, encoding, encoding_level, encoding_effort)
+  
+  for i in range(1, num_mips + 1):
+    cv.mip = mip + i
+    cv.scale["sharding"] = create_sharded_image_info(
+      dataset_size=cv.scale["size"], 
+      chunk_size=cv.scale["chunk_sizes"][0], 
+      encoding=cv.scale["encoding"], 
+      dtype=cv.dtype,
+      uncompressed_shard_bytesize=int(memory_target),
+    )
+  
+  cv.mip = mip
+
+  for i in range(num_mips - 1):
+    set_encoding(cv, mip + i + 1, encoding, encoding_level, encoding_effort)
+
+  # set final level to lossless unless someone is being explicit
+  # about building levels one at a time
+  if num_mips > 1:
+    if encoding == "jxl":
+      set_encoding(cv, mip + num_mips, encoding, 100, encoding_effort)
+    elif encoding == "jpeg":
+      set_encoding(cv, mip + num_mips, "png", 9, encoding_effort)
+
   cv.commit_info()
 
-  shape = image_shard_shape_from_spec(
-    cv.scale["sharding"], cv.volume_size, cv.chunk_size
+  sharding = cv.info["scales"][mip + 1]["sharding"]
+  base_shape = image_shard_shape_from_spec(
+    sharding, 
+    cv.meta.volume_size(mip + 1), 
+    cv.meta.chunk_size(mip + 1),
   )
-  shape = Vec(*shape) * factor
+
+  shape = Vec(*base_shape) * (np.array(factor) ** num_mips)
 
   cv.mip = mip
   bounds = get_bounds(
@@ -679,6 +722,7 @@ def create_image_shard_downsample_tasks(
         timestamp=timestamp,
         factor=tuple(factor),
         method=method,
+        num_mips=int(num_mips),
       )
 
     def on_finish(self):
@@ -696,6 +740,7 @@ def create_image_shard_downsample_tasks(
           "method": method,
           "encoding_level": encoding_level,
           "encoding_effort": encoding_effort,
+          "num_mips": int(num_mips),
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),

@@ -110,6 +110,8 @@ class SkeletonTask(RegisteredTask):
     # aggressive morphological hole filling has a 1-2vx 
     # edge effect that needs to be cropped away
     self.hole_filling_padding = (self.fill_holes >= 3) * 2
+    self._filled_labels = None
+    self._hole_labels = None
 
   def execute(self):
     # For graphene volumes, if we've materialized the root IDs
@@ -230,33 +232,40 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
 
-  def _do_operation(self, all_labels, fn):
-    if self.fill_holes > 0:
-      filled_labels, hole_labels = fastmorph.fill_holes(
-        all_labels,
-        remove_enclosed=True,
-        return_removed=True,
-        fix_borders=(self.fill_holes >= 2),
-        morphological_closing=(self.fill_holes >= 3),
+  def _compute_fill_holes(self, all_labels):
+    if self._filled_labels is not None:
+      return (
+        crackle.decompress(self._filled_labels), 
+        self._hole_labels
       )
 
-      if self.fill_holes >= 3:
-        hp = self.hole_filling_padding
-        all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
-        filled_labels= np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
+    filled_labels, hole_labels_set = fastmorph.fill_holes(
+      all_labels,
+      remove_enclosed=True,
+      return_removed=True,
+      fix_borders=(self.fill_holes >= 2),
+      morphological_closing=(self.fill_holes >= 3),
+    )
 
-      all_labels = crackle.compress(all_labels)
+    if self.fill_holes >= 3:
+      hp = self.hole_filling_padding
+      all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
+      filled_labels = np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
+
+    self._filled_labels = crackle.compress(filled_labels)
+    self._hole_labels = hole_labels_set
+
+    return (filled_labels, hole_labels_set)
+
+  def _do_operation(self, all_labels, fn):
+    if self.fill_holes > 0:
+      filled_labels, hole_labels = self._compute_fill_holes(all_labels)
       skeletons = fn(filled_labels)
       del filled_labels
 
-      all_labels = crackle.decompress(all_labels)
       hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
-      del all_labels
-
       hole_skeletons = fn(hole_labels)
       skeletons.update(hole_skeletons)
-      del hole_labels
-      del hole_skeletons
     else:
       skeletons = fn(all_labels)
 

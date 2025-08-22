@@ -1297,6 +1297,7 @@ def skeletongroup():
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
 @click.option('--labels', type=ListN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
+@click.option('--cross-section-label-repair-sec', type=int, default=0, help="Time budget per a label to repair cross section border contacts. 0 means off. -1 means infinite budget.", show_default=True)
 @click.option('--output', '-o', type=CloudPath(), default=None, help="Output the results to a different place.", show_default=True)
 @click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)
 @click.option('--root-ids', type=CloudPath(), default=None, help="(graphene) If you have a materialization of graphene root ids for this timepoint, it's more efficient to use it than making requests to the graphene server.", show_default=True)
@@ -1309,6 +1310,7 @@ def skeleton_forge(
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
   cross_section, output, timestamp, root_ids, progress,
+  cross_section_label_repair_sec,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1355,6 +1357,7 @@ def skeleton_forge(
     cross_sectional_area_smoothing_window=int(cross_section),
     frag_path=output, fix_autapses=fix_autapses,
     timestamp=timestamp, root_ids_cloudpath=root_ids,
+    cross_sectional_area_repair_sec_per_label=cross_section_label_repair_sec,
   )
 
   enqueue_tasks(ctx, queue, tasks)

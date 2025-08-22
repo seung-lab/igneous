@@ -81,6 +81,7 @@ class SkeletonTask(RegisteredTask):
     cross_sectional_area:bool = False,
     cross_sectional_area_smoothing_window:int = 1,
     cross_sectional_area_shape_delta:int = 150,
+    cross_sectional_area_repair:bool = False, # expensive
     dry_run:bool = False,
     strip_integer_attributes:bool = True,
     fix_autapses:bool = False,
@@ -97,7 +98,7 @@ class SkeletonTask(RegisteredTask):
       fill_missing, bool(sharded), frag_path, bool(spatial_index),
       spatial_grid_shape, synapses, bool(dust_global),
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
-      int(cross_sectional_area_shape_delta),
+      int(cross_sectional_area_shape_delta), bool(cross_sectional_area_repair),
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
       root_ids_cloudpath,
@@ -404,7 +405,10 @@ class SkeletonTask(RegisteredTask):
     for skel in skeletons.values():
       skel.vertices -= delta * vol.resolution
 
-    return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+    if self.cross_sectional_area_repair:
+      return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+    else:
+      return skeletons
 
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
     from dbscan import DBSCAN

@@ -237,6 +237,12 @@ def create_skeletonizing_tasks(
         "data_type": "float32",
         "num_components": 1,
       })
+  else:
+    vol.skeleton.meta.info['vertex_attributes'] = [
+      attr
+      for attr in vol.skeleton.meta.info['vertex_attributes']
+      if attr["id"] != "cross_sectional_area"
+    ]
 
   vol.skeleton.meta.commit_info()
 

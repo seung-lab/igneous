@@ -9,6 +9,7 @@ import posixpath
 import os
 import re
 from collections import defaultdict
+import time
 
 from tqdm import tqdm
 
@@ -81,7 +82,7 @@ class SkeletonTask(RegisteredTask):
     cross_sectional_area:bool = False,
     cross_sectional_area_smoothing_window:int = 1,
     cross_sectional_area_shape_delta:int = 150,
-    cross_sectional_area_repair:bool = False, # expensive
+    cross_sectional_area_repair_sec_per_label:int = 0, # default disabled
     dry_run:bool = False,
     strip_integer_attributes:bool = True,
     fix_autapses:bool = False,
@@ -98,7 +99,7 @@ class SkeletonTask(RegisteredTask):
       fill_missing, bool(sharded), frag_path, bool(spatial_index),
       spatial_grid_shape, synapses, bool(dust_global),
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
-      int(cross_sectional_area_shape_delta), bool(cross_sectional_area_repair),
+      int(cross_sectional_area_shape_delta), int(cross_sectional_area_repair_sec_per_label),
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
       root_ids_cloudpath,
@@ -405,7 +406,7 @@ class SkeletonTask(RegisteredTask):
     for skel in skeletons.values():
       skel.vertices -= delta * vol.resolution
 
-    if self.cross_sectional_area_repair:
+    if self.cross_sectional_area_repair_sec_per_label != 0:
       return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
     else:
       return skeletons
@@ -499,12 +500,20 @@ class SkeletonTask(RegisteredTask):
     vol.image.bounded = False
     vol.image.fill_missing = True
 
+    # max_sec < 0 means take as long as you need
+    max_sec = self.cross_sectional_area_repair_sec_per_label
+
     for skel in repair_skels:
+      start_time = time.monotonic()
       verts = (skel.vertices // vol.resolution).astype(int)
       reprocess_skel(verts, skel)
 
       pts = verts[skel.cross_sectional_area_contacts > 0]
       if len(pts) == 0:
+        continue
+
+      elapsed_time = time.monotonic() - start_time
+      if max_sec > 0 and elapsed_time > max_sec:
         continue
 
       cluster_labels, core_samples_mask = DBSCAN(pts, eps=5, min_samples=2)
@@ -514,6 +523,9 @@ class SkeletonTask(RegisteredTask):
         reprocess_skel(pts[cluster_labels == lbl], skel)
         if not np.any(verts[skel.cross_sectional_area_contacts > 0]):
           break
+        elapsed_time = time.monotonic() - start_time
+        if max_sec > 0 and elapsed_time > max_sec:
+          continue
 
     vol.image.bounded = bounded
     vol.image.fill_missing = fill_missing

@@ -478,6 +478,14 @@ class SkeletonTask(RegisteredTask):
       skel.id = segid
       skel.vertices -= diff * vol.resolution
 
+    # If we are next to the volume boundary and are doing morphological
+    # closing, we need to expand hole_filling_padding beyond the boundary
+    bounded = vol.image.bounded
+    fill_missing = vol.image.fill_missing
+    
+    vol.image.bounded = False
+    vol.image.fill_missing = True
+
     for skel in repair_skels:
       verts = (skel.vertices // vol.resolution).astype(int)
       reprocess_skel(verts, skel)
@@ -486,10 +494,16 @@ class SkeletonTask(RegisteredTask):
       if len(pts) == 0:
         continue
 
-      labels, core_samples_mask = DBSCAN(pts, eps=5, min_samples=2)
-      uniq = fastremap.unique(labels)
+      cluster_labels, core_samples_mask = DBSCAN(pts, eps=5, min_samples=2)
+      uniq = fastremap.unique(cluster_labels)
+
       for lbl in uniq:
-        reprocess_skel(pts[labels == lbl], skel)
+        reprocess_skel(pts[cluster_labels == lbl], skel)
+        if not np.any(verts[skel.cross_sectional_area_contacts > 0]):
+          break
+
+    vol.image.bounded = bounded
+    vol.image.fill_missing = fill_missing
 
     return skeletons
 

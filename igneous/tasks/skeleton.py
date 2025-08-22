@@ -1,6 +1,6 @@
 from typing import Optional, Sequence, Dict, List
 
-from functools import reduce
+from functools import reduce, partial
 import itertools
 import json
 import mmap
@@ -799,6 +799,12 @@ class ShardedSkeletonMergeTask(RegisteredTask):
        local_input = True
        frag_prefix = frag_prefix.replace("file://", "", 1)
 
+    vertex_attributes = cv.skeleton.meta.info.get("vertex_attributes", None)
+    frombytesfn = partial(
+      Skeleton.from_precomputed, 
+      vertex_attributes=vertex_attributes
+    )
+
     all_skels = defaultdict(list)
     for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not self.progress)):
       if local_input:
@@ -812,7 +818,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         } 
       
       for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not self.progress)):
-        fragment = MapBuffer(content, frombytesfn=Skeleton.from_precomputed)
+        fragment = MapBuffer(content, frombytesfn=frombytesfn)
 
         for label in labels:
           try:

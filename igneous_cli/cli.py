@@ -850,7 +850,7 @@ def ccl_auto(
     igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
 
 def is_empty(tq, sqs_sec_to_wait=120):
-  start_time = time.time()
+  start_time = time.monotonic()
   last_empty = False
 
   # Offical Amazon docs state that to determine if a queue is empty,
@@ -865,14 +865,14 @@ def is_empty(tq, sqs_sec_to_wait=120):
     if tq.path.protocol == "sqs":
       if tq.is_empty():
         if last_empty:
-          elapsed_time = time.time() - start_time
+          elapsed_time = time.monotonic() - start_time
           if elapsed_time >= sqs_sec_to_wait:
             return True
           else:
             return False
         else:
           print(f"Queue appearently empty. Waiting {sqs_sec_to_wait} sec. to confirm.")
-          start_time = time.time()
+          start_time = time.monotonic()
           last_empty = True
           return False
       else:

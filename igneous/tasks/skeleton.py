@@ -512,15 +512,36 @@ class SkeletonTask(RegisteredTask):
         continue
 
       cluster_labels, core_samples_mask = DBSCAN(pts, eps=5, min_samples=2)
-      uniq = fastremap.unique(cluster_labels)
+      uniq, cts = fastremap.unique(cluster_labels, return_counts=True)
+
+      sort_idx = np.flip(np.argsort(cts)) # largest to least
+      uniq = uniq[sort_idx]
+      del cts
+      del sort_idx
 
       for lbl in uniq:
+        if lbl == -1:
+          continue
+
         reprocess_skel(pts[cluster_labels == lbl], skel)
         if not np.any(verts[skel.cross_sectional_area_contacts > 0]):
           break
         elapsed_time = time.monotonic() - start_time
         if max_sec > 0 and elapsed_time > max_sec:
-          continue
+          break
+
+      elapsed_time = time.monotonic() - start_time
+      if max_sec > 0 and elapsed_time > max_sec:
+        continue      
+
+      noise_points = pts[cluster_labels == -1]
+      for pt in noise_points:
+        reprocess_skel([ pt ], skel)
+        if not np.any(verts[skel.cross_sectional_area_contacts > 0]):
+          break
+        elapsed_time = time.monotonic() - start_time
+        if max_sec > 0 and elapsed_time > max_sec:
+          break
 
     vol.image.bounded = bounded
     vol.image.fill_missing = fill_missing

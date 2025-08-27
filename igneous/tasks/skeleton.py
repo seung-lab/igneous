@@ -399,7 +399,7 @@ class SkeletonTask(RegisteredTask):
 
     # move the vertices back to their old smaller image location
     for skel in skeletons.values():
-      skel.vertices -= delta * vol.resolution
+      skel.vertices -= true_delta * vol.resolution
 
     if self.cross_sectional_area_repair_sec_per_label != 0:
       return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)

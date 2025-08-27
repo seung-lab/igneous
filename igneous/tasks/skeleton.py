@@ -167,7 +167,10 @@ class SkeletonTask(RegisteredTask):
     all_labels = all_labels[:,:,:,0]
 
     if self.mask_ids:
-      all_labels = fastremap.mask(all_labels, self.mask_ids)
+      all_labels = fastremap.mask(all_labels, self.mask_ids, in_place=True)
+
+    if self.object_ids:
+      all_labels = fastremap.mask_except(all_labels, self.object_ids, in_place=True)
 
     extra_targets_after = {}
     if self.synapses:
@@ -368,12 +371,12 @@ class SkeletonTask(RegisteredTask):
 
     all_labels = vol[big_bbox][...,0]
 
-    delta = bbox.minpt - big_bbox.minpt
+    true_delta = bbox.minpt - big_bbox.minpt
 
     # place the skeletons in exactly the same position
     # in the enlarged image
     for skel in skeletons.values():
-      skel.vertices += delta * vol.resolution
+      skel.vertices += true_delta * vol.resolution
 
     if self.mask_ids:
       all_labels = fastremap.mask(all_labels, self.mask_ids)

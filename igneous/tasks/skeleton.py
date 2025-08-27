@@ -112,8 +112,6 @@ class SkeletonTask(RegisteredTask):
     # aggressive morphological hole filling has a 1-2vx 
     # edge effect that needs to be cropped away
     self.hole_filling_padding = (self.fill_holes >= 3) * 2
-    self._filled_labels = None
-    self._hole_labels = None
 
   def execute(self):
     # For graphene volumes, if we've materialized the root IDs
@@ -235,12 +233,6 @@ class SkeletonTask(RegisteredTask):
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
 
   def _compute_fill_holes(self, all_labels):
-    if self._filled_labels is not None:
-      return (
-        crackle.decompress(self._filled_labels), 
-        self._hole_labels
-      )
-
     filled_labels, hole_labels_set = fastmorph.fill_holes(
       all_labels,
       remove_enclosed=True,
@@ -253,9 +245,6 @@ class SkeletonTask(RegisteredTask):
       hp = self.hole_filling_padding
       all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
       filled_labels = np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
-
-    self._filled_labels = crackle.compress(filled_labels)
-    self._hole_labels = hole_labels_set
 
     return (filled_labels, hole_labels_set)
 

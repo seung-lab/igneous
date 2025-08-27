@@ -379,7 +379,10 @@ class SkeletonTask(RegisteredTask):
       skel.vertices += true_delta * vol.resolution
 
     if self.mask_ids:
-      all_labels = fastremap.mask(all_labels, self.mask_ids)
+      all_labels = fastremap.mask(all_labels, self.mask_ids, in_place=True)
+
+    if self.object_ids:
+      all_labels = fastremap.mask_except(all_labels, self.object_ids, in_place=True)
 
     def do_cross_section(labels):
       return kimimaro.cross_sectional_area(

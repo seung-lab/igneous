@@ -474,6 +474,7 @@ class SkeletonTask(RegisteredTask):
         if self.fill_holes >= 3:
           hp = self.hole_filling_padding
           binary_image = np.asfortranarray(binary_image[hp:-hp,hp:-hp,hp:-hp])
+          skel.vertices -= hp * vol.resolution
 
       kimimaro.cross_sectional_area(
         binary_image, skel,

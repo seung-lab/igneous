@@ -190,8 +190,13 @@ class SkeletonTask(RegisteredTask):
     if self.fix_autapses:
       voxel_graph = self.voxel_connectivity_graph(vol, bbox, all_labels)
 
+    # hack to reduce memory usage
+    all_labels = crackle.compress(all_labels)
+    def decompress_all_labels():
+      return crackle.decompress(all_labels)
+
     skeletons = self.skeletonize(
-      all_labels, 
+      decompress_all_labels, 
       vol, 
       dust_threshold, 
       extra_targets_after, 
@@ -252,12 +257,18 @@ class SkeletonTask(RegisteredTask):
     return (filled_labels, hole_labels_set)
 
   def _do_operation(self, all_labels, fn):
+    if callable(all_labels):
+      all_labels = all_labels()
+
     if self.fill_holes > 0:
       filled_labels, hole_labels = self._compute_fill_holes(all_labels)
+      all_labels = crackle.compress(all_labels)
       skeletons = fn(filled_labels)
       del filled_labels
 
+      all_labels = crackle.decompress(all_labels)
       hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
+      del all_labels
       hole_skeletons = fn(hole_labels)
       skeletons.update(hole_skeletons)
     else:
@@ -369,8 +380,6 @@ class SkeletonTask(RegisteredTask):
     big_bbox.minpt -= self.hole_filling_padding
     big_bbox.maxpt += self.hole_filling_padding
 
-    all_labels = vol[big_bbox][...,0]
-
     true_delta = bbox.minpt - big_bbox.minpt
 
     # place the skeletons in exactly the same position
@@ -378,11 +387,16 @@ class SkeletonTask(RegisteredTask):
     for skel in skeletons.values():
       skel.vertices += true_delta * vol.resolution
 
-    if self.mask_ids:
-      all_labels = fastremap.mask(all_labels, self.mask_ids, in_place=True)
+    def download_all_labels():
+      all_labels = vol[big_bbox][...,0]
 
-    if self.object_ids:
-      all_labels = fastremap.mask_except(all_labels, self.object_ids, in_place=True)
+      if self.mask_ids:
+        all_labels = fastremap.mask(all_labels, self.mask_ids, in_place=True)
+
+      if self.object_ids:
+        all_labels = fastremap.mask_except(all_labels, self.object_ids, in_place=True)
+
+      return all_labels
 
     def do_cross_section(labels):
       return kimimaro.cross_sectional_area(
@@ -394,8 +408,7 @@ class SkeletonTask(RegisteredTask):
         fill_holes=False,
       )
 
-    skeletons = self._do_operation(all_labels, do_cross_section)
-    del all_labels
+    skeletons = self._do_operation(download_all_labels, do_cross_section)
 
     # move the vertices back to their old smaller image location
     for skel in skeletons.values():

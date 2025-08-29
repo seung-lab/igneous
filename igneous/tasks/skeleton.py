@@ -1,5 +1,6 @@
 from typing import Optional, Sequence, Dict, List
 
+import copy
 from functools import reduce, partial
 import itertools
 import json
@@ -159,7 +160,7 @@ class SkeletonTask(RegisteredTask):
       else:
         path = self.frag_path
 
-    all_labels = vol.download(
+    all_labels = vol.download(           
       bbox.to_slices(), 
       agglomerate=True, 
       timestamp=self.timestamp
@@ -186,6 +187,12 @@ class SkeletonTask(RegisteredTask):
     if self.fill_holes and self.fix_autapses:
       raise ValueError("fill_holes is not currently compatible with fix_autapses")
 
+    all_labels, mapping = fastremap.renumber(all_labels, in_place=True)
+
+    if self.object_ids:
+      self.object_ids = [ mapping[sid] for sid in self.object_ids ]
+    mapping = { v:k for k,v in mapping.items() }
+
     voxel_graph = None
     if self.fix_autapses:
       voxel_graph = self.voxel_connectivity_graph(vol, bbox, all_labels)
@@ -203,6 +210,12 @@ class SkeletonTask(RegisteredTask):
       voxel_graph,
     )
     del all_labels
+
+    if self.object_ids:
+      self.object_ids = [ mapping[sid] for sid in self.object_ids ]
+    skeletons = { mapping[sid]: skel for sid, skel in skeletons.items() }
+    for sid, skel in skeletons.items():
+      skel.id = sid
 
     if self.cross_sectional_area: # This is expensive!
       skeletons = self.compute_cross_sectional_area(vol, bbox, skeletons)

@@ -126,7 +126,7 @@ class SkeletonTask(RegisteredTask):
 
     if self.cross_sectional_area:
       lru_bytes = self.bounds.size() + 2 * self.cross_sectional_area_shape_delta
-      lru_bytes = lru_bytes[0] * lru_bytes[1] * lru_bytes[2] * 8 // 50
+      lru_bytes = int(lru_bytes[0]) * int(lru_bytes[1]) * int(lru_bytes[2]) * 8 // 50
       lru_encoding = 'crackle'
 
     vol = CloudVolume(

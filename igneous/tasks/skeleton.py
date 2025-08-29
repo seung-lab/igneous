@@ -280,7 +280,7 @@ class SkeletonTask(RegisteredTask):
       del filled_labels
 
       all_labels = crackle.decompress(all_labels)
-      hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
+      hole_labels = fastremap.mask_except(all_labels, list(hole_labels), in_place=True)
       del all_labels
       hole_skeletons = fn(hole_labels)
       skeletons.update(hole_skeletons)

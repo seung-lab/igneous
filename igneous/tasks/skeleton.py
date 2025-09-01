@@ -192,7 +192,6 @@ class SkeletonTask(RegisteredTask):
 
     if self.object_ids:
       self.object_ids = [ mapping[sid] for sid in self.object_ids ]
-    mapping = { v:k for k,v in mapping.items() }
 
     voxel_graph = None
     if self.fix_autapses:
@@ -211,9 +210,12 @@ class SkeletonTask(RegisteredTask):
       voxel_graph,
     )
     del all_labels
+    
+    mapping = { v:k for k,v in mapping.items() }
 
     if self.object_ids:
       self.object_ids = [ mapping[sid] for sid in self.object_ids ]
+
     skeletons = { mapping[sid]: skel for sid, skel in skeletons.items() }
     for sid, skel in skeletons.items():
       skel.id = sid

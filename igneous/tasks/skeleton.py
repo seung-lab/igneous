@@ -1,5 +1,6 @@
 from typing import Optional, Sequence, Dict, List
 
+import copy
 from functools import reduce, partial
 import itertools
 import json

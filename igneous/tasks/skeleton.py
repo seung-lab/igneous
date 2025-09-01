@@ -159,18 +159,21 @@ class SkeletonTask(RegisteredTask):
       else:
         path = self.frag_path
 
-    all_labels = vol.download(
+    all_labels, mapping = vol.download(           
       bbox.to_slices(), 
       agglomerate=True, 
-      timestamp=self.timestamp
+      timestamp=self.timestamp,
+      renumber=True,
     )
     all_labels = all_labels[:,:,:,0]
 
     if self.mask_ids:
-      all_labels = fastremap.mask(all_labels, self.mask_ids, in_place=True)
+      mask_ids = [ mapping[sid] for sid in self.mask_ids ]
+      all_labels = fastremap.mask(all_labels, mask_ids, in_place=True)
 
     if self.object_ids:
-      all_labels = fastremap.mask_except(all_labels, self.object_ids, in_place=True)
+      object_ids = [ mapping[sid] for sid in self.object_ids ]
+      all_labels = fastremap.mask_except(all_labels, object_ids, in_place=True)
 
     extra_targets_after = {}
     if self.synapses:
@@ -181,10 +184,13 @@ class SkeletonTask(RegisteredTask):
     dust_threshold = self.dust_threshold
     if self.dust_global and dust_threshold > 0:
       dust_threshold = 0
-      all_labels = self.apply_global_dust_threshold(vol, all_labels)
+      all_labels = self.apply_global_dust_threshold(vol, all_labels, mapping)
 
     if self.fill_holes and self.fix_autapses:
       raise ValueError("fill_holes is not currently compatible with fix_autapses")
+
+    if self.object_ids:
+      self.object_ids = [ mapping[sid] for sid in self.object_ids ]
 
     voxel_graph = None
     if self.fix_autapses:
@@ -203,6 +209,15 @@ class SkeletonTask(RegisteredTask):
       voxel_graph,
     )
     del all_labels
+    
+    mapping = { v:k for k,v in mapping.items() }
+
+    if self.object_ids:
+      self.object_ids = [ mapping[sid] for sid in self.object_ids ]
+
+    skeletons = { mapping[sid]: skel for sid, skel in skeletons.items() }
+    for sid, skel in skeletons.items():
+      skel.id = sid
 
     if self.cross_sectional_area: # This is expensive!
       skeletons = self.compute_cross_sectional_area(vol, bbox, skeletons)
@@ -267,7 +282,7 @@ class SkeletonTask(RegisteredTask):
       del filled_labels
 
       all_labels = crackle.decompress(all_labels)
-      hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
+      hole_labels = fastremap.mask_except(all_labels, list(hole_labels), in_place=True)
       del all_labels
       hole_skeletons = fn(hole_labels)
       skeletons.update(hole_skeletons)
@@ -387,18 +402,35 @@ class SkeletonTask(RegisteredTask):
     for skel in skeletons.values():
       skel.vertices += true_delta * vol.resolution
 
+    mapping = {}
+
     def download_all_labels():
-      all_labels = vol[big_bbox][...,0]
+      nonlocal skeletons
+      nonlocal mapping
+      
+      all_labels, mapping = vol.download(big_bbox, renumber=True)
+      all_labels = all_labels[...,0]
 
       if self.mask_ids:
-        all_labels = fastremap.mask(all_labels, self.mask_ids, in_place=True)
+        mask_ids = [ mapping[sid] for sid in self.mask_ids ]
+        all_labels = fastremap.mask(all_labels, mask_ids, in_place=True)
 
       if self.object_ids:
-        all_labels = fastremap.mask_except(all_labels, self.object_ids, in_place=True)
+        object_ids = [ mapping[sid] for sid in self.object_ids ]
+        all_labels = fastremap.mask_except(all_labels, object_ids, in_place=True)
+
+      skeletons = {
+        mapping[sid]: skel 
+        for sid, skel in skeletons.items()
+      }
+      for sid, skel in skeletons.items():
+        skel.id = sid
 
       return all_labels
 
     def do_cross_section(labels):
+      nonlocal skeletons
+
       return kimimaro.cross_sectional_area(
         labels, skeletons,
         anisotropy=vol.resolution,
@@ -409,6 +441,14 @@ class SkeletonTask(RegisteredTask):
       )
 
     skeletons = self._do_operation(download_all_labels, do_cross_section)
+
+    mapping = { v:k for k,v in mapping.items() }
+    skeletons = {
+      mapping[sid]: skel 
+      for sid, skel in skeletons.items()
+    }
+    for sid, skel in skeletons.items():
+      skel.id = sid
 
     # move the vertices back to their old smaller image location
     for skel in skeletons.values():
@@ -562,7 +602,7 @@ class SkeletonTask(RegisteredTask):
 
     return skeletons
 
-  def apply_global_dust_threshold(self, vol, all_labels):
+  def apply_global_dust_threshold(self, vol, all_labels, mapping):
     path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.im')
     cf = CloudFile(path)
     memcf = CloudFile(path.replace(f"{cf.protocol}://", "mem://"))
@@ -585,12 +625,14 @@ class SkeletonTask(RegisteredTask):
 
     mb = IntMap(buf)
     uniq = fastremap.unique(all_labels)
+    mapping = { v:k for k,v in mapping.items() }
 
     valid_objects = []
     for label in uniq:
       if label == 0:
         continue
-      if mb[label] >= self.dust_threshold:
+      proper_label = mapping[label]
+      if mb[proper_label] >= self.dust_threshold:
         valid_objects.append(label)
 
     return fastremap.mask_except(all_labels, valid_objects)

@@ -623,7 +623,8 @@ def test_contrast_normalization_task():
 
 
 @pytest.mark.parametrize("cross_sectional_area", [False, True])
-def test_skeletonization_task(cross_sectional_area):
+@pytest.mark.parametrize("object_ids", [None, [2]])
+def test_skeletonization_task(cross_sectional_area, object_ids):
     directory = '/tmp/removeme/skeleton/'
     layer_path = 'file://' + directory
     delete_layer(layer_path)
@@ -644,6 +645,7 @@ def test_skeletonization_task(cross_sectional_area):
             'scale': 10,
             'const': 10,
         },
+        object_ids=object_ids,
         cross_sectional_area=cross_sectional_area,
         cross_sectional_area_smoothing_window=1,
     )

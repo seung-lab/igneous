@@ -406,7 +406,9 @@ class SkeletonTask(RegisteredTask):
     mapping = {}
 
     def download_all_labels():
+      nonlocal skeletons
       nonlocal mapping
+      
       all_labels, mapping = vol.download(big_bbox, renumber=True)
       all_labels = all_labels[...,0]
 
@@ -418,18 +420,17 @@ class SkeletonTask(RegisteredTask):
         object_ids = [ mapping[sid] for sid in self.object_ids ]
         all_labels = fastremap.mask_except(all_labels, object_ids, in_place=True)
 
-      return all_labels
-
-    def do_cross_section(labels):
-      nonlocal mapping
-      nonlocal skeletons
-
       skeletons = {
         mapping[sid]: skel 
         for sid, skel in skeletons.items()
       }
       for sid, skel in skeletons.items():
         skel.id = sid
+
+      return all_labels
+
+    def do_cross_section(labels):
+      nonlocal skeletons
 
       return kimimaro.cross_sectional_area(
         labels, skeletons,

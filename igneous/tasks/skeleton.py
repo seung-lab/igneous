@@ -262,6 +262,7 @@ class SkeletonTask(RegisteredTask):
       return_removed=True,
       fix_borders=(self.fill_holes >= 2),
       morphological_closing=(self.fill_holes >= 3),
+      progress=self.progress,
     )
 
     if self.fill_holes >= 3:

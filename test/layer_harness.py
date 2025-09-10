@@ -14,14 +14,14 @@ def create_storage(layer_name='layer'):
     stor_path = os.path.join(layer_path, layer_name)
     return CloudFiles('file://' + stor_path)
 
-def create_connectomics(layer_name="layer"):
+def create_connectomics(layer_name="layer", voxel_offset=(0,0,0)):
     import crackle
     arr = crackle.load("test/connectomics.npy.ckl.gz")
     cv = CloudVolume.from_numpy(
         arr, 
         vol_path='file://' + layer_path + '/' + layer_name,
         resolution=(16,16,40), 
-        voxel_offset=[0,0,0], 
+        voxel_offset=voxel_offset, 
         chunk_size=(64,64,64), 
         layer_type="segmentation", 
         max_mip=0,

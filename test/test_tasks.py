@@ -201,6 +201,51 @@ def test_downsample_no_offset_sharded_2x2x2():
 
     delete_layer(layer_path)
 
+def test_downsample_with_offset_sharded_2x2x2():
+    layer_path = "downsample_with_offset_sharded_2x2x2"
+    delete_layer(layer_path)
+    cv, data = create_connectomics(layer_path, voxel_offset=(3,5,7))
+    
+    assert len(cv.scales) == 1
+    assert len(cv.available_mips) == 1
+
+    cv.commit_info()
+
+    tq = LocalTaskQueue()
+    tasks = create_image_shard_downsample_tasks(
+        cv.cloudpath, 
+        mip=0, 
+        num_mips=3, 
+        factor=(2,2,2),
+    )
+    tq.insert_all(tasks)
+
+    cv.refresh_info()
+
+    assert len(cv.available_mips) == 4
+    assert np.array_equal(cv.meta.volume_size(0), [ 512,  512, 512 ])
+    assert np.array_equal(cv.meta.volume_size(1), [ 256,  256, 256 ])
+    assert np.array_equal(cv.meta.volume_size(2), [ 128,  128, 128 ])
+    assert np.array_equal(cv.meta.volume_size(3), [  64,   64,  64 ])
+
+    cv.mip = 0
+    assert np.all(cv[:][...,0] == data)
+
+    data_ds = tinybrain.downsample_segmentation(data, factor=[2, 2, 2, 1], num_mips=3)
+    cv.mip = 1
+    labels = cv[:]
+    labels2 = data_ds[1][:]
+
+    assert np.all(cv[:][...,0] == data_ds[0][:])
+
+    cv.mip = 2
+    assert np.all(cv[:][...,0] == data_ds[1][:])
+
+    cv.mip = 3
+    assert np.all(cv[:][...,0] == data_ds[2][:])
+
+    delete_layer(layer_path)
+
 def test_downsample_with_offset():
     delete_layer()
     cf, data = create_layer(size=(512,512,128,1), offset=(3,7,11))

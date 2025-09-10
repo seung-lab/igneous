@@ -731,12 +731,25 @@ def ImageShardDownsampleTask(
   zbox = bbox.clone()
   zbox.maxpt.z = zbox.minpt.z + cz
 
+  # Need to save memory for segmentation... it's big.
+  renumber = src_vol.layer_type == "segmentation"
+
   for z in range(nz):
-    img = src_vol.download(
-      zbox, 
-      agglomerate=agglomerate, 
-      timestamp=timestamp,
-    )
+    if renumber:
+      img, mapping = src_vol.download(
+        zbox, 
+        agglomerate=agglomerate, 
+        timestamp=timestamp,
+        renumber=True,
+      )
+      mapping = { v:k for k,v in mapping.items() }
+    else:
+      img = src_vol.download(
+        zbox, 
+        agglomerate=agglomerate, 
+        timestamp=timestamp,
+      )
+
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
 
@@ -773,6 +786,9 @@ def ImageShardDownsampleTask(
           if shard_cutout.size == 0:
             continue
 
+          if renumber:
+            shard_cutout = fastremap.remap(shard_cutout, mapping, in_place=True)
+
           shard_bbox = zbox.clone()
           shard_bbox.minpt //= (factor ** (i+1))
           shard_bbox.maxpt //= (factor ** (i+1))
@@ -786,6 +802,9 @@ def ImageShardDownsampleTask(
 
           if shard_bbox.minpt.z >= src_vol.meta.bounds(i+1).maxpt.z:
             continue
+
+          if renumber:
+            shard_cutout = shard_cutout.astype(src_vol.dtype, copy=False)
 
           chunk_dict = src_vol.image.make_shard_chunks(shard_cutout, shard_bbox, mip + i + 1)
           output_shards_by_mip[i][(shard_x, shard_y, shard_z)].update(chunk_dict)

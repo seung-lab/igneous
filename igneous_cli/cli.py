@@ -1890,6 +1890,16 @@ def create(
     arr = crackle.util.aload(src)
     if arr.nbytes < int(1e9):
       arr = arr.decompress()
+  elif ext == ".nrrd":
+    import nrrd
+    arr, header = nrrd.read(src)
+    if arr.shape[0] == 3 and arr.ndim == 3:
+      arr = arr[..., np.newaxis]
+      arr = np.transpose(arr, axes=[1,2,3,0])
+  elif ext == ".nii":
+    import nibabel as nib
+    arr = nib.load(src)
+    arr = np.array(arr.dataobj)
   elif ext in (".h5", ".hdf5"):
     import h5py
     file = h5py.File(src, 'r')
@@ -1897,6 +1907,9 @@ def create(
   else:
     print(f"Format not supported: {ext}")
     return
+
+  while arr.ndim < 3:
+    arr = arr[..., np.newaxis]
 
   CloudVolume.from_numpy(
     arr, dest,

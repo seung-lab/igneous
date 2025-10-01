@@ -1874,7 +1874,7 @@ def create(
 ):
   """Create a Precomputed volume from another data source.
 
-  Supports: .npy files, .h5/.hdf5 files, and .ckl files
+  Supports: .npy, .h5/.hdf5, .nii, .nrrd, and .ckl files
   
   Hopefully will support others such as TIFF in the future.
   """

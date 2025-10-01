@@ -731,12 +731,25 @@ def ImageShardDownsampleTask(
   zbox = bbox.clone()
   zbox.maxpt.z = zbox.minpt.z + cz
 
+  # Need to save memory for segmentation... it's big.
+  renumber = src_vol.layer_type == "segmentation"
+
   for z in range(nz):
-    img = src_vol.download(
-      zbox, 
-      agglomerate=agglomerate, 
-      timestamp=timestamp,
-    )
+    if renumber:
+      img, mapping = src_vol.download(
+        zbox, 
+        agglomerate=agglomerate, 
+        timestamp=timestamp,
+        renumber=True,
+      )
+      mapping = { v:k for k,v in mapping.items() }
+    else:
+      img = src_vol.download(
+        zbox, 
+        agglomerate=agglomerate, 
+        timestamp=timestamp,
+      )
+
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
 
@@ -747,48 +760,54 @@ def ImageShardDownsampleTask(
 
       num_x_shards = int(factor[0] ** (num_mips - i))
       num_y_shards = int(factor[1] ** (num_mips - i))
-      num_z_shards = int(factor[2] ** (num_mips - i))
       
       num_x_shards = int(min(num_x_shards, np.ceil(zbox.size().x / shard_shape[0])) // (2**i))
       num_y_shards = int(min(num_y_shards, np.ceil(zbox.size().y / shard_shape[1])) // (2**i))
-      num_z_shards = int(min(num_z_shards, np.ceil(zbox.size().z / shard_shape[2])) // (2**i))
 
       num_x_shards = int(min(num_x_shards, np.ceil(src_vol.meta.volume_size(mip+i).x / shard_shape[0])))
       num_y_shards = int(min(num_y_shards, np.ceil(src_vol.meta.volume_size(mip+i).y / shard_shape[1])))
-      num_z_shards = int(min(num_z_shards, np.ceil(src_vol.meta.volume_size(mip+i).z / shard_shape[2])))
       
       num_x_shards = max(num_x_shards, 1)
       num_y_shards = max(num_y_shards, 1)
-      num_z_shards = max(num_z_shards, 1)
 
-      for shard_z in range(num_z_shards):
-        for shard_y in range(num_y_shards):
-          for shard_x in range(num_x_shards):
-            xoff = int(shard_shape[0] * shard_x)
-            yoff = int(shard_shape[1] * shard_y)
-            zoff = int(shard_shape[2] * shard_z)
+      shard_z = int(z / shard_shape[2])
 
-            shard_cutout = ds_imgs[i][
-              xoff:int(xoff+shard_shape[0]), 
-              yoff:int(yoff+shard_shape[1]),
-              zoff:int(zoff+shard_shape[2]),
-            ]
+      for shard_y in range(num_y_shards):
+        for shard_x in range(num_x_shards):
+          xoff = int(shard_shape[0] * shard_x)
+          yoff = int(shard_shape[1] * shard_y)
 
-            if shard_cutout.size == 0:
-              continue
+          shard_cutout = ds_imgs[i][
+            xoff:int(xoff+shard_shape[0]), 
+            yoff:int(yoff+shard_shape[1]),
+            :
+          ]
 
-            shard_bbox = zbox.clone()
-            shard_bbox.minpt //= (factor ** (i+1))
-            shard_bbox.maxpt //= (factor ** (i+1))
+          if shard_cutout.size == 0:
+            continue
 
-            shard_bbox.minpt += np.array([ xoff, yoff, zoff ])
-            shard_bbox.maxpt = shard_bbox.minpt + np.array([ shard_shape[0], shard_shape[1], shard_shape[2] ])
+          if renumber:
+            shard_cutout = fastremap.remap(shard_cutout, mapping)
 
-            if shard_bbox.minpt.z >= src_vol.meta.bounds(i+1).maxpt.z:
-              continue
+          shard_bbox = zbox.clone()
+          shard_bbox.minpt //= (factor ** (i+1))
+          shard_bbox.maxpt //= (factor ** (i+1))
 
-            chunk_dict = src_vol.image.make_shard_chunks(shard_cutout, shard_bbox, mip + i + 1)
-            output_shards_by_mip[i][(shard_x, shard_y, shard_z)].update(chunk_dict)
+          shard_bbox.minpt += np.array([ xoff, yoff, 0 ])
+          shard_bbox.maxpt = shard_bbox.minpt + np.array([
+            shard_cutout.shape[0],
+            shard_cutout.shape[1],
+            shard_cutout.shape[2],
+          ])
+
+          if shard_bbox.minpt.z >= src_vol.meta.bounds(i+1).maxpt.z:
+            continue
+
+          if renumber:
+            shard_cutout = shard_cutout.astype(src_vol.dtype, copy=False)
+
+          chunk_dict = src_vol.image.make_shard_chunks(shard_cutout, shard_bbox, mip + i + 1)
+          output_shards_by_mip[i][(shard_x, shard_y, shard_z)].update(chunk_dict)
 
     del ds_imgs
     zbox.minpt.z += cz

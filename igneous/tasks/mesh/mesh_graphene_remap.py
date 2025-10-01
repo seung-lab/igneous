@@ -96,7 +96,7 @@ def remap_segmentation(
   )
 
   seg = fastremap.mask_except(seg, list(sv_remapping.keys()), in_place=True)
-  fastremap.remap(seg, sv_remapping, preserve_missing_labels=True, in_place=True)
+  seg = fastremap.remap(seg, sv_remapping, preserve_missing_labels=True, in_place=True)
 
   for unsafe_root_id in tqdm(unsafe_dict.keys(), desc="Unsafe Relabel", disable=(not progress)):
     bin_seg = seg == unsafe_root_id

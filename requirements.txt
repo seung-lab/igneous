@@ -1,11 +1,11 @@
 click>=6.7
 cloud-files>=4.11.0
-cloud-volume[all_codecs]>=9.1.0
+cloud-volume[all_codecs]>=12.5.0
 crackle-codec
 connected-components-3d>=3.10.1
 dbscan
 DracoPy>=1.0.1,<2.0.0
-fastremap>=1.13.2
+fastremap>=1.17.4
 fastmorph>=1.4.1
 google-cloud-logging
 kimimaro[accel]>=5.4.0

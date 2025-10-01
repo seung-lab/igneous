@@ -995,7 +995,7 @@ def meshgroup():
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())
 @click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
+@click.option("--sharded", is_flag=True, default=False, help="Format unsharded or sharded meshes as sharded format at the destination.", show_default=True)
 @click.option("--dir", "mesh_dir", type=str, default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
 @click.option('--mip', type=int, default=None, help="Manually specify which mip level the images were derived from.", show_default=True)
@@ -1488,7 +1488,7 @@ def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())
 @click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
+@click.option("--sharded", is_flag=True, default=False, help="Format unsharded or sharded skeletons as sharded format at the destination.", show_default=True)
 @click.option("--dir", "skel_dir", type=str, default=None, help="Write skeletons into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
 @click.pass_context

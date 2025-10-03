@@ -1302,6 +1302,7 @@ def skeletongroup():
 @click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)
 @click.option('--root-ids', type=CloudPath(), default=None, help="(graphene) If you have a materialization of graphene root ids for this timepoint, it's more efficient to use it than making requests to the graphene server.", show_default=True)
 @click.option('--progress', is_flag=True, default=False, help="Print progress bars.", show_default=True)
+@click.option('--split-at-branches', is_flag=True, default=False, help="Split skeletons at branch points. Surface-touching fragments get original IDs and will be merged across chunks. Interior skeletons get unique IDs and are finalized.", show_default=True)
 @click.pass_context
 def skeleton_forge(
   ctx, path, queue, mip, shape, 
@@ -1310,7 +1311,7 @@ def skeleton_forge(
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
   cross_section, output, timestamp, root_ids, progress,
-  cross_section_label_repair_sec,
+  cross_section_label_repair_sec, split_at_branches,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1358,6 +1359,7 @@ def skeleton_forge(
     frag_path=output, fix_autapses=fix_autapses,
     timestamp=timestamp, root_ids_cloudpath=root_ids,
     cross_sectional_area_repair_sec_per_label=cross_section_label_repair_sec,
+    split_at_branches=split_at_branches,
   )
 
   enqueue_tasks(ctx, queue, tasks)

@@ -35,7 +35,7 @@ from igneous.tasks import (
   HyperSquareConsensusTask, # HyperSquareTask,
   ImageShardTransferTask, ImageShardDownsampleTask,
   CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
-  CountVoxelsTask
+  CountVoxelsTask, CLAHETask,
 )
 
 from igneous.shards import image_shard_shape_from_spec
@@ -66,6 +66,7 @@ __all__  = [
   "create_voxel_counting_tasks",
   "accumulate_voxel_counts",
   "compute_rois",
+  "create_clahe_tasks",
 ]
 
 # A reasonable size for processing large
@@ -515,7 +516,7 @@ def create_image_shard_transfer_tasks(
   translate: ShapeType = (0, 0, 0),
   dest_voxel_offset: Optional[ShapeType] = None,
   agglomerate: bool = False, 
-  timestamp: int = None,
+  timestamp: Optional[int] = None,
   memory_target: int = MEMORY_TARGET,
   clean_info: bool = False,
   encoding_level: Optional[int] = None,
@@ -622,41 +623,84 @@ def create_image_shard_transfer_tasks(
   return ImageShardTransferTaskIterator(bounds, shape)
 
 def create_image_shard_downsample_tasks(
-  cloudpath, mip=0, fill_missing=False, 
-  sparse=False, chunk_size=None,
-  encoding=None, memory_target=MEMORY_TARGET,
-  agglomerate=False, timestamp=None,
-  factor=(2,2,1), bounds=None, bounds_mip=0,
+  cloudpath:str,
+  mip:int = 0, 
+  fill_missing:bool = False, 
+  sparse:bool = False, 
+  chunk_size:Optional[tuple[int,int,int]] = None,
+  encoding:Optional[str] = None,
+  memory_target:int = MEMORY_TARGET,
+  agglomerate:bool = False, 
+  timestamp:Optional[int] = None,
+  factor:tuple[int,int,int] = (2,2,1), 
+  bounds:Optional[Bbox] = None, 
+  bounds_mip:int = 0,
   encoding_level:Optional[int] = None,
   encoding_effort:Optional[int] = None,
-  method=DownsampleMethods.AUTO,
-):
+  method=DownsampleMethods.AUTO, 
+  num_mips:Optional[int] = None,
+  truncate_scales:bool = True,
+) -> Iterator:
   """
   Downsamples an existing image layer that may be
   sharded or unsharded to create a sharded layer.
   
-  Only 2x2x1 downsamples are supported for now.
+  Only 2x2x1 and 2x2x2 downsamples are supported for now.
+
+  Note that doing > 1 mip level at a time will use significantly
+  more memory unless your data is compressible.
+
+  Lossy compressed images with num_mips > 1 will have the top mip
+  level be losslessly compressed to enable reliably building 
+  additional downsamples on top of it.
   """
-  cv = downsample_scales.add_scale(
-    cloudpath, mip, 
+  if num_mips is None:
+    num_mips = 3
+
+  cv = CloudVolume(cloudpath)
+  if truncate_scales:
+    cv.scales = cv.scales[:mip+1]
+    cv.commit_info()
+
+  cv = downsample_scales.add_scales(
+    cloudpath, mip, num_mips, 
     preserve_chunk_size=True, chunk_size=chunk_size,
     encoding=encoding, factor=factor
   )
-  cv.mip = mip + 1
-  cv.scale["sharding"] = create_sharded_image_info(
-    dataset_size=cv.scale["size"], 
-    chunk_size=cv.scale["chunk_sizes"][0], 
-    encoding=cv.scale["encoding"], 
-    dtype=cv.dtype,
-    uncompressed_shard_bytesize=int(memory_target),
-  )
-  set_encoding(cv, mip + 1, encoding, encoding_level, encoding_effort)
+  
+  for i in range(1, num_mips + 1):
+    cv.mip = mip + i
+    cv.scale["sharding"] = create_sharded_image_info(
+      dataset_size=cv.scale["size"], 
+      chunk_size=cv.scale["chunk_sizes"][0], 
+      encoding=cv.scale["encoding"], 
+      dtype=cv.dtype,
+      uncompressed_shard_bytesize=int(memory_target),
+    )
+  
+  cv.mip = mip
+
+  for i in range(num_mips - 1):
+    set_encoding(cv, mip + i + 1, encoding, encoding_level, encoding_effort)
+
+  # set final level to lossless unless someone is being explicit
+  # about building levels one at a time
+  if num_mips > 1:
+    if encoding == "jxl":
+      set_encoding(cv, mip + num_mips, encoding, 100, encoding_effort)
+    elif encoding == "jpeg":
+      set_encoding(cv, mip + num_mips, "png", 9, encoding_effort)
+
   cv.commit_info()
 
-  shape = image_shard_shape_from_spec(
-    cv.scale["sharding"], cv.volume_size, cv.chunk_size
+  sharding = cv.info["scales"][mip + 1]["sharding"]
+  base_shape = image_shard_shape_from_spec(
+    sharding, 
+    cv.meta.volume_size(mip + 1), 
+    cv.meta.chunk_size(mip + 1),
   )
-  shape = Vec(*shape) * factor
+
+  shape = Vec(*base_shape) * (np.array(factor) ** num_mips)
 
   cv.mip = mip
   bounds = get_bounds(
@@ -678,6 +722,7 @@ def create_image_shard_downsample_tasks(
         timestamp=timestamp,
         factor=tuple(factor),
         method=method,
+        num_mips=int(num_mips),
       )
 
     def on_finish(self):
@@ -695,6 +740,7 @@ def create_image_shard_downsample_tasks(
           "method": method,
           "encoding_level": encoding_level,
           "encoding_effort": encoding_effort,
+          "num_mips": int(num_mips),
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),
@@ -767,6 +813,9 @@ def create_transfer_cloudvolume(
 ) -> CloudVolume:
   intify = lambda lst: [ int(x) for x in lst ]
   bounds_resolution = src_vol.meta.resolution(bounds_mip)
+
+  if encoding is None and src_vol.meta.path.format != "precomputed":
+    encoding = "raw"
 
   try:
     dest_vol = CloudVolume(dst_cloudpath, mip=mip)
@@ -1343,6 +1392,88 @@ def create_luminance_levels_tasks(
 
   return LuminanceLevelsTaskIterator()
 
+def create_clahe_tasks(
+  src:str, 
+  dest:str,
+  shape:Optional[tuple[int,int,int]] = None,
+  mip:int = 0,
+  fill_missing:bool = False,
+  bounds:Optional[Bbox] = None,
+  bounds_mip:int = 0,
+  clip_limit:float = 40.0, # opencv default
+  tile_grid_size:tuple[int,int] = (8,8) # opencv default
+) -> Iterator:
+  """
+  Use CLAHE ("Contrast Limited Adaptive Histogram Equalization")
+  to adjust the contrast of 
+  """
+  srcvol = CloudVolume(src, mip=mip)
+  
+  try:
+    dvol = CloudVolume(dest, mip=mip)
+  except cloudvolume.exceptions.InfoUnavailableError:
+    info = copy.deepcopy(srcvol.info)
+    dvol = CloudVolume(dest, mip=mip, info=info)
+    dvol.info['scales'] = dvol.info['scales'][:mip+1]
+    dvol.commit_info()
+
+  dvol.meta.unlock_mips(mip)
+
+  if bounds is None:
+    bounds = srcvol.bounds.clone()
+
+  if shape is None:
+    shape = Bbox( (0,0,0), (2048, 2048, dvol.chunk_size.z) )
+    shape = shape.shrink_to_chunk_size(dvol.chunk_size).size3()
+    shape = Vec.clamp(shape, (1,1,1), bounds.size3() )
+  
+  shape = Vec(*shape)
+
+  downsample_scales.create_downsample_scales(
+    dest, 
+    mip=mip, 
+    ds_shape=shape, 
+    preserve_chunk_size=True
+  )
+  dvol.refresh_info()
+
+  bounds = get_bounds(srcvol, bounds, mip, bounds_mip=bounds_mip)
+
+  class CLAHETaskIterator(FinelyDividedTaskIterator):
+    def task(self, shape, offset):
+      return partial(CLAHETask, 
+        src=src, 
+        dest=dest,
+        shape=shape.clone(), 
+        offset=offset.clone(), 
+        mip=mip,
+        fill_missing=fill_missing,
+        clip_limit=clip_limit,
+        tile_grid_size=tile_grid_size,
+      )
+    
+    def on_finish(self):
+      dvol.provenance.processing.append({
+        'method': {
+          'task': 'CLAHETask',
+          'src': src,
+          'dest': dest,
+          'shape': Vec(*shape).tolist(),
+          'clip_limit': clip_limit,
+          'tile_grid_size': tile_grid_size,
+          'mip': mip,
+          'bounds': [
+            bounds.minpt.tolist(),
+            bounds.maxpt.tolist()
+          ],
+        },
+        'by': operator_contact(),
+        'date': strftime('%Y-%m-%d %H:%M %Z'),
+      }) 
+      dvol.commit_provenance()
+
+  return CLAHETaskIterator(bounds, shape)
+
 def compute_fixup_offsets(vol, points, shape):
   pts = map(np.array, points)
 
@@ -1725,7 +1856,11 @@ def create_ccl_relabel_tasks(
   return RelabelCCLTaskIterator(bounds, shape)
 
 def create_voxel_counting_tasks(
-  cloudpath, mip
+  cloudpath:str, 
+  mip:int,
+  fill_missing:bool = False,
+  agglomerate:bool = False,
+  timestamp:Optional[int] = None,
 ):
   """
   Counts voxels in 512^3 tasks and uploads the JSON files
@@ -1743,6 +1878,9 @@ def create_voxel_counting_tasks(
         shape=bounded_shape.clone(),
         offset=offset.clone(),
         mip=mip,
+        fill_missing=fill_missing,
+        agglomerate=agglomerate,
+        timestamp=timestamp,
       )
 
     def on_finish(self):
@@ -1753,6 +1891,9 @@ def create_voxel_counting_tasks(
           'cloudpath': cloudpath,
           'mip': mip,
           'shape': shape.tolist(),
+          'fill_missing': fill_missing,
+          'agglomerate': agglomerate,
+          'timestamp': timestamp,
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

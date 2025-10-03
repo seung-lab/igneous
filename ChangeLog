@@ -1,9 +1,153 @@
 CHANGES
 =======
 
+4.33.0
+------
+
+* release(4.33.0): adds multi-mip sharded downsampling
+* docs: explain why 3 was chosen
+* redesign: change jxl effort to 3 based on TEM experiments
+* feat: multi-mip sharded downsampling (#192)
+* docs: missing comma
+* feat(cli): allow view to find the next available port
+* feat(view): easily visualize alternative codecs
+* perf: try to stop clahe thread contention
+* install: bump kimimaro to 5.4.0 to get huge improvements in cross section analysis
+* install: bump kimimaro requirements to get fastest postprocessing
+
+4.32.0
+------
+
+* release(4.31.1): easier install of opencv, igneous queue, better zarr, cli indirect
+* install: switch opencv-python to opencv-python-headless
+* fix(zarr): better compatibility for igneous image xfer zarr://
+* feat(cli:view): adds --indirect flag to route viz through cloudvolume
+* feat(cli): adds "igneous queue" submenu
+
+4.31.0
+------
+
+* release(4.31.0): Adds --fill-missing to voxel counting
+* feat(voxels count): Add --fill-missing flag to CLI
+* feat(CountVoxelsTask): add fill\_missing, agglomerate, and timestamp
+* fix: incorrect type
+* docs: show that CLAHE is available
+
+4.30.0
+------
+
+* release(4.30.0): adds CLAHE support and makes display of upper LOD meshes neater
+* install: update license info, upgrade from BETA to PRODUCTION
+* chore: update CHANGELOG
+* fix(multires mesh): Eliminate mesh cracks between resolutions in neuroglancer (#200)
+* feat(clahe): Add Contrast Limited Adaptive Histogram Equalization (#202)
+* chore: remove py38 add py313 from classifiers
+* fix: avoid multiprocessing deadlocks
+
+4.29.0
+------
+
+* release(4.29.0): adds skeleton convert command
+* fix: make missing labels more robust
+* feat(cli): add igneous skeleton convert for making easy SWCs
+* feat(skel merge): added dry\_run flag
+* feat+test(ccl/cli): support floating point thresholds
+
+4.28.3
+------
+
+* release(4.28.3): fixes CCL for arbitrary task shapes
+* fix(ccl): task assignment and update execute\_helper w/ task number
+* fix(ccl): rounding error in grid size estimation
+* fix: assignment error for ccl label map files
+
+4.28.2
+------
+
+* release(4.28.2): fixes volumetric sharded downsample
+* fix(volumetric downsamples): bbox was not advancing at the correct incrment (#193)
+* fix(ImageShardTransferTask): record timestamp in provenance
+
+4.28.1
+------
+
+* release(4.28.1): fixes path for skeleton xfer
+* fix: skeleton transfer task using mesh directory
+* feat: add dry run feature to mesh creation routine
+
+4.28.0
+------
+
+* release(4.28.0): adds more sophisticated hole filling to meshing, skeletons
+* perf: slightly more efficient memory management
+* perf: earlier deletion of hole data
+* fix(MeshTask): sharded was broken by double upload
+* fix: ensure holes are filled properly in border contact repair
+* refactor+feat(skeleton): add hole filling to cross section
+* refactor: more flexible cross section using LRU
+* ci: drop py313 from testing for now (needs a bunch of work)
+* ci: drop py38 add py313
+* feat(SkeletonTask): add more sophisticated hole filling algorithm
+* fix: handle edge effect from morphological closing
+* docs: more info on what fill\_holes means
+* feat(mesh): add hole filling
+* refactor: change meshing to use non-transposed functions
+* fix: whitespace
+
+4.27.0
+------
+
+* release(4.27.0): improvements to cross section, mesh forge --labels flag
+* feat(cli): add --labels to mesh forging
+* fix: ensure x,y,z ranges can't be reversed
+* fix: ensure bounds\_from\_mesh accepts dict return from mesh.get
+* refactor: remove obsolete task\_execution.py script
+* fix: interpret environment variables correctly
+* refactor: use CLI interface instead of old task\_execution.py script
+* fix: incorrect escaping in CLI message
+* feat(cross section): don't repair volume boundary contacts
+* feat(cli): add progress flag to skeleton forging
+* fix: fastremap doesn't like tuple input
+* fix: if all boundaries are volume bounds, don't repair contacts
+* chore: update Igneous Dockerfile to py312
+* chore: update igneous-pipeline to igneous\_pipeline per new PyPI std
+
+4.26.0
+------
+
+* release(4.26.0): add igneous wait, output option for voxel cts, fixes
+* feat: add additional output option for voxel counting
+* test: ensure float32 works as a dtype input for sharded
+* fix(shard): enable floating support for create\_sharded\_image\_info
+* fix: ensure addition is performed as uint64
+* fix(skeletons): test in skeleton forging for global voxel cts outdated
+* feat(cli): add "igneous wait" command
+* fix: set default compression for voxel counts to zstd
+* Update validate\_provenance.py (#184)
+* Add --pos option to igneous view (#183)
+* fix: magnitude must be greater than 0
+* fix: ensure start, end are integers
+
+4.25.1
+------
+
+* release(4.25.1): bundle of fixes, including jxl support
+* fix: compatibility with cloudvolume 11 for jxl
+* refactor: simplify threshold logic
+* fix: change jpegxl to jxl
+* make mesh\_dir behavior consistent across create\_meshing\_tasks and create\_mesh\_manifest\_tasks (#178)
+* fix: missing variable for encoding\_effort
+* feat: add encoding\_effort for JPEG XL to image handling
+* fix: set compression options correctly when "none" for downsample
+* feat: skeletonize (most) autapses and improve cross section analysis (#179)
+* fix(shards/image): fix situation where chunk.z == dataset.z
+* fix: make igneous view work with matrix, tigerdata
+
 4.25.0
 ------
 
+* fix: don't import CloudVolume view
+* chore: update authors, changelog
 * release(4.25.0): zarr support, downsample method selection
 * install: bump cloudvolume version
 * feat: zarr volumes should display x,y,z,c,t instead of t,c,z,y,x

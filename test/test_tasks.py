@@ -12,7 +12,7 @@ from cloudvolume import CloudVolume, EmptyVolumeException
 import cloudvolume.lib as lib
 from cloudfiles import CloudFiles
 import fastremap
-from taskqueue import MockTaskQueue, TaskQueue
+from taskqueue import LocalTaskQueue, TaskQueue
 import tinybrain
 
 from igneous import (
@@ -22,9 +22,9 @@ from igneous import (
     DeleteTask, BlackoutTask, ContrastNormalizationTask
 )
 import igneous.task_creation as tc
-from igneous.task_creation import create_downsampling_tasks, create_quantized_affinity_info
+from igneous.task_creation import create_downsampling_tasks, create_image_shard_downsample_tasks, create_quantized_affinity_info
 from igneous.downsample_scales import create_downsample_scales
-from .layer_harness import delete_layer, create_layer
+from .layer_harness import delete_layer, create_layer, create_connectomics
 
 @pytest.mark.parametrize("compression_method", ( None, 'gzip', 'br',))
 def test_downsample_no_offset(compression_method):
@@ -36,7 +36,7 @@ def test_downsample_no_offset(compression_method):
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=4, compress=compression_method)
     tq.insert_all(tasks)
 
@@ -70,6 +70,51 @@ def test_downsample_no_offset(compression_method):
     cv.mip = 4
     assert np.all(cv[slice64] == data_ds4[slice64])
 
+def test_downsample_no_offset_sharded():
+    layer_path = "downsample_no_offset_sharded"
+    delete_layer(layer_path)
+    cv, data = create_connectomics(layer_path)
+    
+    assert len(cv.scales) == 1
+    assert len(cv.available_mips) == 1
+
+    cv.commit_info()
+
+    tq = LocalTaskQueue()
+    tasks = create_image_shard_downsample_tasks(
+        cv.cloudpath, 
+        mip=0, 
+        num_mips=3, 
+        factor=(2,2,1),
+    )
+    tq.insert_all(tasks)
+
+    cv.refresh_info()
+
+    assert len(cv.available_mips) == 4
+    assert np.array_equal(cv.meta.volume_size(0), [ 512,  512, 512 ])
+    assert np.array_equal(cv.meta.volume_size(1), [ 256,  256, 512 ])
+    assert np.array_equal(cv.meta.volume_size(2), [ 128,  128, 512 ])
+    assert np.array_equal(cv.meta.volume_size(3), [  64,   64, 512 ])
+
+    cv.mip = 0
+    assert np.all(cv[:][...,0] == data)
+
+    data_ds = tinybrain.downsample_segmentation(data, factor=[2, 2, 1, 1], num_mips=3)
+    cv.mip = 1
+    labels = cv[:]
+    labels2 = data_ds[1][:]
+
+    assert np.all(cv[:][...,0] == data_ds[0][:])
+
+    cv.mip = 2
+    assert np.all(cv[:][...,0] == data_ds[1][:])
+
+    cv.mip = 3
+    assert np.all(cv[:][...,0] == data_ds[2][:])
+
+    delete_layer(layer_path)
+
 def test_downsample_no_offset_2x2x2():
     delete_layer()
     cf, data = create_layer(size=(512,512,512,1), offset=(0,0,0))
@@ -79,7 +124,7 @@ def test_downsample_no_offset_2x2x2():
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = create_downsampling_tasks(
         cf.cloudpath, mip=0, num_mips=3, 
         compress=None, factor=(2,2,2)
@@ -111,6 +156,96 @@ def test_downsample_no_offset_2x2x2():
     cv.mip = 3
     assert np.all(cv[slice64] == data_ds3[slice64])
 
+def test_downsample_no_offset_sharded_2x2x2():
+    layer_path = "downsample_no_offset_sharded_2x2x2"
+    delete_layer(layer_path)
+    cv, data = create_connectomics(layer_path)
+    
+    assert len(cv.scales) == 1
+    assert len(cv.available_mips) == 1
+
+    cv.commit_info()
+
+    tq = LocalTaskQueue()
+    tasks = create_image_shard_downsample_tasks(
+        cv.cloudpath, 
+        mip=0, 
+        num_mips=3, 
+        factor=(2,2,2),
+    )
+    tq.insert_all(tasks)
+
+    cv.refresh_info()
+
+    assert len(cv.available_mips) == 4
+    assert np.array_equal(cv.meta.volume_size(0), [ 512,  512, 512 ])
+    assert np.array_equal(cv.meta.volume_size(1), [ 256,  256, 256 ])
+    assert np.array_equal(cv.meta.volume_size(2), [ 128,  128, 128 ])
+    assert np.array_equal(cv.meta.volume_size(3), [  64,   64,  64 ])
+
+    cv.mip = 0
+    assert np.all(cv[:][...,0] == data)
+
+    data_ds = tinybrain.downsample_segmentation(data, factor=[2, 2, 2, 1], num_mips=3)
+    cv.mip = 1
+    labels = cv[:]
+    labels2 = data_ds[1][:]
+
+    assert np.all(cv[:][...,0] == data_ds[0][:])
+
+    cv.mip = 2
+    assert np.all(cv[:][...,0] == data_ds[1][:])
+
+    cv.mip = 3
+    assert np.all(cv[:][...,0] == data_ds[2][:])
+
+    delete_layer(layer_path)
+
+def test_downsample_with_offset_sharded_2x2x2():
+    layer_path = "downsample_with_offset_sharded_2x2x2"
+    delete_layer(layer_path)
+    cv, data = create_connectomics(layer_path, voxel_offset=(3,5,7))
+    
+    assert len(cv.scales) == 1
+    assert len(cv.available_mips) == 1
+
+    cv.commit_info()
+
+    tq = LocalTaskQueue()
+    tasks = create_image_shard_downsample_tasks(
+        cv.cloudpath, 
+        mip=0, 
+        num_mips=3, 
+        factor=(2,2,2),
+    )
+    tq.insert_all(tasks)
+
+    cv.refresh_info()
+
+    assert len(cv.available_mips) == 4
+    assert np.array_equal(cv.meta.volume_size(0), [ 512,  512, 512 ])
+    assert np.array_equal(cv.meta.volume_size(1), [ 256,  256, 256 ])
+    assert np.array_equal(cv.meta.volume_size(2), [ 128,  128, 128 ])
+    assert np.array_equal(cv.meta.volume_size(3), [  64,   64,  64 ])
+
+    cv.mip = 0
+    assert np.all(cv[:][...,0] == data)
+
+    data_ds = tinybrain.downsample_segmentation(data, factor=[2, 2, 2, 1], num_mips=3)
+    cv.mip = 1
+    labels = cv[:]
+    labels2 = data_ds[1][:]
+
+    assert np.all(cv[:][...,0] == data_ds[0][:])
+
+    cv.mip = 2
+    assert np.all(cv[:][...,0] == data_ds[1][:])
+
+    cv.mip = 3
+    assert np.all(cv[:][...,0] == data_ds[2][:])
+
+    delete_layer(layer_path)
+
 def test_downsample_with_offset():
     delete_layer()
     cf, data = create_layer(size=(512,512,128,1), offset=(3,7,11))
@@ -120,7 +255,7 @@ def test_downsample_with_offset():
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3)
     tq.insert_all(tasks)
 
@@ -159,7 +294,7 @@ def test_downsample_w_missing():
 
     cv.commit_info()
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
 
     try:
         tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3, fill_missing=False)
@@ -167,7 +302,7 @@ def test_downsample_w_missing():
     except EmptyVolumeException:
         pass
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
 
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=3, fill_missing=True)
     tq.insert_all(tasks)
@@ -192,7 +327,7 @@ def test_downsample_higher_mip():
     cv = CloudVolume(cf.cloudpath)
     cv.info['scales'] = cv.info['scales'][:1]
     
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
 
     cv.commit_info()
     tasks = create_downsampling_tasks(cf.cloudpath, mip=0, num_mips=2)
@@ -445,7 +580,7 @@ def test_luminance_levels_task():
         layer_type="image", layer_name='luminance_levels'
     )
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_luminance_levels_tasks( 
         layer_path=layer_path,
         coverage_factor=0.01, 
@@ -466,6 +601,33 @@ def test_luminance_levels_task():
     assert levels['coverage_ratio'] == 1.0
     assert levels['levels'] == gt
 
+def test_clahe_task():
+    directory = '/tmp/removeme/clahe/'
+    src_path = 'file://' + directory
+    dest_path = src_path[:-1] + '2'
+
+    delete_layer(src_path)
+    delete_layer(dest_path)
+
+    cf, imgd = create_layer(
+        size=(1024,1024,129,1), offset=(0,0,0), 
+        layer_type="image", layer_name='clahe'
+    )
+    tq = LocalTaskQueue()
+    tasks = tc.create_clahe_tasks(src_path, dest_path, shape=(512,512,64))
+    tq.insert_all(tasks)
+
+    cv2 = CloudVolume(dest_path, progress=True)
+
+    clahe_img = cv2[:]
+
+    assert np.mean(imgd) > 0
+    assert np.mean(clahe_img) > 0
+    assert np.std(imgd) <= np.std(clahe_img) + 0.1
+
+    delete_layer(src_path)
+    delete_layer(dest_path)
+
 def test_contrast_normalization_task():
     directory = '/tmp/removeme/contrast_normalization/'
     src_path = 'file://' + directory
@@ -478,7 +640,7 @@ def test_contrast_normalization_task():
         size=(300,300,129,1), offset=(0,0,0), 
         layer_type="image", layer_name='contrast_normalization'
     )
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_luminance_levels_tasks( 
         layer_path=src_path,
         coverage_factor=0.01, 
@@ -506,7 +668,8 @@ def test_contrast_normalization_task():
 
 
 @pytest.mark.parametrize("cross_sectional_area", [False, True])
-def test_skeletonization_task(cross_sectional_area):
+@pytest.mark.parametrize("object_ids", [None, [2]])
+def test_skeletonization_task(cross_sectional_area, object_ids):
     directory = '/tmp/removeme/skeleton/'
     layer_path = 'file://' + directory
     delete_layer(layer_path)
@@ -519,7 +682,7 @@ def test_skeletonization_task(cross_sectional_area):
         vol_path=layer_path,
     )
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_skeletonizing_tasks(
         layer_path,
         mip=0,
@@ -527,6 +690,7 @@ def test_skeletonization_task(cross_sectional_area):
             'scale': 10,
             'const': 10,
         },
+        object_ids=object_ids,
         cross_sectional_area=cross_sectional_area,
         cross_sectional_area_smoothing_window=1,
     )
@@ -552,7 +716,7 @@ def test_voxel_counting_task():
         vol_path=layer_path,
     )
 
-    tq = MockTaskQueue()
+    tq = LocalTaskQueue()
     tasks = tc.create_voxel_counting_tasks(layer_path, mip=0)
     tq.insert_all(tasks)
 

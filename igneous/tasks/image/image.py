@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from collections import defaultdict
 
 from functools import partial
 import json
@@ -159,6 +160,53 @@ def QuantizeTask(
 
   destvol = CloudVolume(dest_layer_path, mip=mip)
   downsample_and_upload(image, bounds, destvol, shape, mip=mip, axis='z')
+
+@queueable
+def CLAHETask(
+  src:str, 
+  dest:str, 
+  mip:int, 
+  fill_missing:bool,
+  shape:tuple[int,int,int], 
+  offset:tuple[int,int,int],
+  clip_limit:float = 40.0, 
+  tile_grid_size:tuple[int,int] = (8,8),
+):
+  import cv2
+
+  # OpenCV will "try" to use the specified number of threads. 0 means run sequentially.
+  # Igneous uses a multiprocessing model, so threads just fight with each other.
+  # https://docs.opencv.org/3.4/db/de0/group__core__utils.html#gae78625c3c2aa9e0b83ed31b73c6549c0
+  cv2.setNumThreads(0)
+
+  shape = Vec(*shape)
+  offset = Vec(*offset)
+
+  clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+
+  src_cv = CloudVolume(src, mip=mip, fill_missing=fill_missing)
+
+  bounds = Bbox(offset, shape + offset)
+  bounds = Bbox.clamp(bounds, src_cv.bounds)
+
+  overlapped_bbx = bounds.clone()
+  overlapped_bbx.minpt.x -= tile_grid_size[0]
+  overlapped_bbx.maxpt.x += tile_grid_size[0]
+  overlapped_bbx.minpt.y -= tile_grid_size[1]
+  overlapped_bbx.maxpt.y += tile_grid_size[1]
+  overlapped_bbx = Bbox.clamp(overlapped_bbx, src_cv.bounds)
+
+  image_stack = src_cv[overlapped_bbx][...,0]
+
+  for z in range(image_stack.shape[2]):
+    image_stack[:,:,z] = clahe.apply(image_stack[:,:,z])
+
+  crop_bbx = bounds.clone()
+  crop_bbx.minpt -= overlapped_bbx.minpt
+  crop_bbx.maxpt -= overlapped_bbx.minpt
+
+  dest_cv = CloudVolume(dest, mip=mip)
+  dest_cv[bounds] = image_stack[crop_bbx.to_slices()]
 
 class ContrastNormalizationTask(RegisteredTask):
   """TransferTask + Contrast Correction based on LuminanceLevelsTask output."""
@@ -630,6 +678,7 @@ def ImageShardDownsampleTask(
   timestamp: Optional[int] = None,
   factor: ShapeType = (2,2,1),
   method: int = DownsampleMethods.AUTO,
+  num_mips: int = 1,
 ):
   """
   Generate a single downsample level for a shard.
@@ -654,58 +703,134 @@ def ImageShardDownsampleTask(
     chunk_size, offset=src_vol.meta.voxel_offset(mip)
   )
 
-  shard_shape = igneous.shards.image_shard_shape_from_spec(
-    src_vol.scales[mip + 1]["sharding"], 
-    src_vol.meta.volume_size(mip + 1), 
-    src_vol.meta.chunk_size(mip + 1)
-  )
+  def shard_shapefn(mip):
+    return igneous.shards.image_shard_shape_from_spec(
+      src_vol.scales[mip]["sharding"], 
+      src_vol.meta.volume_size(mip), 
+      src_vol.meta.chunk_size(mip)
+    )    
+
+  shard_shape = shard_shapefn(mip + 1)
   upper_offset = offset // Vec(*factor)
   shape_bbox = Bbox(upper_offset, upper_offset + shard_shape)
   shape_bbox = shape_bbox.astype(np.int64)
   shape_bbox = Bbox.clamp(shape_bbox, src_vol.meta.bounds(mip + 1))
-  
+
   if shape_bbox.subvoxel():
     return
 
-  shape_bbox = shape_bbox.expand_to_chunk_size(
-    src_vol.meta.chunk_size(mip + 1), 
-    offset=src_vol.meta.voxel_offset(mip + 1)
-  )
+  output_shards_by_mip = []
+  for mip_i in range(mip + 1, mip + num_mips + 1):
+    output_shards_by_mip.append(defaultdict(dict))
 
-  shard_shape = list(shape_bbox.size3()) + [ 1 ]
-
-  output_img = np.zeros(shard_shape, dtype=src_vol.dtype, order="F")
-  nz = int(math.ceil(bbox.dz / (chunk_size.z * factor[2])))
+  cz = chunk_size.z * (factor[2] ** num_mips)
+  nz = int(math.ceil(bbox.dz / cz))
 
   dsfn = downsample_method_to_fn(method, sparse, src_vol)
 
   zbox = bbox.clone()
-  z_thickness = chunk_size.z * factor[2]
-  zbox.maxpt.z = zbox.minpt.z + z_thickness
+  zbox.maxpt.z = zbox.minpt.z + cz
+
+  # Need to save memory for segmentation... it's big.
+  renumber = src_vol.layer_type == "segmentation"
+
   for z in range(nz):
-    img = src_vol.download(
-      zbox, agglomerate=agglomerate, timestamp=timestamp
-    )
-    (ds_img,) = dsfn(img, factor, num_mips=1, sparse=sparse)
-    # ds_img[slc] b/c sometimes the size round up in tinybrain
-    # makes this too large by one voxel on an axis
-    xlim, ylim = tuple(ds_img.shape[:2])
-    zs = z * chunk_size.z
-    ze = (z+1) * chunk_size.z
-    output_img[:xlim,:ylim,zs:ze] = ds_img
+    if renumber:
+      img, mapping = src_vol.download(
+        zbox, 
+        agglomerate=agglomerate, 
+        timestamp=timestamp,
+        renumber=True,
+      )
+      mapping = { v:k for k,v in mapping.items() }
+    else:
+      img = src_vol.download(
+        zbox, 
+        agglomerate=agglomerate, 
+        timestamp=timestamp,
+      )
 
+    ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
-    del ds_img
-    zbox.minpt.z += z_thickness
-    zbox.maxpt.z += z_thickness
 
-  (filename, shard) = src_vol.image.make_shard(
-    output_img, shape_bbox, (mip + 1), progress=False
-  )
-  basepath = src_vol.meta.join(
-    src_vol.cloudpath, src_vol.meta.key(mip + 1)
-  )
-  CloudFiles(basepath).put(filename, shard)
+    factor = np.array(factor, dtype=int)
+
+    for i in range(num_mips):
+      shard_shape = shard_shapefn(mip + i + 1)
+
+      num_x_shards = int(factor[0] ** (num_mips - i))
+      num_y_shards = int(factor[1] ** (num_mips - i))
+      
+      num_x_shards = int(min(num_x_shards, np.ceil(zbox.size().x / shard_shape[0])) // (2**i))
+      num_y_shards = int(min(num_y_shards, np.ceil(zbox.size().y / shard_shape[1])) // (2**i))
+
+      num_x_shards = int(min(num_x_shards, np.ceil(src_vol.meta.volume_size(mip+i).x / shard_shape[0])))
+      num_y_shards = int(min(num_y_shards, np.ceil(src_vol.meta.volume_size(mip+i).y / shard_shape[1])))
+      
+      num_x_shards = max(num_x_shards, 1)
+      num_y_shards = max(num_y_shards, 1)
+
+      shard_z = int(z / shard_shape[2])
+
+      for shard_y in range(num_y_shards):
+        for shard_x in range(num_x_shards):
+          xoff = int(shard_shape[0] * shard_x)
+          yoff = int(shard_shape[1] * shard_y)
+
+          shard_cutout = ds_imgs[i][
+            xoff:int(xoff+shard_shape[0]), 
+            yoff:int(yoff+shard_shape[1]),
+            :
+          ]
+
+          if shard_cutout.size == 0:
+            continue
+
+          if renumber:
+            shard_cutout = fastremap.remap(shard_cutout, mapping)
+
+          shard_bbox = zbox.clone()
+          shard_bbox.minpt //= (factor ** (i+1))
+          shard_bbox.maxpt //= (factor ** (i+1))
+
+          shard_bbox.minpt += np.array([ xoff, yoff, 0 ])
+          shard_bbox.maxpt = shard_bbox.minpt + np.array([
+            shard_cutout.shape[0],
+            shard_cutout.shape[1],
+            shard_cutout.shape[2],
+          ])
+
+          if shard_bbox.minpt.z >= src_vol.meta.bounds(i+1).maxpt.z:
+            continue
+
+          if renumber:
+            shard_cutout = shard_cutout.astype(src_vol.dtype, copy=False)
+
+          chunk_dict = src_vol.image.make_shard_chunks(shard_cutout, shard_bbox, mip + i + 1)
+          output_shards_by_mip[i][(shard_x, shard_y, shard_z)].update(chunk_dict)
+
+    del ds_imgs
+    zbox.minpt.z += cz
+    zbox.maxpt.z += cz
+
+  for i in range(num_mips):
+    shard_shape = shard_shapefn(mip + i + 1)
+
+    for (shard_x, shard_y, shard_z), chunk_dict in output_shards_by_mip[i].items():
+      minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], shard_z * shard_shape[2] ])
+      shard_bbox = Bbox(minpt, minpt + shard_shape)
+      mip_offset = src_vol.meta.voxel_offset(mip + i + 1)
+      shard_bbox.minpt += mip_offset
+      shard_bbox.maxpt += mip_offset
+
+      (filename, shard) = src_vol.image.make_shard(
+        chunk_dict, shard_bbox, (mip + i + 1), progress=False
+      )
+      basepath = src_vol.meta.join(
+        src_vol.cloudpath, src_vol.meta.key(mip + i + 1)
+      )
+      CloudFiles(basepath).put(filename, shard)
+    output_shards_by_mip[i] = None # Free RAM
 
 @queueable
 def CountVoxelsTask(

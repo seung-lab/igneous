@@ -66,22 +66,34 @@ def bounds_from_mesh(
   return Bbox.clamp(bounds, vol.bounds)
 
 def create_skeletonizing_tasks(
-    cloudpath, mip, 
-    shape=Vec(512, 512, 512),
-    teasar_params={'scale':10, 'const': 10}, 
-    info=None, object_ids=None, mask_ids=None,
-    fix_branching=True, fix_borders=True, 
-    fix_avocados=False, fill_holes=0,
-    dust_threshold=1000, progress=False,
-    parallel=1, fill_missing=False, 
-    sharded=False, frag_path=None, spatial_index=True,
-    synapses=None, num_synapses=None,
-    dust_global=False, fix_autapses=False,
-    cross_sectional_area=False,
-    cross_sectional_area_smoothing_window=5,
-    timestamp=None,
-    root_ids_cloudpath=None,
-  ):
+  cloudpath:str,
+  mip:int, 
+  shape = Vec(512, 512, 512),
+  teasar_params:dict = {'scale':10, 'const': 10}, 
+  info:Optional[dict] = None, 
+  object_ids:Optional[list[int]] = None, 
+  mask_ids:Optional[list[int]] = None,
+  fix_branching:bool = True, 
+  fix_borders:bool = True, 
+  fix_avocados:bool = False, 
+  fill_holes:int = 0,
+  dust_threshold:int = 1000, 
+  progress:bool = False,
+  parallel:int = 1, 
+  fill_missing:bool = False, 
+  sharded:bool = False, 
+  frag_path:Optional[str] = None, 
+  spatial_index:bool = True,
+  synapses = None, 
+  num_synapses:Optional[int] = None,
+  dust_global:bool = False, 
+  fix_autapses:bool = False,
+  cross_sectional_area:bool = False,
+  cross_sectional_area_smoothing_window:int = 5,
+  timestamp:Optional[int] = None,
+  root_ids_cloudpath:Optional[str] = None,
+  cross_sectional_area_repair_sec_per_label:int = 0,
+):
   """
   Assign tasks with one voxel overlap in a regular grid 
   to be densely skeletonized. The default shape (512,512,512)
@@ -173,6 +185,15 @@ def create_skeletonizing_tasks(
   to the total computation.)
   cross_sectional_area_smoothing_window: Perform a rolling average of the 
     normal vectors across these many vectors.
+  cross_sectional_area_repair_sec_per_label: If the cross section plane contacts 
+    the edge of the current cutout, try to expand the context area and recalculate.
+    This is expensive and can dominate the computation time, so you can optionally
+    provide a time budget in seconds per a label (e.g. 60 sec) where once it is 
+    exceeded, iteration will cease.
+      < 0: Take all the time you need.
+      0: disabled
+      > 0: Take this many seconds per a label
+
   timestamp: for graphene volumes only, you can specify the timepoint to use
   root_ids_cloudpath: for graphene volumes, if you have a materialized archive
     if your desired timepoint, you can use this path for fetching root ID 
@@ -237,6 +258,12 @@ def create_skeletonizing_tasks(
         "data_type": "float32",
         "num_components": 1,
       })
+  else:
+    vol.skeleton.meta.info['vertex_attributes'] = [
+      attr
+      for attr in vol.skeleton.meta.info['vertex_attributes']
+      if attr["id"] != "cross_sectional_area"
+    ]
 
   vol.skeleton.meta.commit_info()
 
@@ -301,6 +328,7 @@ def create_skeletonizing_tasks(
         cross_sectional_area_smoothing_window=int(cross_sectional_area_smoothing_window),
         root_ids_cloudpath=root_ids_cloudpath,
         fill_holes=fill_holes,
+        cross_sectional_area_repair_sec_per_label=int(cross_sectional_area_repair_sec_per_label),
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -348,6 +376,7 @@ def create_skeletonizing_tasks(
           'timestamp': timestamp,
           'cross_sectional_area': bool(cross_sectional_area),
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
+          'cross_sectional_area_repair_sec_per_label': int(cross_sectional_area_repair_sec_per_label),
           'root_ids_cloudpath': root_ids_cloudpath,
           'fill_holes': int(fill_holes)
         },

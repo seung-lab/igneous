@@ -1,6 +1,6 @@
 from typing import Optional, Sequence, Dict, List
 
-from functools import reduce
+from functools import reduce, partial
 import itertools
 import json
 import mmap
@@ -9,6 +9,7 @@ import posixpath
 import os
 import re
 from collections import defaultdict
+import time
 
 from tqdm import tqdm
 
@@ -81,6 +82,7 @@ class SkeletonTask(RegisteredTask):
     cross_sectional_area:bool = False,
     cross_sectional_area_smoothing_window:int = 1,
     cross_sectional_area_shape_delta:int = 150,
+    cross_sectional_area_repair_sec_per_label:int = 0, # default disabled
     dry_run:bool = False,
     strip_integer_attributes:bool = True,
     fix_autapses:bool = False,
@@ -97,7 +99,7 @@ class SkeletonTask(RegisteredTask):
       fill_missing, bool(sharded), frag_path, bool(spatial_index),
       spatial_grid_shape, synapses, bool(dust_global),
       bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
-      int(cross_sectional_area_shape_delta),
+      int(cross_sectional_area_shape_delta), int(cross_sectional_area_repair_sec_per_label),
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
       root_ids_cloudpath,
@@ -124,7 +126,7 @@ class SkeletonTask(RegisteredTask):
 
     if self.cross_sectional_area:
       lru_bytes = self.bounds.size() + 2 * self.cross_sectional_area_shape_delta
-      lru_bytes = lru_bytes[0] * lru_bytes[1] * lru_bytes[2] * 8 // 500
+      lru_bytes = int(lru_bytes[0]) * int(lru_bytes[1]) * int(lru_bytes[2]) * 8 // 50
       lru_encoding = 'crackle'
 
     vol = CloudVolume(
@@ -157,15 +159,21 @@ class SkeletonTask(RegisteredTask):
       else:
         path = self.frag_path
 
-    all_labels = vol.download(
+    all_labels, mapping = vol.download(           
       bbox.to_slices(), 
       agglomerate=True, 
-      timestamp=self.timestamp
+      timestamp=self.timestamp,
+      renumber=True,
     )
     all_labels = all_labels[:,:,:,0]
 
     if self.mask_ids:
-      all_labels = fastremap.mask(all_labels, self.mask_ids)
+      mask_ids = [ mapping[sid] for sid in self.mask_ids ]
+      all_labels = fastremap.mask(all_labels, mask_ids, in_place=True)
+
+    if self.object_ids:
+      object_ids = [ mapping[sid] for sid in self.object_ids ]
+      all_labels = fastremap.mask_except(all_labels, object_ids, in_place=True)
 
     extra_targets_after = {}
     if self.synapses:
@@ -176,23 +184,40 @@ class SkeletonTask(RegisteredTask):
     dust_threshold = self.dust_threshold
     if self.dust_global and dust_threshold > 0:
       dust_threshold = 0
-      all_labels = self.apply_global_dust_threshold(vol, all_labels)
+      all_labels = self.apply_global_dust_threshold(vol, all_labels, mapping)
 
     if self.fill_holes and self.fix_autapses:
       raise ValueError("fill_holes is not currently compatible with fix_autapses")
+
+    if self.object_ids:
+      self.object_ids = [ mapping[sid] for sid in self.object_ids ]
 
     voxel_graph = None
     if self.fix_autapses:
       voxel_graph = self.voxel_connectivity_graph(vol, bbox, all_labels)
 
+    # hack to reduce memory usage
+    all_labels = crackle.compress(all_labels)
+    def decompress_all_labels():
+      return crackle.decompress(all_labels)
+
     skeletons = self.skeletonize(
-      all_labels, 
+      decompress_all_labels, 
       vol, 
       dust_threshold, 
       extra_targets_after, 
       voxel_graph,
     )
     del all_labels
+    
+    mapping = { v:k for k,v in mapping.items() }
+
+    if self.object_ids:
+      self.object_ids = [ mapping[sid] for sid in self.object_ids ]
+
+    skeletons = { mapping[sid]: skel for sid, skel in skeletons.items() }
+    for sid, skel in skeletons.items():
+      skel.id = sid
 
     if self.cross_sectional_area: # This is expensive!
       skeletons = self.compute_cross_sectional_area(vol, bbox, skeletons)
@@ -230,33 +255,38 @@ class SkeletonTask(RegisteredTask):
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
 
+  def _compute_fill_holes(self, all_labels):
+    filled_labels, hole_labels_set = fastmorph.fill_holes(
+      all_labels,
+      remove_enclosed=True,
+      return_removed=True,
+      fix_borders=(self.fill_holes >= 2),
+      morphological_closing=(self.fill_holes >= 3),
+      progress=self.progress,
+    )
+
+    if self.fill_holes >= 3:
+      hp = self.hole_filling_padding
+      all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
+      filled_labels = np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
+
+    return (filled_labels, hole_labels_set)
+
   def _do_operation(self, all_labels, fn):
+    if callable(all_labels):
+      all_labels = all_labels()
+
     if self.fill_holes > 0:
-      filled_labels, hole_labels = fastmorph.fill_holes(
-        all_labels,
-        remove_enclosed=True,
-        return_removed=True,
-        fix_borders=(self.fill_holes >= 2),
-        morphological_closing=(self.fill_holes >= 3),
-      )
-
-      if self.fill_holes >= 3:
-        hp = self.hole_filling_padding
-        all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
-        filled_labels= np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
-
+      filled_labels, hole_labels = self._compute_fill_holes(all_labels)
       all_labels = crackle.compress(all_labels)
       skeletons = fn(filled_labels)
       del filled_labels
 
       all_labels = crackle.decompress(all_labels)
-      hole_labels = all_labels * np.isin(all_labels, list(hole_labels))
+      hole_labels = fastremap.mask_except(all_labels, list(hole_labels), in_place=True)
       del all_labels
-
       hole_skeletons = fn(hole_labels)
       skeletons.update(hole_skeletons)
-      del hole_labels
-      del hole_skeletons
     else:
       skeletons = fn(all_labels)
 
@@ -366,19 +396,42 @@ class SkeletonTask(RegisteredTask):
     big_bbox.minpt -= self.hole_filling_padding
     big_bbox.maxpt += self.hole_filling_padding
 
-    all_labels = vol[big_bbox][...,0]
-
-    delta = bbox.minpt - big_bbox.minpt
+    true_delta = bbox.minpt - big_bbox.minpt
 
     # place the skeletons in exactly the same position
     # in the enlarged image
     for skel in skeletons.values():
-      skel.vertices += delta * vol.resolution
+      skel.vertices += true_delta * vol.resolution
 
-    if self.mask_ids:
-      all_labels = fastremap.mask(all_labels, self.mask_ids)
+    mapping = {}
+
+    def download_all_labels():
+      nonlocal skeletons
+      nonlocal mapping
+      
+      all_labels, mapping = vol.download(big_bbox, renumber=True)
+      all_labels = all_labels[...,0]
+
+      if self.mask_ids:
+        mask_ids = [ mapping[sid] for sid in self.mask_ids ]
+        all_labels = fastremap.mask(all_labels, mask_ids, in_place=True)
+
+      if self.object_ids:
+        object_ids = [ mapping[sid] for sid in self.object_ids ]
+        all_labels = fastremap.mask_except(all_labels, object_ids, in_place=True)
+
+      skeletons = {
+        mapping[sid]: skel 
+        for sid, skel in skeletons.items()
+      }
+      for sid, skel in skeletons.items():
+        skel.id = sid
+
+      return all_labels
 
     def do_cross_section(labels):
+      nonlocal skeletons
+
       return kimimaro.cross_sectional_area(
         labels, skeletons,
         anisotropy=vol.resolution,
@@ -388,14 +441,24 @@ class SkeletonTask(RegisteredTask):
         fill_holes=False,
       )
 
-    skeletons = self._do_operation(all_labels, do_cross_section)
-    del all_labels
+    skeletons = self._do_operation(download_all_labels, do_cross_section)
+
+    mapping = { v:k for k,v in mapping.items() }
+    skeletons = {
+      mapping[sid]: skel 
+      for sid, skel in skeletons.items()
+    }
+    for sid, skel in skeletons.items():
+      skel.id = sid
 
     # move the vertices back to their old smaller image location
     for skel in skeletons.values():
-      skel.vertices -= delta * vol.resolution
+      skel.vertices -= true_delta * vol.resolution
 
-    return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+    if self.cross_sectional_area_repair_sec_per_label != 0:
+      return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+    else:
+      return skeletons
 
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
     from dbscan import DBSCAN
@@ -465,6 +528,7 @@ class SkeletonTask(RegisteredTask):
         if self.fill_holes >= 3:
           hp = self.hole_filling_padding
           binary_image = np.asfortranarray(binary_image[hp:-hp,hp:-hp,hp:-hp])
+          skel.vertices -= hp * vol.resolution
 
       kimimaro.cross_sectional_area(
         binary_image, skel,
@@ -478,7 +542,19 @@ class SkeletonTask(RegisteredTask):
       skel.id = segid
       skel.vertices -= diff * vol.resolution
 
+    # If we are next to the volume boundary and are doing morphological
+    # closing, we need to expand hole_filling_padding beyond the boundary
+    bounded = vol.image.bounded
+    fill_missing = vol.image.fill_missing
+    
+    vol.image.bounded = False
+    vol.image.fill_missing = True
+
+    # max_sec < 0 means take as long as you need
+    max_sec = self.cross_sectional_area_repair_sec_per_label
+
     for skel in repair_skels:
+      start_time = time.monotonic()
       verts = (skel.vertices // vol.resolution).astype(int)
       reprocess_skel(verts, skel)
 
@@ -486,14 +562,48 @@ class SkeletonTask(RegisteredTask):
       if len(pts) == 0:
         continue
 
-      labels, core_samples_mask = DBSCAN(pts, eps=5, min_samples=2)
-      uniq = fastremap.unique(labels)
+      elapsed_time = time.monotonic() - start_time
+      if max_sec > 0 and elapsed_time > max_sec:
+        continue
+
+      cluster_labels, core_samples_mask = DBSCAN(pts, eps=5, min_samples=2)
+      uniq, cts = fastremap.unique(cluster_labels, return_counts=True)
+
+      sort_idx = np.flip(np.argsort(cts)) # largest to least
+      uniq = uniq[sort_idx]
+      del cts
+      del sort_idx
+
       for lbl in uniq:
-        reprocess_skel(pts[labels == lbl], skel)
+        if lbl == -1:
+          continue
+
+        reprocess_skel(pts[cluster_labels == lbl], skel)
+        if not np.any(verts[skel.cross_sectional_area_contacts > 0]):
+          break
+        elapsed_time = time.monotonic() - start_time
+        if max_sec > 0 and elapsed_time > max_sec:
+          break
+
+      elapsed_time = time.monotonic() - start_time
+      if max_sec > 0 and elapsed_time > max_sec:
+        continue      
+
+      noise_points = pts[cluster_labels == -1]
+      for pt in noise_points:
+        reprocess_skel([ pt ], skel)
+        if not np.any(verts[skel.cross_sectional_area_contacts > 0]):
+          break
+        elapsed_time = time.monotonic() - start_time
+        if max_sec > 0 and elapsed_time > max_sec:
+          break
+
+    vol.image.bounded = bounded
+    vol.image.fill_missing = fill_missing
 
     return skeletons
 
-  def apply_global_dust_threshold(self, vol, all_labels):
+  def apply_global_dust_threshold(self, vol, all_labels, mapping):
     path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.im')
     cf = CloudFile(path)
     memcf = CloudFile(path.replace(f"{cf.protocol}://", "mem://"))
@@ -516,12 +626,14 @@ class SkeletonTask(RegisteredTask):
 
     mb = IntMap(buf)
     uniq = fastremap.unique(all_labels)
+    mapping = { v:k for k,v in mapping.items() }
 
     valid_objects = []
     for label in uniq:
       if label == 0:
         continue
-      if mb[label] >= self.dust_threshold:
+      proper_label = mapping[label]
+      if mb[proper_label] >= self.dust_threshold:
         valid_objects.append(label)
 
     return fastremap.mask_except(all_labels, valid_objects)
@@ -690,8 +802,13 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
 class ShardedSkeletonMergeTask(RegisteredTask):
   def __init__(
     self, cloudpath, shard_no, 
-    dust_threshold=4000, tick_threshold=6000, frag_path=None, cache=False,
-    spatial_index_db=None, max_cable_length=None
+    dust_threshold=4000, 
+    tick_threshold=6000, 
+    frag_path=None, 
+    cache=False,
+    spatial_index_db=None, 
+    max_cable_length=None,
+    dry_run=False,
   ):
     super(ShardedSkeletonMergeTask, self).__init__(
       cloudpath, shard_no,  
@@ -700,6 +817,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     )
     self.progress = False
     self.max_cable_length = float(max_cable_length) if max_cable_length is not None else None
+    self.dry_run = dry_run
 
   def execute(self):
     # cache is necessary for local computation, but on GCE download is very fast
@@ -728,7 +846,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
     skeletons = self.process_skeletons(skeletons, in_place=True)
 
     if len(skeletons) == 0:
-      return
+      return (skeletons, None)
 
     shard_files = synthesize_shard_files(cv.skeleton.reader.spec, skeletons)
 
@@ -737,6 +855,9 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         "Only one shard file should be generated per task. Expected: {} Got: {} ".format(
           str(self.shard_no), ", ".join(shard_files.keys())
       ))
+
+    if self.dry_run:
+      return (skeletons, shard_files)
 
     cf = CloudFiles(cv.skeleton.meta.layerpath, progress=self.progress)
     cf.puts( 
@@ -791,6 +912,12 @@ class ShardedSkeletonMergeTask(RegisteredTask):
        local_input = True
        frag_prefix = frag_prefix.replace("file://", "", 1)
 
+    vertex_attributes = cv.skeleton.meta.info.get("vertex_attributes", None)
+    frombytesfn = partial(
+      Skeleton.from_precomputed, 
+      vertex_attributes=vertex_attributes
+    )
+
     all_skels = defaultdict(list)
     for filenames_block in tqdm(blocks, desc="Filename Block", total=n_blocks, disable=(not self.progress)):
       if local_input:
@@ -804,7 +931,7 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         } 
       
       for filename, content in tqdm(all_files.items(), desc="Scanning Fragments", disable=(not self.progress)):
-        fragment = MapBuffer(content, frombytesfn=Skeleton.from_precomputed)
+        fragment = MapBuffer(content, frombytesfn=frombytesfn)
 
         for label in labels:
           try:

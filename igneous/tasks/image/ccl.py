@@ -343,7 +343,7 @@ def RelabelCCLTask(
   cc_labels += np.uint64(label_offset)
   cc_labels[labels == 0] = 0
 
-  fastremap.remap(cc_labels, mapping, in_place=True)
+  cc_labels = fastremap.remap(cc_labels, mapping, in_place=True)
 
   # Final upload without overlap
   dest_cv = CloudVolume(dest_path, mip=mip)

@@ -62,7 +62,9 @@ def normalize_encoding(encoding):
   return encoding
 
 ENCODING_HELP = "Which image encoding to use. Options: [all] raw, png; [images] jpeg, jpegxl (jxl); [segmentations] compressed_segmentation (cseg), compresso (cpso), crackle (ckl); [floats] fpzip, kempressed, zfpc"
-ENCODING_EFFORT = 5
+# 2 or 3 is appropriate for lossless compression
+# of TEM images
+ENCODING_EFFORT = 3 
 
 def enqueue_tasks(ctx, queue, tasks):
   parallel = int(ctx.obj.get("parallel", 1))
@@ -137,6 +139,8 @@ class CompressType(click.ParamType):
 class CloudPath(click.ParamType):
   name = "CloudPath"
   def convert(self, value, param, ctx):
+    if value == '-':
+      return value
     return cloudfiles.paths.normalize(value)
 
 class DownsampleMethodType(click.ParamType):
@@ -180,7 +184,7 @@ def compute_bounds(path, mip, xrange, yrange, zrange):
 
 @click.group()
 @click.option("-p", "--parallel", default=1, help="Run with this number of parallel processes. If 0, use number of cores.")
-@click.version_option(version="4.28.3")
+@click.version_option(version="4.34.0")
 @click.pass_context
 def main(ctx, parallel):
   """
@@ -272,11 +276,6 @@ def downsample(
   current top mip level of the pyramid. This builds it even taller
   (referred to as "superdownsampling").
   """
-  if sharded:
-    if num_mips and num_mips != 1:
-      print("igneous: sharded downsamples only support producing one mip at a time. num_mips set to 1")
-    num_mips = 1
-
   factor = (2,2,1)
   if volumetric:
   	factor = (2,2,2)
@@ -284,7 +283,7 @@ def downsample(
   if compress and compress.lower() in ("none", "false"):
     compress = False
 
-  if encoding and encoding.lower() in ("jpeg", "png", "fpzip", "zfpc"):
+  if encoding and encoding.lower() in ("jpeg", "jxl", "png", "fpzip", "zfpc"):
     compress = False
 
   bounds = compute_bounds(path, mip, xrange, yrange, zrange)
@@ -296,7 +295,7 @@ def downsample(
       encoding=encoding, memory_target=memory,
       factor=factor, bounds=bounds, bounds_mip=mip,
       encoding_level=encoding_level, method=method,
-      encoding_effort=encoding_effort,
+      encoding_effort=encoding_effort, num_mips=num_mips,
     )
   else:
     tasks = tc.create_downsampling_tasks(
@@ -507,15 +506,16 @@ def voxelgroup():
 @click.argument("path", type=CloudPath())
 @click.option('--mip', default=0, help="Count this mip level of the image pyramid.", show_default=True)
 @click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
 @click.pass_context
-def count_voxels(ctx, path, mip, queue):
+def count_voxels(ctx, path, mip, queue, fill_missing):
   """Create voxel counting tasks.
 
   These tasks are 512x512x512 voxels and result
   in a JSON file that lives at:
   $cloudpath/$KEY/stats/voxel_counts/$BBOX.json
   """
-  tasks = tc.create_voxel_counting_tasks(path, mip=mip)
+  tasks = tc.create_voxel_counting_tasks(path, mip=mip, fill_missing=fill_missing)
   enqueue_tasks(ctx, queue, tasks)
 
 @voxelgroup.command("sum")
@@ -541,6 +541,45 @@ def sum_voxel_counts(ctx, path, mip, compress, output):
 def contrastgroup():
   """Perform contrast correction on the image."""
   pass
+
+@contrastgroup.command()
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+@click.option('--shape', default=None, type=Tuple3(), help="Size of individual tasks in voxels.", show_default=True)
+@click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.option('--mip', default=0, help="Apply normalization to this level of the image pyramid.", show_default=True)
+@click.option('--fill-missing', is_flag=True, default=False, help="Interpret missing image files as background instead of failing.")
+@click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024.", show_default=True)
+@click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1024", show_default=True)
+@click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for sampling in terms of selected bounds mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size e.g. 0,1", show_default=True)
+@click.option('--bounds-mip', default=None, type=int, help="Bounds are written in terms of this image pyramid level.", show_default=True)
+@click.option('--clip-limit', default=40.0, type=float, help="Apply CLAHE clip threshold. This prevents magnifying noise by truncating the histogram and redistributing the quantity.", show_default=True)
+@click.option('--tile-grid-size', default="8,8", type=Tuple2(), help="Size of the adaptive grid.", show_default=True)
+@click.pass_context
+def clahe(
+  ctx, src, dest, queue,
+  shape, mip,
+  fill_missing, 
+  xrange, yrange, zrange, bounds_mip,
+  clip_limit, tile_grid_size,
+):
+  """Contrast Limited Adaptive Histogram Equalization (CLAHE)."""
+  if bounds_mip is None:
+    bounds_mip = mip
+  bounds = compute_bounds(src, bounds_mip, xrange, yrange, zrange)
+
+  tasks = tc.create_clahe_tasks(
+    src, dest,
+    shape=shape, 
+    mip=mip,
+    fill_missing=fill_missing,
+    bounds=bounds,
+    bounds_mip=bounds_mip,
+    clip_limit=clip_limit,
+    tile_grid_size=tile_grid_size,
+  )
+
+  enqueue_tasks(ctx, queue, tasks)
 
 @contrastgroup.command()
 @click.argument("path", type=CloudPath())
@@ -595,7 +634,7 @@ def equalize(
   minval, maxval,
   xrange, yrange, zrange, bounds_mip
 ):
-  """(2) Apply histogram equalization to z-slices."""
+  """(2) Apply global histogram equalization to z-slices."""
   if bounds_mip is None:
     bounds_mip = mip
   bounds = compute_bounds(src, bounds_mip, xrange, yrange, zrange)
@@ -811,7 +850,7 @@ def ccl_auto(
     igneous.tasks.image.ccl.clean_intermediate_files(src, mip)
 
 def is_empty(tq, sqs_sec_to_wait=120):
-  start_time = time.time()
+  start_time = time.monotonic()
   last_empty = False
 
   # Offical Amazon docs state that to determine if a queue is empty,
@@ -826,14 +865,14 @@ def is_empty(tq, sqs_sec_to_wait=120):
     if tq.path.protocol == "sqs":
       if tq.is_empty():
         if last_empty:
-          elapsed_time = time.time() - start_time
+          elapsed_time = time.monotonic() - start_time
           if elapsed_time >= sqs_sec_to_wait:
             return True
           else:
             return False
         else:
           print(f"Queue appearently empty. Waiting {sqs_sec_to_wait} sec. to confirm.")
-          start_time = time.time()
+          start_time = time.monotonic()
           last_empty = True
           return False
       else:
@@ -894,6 +933,10 @@ def parallel_execute_helper(parallel, args):
     execute_helper(*args)
     return
 
+  # Don't fork, spawn entirely new processes. This
+  # avoids accidental deadlocks.
+  mp.set_start_method("spawn", force=True)
+
   pool = mp.Pool(processes=parallel)
   try:
     for _ in range(parallel):
@@ -952,7 +995,7 @@ def meshgroup():
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())
 @click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
+@click.option("--sharded", is_flag=True, default=False, help="Format unsharded or sharded meshes as sharded format at the destination.", show_default=True)
 @click.option("--dir", "mesh_dir", type=str, default=None, help="Write meshes into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
 @click.option('--mip', type=int, default=None, help="Manually specify which mip level the images were derived from.", show_default=True)
@@ -1254,6 +1297,7 @@ def skeletongroup():
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing skeleton fragments.", show_default=True)
 @click.option('--labels', type=ListN(), default=None, help="Skeletonize only this comma separated list of labels.", show_default=True)
 @click.option('--cross-section', type=int, default=0, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
+@click.option('--cross-section-label-repair-sec', type=int, default=0, help="Time budget per a label to repair cross section border contacts. 0 means off. -1 means infinite budget.", show_default=True)
 @click.option('--output', '-o', type=CloudPath(), default=None, help="Output the results to a different place.", show_default=True)
 @click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)
 @click.option('--root-ids', type=CloudPath(), default=None, help="(graphene) If you have a materialization of graphene root ids for this timepoint, it's more efficient to use it than making requests to the graphene server.", show_default=True)
@@ -1266,6 +1310,7 @@ def skeleton_forge(
   fill_holes, scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
   cross_section, output, timestamp, root_ids, progress,
+  cross_section_label_repair_sec,
 ):
   """
   (1) Synthesize skeletons from segmentation cutouts.
@@ -1312,6 +1357,7 @@ def skeleton_forge(
     cross_sectional_area_smoothing_window=int(cross_section),
     frag_path=output, fix_autapses=fix_autapses,
     timestamp=timestamp, root_ids_cloudpath=root_ids,
+    cross_sectional_area_repair_sec_per_label=cross_section_label_repair_sec,
   )
 
   enqueue_tasks(ctx, queue, tasks)
@@ -1442,7 +1488,7 @@ def skeleton_rm(ctx, path, queue, magnitude, skel_dir):
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())
 @click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
-@click.option("--sharded", is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
+@click.option("--sharded", is_flag=True, default=False, help="Format unsharded or sharded skeletons as sharded format at the destination.", show_default=True)
 @click.option("--dir", "skel_dir", type=str, default=None, help="Write skeletons into this directory instead of the one indicated in the info file.")
 @click.option('--magnitude', default=2, help="Split up the work with 10^(magnitude) prefix based tasks.", show_default=True)
 @click.pass_context
@@ -1548,6 +1594,40 @@ def skel_spatial_index_download(ctx, path, database, progress, allow_missing):
     allow_missing=allow_missing, 
     parallel=parallel,
   )
+
+
+@skeletongroup.command("convert")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+@click.argument("labels", type=ListN(), required=False)
+@click.pass_context
+def skel_convert(
+  ctx, src, dest, labels,
+):
+  """Convert skeletons to SWC files."""
+  use_stdin = (src == '-')
+  use_stdout = (dest == '-')
+
+  if use_stdin:
+    labels = sys.stdin.readlines()
+    labels = [ int(x) for x in labels ]
+
+  if not labels:
+    return
+
+  cv = CloudVolume(src)
+  skels = cv.skeleton.get(labels)
+
+  if use_stdout:
+    for skel in skels:
+      print(f"# FILENAME {skel.id}.swc")
+      print(skel.to_swc())
+      print()
+  else:
+    cf = CloudFiles(dest)
+    cf.puts(
+      ( (f"{skel.id}.swc", skel.to_swc().encode("utf-8") ) for skel in skels )
+    )
 
 @main.group("design")
 def designgroup():
@@ -1657,16 +1737,33 @@ def memory_used(data_width, shape, factor):
 
   return memory_bytes
 
+# https://stackoverflow.com/questions/2470971/fast-way-to-test-if-a-port-is-in-use-using-python/52872579#52872579
+def is_port_in_use(port:int) -> bool:
+  import socket
+  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    return s.connect_ex(('localhost', port)) == 0
+
 @main.command("view")
 @click.argument("path", type=CloudPath())
 @click.option('--browser/--no-browser', default=True, is_flag=True, help="Open the dataset in the system's default web browser.")
 @click.option('--port', default=1337, help="localhost server port for the file server.", show_default=True)
-@click.option('--ng', default="https://neuroglancer-demo.appspot.com/", help="Alternative Neuroglancer webpage to use.", show_default=True)
+@click.option('--ng', default=None, help="Alternative Neuroglancer webpage to use.", show_default=True)
 @click.option('--pos', type=Tuple3(), default=None, help="Position in volume to open to.", show_default=True)
-def view(path, browser, port, ng, pos):
+@click.option('--indirect', is_flag=True, default=False, help="Route the visualization through CloudVolume (useful if data is not public).", show_default=True)
+def view(path, browser, port, ng, pos, indirect):
   """
   Open an on-disk dataset for viewing in neuroglancer.
   """
+
+  for i in range(10):
+    if is_port_in_use(port):
+      port += 1
+    else:
+      break
+  else:
+    print("Next ten ports were unavailable.")
+    return
+
   rgb_shader = """#uicontrol invlerp normalized
 void main() {
   vec3 data = vec3(toNormalized(getDataValue(0)), toNormalized(getDataValue(1)), toNormalized(getDataValue(2)));
@@ -1674,7 +1771,9 @@ void main() {
 }"""
   cv = CloudVolume(path)
 
-  if cv.meta.path.protocol == "file":
+  indirect = indirect or cv.meta.path.protocol == "file"
+
+  if indirect:
     cloudpath = f"http://localhost:{port}"
     layer_name = "igneous"
   elif cv.meta.path.protocol in ['matrix', 'tigerdata']:
@@ -1683,6 +1782,17 @@ void main() {
   else:
     cloudpath = cv.cloudpath
     layer_name = posixpath.basename(cloudpath)
+
+  has_alternative_codec = any([
+     scale["encoding"] in ["crackle", "zfpc", "kempressed", "fpzip"]
+     for scale in cv.scales
+  ])
+
+  if ng is None:
+    if has_alternative_codec:
+      ng = "https://allcodecs-dot-neuromancer-seung-import.appspot.com/"
+    else:
+      ng = "https://neuroglancer-demo.appspot.com/"
 
   res = cv.meta.resolution(0)
 
@@ -1738,7 +1848,7 @@ void main() {
   else:
     print(url)
 
-  if cv.meta.path.protocol == "file":
+  if indirect:
     cv.viewer(port=port)
 
 @imagegroup.command()
@@ -1764,7 +1874,7 @@ def create(
 ):
   """Create a Precomputed volume from another data source.
 
-  Supports: .npy files, .h5/.hdf5 files, and .ckl files
+  Supports: .npy, .h5/.hdf5, .nii, .nrrd, and .ckl files
   
   Hopefully will support others such as TIFF in the future.
   """
@@ -1780,6 +1890,16 @@ def create(
     arr = crackle.util.aload(src)
     if arr.nbytes < int(1e9):
       arr = arr.decompress()
+  elif ext == ".nrrd":
+    import nrrd
+    arr, header = nrrd.read(src)
+    if arr.shape[0] == 3 and arr.ndim == 3:
+      arr = arr[..., np.newaxis]
+      arr = np.transpose(arr, axes=[1,2,3,0])
+  elif ext == ".nii":
+    import nibabel as nib
+    arr = nib.load(src)
+    arr = np.array(arr.dataobj)
   elif ext in (".h5", ".hdf5"):
     import h5py
     file = h5py.File(src, 'r')
@@ -1787,6 +1907,9 @@ def create(
   else:
     print(f"Format not supported: {ext}")
     return
+
+  while arr.ndim < 3:
+    arr = arr[..., np.newaxis]
 
   CloudVolume.from_numpy(
     arr, dest,
@@ -1821,3 +1944,113 @@ def read_array_header(fobj):
   func_name = 'read_array_header_' + '_'.join(str(v) for v in version)
   func = getattr(np.lib.format, func_name)
   return func(fobj)
+
+
+@main.group("queue")
+def queuegroup():
+  """
+  Check status and manipulate task queues.
+  """
+  pass
+
+@queuegroup.command()
+@click.argument("path")
+def rezero(path):
+  """Reset collected statistics for queue."""
+  TaskQueue(normalize_path(path)).rezero()
+
+@queuegroup.command()
+@click.argument("path")
+def status(path):
+  """Print vital statistics for queue."""
+  tq = TaskQueue(normalize_path(path))
+  ins = tq.inserted
+  enq = tq.enqueued
+  comp = tq.completed
+  leased = tq.leased
+
+  if not math.isnan(ins):
+    print(f"Inserted: {ins}")
+
+  if ins > 0:
+    print(f"Enqueued: {enq} ({enq / ins * 100:.1f}% left)")
+    if not math.isnan(comp):
+      print(f"Completed: {comp} ({comp / ins * 100:.1f}%)")
+  else:
+    print(f"Enqueued: {enq} (--% left)")
+    if not math.isnan(comp):
+      print(f"Completed: {comp} (--%)")
+
+  if enq > 0:
+    print(f"Leased: {leased} ({leased / enq * 100:.1f}% of queue)")
+  else:
+    print(f"Leased: {leased} (--%) of queue")
+
+@queuegroup.command()
+@click.argument("path")
+def release(path):
+  """Release all tasks from their leases."""
+  TaskQueue(normalize_path(path)).release_all()
+
+@queuegroup.command()
+@click.argument("src")
+@click.argument("dest")
+def cp(src, dest):
+  """
+  Copy the contents of a queue to another
+  service or location. Do not run this
+  process while a queue is being worked.
+
+  Currently sqs queues are not copiable,
+  but you can copy an fq to sqs. The mv
+  command supports sqs queues.
+  """
+  src = normalize_path(src)
+  dest = normalize_path(dest)
+
+  if get_protocol(src) == "sqs":
+    print("ptq: cp does not support sqs:// as a source.")
+    return
+
+  tqd = TaskQueue(dest)
+  tqs = TaskQueue(src)
+
+  tqd.insert(tqs)
+
+@queuegroup.command()
+@click.argument("src")
+@click.argument("dest")
+def mv(src, dest):
+  """
+  Moves the contents of a queue to another
+  service or location. Do not run this
+  process while a queue is being worked.
+
+  Moving an sqs queue to a file queue
+  may result in duplicated tasks.
+  """
+  src = normalize_path(src)
+  dest = normalize_path(dest)
+
+  tqd = TaskQueue(dest, progress=False)
+  tqs = TaskQueue(src, progress=False)
+
+  total = tqs.enqueued
+  with tqdm(total=total, desc="Moving") as pbar:
+    while True:
+      try:
+        tasks = tqs.lease(num_tasks=10, seconds=10)
+      except QueueEmptyError:
+        break
+
+      tqd.insert(tasks)
+      tqs.delete(tasks)
+      pbar.update(len(tasks))
+
+@queuegroup.command()
+@click.argument("queuepath")
+def purge(queuepath):
+  """Delete all queued messages and zero out queue statistics."""
+  queuepath = normalize_path(queuepath)
+  tq = TaskQueue(queuepath)
+  tq.purge()

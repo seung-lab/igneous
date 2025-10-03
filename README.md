@@ -263,7 +263,7 @@ tasks = create_downsampling_tasks(
     preserve_chunk_size=True, # use existing chunk size, don't halve to get more downsamples
     sparse=False, # for sparse segmentation, allow inflation of pixels against background
     bounds=None, # mip 0 bounding box to downsample 
-    encoding=None # e.g. 'raw', 'compressed_segmentation', etc
+    encoding=None, # e.g. 'raw', 'compressed_segmentation', etc
     delete_black_uploads=False, # issue a delete instead of uploading files containing all background
     background_color=0, # Designates the background color
     compress='gzip', # None, 'gzip', and 'br' (brotli) are options
@@ -541,6 +541,14 @@ tasks = tc.create_sharded_skeleton_merge_tasks(
   max_cable_length=None, 
   spatial_index_db=None
 )
+```
+
+### CLAHE Contrast Normalization (CLAHETask)
+
+Applies CLAHE (Contrast Limited Adaptive Histogram Equalization) to each z-slice. The CLAHE parameters clip limit and tile grid size are adjustable.
+
+```bash
+igneous image contrast clahe $PATH --queue $QUEUE
 ```
 
 ### Contrast Normalization (LuminanceLevelsTask & ContrastNormalizationTask)

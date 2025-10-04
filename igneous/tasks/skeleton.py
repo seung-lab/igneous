@@ -270,14 +270,14 @@ class SkeletonTask(RegisteredTask):
       all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
       filled_labels = np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
 
-    return (filled_labels, hole_labels_set)
+    return (filled_labels, hole_labels_set, all_labels)
 
   def _do_operation(self, all_labels, fn):
     if callable(all_labels):
       all_labels = all_labels()
 
     if self.fill_holes > 0:
-      filled_labels, hole_labels = self._compute_fill_holes(all_labels)
+      filled_labels, hole_labels, all_labels = self._compute_fill_holes(all_labels)
       all_labels = crackle.compress(all_labels)
       skeletons = fn(filled_labels)
       del filled_labels

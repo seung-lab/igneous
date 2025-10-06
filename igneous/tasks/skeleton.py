@@ -406,16 +406,15 @@ class SkeletonTask(RegisteredTask):
     big_bbox = bbox.clone()
     big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
-
-    big_bbox.minpt -= self.hole_filling_padding
-    big_bbox.maxpt += self.hole_filling_padding
+    big_bbox.grow(self.hole_filling_padding)
 
     true_delta = bbox.minpt - big_bbox.minpt
 
     # place the skeletons in exactly the same position
     # in the enlarged image
-    for skel in skeletons.values():
-      skel.vertices += true_delta * vol.resolution
+    for label in skeletons.keys():
+      skeletons[label] = skeletons[label].voxel_space()
+      skeletons[label].vertices += true_delta
 
     mapping = {}
 
@@ -466,8 +465,10 @@ class SkeletonTask(RegisteredTask):
       skel.id = sid
 
     # move the vertices back to their old smaller image location
-    for skel in skeletons.values():
-      skel.vertices -= true_delta * vol.resolution
+    for label in skeletons.keys():
+      skel = skeletons[label]
+      skel.vertices -= true_delta # move the vertices back to their old smaller image location
+      skeletons[label] = skel.physical_space()
 
     if self.cross_sectional_area_repair_sec_per_label != 0:
       return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)

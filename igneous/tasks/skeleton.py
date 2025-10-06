@@ -550,6 +550,7 @@ class SkeletonTask(RegisteredTask):
             binimg = np.asfortranarray(binimg[hp:-hp,hp:-hp,hp:-hp])
 
         bbx = Bbox.from_list(bbxes[label])
+        bbx.maxpt += 1
 
         skeletons[label] = kimimaro.cross_sectional_area_single(
           binimg, skeletons[label],

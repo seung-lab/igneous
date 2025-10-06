@@ -514,6 +514,7 @@ class SkeletonTask(RegisteredTask):
       def __iter__(self):
         for label in skel_labels:
           bbx = Bbox.from_list(bbxes[label])
+          bbx.maxpt += 1
           bbx = bbx.clone()
           bbx += big_bbox.minpt
           yield label, vol.download(bbx, label=label)[...,0]

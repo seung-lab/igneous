@@ -267,7 +267,7 @@ class SkeletonTask(RegisteredTask):
       bigger_bbx.grow(self.cross_sectional_area_shape_delta)
       # Factor of 6 is based on observed behavior on 2025-10-06
       # with delta +250 
-      return bigger_bbx.voxels() * 6 > self.cross_sectional_area_low_memory_threshold
+      return bigger_bbx.volume() * 6 > self.cross_sectional_area_low_memory_threshold
 
   def _compute_fill_holes(self, all_labels):
     filled_labels, hole_labels_set = fastmorph.fill_holes(

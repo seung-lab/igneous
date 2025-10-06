@@ -124,7 +124,7 @@ class SkeletonTask(RegisteredTask):
     lru_bytes = 0
     lru_encoding = 'same'
 
-    if self.cross_sectional_area:
+    if self.cross_sectional_area and self.cross_sectional_area_repair_sec_per_label > 0:
       lru_bytes = self.bounds.size() + 2 * self.cross_sectional_area_shape_delta
       lru_bytes = int(lru_bytes[0]) * int(lru_bytes[1]) * int(lru_bytes[2]) * 8 // 50
       lru_encoding = 'crackle'
@@ -454,6 +454,75 @@ class SkeletonTask(RegisteredTask):
     # move the vertices back to their old smaller image location
     for skel in skeletons.values():
       skel.vertices -= true_delta * vol.resolution
+
+    if self.cross_sectional_area_repair_sec_per_label != 0:
+      return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+    else:
+      return skeletons
+
+  def compute_cross_sectional_area_low_mem(self, vol, bbox, skeletons):
+    if len(skeletons) == 0:
+      return skeletons
+
+    # Why redownload a bigger image? In order to avoid clipping the
+    # cross sectional areas on the edges.
+    delta = int(self.cross_sectional_area_shape_delta)
+
+    big_bbox = bbox.clone()
+    big_bbox.grow(delta)
+    big_bbox = Bbox.clamp(big_bbox, vol.bounds)
+
+    big_bbox.minpt -= self.hole_filling_padding
+    big_bbox.maxpt += self.hole_filling_padding
+
+    true_delta = bbox.minpt - big_bbox.minpt
+
+    # place the skeletons in exactly the same position
+    # in the enlarged image
+    for label in skeletons.keys():
+      skeletons[label] = skeletons[label].voxel_space()
+      skeletons[label].vertices += true_delta
+
+    all_labels = vol.download(big_bbox, crackle=True)
+    bbxes = all_labels.bounding_boxes(no_slice_conversion=True)
+
+    with tqdm(
+      all_labels.each(crop=True, labels=list(skeletons.keys())),
+      disable=(not self.progress),
+      desc="Cross Sectional Area Analysis",
+    ) as pbar:
+      for label, binimg in pbar:
+        pbar.set_postfix(label=str(label))
+
+        if self.fill_holes > 0:
+          binimg = fastmorph.fill_holes(
+            binimg,
+            remove_enclosed=True,
+            fix_borders=(self.fill_holes >= 2),
+            morphological_closing=(self.fill_holes >= 3),
+            progress=False,
+          )
+
+          if self.fill_holes >= 3:
+            hp = self.hole_filling_padding
+            binimg = np.asfortranarray(binimg[hp:-hp,hp:-hp,hp:-hp])
+
+        bbx = Bbox.from_list(bbxes[label])
+        skel = skeletons[label]
+        
+        skel = kimimaro.cross_sectional_area_single(
+          binimg, skel,
+          anisotropy=vol.resolution,
+          smoothing_window=self.cross_sectional_area_smoothing_window,
+          progress=False,
+          in_place=True,
+          roi=bbx,
+        )
+
+    for label in skeletons.keys():
+      skel = skeletons[label]
+      skel.vertices -= true_delta # move the vertices back to their old smaller image location
+      skeletons[label] = skel.physical_space()
 
     if self.cross_sectional_area_repair_sec_per_label != 0:
       return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)

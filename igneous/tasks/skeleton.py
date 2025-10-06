@@ -83,6 +83,7 @@ class SkeletonTask(RegisteredTask):
     cross_sectional_area_smoothing_window:int = 1,
     cross_sectional_area_shape_delta:int = 150,
     cross_sectional_area_repair_sec_per_label:int = 0, # default disabled
+    cross_sectional_area_low_memory_threshold:int = int(8e9),
     dry_run:bool = False,
     strip_integer_attributes:bool = True,
     fix_autapses:bool = False,
@@ -98,8 +99,11 @@ class SkeletonTask(RegisteredTask):
       dust_threshold, progress, parallel,
       fill_missing, bool(sharded), frag_path, bool(spatial_index),
       spatial_grid_shape, synapses, bool(dust_global),
-      bool(cross_sectional_area), int(cross_sectional_area_smoothing_window),
-      int(cross_sectional_area_shape_delta), int(cross_sectional_area_repair_sec_per_label),
+      bool(cross_sectional_area), 
+      int(cross_sectional_area_smoothing_window),
+      int(cross_sectional_area_shape_delta), 
+      int(cross_sectional_area_repair_sec_per_label),
+      int(cross_sectional_area_low_memory_threshold),
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
       root_ids_cloudpath,
@@ -220,7 +224,10 @@ class SkeletonTask(RegisteredTask):
       skel.id = sid
 
     if self.cross_sectional_area: # This is expensive!
-      skeletons = self.compute_cross_sectional_area(vol, bbox, skeletons)
+      if self.should_use_low_memory(bbox):
+        skeletons = self.compute_cross_sectional_area_low_mem(vol, bbox, skeletons)
+      else:
+        skeletons = self.compute_cross_sectional_area(vol, bbox, skeletons)
 
     # voxel centered (+0.5) and uses more accurate bounding box from mip 0
     corrected_offset = (bbox.minpt.astype(np.float32) - vol.meta.voxel_offset(self.mip) + 0.5) * vol.meta.resolution(self.mip)
@@ -254,6 +261,13 @@ class SkeletonTask(RegisteredTask):
 
     if self.spatial_index:
       self.upload_spatial_index(vol, path, index_bbox, skeletons)
+
+  def should_use_low_memory(self, bbox:Bbox) -> bool:
+      bigger_bbx = bbox.clone()
+      bigger_bbx.grow(self.cross_sectional_area_shape_delta)
+      # Factor of 6 is based on observed behavior on 2025-10-06
+      # with delta +250 
+      return bigger_bbx.voxels() * 6 > self.cross_sectional_area_low_memory_threshold
 
   def _compute_fill_holes(self, all_labels):
     filled_labels, hole_labels_set = fastmorph.fill_holes(

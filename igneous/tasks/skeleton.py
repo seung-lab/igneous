@@ -124,7 +124,7 @@ class SkeletonTask(RegisteredTask):
     lru_bytes = 0
     lru_encoding = 'same'
 
-    if self.cross_sectional_area and self.cross_sectional_area_repair_sec_per_label > 0:
+    if self.cross_sectional_area and (self.cross_sectional_area_repair_sec_per_label > 0 or self.parallel == 1):
       lru_bytes = self.bounds.size() + 2 * self.cross_sectional_area_shape_delta
       lru_bytes = int(lru_bytes[0]) * int(lru_bytes[1]) * int(lru_bytes[2]) * 8 // 50
       lru_encoding = 'crackle'
@@ -471,9 +471,7 @@ class SkeletonTask(RegisteredTask):
     big_bbox = bbox.clone()
     big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
-
-    big_bbox.minpt -= self.hole_filling_padding
-    big_bbox.maxpt += self.hole_filling_padding
+    big_bbox.grow(self.hole_filling_padding)
 
     true_delta = bbox.minpt - big_bbox.minpt
 
@@ -484,16 +482,44 @@ class SkeletonTask(RegisteredTask):
       skeletons[label].vertices += true_delta
 
     all_labels = vol.download(big_bbox, crackle=True)
+    all_labels.parallel = self.parallel
+    
     bbxes = all_labels.bounding_boxes(no_slice_conversion=True)
+    skel_labels = [ int(x) for x in skeletons.keys() ]
+
+    # For parallel=1, this gives better performance
+    # than decoding the crackle binary because 
+    # it exploits the chunked nature of the precomputed
+    # representation to avoid decoding many chunks
+    # but for parallel > 1, there's sufficient firepower
+    # to go faster decoding the crackle volume natively.
+    class BinaryImageIterator:
+      def __len__(self):
+        return len(skel_labels)
+      def __iter__(self):
+        for label in skel_labels:
+          bbx = Bbox.from_list(bbxes[label])
+          bbx = bbx.clone()
+          bbx += big_bbox.minpt
+          yield label, vol.download(bbx, label=label)[...,0]
+
+    if self.parallel == 1:
+      iterator = BinaryImageIterator()
+      del all_labels
+    else:
+      iterator = all_labels.each(
+        crop=True, 
+        labels=skel_labels,
+      )
 
     with tqdm(
-      all_labels.each(crop=True, labels=list(skeletons.keys())),
+      iterator,
       disable=(not self.progress),
       desc="Cross Sectional Area Analysis",
     ) as pbar:
       for label, binimg in pbar:
         pbar.set_postfix(label=str(label))
-
+        
         if self.fill_holes > 0:
           binimg = fastmorph.fill_holes(
             binimg,
@@ -508,10 +534,9 @@ class SkeletonTask(RegisteredTask):
             binimg = np.asfortranarray(binimg[hp:-hp,hp:-hp,hp:-hp])
 
         bbx = Bbox.from_list(bbxes[label])
-        skel = skeletons[label]
-        
-        skel = kimimaro.cross_sectional_area_single(
-          binimg, skel,
+
+        skeletons[label] = kimimaro.cross_sectional_area_single(
+          binimg, skeletons[label],
           anisotropy=vol.resolution,
           smoothing_window=self.cross_sectional_area_smoothing_window,
           progress=False,

@@ -229,6 +229,9 @@ class SkeletonTask(RegisteredTask):
       else:
         skeletons = self.compute_cross_sectional_area(vol, bbox, skeletons)
 
+      if self.cross_sectional_area_repair_sec_per_label != 0:
+        skeletons = self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
+
     # voxel centered (+0.5) and uses more accurate bounding box from mip 0
     corrected_offset = (bbox.minpt.astype(np.float32) - vol.meta.voxel_offset(self.mip) + 0.5) * vol.meta.resolution(self.mip)
     corrected_offset += vol.meta.voxel_offset(0) * vol.meta.resolution(0)
@@ -470,10 +473,7 @@ class SkeletonTask(RegisteredTask):
       skel.vertices -= true_delta # move the vertices back to their old smaller image location
       skeletons[label] = skel.physical_space()
 
-    if self.cross_sectional_area_repair_sec_per_label != 0:
-      return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
-    else:
-      return skeletons
+    return skeletons
 
   def compute_cross_sectional_area_low_mem(self, vol, bbox, skeletons):
     if len(skeletons) == 0:
@@ -535,7 +535,7 @@ class SkeletonTask(RegisteredTask):
     ) as pbar:
       for label, binimg in pbar:
         pbar.set_postfix(label=str(label))
-        
+
         if self.fill_holes > 0:
           binimg = fastmorph.fill_holes(
             binimg,
@@ -566,10 +566,7 @@ class SkeletonTask(RegisteredTask):
       skel.vertices -= true_delta # move the vertices back to their old smaller image location
       skeletons[label] = skel.physical_space()
 
-    if self.cross_sectional_area_repair_sec_per_label != 0:
-      return self.repair_cross_sectional_area_contacts(vol, bbox, skeletons)
-    else:
-      return skeletons
+    return skeletons
 
   def repair_cross_sectional_area_contacts(self, vol, bbox, skeletons):
     from dbscan import DBSCAN

@@ -1258,8 +1258,8 @@ def ShardedFromUnshardedSkeletonMergeTask(
 ):
   cv_src = CloudVolume(src)
 
-  if skel_dir is None and 'skeletons' in cv.info:
-    skel_dir = cv.info['skeletons']
+  if skel_dir is None and 'skeletons' in cv_src.info:
+    skel_dir = cv_src.info['skeletons']
 
   cv_dest = CloudVolume(dest, skel_dir=skel_dir, progress=progress)
 

@@ -93,6 +93,7 @@ def create_skeletonizing_tasks(
   timestamp:Optional[int] = None,
   root_ids_cloudpath:Optional[str] = None,
   cross_sectional_area_repair_sec_per_label:int = 0,
+  split_at_branches=False,
 ):
   """
   Assign tasks with one voxel overlap in a regular grid 
@@ -203,6 +204,11 @@ def create_skeletonizing_tasks(
     1: simple hole filling
     2: also fill borders in 2d on sides of image
     3: also perform a morphological closing using 3x3x3 stencil
+  
+  split_at_branches: (bool) If True, split skeleton fragments at branch points in Stage 1.
+  Surface-touching fragments get original IDs and will be merged across chunks. 
+  Interior skeletons get unique IDs and are considered finalized. 
+  This helps reduce memory usage during merge stage for complex branched structures.
   """
   assert 0 <= fill_holes <= 3, "fill_holes must be between 0 to 3 inclusive."
 
@@ -279,6 +285,16 @@ def create_skeletonizing_tasks(
   will_postprocess = bool(np.any(vol.bounds.size3() > shape))
   bounds = vol.bounds.clone()
 
+  # Calculate global chunk information
+  volume_shape = bounds.size3()
+  chunks_per_dim = np.ceil(volume_shape / shape).astype(int)
+  total_chunks = chunks_per_dim[0] * chunks_per_dim[1] * chunks_per_dim[2]
+
+  print(f"Volume shape: {volume_shape}")
+  print(f"Task shape: {shape}")
+  print(f"Chunks per dimension: {chunks_per_dim}")
+  print(f"Total chunks: {total_chunks}")
+
   # this should probably be a cloudvolume feature:
   # estimate the bounding box of an object using whatever
   # is available: meshes, skeletons, spatial index, etc
@@ -294,12 +310,23 @@ def create_skeletonizing_tasks(
       pass
 
   class SkeletonTaskIterator(FinelyDividedTaskIterator):
+    def __init__(self, bounds, shape):
+        super().__init__(bounds, shape)
+        self.chunk_index = 0  # Track current chunk
+        self.chunks_per_dim = chunks_per_dim
+        self.volume_bounds = bounds
+    
     def task(self, shape, offset):
+      # Calculate 3D chunk coordinates
+      cx = self.chunk_index % self.chunks_per_dim[0]
+      cy = (self.chunk_index // self.chunks_per_dim[0]) % self.chunks_per_dim[1]
+      cz = self.chunk_index // (self.chunks_per_dim[0] * self.chunks_per_dim[1])
+
       bbox_synapses = None
       if synapses:
         bbox_synapses = self.synapses_for_bbox(shape, offset)
 
-      return SkeletonTask(
+      task = SkeletonTask(
         cloudpath=cloudpath,
         shape=(shape + 1).clone(), # 1px overlap on the right hand side
         offset=offset.clone(),
@@ -329,7 +356,15 @@ def create_skeletonizing_tasks(
         root_ids_cloudpath=root_ids_cloudpath,
         fill_holes=fill_holes,
         cross_sectional_area_repair_sec_per_label=int(cross_sectional_area_repair_sec_per_label),
+        # Pass chunk information
+        chunk_index=self.chunk_index,
+        chunk_coords=(cx, cy, cz),
+        global_chunks_per_dim=chunks_per_dim.tolist(),
+        volume_bounds=self.volume_bounds,
+        split_at_branches=bool(split_at_branches),
       )
+      self.chunk_index += 1  # Move to the next chunk
+      return task
 
     def synapses_for_bbox(self, shape, offset):
       """
@@ -378,7 +413,8 @@ def create_skeletonizing_tasks(
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
           'cross_sectional_area_repair_sec_per_label': int(cross_sectional_area_repair_sec_per_label),
           'root_ids_cloudpath': root_ids_cloudpath,
-          'fill_holes': int(fill_holes)
+          'fill_holes': int(fill_holes),
+          'split_at_branches': bool(split_at_branches),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

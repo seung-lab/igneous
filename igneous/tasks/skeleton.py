@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Dict, List
+from typing import Optional, Sequence, Dict, List, Tuple
 
 from functools import reduce, partial
 import itertools
@@ -89,6 +89,12 @@ class SkeletonTask(RegisteredTask):
     fix_autapses:bool = False,
     timestamp:Optional[int] = None,
     root_ids_cloudpath:Optional[str] = None,
+    # NEW: Add chunk indexing parameters
+    chunk_index:Optional[int] = None,
+    chunk_coords:Optional[Tuple[int,int,int]] = None,
+    global_chunks_per_dim:Optional[List[int]] = None,
+    volume_bounds:Optional[Bbox] = None,
+    split_at_branches:bool = False,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -107,7 +113,17 @@ class SkeletonTask(RegisteredTask):
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
       root_ids_cloudpath,
+      chunk_index, chunk_coords, global_chunks_per_dim, volume_bounds,
+      bool(split_at_branches),
     )
+    # Store chunk information
+    self.chunk_index = chunk_index
+    self.chunk_coords = chunk_coords  # (cx, cy, cz)
+    self.global_chunks_per_dim = global_chunks_per_dim
+    self.volume_bounds = volume_bounds
+
+    self.split_at_branches = split_at_branches
+
     if isinstance(self.frag_path, str):
       self.frag_path = cloudfiles.paths.normalize(self.frag_path)
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
@@ -163,6 +179,7 @@ class SkeletonTask(RegisteredTask):
       else:
         path = self.frag_path
 
+    # to do: needs to handle corrupted data gracefully
     all_labels, mapping = vol.download(           
       bbox.to_slices(), 
       agglomerate=True, 
@@ -222,6 +239,9 @@ class SkeletonTask(RegisteredTask):
     skeletons = { mapping[sid]: skel for sid, skel in skeletons.items() }
     for sid, skel in skeletons.items():
       skel.id = sid
+
+    if self.split_at_branches:
+      skeletons = self.split_and_reassign_ids(skeletons, vol, bbox)
 
     if self.cross_sectional_area: # This is expensive!
       if self.should_use_low_memory(bbox):
@@ -711,6 +731,245 @@ class SkeletonTask(RegisteredTask):
     vol.image.fill_missing = fill_missing
 
     return skeletons
+  
+  def split_and_reassign_ids(self, skeletons, vol, bbox):
+    """
+    Split skeletons at branch points.
+    Keep label=1 for INTERIOR-surface-touching fragments (need merging).
+    Assign unique IDs to other skeletons (finalized).
+    """
+    surface_fragments = []
+    interior_skeletons = {}
+    
+    next_interior_id = self.generate_base_id_for_chunk()
+    
+    if self.progress:
+        print(f"Processing {len(skeletons)} skeletons in chunk {self.chunk_index}")
+        print(f"Base ID for interior skeletons: {next_interior_id}")
+        
+        # Debug: show which faces are interior
+        interior_faces = self.get_interior_faces(vol)
+        face_names = ['min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z']
+        interior_face_names = [name for name, is_interior in zip(face_names, interior_faces) if is_interior]
+        print(f"Interior faces for this chunk: {interior_face_names}")
+    
+    for label, skel in skeletons.items():
+        if len(skel.vertices) == 0 or len(skel.edges) == 0:
+            if self.progress:
+                print(f"Skipping empty skeleton {label}")
+            continue
+            
+        # Split at branches
+        sub_skels = self.split_skeleton_at_branches(skel)
+        
+        for i, sub_skel in enumerate(sub_skels):
+            if len(sub_skel.vertices) == 0 or len(sub_skel.edges) == 0:
+                continue
+            
+            # Check if touches INTERIOR surfaces only
+            touches_interior_surface = self.skeleton_touches_interior_surface(
+                sub_skel, vol.resolution, vol
+            )
+            
+            if touches_interior_surface:
+                if self.progress:
+                    print(f"Sub-skeleton {i} -> SURFACE FRAGMENT (ID=1) - touches interior boundary")
+                surface_fragments.append(sub_skel)
+            else:
+                if self.progress:
+                    print(f"Sub-skeleton {i} -> INTERIOR SKELETON (ID={next_interior_id}) - no interior boundary contact")
+                sub_skel.id = next_interior_id
+                interior_skeletons[next_interior_id] = sub_skel
+                next_interior_id += 1
+    
+    # Merge surface fragments and return result
+    result = {}
+    if surface_fragments:
+        if len(surface_fragments) == 1:
+            result[1] = surface_fragments[0]
+            result[1].id = 1
+        else:
+            from osteoid import Skeleton
+            merged = Skeleton.simple_merge(surface_fragments)
+            merged.id = 1
+            result[1] = merged
+    
+    result.update(interior_skeletons)
+    return result
+  
+  def split_skeleton_at_branches(self, skeleton):
+    """
+    Split skeleton at branch points using osteoid.Skeleton's components() method.
+    """
+    # Get branch nodes
+    branch_nodes = skeleton.branches()
+    
+    if len(branch_nodes) == 0:
+        return [skeleton]
+    
+    # Create a copy without branch nodes
+    from osteoid import Skeleton
+    temp_skeleton = skeleton.clone()
+    
+    # Remove branch nodes (this should disconnect the skeleton)
+    mask = np.ones(len(temp_skeleton.vertices), dtype=bool)
+    mask[branch_nodes] = False
+    
+    # Filter vertices and edges
+    temp_skeleton.vertices = temp_skeleton.vertices[mask]
+    if temp_skeleton.radius is not None:
+        temp_skeleton.radius = temp_skeleton.radius[mask]
+    
+    # Remove edges containing branch nodes
+    valid_edges = temp_skeleton.edges[~np.isin(temp_skeleton.edges, branch_nodes).any(axis=1)]
+    
+    # Remap edge indices
+    old_to_new = np.full(len(skeleton.vertices), -1, dtype=int)
+    old_to_new[mask] = np.arange(np.sum(mask))
+    temp_skeleton.edges = old_to_new[valid_edges]
+    
+    # Use components() to get disconnected parts
+    components = temp_skeleton.components()
+    
+    # Filter and return valid components
+    return [comp for comp in components if len(comp.vertices) >= 2 and len(comp.edges) > 0]
+
+  def get_interior_faces_from_coords(self):
+    """
+    Determine interior faces using chunk coordinates (more reliable if available).
+    """
+    if (self.chunk_coords is None or 
+        self.global_chunks_per_dim is None):
+        return None
+    
+    cx, cy, cz = self.chunk_coords
+    chunks_x, chunks_y, chunks_z = self.global_chunks_per_dim
+    
+    interior_faces = [
+        cx > 0,                    # min_x face is interior
+        cx < chunks_x - 1,         # max_x face is interior
+        cy > 0,                    # min_y face is interior  
+        cy < chunks_y - 1,         # max_y face is interior
+        cz > 0,                    # min_z face is interior
+        cz < chunks_z - 1,         # max_z face is interior
+    ]
+    
+    return interior_faces
+
+  def get_interior_faces(self, vol):
+    """
+    Determine which chunk faces are interior with fallback methods.
+    """
+    # Try coordinate-based method first (more reliable)
+    interior_faces = self.get_interior_faces_from_coords()
+    if interior_faces is not None:
+        return interior_faces
+    
+    # Fallback to bbox comparison
+    chunk_bbox = self.bounds
+    
+    # Parse volume_bounds if it's a string
+    if isinstance(self.volume_bounds, str):
+        import json
+        volume_bounds_dict = json.loads(self.volume_bounds)
+        from cloudvolume.lib import Bbox, Vec
+        volume_bbox = Bbox(
+            Vec(*volume_bounds_dict['minpt']),
+            Vec(*volume_bounds_dict['maxpt'])
+        )
+    elif self.volume_bounds is not None:
+        volume_bbox = self.volume_bounds
+    else:
+        volume_bbox = vol.bounds
+    
+    # Add small epsilon to handle floating point precision
+    epsilon = vol.resolution.min() * 0.1
+    
+    interior_faces = [
+        chunk_bbox.minpt.x > volume_bbox.minpt.x + epsilon,
+        chunk_bbox.maxpt.x < volume_bbox.maxpt.x - epsilon,
+        chunk_bbox.minpt.y > volume_bbox.minpt.y + epsilon,
+        chunk_bbox.maxpt.y < volume_bbox.maxpt.y - epsilon,
+        chunk_bbox.minpt.z > volume_bbox.minpt.z + epsilon,
+        chunk_bbox.maxpt.z < volume_bbox.maxpt.z - epsilon,
+    ]
+    
+    return interior_faces
+  
+  def skeleton_touches_interior_surface(self, skeleton, resolution, vol, tolerance_voxels=1):
+    """
+    Check if skeleton touches any INTERIOR chunk boundary (excludes volume boundaries).
+    """
+    vertices_voxels = skeleton.vertices / resolution
+    chunk_shape = Vec(*self.shape)
+    
+    # Get which faces are interior (connect to other chunks)
+    interior_faces = self.get_interior_faces(vol)
+    
+    # print(f"DEBUG SURFACE: Interior faces: {interior_faces}")
+    # print(f"DEBUG SURFACE: [min_x, max_x, min_y, max_y, min_z, max_z]")
+    
+    # Check each dimension, but only interior faces
+    for dim in range(3):
+        min_face_idx = dim * 2      # 0, 2, 4 for x, y, z min faces
+        max_face_idx = dim * 2 + 1  # 1, 3, 5 for x, y, z max faces
+        
+        # Only check interior faces
+        if interior_faces[min_face_idx]:  # min face is interior
+            near_min = np.any(vertices_voxels[:, dim] <= tolerance_voxels)
+            if near_min:
+                # print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at min face of dimension {dim}")
+                return True
+                
+        if interior_faces[max_face_idx]:  # max face is interior  
+            near_max = np.any(vertices_voxels[:, dim] >= chunk_shape[dim] - tolerance_voxels)
+            if near_max:
+                # print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at max face of dimension {dim}")
+                return True
+    
+    # print(f"DEBUG SURFACE: NO INTERIOR SURFACE TOUCH detected")
+    return False
+    
+  def generate_base_id_for_chunk(self):
+    """Generate starting ID for interior skeletons using global chunk indexing."""
+    # print(f"DEBUG: chunk_index={self.chunk_index}, coords={self.chunk_coords}")
+    
+    if self.chunk_index is not None:
+        base_id = (self.chunk_index + 1) * 1000000 + 1000
+        # print(f"DEBUG: Generated base_id={base_id}")
+        return int(base_id)
+    
+    # print("DEBUG: No chunk_index, using fallback")
+    return 1000000
+  
+  def extract_subskeleton(self, skeleton, vertex_indices):
+    """Extract subset of vertices/edges as new osteoid.Skeleton."""
+    vertex_set = set(vertex_indices)
+    old_to_new = {old_idx: new_idx for new_idx, old_idx in enumerate(vertex_indices)}
+    
+    # Create new osteoid.Skeleton
+    from osteoid import Skeleton
+    new_skel = Skeleton()
+    new_skel.vertices = skeleton.vertices[vertex_indices].copy()
+    if skeleton.radius is not None:
+        new_skel.radius = skeleton.radius[vertex_indices].copy()
+    
+    # Extract edges with both endpoints in vertex set
+    valid_edges = []
+    for edge in skeleton.edges:
+        if edge[0] in vertex_set and edge[1] in vertex_set:
+            valid_edges.append([old_to_new[edge[0]], old_to_new[edge[1]]])
+    
+    new_skel.edges = np.array(valid_edges, dtype=skeleton.edges.dtype) if valid_edges else np.array([], dtype=skeleton.edges.dtype).reshape(0, 2)
+    
+    # Copy attributes
+    if hasattr(skeleton, 'vertex_types') and skeleton.vertex_types is not None:
+        try:
+            new_skel.vertex_types = skeleton.vertex_types[vertex_indices].copy()
+        except:
+            pass
+    
+    return new_skel
 
   def apply_global_dust_threshold(self, vol, all_labels, mapping):
     path = vol.meta.join(self.cloudpath, vol.key, 'stats', 'voxel_counts.im')
@@ -833,10 +1092,10 @@ class UnshardedSkeletonMergeTask(RegisteredTask):
     skeletons = []
     for segid, frags in skels.items():
       skeleton = self.fuse_skeletons(frags)
-      if self.max_cable_length is None or skeleton.cable_length() <= self.max_cable_length:
-        skeleton = kimimaro.postprocess(
-          skeleton, self.dust_threshold, self.tick_threshold
-        )
+      # if self.max_cable_length is None or skeleton.cable_length() <= self.max_cable_length:
+      #   skeleton = kimimaro.postprocess(
+      #     skeleton, self.dust_threshold, self.tick_threshold
+      #   )
       skeleton.id = segid
       skeletons.append(skeleton)
 
@@ -990,14 +1249,15 @@ class ShardedSkeletonMergeTask(RegisteredTask):
         if attr['data_type'] == 'float32' 
       ]
       skel = skel.consolidate()
-      if self.max_cable_length is not None and skel.cable_length() > self.max_cable_length:
-        skeletons[label] = skel.to_precomputed()
-      else:
-        skeletons[label] = kimimaro.postprocess(
-          skel, 
-          dust_threshold=self.dust_threshold, # voxels 
-          tick_threshold=self.tick_threshold, # nm
-        ).to_precomputed()
+      # if self.max_cable_length is not None and skel.cable_length() > self.max_cable_length:
+      #   skeletons[label] = skel.to_precomputed()
+      # else:
+      #   skeletons[label] = kimimaro.postprocess(
+      #     skel, 
+      #     dust_threshold=self.dust_threshold, # voxels 
+      #     tick_threshold=self.tick_threshold, # nm
+      #   ).to_precomputed()
+      skeletons[label] = skel.to_precomputed()
 
     return skeletons
 

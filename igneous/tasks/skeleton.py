@@ -175,6 +175,7 @@ class SkeletonTask(RegisteredTask):
       else:
         path = self.frag_path
 
+    # to do: needs to handle corrupted data gracefully
     all_labels, mapping = vol.download(           
       bbox.to_slices(), 
       agglomerate=True, 
@@ -625,215 +626,199 @@ class SkeletonTask(RegisteredTask):
   def split_and_reassign_ids(self, skeletons, vol, bbox):
     """
     Split skeletons at branch points.
-    Keep label=1 for surface-touching fragments (need merging).
-    Assign unique IDs to interior skeletons (finalized).
+    Keep label=1 for INTERIOR-surface-touching fragments (need merging).
+    Assign unique IDs to other skeletons (finalized).
     """
-    surface_fragments = []  # Will all become label=1
-    interior_skeletons = {}  # Get unique IDs
+    surface_fragments = []
+    interior_skeletons = {}
     
     next_interior_id = self.generate_base_id_for_chunk()
-    print(f"DEBUG: Processing {len(skeletons)} original skeletons in chunk {self.chunk_index}")
-    print(f"DEBUG: Base ID for interior skeletons: {next_interior_id}")
-    print(f"DEBUG: Chunk bbox: {bbox}")
-    print(f"DEBUG: Volume resolution: {vol.resolution}")
+    
+    if self.progress:
+        print(f"Processing {len(skeletons)} skeletons in chunk {self.chunk_index}")
+        print(f"Base ID for interior skeletons: {next_interior_id}")
+        
+        # Debug: show which faces are interior
+        interior_faces = self.get_interior_faces(vol)
+        face_names = ['min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z']
+        interior_face_names = [name for name, is_interior in zip(face_names, interior_faces) if is_interior]
+        print(f"Interior faces for this chunk: {interior_face_names}")
     
     for label, skel in skeletons.items():
-        print(f"DEBUG: Processing skeleton {label} with {len(skel.vertices)} vertices")
-        
-        # Debug: Check original skeleton boundary touching
-        touches_original = self.skeleton_touches_surface(skel, vol.resolution)
-        print(f"DEBUG: Original skeleton {label} touches surface: {touches_original}")
-        
+        if len(skel.vertices) == 0 or len(skel.edges) == 0:
+            if self.progress:
+                print(f"Skipping empty skeleton {label}")
+            continue
+            
         # Split at branches
         sub_skels = self.split_skeleton_at_branches(skel)
-        print(f"DEBUG: Split into {len(sub_skels)} sub-skeletons")
         
         for i, sub_skel in enumerate(sub_skels):
-            print(f"DEBUG: Sub-skeleton {i} has {len(sub_skel.vertices)} vertices")
-            # Add safety check for empty skeletons
             if len(sub_skel.vertices) == 0 or len(sub_skel.edges) == 0:
-                print(f"DEBUG: Sub-skeleton {i} is empty, skipping")
                 continue
             
-            # Debug vertex positions
-            vertices_voxels = sub_skel.vertices / vol.resolution
-            min_coords = np.min(vertices_voxels, axis=0)
-            max_coords = np.max(vertices_voxels, axis=0)
-            print(f"DEBUG: Sub-skeleton {i} vertex range: min={min_coords}, max={max_coords}")
+            # Check if touches INTERIOR surfaces only
+            touches_interior_surface = self.skeleton_touches_interior_surface(
+                sub_skel, vol.resolution, vol
+            )
             
-            touches_surface = self.skeleton_touches_surface(sub_skel, vol.resolution)
-            print(f"DEBUG: Sub-skeleton {i} touches surface: {touches_surface}")
-            
-            if touches_surface:
-                print(f"DEBUG: Sub-skeleton {i} -> SURFACE FRAGMENT (ID=1)")
+            if touches_interior_surface:
+                if self.progress:
+                    print(f"Sub-skeleton {i} -> SURFACE FRAGMENT (ID=1) - touches interior boundary")
                 surface_fragments.append(sub_skel)
             else:
-                print(f"DEBUG: Sub-skeleton {i} -> INTERIOR SKELETON (ID={next_interior_id})")
+                if self.progress:
+                    print(f"Sub-skeleton {i} -> INTERIOR SKELETON (ID={next_interior_id}) - no interior boundary contact")
                 sub_skel.id = next_interior_id
                 interior_skeletons[next_interior_id] = sub_skel
                 next_interior_id += 1
     
-    print(f"DEBUG: Final counts - Surface fragments: {len(surface_fragments)}, Interior skeletons: {len(interior_skeletons)}")
-    print(f"DEBUG: Interior skeleton IDs: {list(interior_skeletons.keys())}")
-    
-    # Merge all surface fragments into single label=1 skeleton
+    # Merge surface fragments and return result
     result = {}
     if surface_fragments:
         if len(surface_fragments) == 1:
             result[1] = surface_fragments[0]
             result[1].id = 1
         else:
-            # Use osteoid.Skeleton.simple_merge
             from osteoid import Skeleton
             merged = Skeleton.simple_merge(surface_fragments)
             merged.id = 1
             result[1] = merged
     
-    # Add all interior skeletons
     result.update(interior_skeletons)
-    
     return result
   
   def split_skeleton_at_branches(self, skeleton):
     """
-    Split skeleton at branch points by removing branch nodes and finding connected components.
-    Works with osteoid.Skeleton objects from Kimimaro.
+    Split skeleton at branch points using osteoid.Skeleton's components() method.
     """
-    # Get branch nodes using osteoid.Skeleton method
+    # Get branch nodes
     branch_nodes = skeleton.branches()
     
     if len(branch_nodes) == 0:
         return [skeleton]
     
-    # Create mask to remove branch nodes
-    mask = np.ones(len(skeleton.vertices), dtype=bool)
+    # Create a copy without branch nodes
+    from osteoid import Skeleton
+    temp_skeleton = skeleton.clone()
+    
+    # Remove branch nodes (this should disconnect the skeleton)
+    mask = np.ones(len(temp_skeleton.vertices), dtype=bool)
     mask[branch_nodes] = False
-
-    # Create a mapping from old indices to new indices
-    old_to_new_indices = np.full(len(skeleton.vertices), -1, dtype=int)
-    old_to_new_indices[mask] = np.arange(np.sum(mask))
-
-    # Get vertices without branch nodes
-    filtered_vertices = skeleton.vertices[mask]
-    filtered_radius = skeleton.radius[mask] if skeleton.radius is not None else None
-
-    # Remove edges that contain branch nodes
-    valid_edges = skeleton.edges[~np.isin(skeleton.edges, branch_nodes).any(axis=1)]
-
-    if len(valid_edges) == 0:
-        return []
-
-    # Remap the edges to the new vertex indices
-    remapped_edges = old_to_new_indices[valid_edges]
-
-    # Find connected components in the filtered graph
-    components = self._find_connected_components(remapped_edges, len(filtered_vertices))
-
-    # Create new skeletons for each component
-    sub_skeletons = []
-    for i, component in enumerate(components):
-        if len(component) < 2:
-            continue
-            
-        # Create mapping for this component
-        component_old_to_new = {old_idx: new_idx for new_idx, old_idx in enumerate(component)}
-        
-        # Extract vertices and radius for this component
-        component_vertices = filtered_vertices[component]
-        component_radius = filtered_radius[component] if filtered_radius is not None else None
-        
-        # Extract edges for this component
-        component_edges = []
-        for edge in remapped_edges:
-            if edge[0] in component_old_to_new and edge[1] in component_old_to_new:
-                new_edge = [component_old_to_new[edge[0]], component_old_to_new[edge[1]]]
-                component_edges.append(new_edge)
-        
-        if len(component_edges) > 0:
-            # Create new osteoid.Skeleton - use the correct constructor
-            from osteoid import Skeleton
-            new_skeleton = Skeleton()
-            new_skeleton.vertices = component_vertices.copy()
-            new_skeleton.edges = np.array(component_edges, dtype=skeleton.edges.dtype)
-            if component_radius is not None:
-                new_skeleton.radius = component_radius.copy()
-            new_skeleton.id = f"{skeleton.id}_{i}" if hasattr(skeleton, 'id') else f"skel_{i}"
-            
-            # Copy other attributes if they exist
-            if hasattr(skeleton, 'vertex_types') and skeleton.vertex_types is not None:
-                try:
-                    new_skeleton.vertex_types = skeleton.vertex_types[mask][component].copy()
-                except:
-                    pass  # vertex_types might not be compatible
-            
-            sub_skeletons.append(new_skeleton)
     
-    return sub_skeletons if sub_skeletons else []
+    # Filter vertices and edges
+    temp_skeleton.vertices = temp_skeleton.vertices[mask]
+    if temp_skeleton.radius is not None:
+        temp_skeleton.radius = temp_skeleton.radius[mask]
+    
+    # Remove edges containing branch nodes
+    valid_edges = temp_skeleton.edges[~np.isin(temp_skeleton.edges, branch_nodes).any(axis=1)]
+    
+    # Remap edge indices
+    old_to_new = np.full(len(skeleton.vertices), -1, dtype=int)
+    old_to_new[mask] = np.arange(np.sum(mask))
+    temp_skeleton.edges = old_to_new[valid_edges]
+    
+    # Use components() to get disconnected parts
+    components = temp_skeleton.components()
+    
+    # Filter and return valid components
+    return [comp for comp in components if len(comp.vertices) >= 2 and len(comp.edges) > 0]
+
+  def get_interior_faces_from_coords(self):
+    """
+    Determine interior faces using chunk coordinates (more reliable if available).
+    """
+    if (self.chunk_coords is None or 
+        self.global_chunks_per_dim is None):
+        return None
+    
+    cx, cy, cz = self.chunk_coords
+    chunks_x, chunks_y, chunks_z = self.global_chunks_per_dim
+    
+    interior_faces = [
+        cx > 0,                    # min_x face is interior
+        cx < chunks_x - 1,         # max_x face is interior
+        cy > 0,                    # min_y face is interior  
+        cy < chunks_y - 1,         # max_y face is interior
+        cz > 0,                    # min_z face is interior
+        cz < chunks_z - 1,         # max_z face is interior
+    ]
+    
+    return interior_faces
+
+  def get_interior_faces(self, vol):
+    """
+    Determine which chunk faces are interior with fallback methods.
+    """
+    # Try coordinate-based method first (more reliable)
+    interior_faces = self.get_interior_faces_from_coords()
+    if interior_faces is not None:
+        return interior_faces
+    
+    # Fallback to bbox comparison
+    chunk_bbox = self.bounds
+    
+    # Parse volume_bounds if it's a string
+    if isinstance(self.volume_bounds, str):
+        import json
+        volume_bounds_dict = json.loads(self.volume_bounds)
+        from cloudvolume.lib import Bbox, Vec
+        volume_bbox = Bbox(
+            Vec(*volume_bounds_dict['minpt']),
+            Vec(*volume_bounds_dict['maxpt'])
+        )
+    elif self.volume_bounds is not None:
+        volume_bbox = self.volume_bounds
+    else:
+        volume_bbox = vol.bounds
+    
+    # Add small epsilon to handle floating point precision
+    epsilon = vol.resolution.min() * 0.1
+    
+    interior_faces = [
+        chunk_bbox.minpt.x > volume_bbox.minpt.x + epsilon,
+        chunk_bbox.maxpt.x < volume_bbox.maxpt.x - epsilon,
+        chunk_bbox.minpt.y > volume_bbox.minpt.y + epsilon,
+        chunk_bbox.maxpt.y < volume_bbox.maxpt.y - epsilon,
+        chunk_bbox.minpt.z > volume_bbox.minpt.z + epsilon,
+        chunk_bbox.maxpt.z < volume_bbox.maxpt.z - epsilon,
+    ]
+    
+    return interior_faces
   
-  def _find_connected_components(self, edges, num_vertices):
+  def skeleton_touches_interior_surface(self, skeleton, resolution, vol, tolerance_voxels=1):
     """
-    Find connected components using Union-Find (Disjoint Set Union).
-    Returns list of components, where each component is a list of vertex indices.
+    Check if skeleton touches any INTERIOR chunk boundary (excludes volume boundaries).
     """
-    # Initialize Union-Find structure
-    parent = list(range(num_vertices))
-    
-    def find(x):
-        if parent[x] != x:
-            parent[x] = find(parent[x])  # Path compression
-        return parent[x]
-    
-    def union(x, y):
-        root_x = find(x)
-        root_y = find(y)
-        if root_x != root_y:
-            parent[root_x] = root_y
-    
-    # Union vertices connected by edges
-    for edge in edges:
-        union(edge[0], edge[1])
-    
-    # Group vertices by their root parent
-    from collections import defaultdict
-    components_dict = defaultdict(list)
-    for vertex in range(num_vertices):
-        root = find(vertex)
-        components_dict[root].append(vertex)
-    
-    # Convert to list of components
-    components = list(components_dict.values())
-    
-    # Filter out single-vertex components (isolated vertices)
-    components = [comp for comp in components if len(comp) > 1]
-    
-    return components
-    
-  def skeleton_touches_surface(self, skeleton, resolution, tolerance_voxels=1):
-    """Check if any vertex touches the chunk boundary in LOCAL VOXEL space."""
-    
-    # Vertices are already in local voxel coordinates at this point
     vertices_voxels = skeleton.vertices / resolution
-    
-    # Get chunk shape directly
     chunk_shape = Vec(*self.shape)
     
-    print(f"DEBUG SURFACE: Checking {len(vertices_voxels)} vertices")
-    print(f"DEBUG SURFACE: Chunk shape: {chunk_shape}")
-    print(f"DEBUG SURFACE: Local bounds: [0,0,0] to {chunk_shape}")
-    print(f"DEBUG SURFACE: Tolerance: {tolerance_voxels} voxels")
+    # Get which faces are interior (connect to other chunks)
+    interior_faces = self.get_interior_faces(vol)
     
-    # Check against local chunk boundaries (0 to chunk_shape in each dimension)
+    print(f"DEBUG SURFACE: Interior faces: {interior_faces}")
+    print(f"DEBUG SURFACE: [min_x, max_x, min_y, max_y, min_z, max_z]")
+    
+    # Check each dimension, but only interior faces
     for dim in range(3):
-        # Check if vertices touch the minimum boundary (near 0)
-        near_min = np.any(vertices_voxels[:, dim] <= tolerance_voxels)
-        # Check if vertices touch the maximum boundary (near chunk_shape)
-        near_max = np.any(vertices_voxels[:, dim] >= chunk_shape[dim] - tolerance_voxels)
+        min_face_idx = dim * 2      # 0, 2, 4 for x, y, z min faces
+        max_face_idx = dim * 2 + 1  # 1, 3, 5 for x, y, z max faces
         
-        if near_min or near_max:
-            print(f"DEBUG SURFACE: SURFACE TOUCH detected in dimension {dim}")
-            return True
+        # Only check interior faces
+        if interior_faces[min_face_idx]:  # min face is interior
+            near_min = np.any(vertices_voxels[:, dim] <= tolerance_voxels)
+            if near_min:
+                print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at min face of dimension {dim}")
+                return True
+                
+        if interior_faces[max_face_idx]:  # max face is interior  
+            near_max = np.any(vertices_voxels[:, dim] >= chunk_shape[dim] - tolerance_voxels)
+            if near_max:
+                print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at max face of dimension {dim}")
+                return True
     
-    print(f"DEBUG SURFACE: NO SURFACE TOUCH detected")
+    print(f"DEBUG SURFACE: NO INTERIOR SURFACE TOUCH detected")
     return False
     
   def generate_base_id_for_chunk(self):

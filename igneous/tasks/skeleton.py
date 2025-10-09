@@ -905,8 +905,8 @@ class SkeletonTask(RegisteredTask):
     # Get which faces are interior (connect to other chunks)
     interior_faces = self.get_interior_faces(vol)
     
-    print(f"DEBUG SURFACE: Interior faces: {interior_faces}")
-    print(f"DEBUG SURFACE: [min_x, max_x, min_y, max_y, min_z, max_z]")
+    # print(f"DEBUG SURFACE: Interior faces: {interior_faces}")
+    # print(f"DEBUG SURFACE: [min_x, max_x, min_y, max_y, min_z, max_z]")
     
     # Check each dimension, but only interior faces
     for dim in range(3):
@@ -917,28 +917,28 @@ class SkeletonTask(RegisteredTask):
         if interior_faces[min_face_idx]:  # min face is interior
             near_min = np.any(vertices_voxels[:, dim] <= tolerance_voxels)
             if near_min:
-                print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at min face of dimension {dim}")
+                # print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at min face of dimension {dim}")
                 return True
                 
         if interior_faces[max_face_idx]:  # max face is interior  
             near_max = np.any(vertices_voxels[:, dim] >= chunk_shape[dim] - tolerance_voxels)
             if near_max:
-                print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at max face of dimension {dim}")
+                # print(f"DEBUG SURFACE: INTERIOR SURFACE TOUCH detected at max face of dimension {dim}")
                 return True
     
-    print(f"DEBUG SURFACE: NO INTERIOR SURFACE TOUCH detected")
+    # print(f"DEBUG SURFACE: NO INTERIOR SURFACE TOUCH detected")
     return False
     
   def generate_base_id_for_chunk(self):
     """Generate starting ID for interior skeletons using global chunk indexing."""
-    print(f"DEBUG: chunk_index={self.chunk_index}, coords={self.chunk_coords}")
+    # print(f"DEBUG: chunk_index={self.chunk_index}, coords={self.chunk_coords}")
     
     if self.chunk_index is not None:
         base_id = (self.chunk_index + 1) * 1000000 + 1000
-        print(f"DEBUG: Generated base_id={base_id}")
+        # print(f"DEBUG: Generated base_id={base_id}")
         return int(base_id)
     
-    print("DEBUG: No chunk_index, using fallback")
+    # print("DEBUG: No chunk_index, using fallback")
     return 1000000
   
   def extract_subskeleton(self, skeleton, vertex_indices):

@@ -280,6 +280,7 @@ class SkeletonTask(RegisteredTask):
       fix_borders=(self.fill_holes >= 2),
       morphological_closing=(self.fill_holes >= 3),
       progress=self.progress,
+      parallel=self.parallel,
     )
 
     if self.fill_holes >= 3:

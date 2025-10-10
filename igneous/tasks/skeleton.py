@@ -401,6 +401,7 @@ class SkeletonTask(RegisteredTask):
 
     candidate_holes = set(range(1,N+1))
     holes = candidate_holes.difference(edge_labels)
+    del candidate_holes
 
     def best_contact(edges):
       if not len(edges):
@@ -424,9 +425,8 @@ class SkeletonTask(RegisteredTask):
       else:
         remap[hole] = 0
 
-    # del connections
-    # del edge_labels
-    # del candidate_holes
+    del connections
+    del edge_labels
 
     # stats = cc3d.statistics(cc_labels)
     # fill_treatment = np.where(stats["voxel_counts"] > fill_holes_threshold)[0]

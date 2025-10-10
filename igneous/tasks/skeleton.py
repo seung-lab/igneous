@@ -290,7 +290,12 @@ class SkeletonTask(RegisteredTask):
       all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
       filled_labels = np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
 
-    return (filled_labels, hole_labels_set, all_labels)
+    filled_labels = crackle.compressa(filled_labels, parallel=self.parallel)
+
+    hole_labels = fastremap.mask_except(all_labels, list(hole_labels_set))
+    hole_labels = crackle.compressa(hole_labels, parallel=self.parallel)
+
+    return (filled_labels, hole_labels)
 
   def _compute_fill_organelles(
     self, 
@@ -298,7 +303,7 @@ class SkeletonTask(RegisteredTask):
     edge_hole_surface_threshold:int = 7,
     fill_holes_threshold:int = int(1e6),
     anisotropy:tuple[float,float,float] = (1.0, 1.0, 1.0),
-  ) -> tuple[np.ndarray, set[int], np.ndarray]:
+  ) -> tuple[np.ndarray, np.ndarray]:
     """
     Fill holes is too expensive to run on large images
     (e.g. it can take hours to run on 800^3 voxel dense segmentation).
@@ -361,7 +366,6 @@ class SkeletonTask(RegisteredTask):
 
     connections = pairs_to_connection_list(surface_areas.keys())
 
-    candidate_holes = set(range(1,N+1))
     edge_labels = set()
 
     slices = [
@@ -395,6 +399,7 @@ class SkeletonTask(RegisteredTask):
     del slice_labels
     del connections2d
 
+    candidate_holes = set(range(1,N+1))
     holes = candidate_holes.difference(edge_labels)
 
     def best_contact(edges):
@@ -419,38 +424,43 @@ class SkeletonTask(RegisteredTask):
       else:
         remap[hole] = 0
 
-    del connections
-    del edge_labels
-    del candidate_holes
+    # del connections
+    # del edge_labels
+    # del candidate_holes
 
-    stats = cc3d.statistics(cc_labels)
-    fill_treatment = np.where(stats["voxel_counts"] > fill_holes_threshold)[0]
-    for segid in fill_treatment:
-      if segid == 0:
-        continue
-      binimg = (cc_labels == segid)
-      binimg = fastmorph.fill_holes(
-        binimg,
-        fix_borders=True,
-        morphological_closing=False,
-        progress=False,
-        parallel=self.parallel,
-      )
-      more_holes = set(fastremap.unique(cc_labels[binimg]))
-      more_holes.discard(segid)
-      for hole in more_holes:
-        remap[hole] = segid
-      holes.update(more_holes)
+    # stats = cc3d.statistics(cc_labels)
+    # fill_treatment = np.where(stats["voxel_counts"] > fill_holes_threshold)[0]
+    # for segid in fill_treatment:
+    #   if segid == 0:
+    #     continue
+    #   binimg = (cc_labels == segid)
+    #   binimg = fastmorph.fill_holes(
+    #     binimg,
+    #     fix_borders=True,
+    #     morphological_closing=False,
+    #     progress=False,
+    #     parallel=self.parallel,
+    #   )
+    #   more_holes = set(fastremap.unique(cc_labels[binimg]))
+    #   more_holes.discard(segid)
+    #   for hole in more_holes:
+    #     remap[hole] = segid
+    #   holes.update(more_holes)
 
     remap = { k: orig_map[v] for k,v in remap.items()  }
 
     filled_labels = fastremap.remap(
-      cc_labels, remap, in_place=True
-    ).astype(all_labels.dtype, copy=False)
+      cc_labels, remap, in_place=False,
+    ).astype(dilated_labels.dtype, copy=False)
 
-    holes = set([ orig_map[hole] for hole in holes ])
+    filled_labels = crackle.compressa(filled_labels, parallel=self.parallel)
+    
+    hole_labels = fastremap.mask_except(cc_labels, list(holes))
+    hole_labels = np.where(hole_labels, dilated_labels, 0)
 
-    return (filled_labels, holes, dilated_labels)
+    hole_labels = crackle.compressa(hole_labels, parallel=self.parallel)
+
+    return (filled_labels, hole_labels)
 
   def _do_operation(self, vol, all_labels, fn):
     if callable(all_labels):
@@ -464,16 +474,17 @@ class SkeletonTask(RegisteredTask):
       fillfn = self._compute_fill_holes
 
     if fillfn is not None:
-      filled_labels, hole_labels, all_labels = fillfn(all_labels)
-      all_labels = crackle.compress(all_labels, parallel=self.parallel)
-      skeletons = fn(filled_labels)
-      del filled_labels
-
-      all_labels = crackle.decompress(all_labels, parallel=self.parallel)
-      hole_labels = fastremap.mask_except(all_labels, list(hole_labels), in_place=True)
+      filled_labels, hole_labels = fillfn(all_labels)
       del all_labels
-      hole_skeletons = fn(hole_labels)
-      skeletons.update(hole_skeletons)
+
+      skeletons = fn(filled_labels.numpy())
+      hole_skeletons = fn(hole_labels.numpy())
+
+      for segid, hole_skel in hole_skeletons.items():
+        if segid in skeletons:
+          skeletons[segid] = Skeleton.simple_merge([ skeletons[segid], hole_skel ])
+        else:
+          skeletons[segid] = hole_skel
     else:
       skeletons = fn(all_labels)
 

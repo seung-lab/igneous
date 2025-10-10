@@ -297,6 +297,7 @@ class SkeletonTask(RegisteredTask):
     all_labels:np.ndarray,
     edge_hole_surface_threshold:int = 7,
     fill_holes_threshold:int = int(1e6),
+    anisotropy:tuple[float,float,float] = (1.0, 1.0, 1.0),
   ) -> tuple[np.ndarray, set[int], np.ndarray]:
     """
     Fill holes is too expensive to run on large images
@@ -348,7 +349,7 @@ class SkeletonTask(RegisteredTask):
       cc_labels, 
       connectivity=26, 
       surface_area=True, 
-      anisotropy=anisotropy,
+      anisotropy=tuple(anisotropy),
     )
 
     def pairs_to_connection_list(itr):
@@ -451,14 +452,14 @@ class SkeletonTask(RegisteredTask):
 
     return (filled_labels, holes, dilated_labels)
 
-  def _do_operation(self, all_labels, fn):
+  def _do_operation(self, vol, all_labels, fn):
     if callable(all_labels):
       all_labels = all_labels()
 
     fillfn = None
 
     if self.fix_organelles:
-      fillfn = self._compute_fill_organelles
+      fillfn = partial(self._compute_fill_organelles, anisotropy=vol.resolution)
     elif self.fill_holes > 0:
       fillfn = self._compute_fill_holes
 
@@ -502,7 +503,7 @@ class SkeletonTask(RegisteredTask):
         voxel_graph=voxel_graph,
       )
 
-    return self._do_operation(all_labels, do_skeletonize)
+    return self._do_operation(vol, all_labels, do_skeletonize)
 
   def voxel_connectivity_graph(
     self, 
@@ -626,7 +627,7 @@ class SkeletonTask(RegisteredTask):
         fill_holes=False,
       )
 
-    skeletons = self._do_operation(download_all_labels, do_cross_section)
+    skeletons = self._do_operation(vol, download_all_labels, do_cross_section)
 
     mapping = { v:k for k,v in mapping.items() }
     skeletons = {

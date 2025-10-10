@@ -1283,6 +1283,7 @@ def skeletongroup():
 @click.option('--fix-borders', is_flag=True, default=True, help="Allows trivial merging of single voxel overlap tasks. Only switch off for datasets that fit in a single task.", show_default=True)
 @click.option('--fix-avocados', is_flag=True, default=False, help="Fixes somata where nuclei and cytoplasm have separate segmentations.", show_default=True)
 @click.option('--fix-autapses', is_flag=True, default=False, help="(graphene only) Fixes autapses by using the PyChunkGraph.", show_default=True)
+@click.option('--fix-organelles', is_flag=True, default=False, help="Fixes organelles by exploiting the fact that neurons tend to pass through the edge of a cutout. Much faster than standard hole filling.", show_default=True)
 @click.option('--fill-holes', default=0, help="Preprocess each cutout to eliminate background holes and holes caused by entirely contained inclusions. Warning: May remove labels that are considered inclusions. 0: off, 1: simple fill 2: +close sides of box 3: +morphological closing", show_default=True)
 @click.option('--dust-threshold', default=1000, help="Skip skeletonizing objects smaller than this number of voxels within a cutout.", type=int, show_default=True)
 @click.option('--dust-global/--dust-local', is_flag=True, default=False, help="Use global voxel counts for the dust threshold (when >0). To use this feature you must first compute the global voxel counts using the 'igneous image voxels' command.", show_default=True)
@@ -1307,7 +1308,8 @@ def skeleton_forge(
   ctx, path, queue, mip, shape, 
   fill_missing, dust_threshold, dust_global, spatial_index,
   fix_branching, fix_borders, fix_avocados, fix_autapses,
-  fill_holes, scale, const, soma_detect, soma_accept,
+  fix_organelles, fill_holes, 
+  scale, const, soma_detect, soma_accept,
   soma_scale, soma_const, max_paths, sharded, labels,
   cross_section, output, timestamp, root_ids, progress,
   cross_section_label_repair_sec,
@@ -1358,6 +1360,7 @@ def skeleton_forge(
     frag_path=output, fix_autapses=fix_autapses,
     timestamp=timestamp, root_ids_cloudpath=root_ids,
     cross_sectional_area_repair_sec_per_label=cross_section_label_repair_sec,
+    fix_organelles=fix_organelles,
   )
 
   enqueue_tasks(ctx, queue, tasks)

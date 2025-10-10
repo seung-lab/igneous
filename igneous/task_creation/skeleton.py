@@ -93,6 +93,7 @@ def create_skeletonizing_tasks(
   timestamp:Optional[int] = None,
   root_ids_cloudpath:Optional[str] = None,
   cross_sectional_area_repair_sec_per_label:int = 0,
+  fix_organelles:bool = False,
 ):
   """
   Assign tasks with one voxel overlap in a regular grid 
@@ -150,7 +151,9 @@ def create_skeletonizing_tasks(
     connectivity. Autapses can be distinguished at the L2 level, above that, they
     may not be (and certainly not at the root level). We extract the voxel connectivity
     graph from L2 and perform the overall trace at root connectivity.
-
+  fix_organelles: Hole filling is slow, so alternatively exploit the property of
+    dense neuron segmentations that neurons tend to pass though the edge of a
+    cutout to perform fast remapping.
   dust_threshold: don't skeletonize labels smaller than this number of voxels
     as seen by a single task.
   dust_global: Use global voxel counts for the dust threshold instead of from
@@ -329,6 +332,7 @@ def create_skeletonizing_tasks(
         root_ids_cloudpath=root_ids_cloudpath,
         fill_holes=fill_holes,
         cross_sectional_area_repair_sec_per_label=int(cross_sectional_area_repair_sec_per_label),
+        fix_organelles=bool(fix_organelles),
       )
 
     def synapses_for_bbox(self, shape, offset):
@@ -378,7 +382,8 @@ def create_skeletonizing_tasks(
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
           'cross_sectional_area_repair_sec_per_label': int(cross_sectional_area_repair_sec_per_label),
           'root_ids_cloudpath': root_ids_cloudpath,
-          'fill_holes': int(fill_holes)
+          'fill_holes': int(fill_holes),
+          'fix_organelles': bool(fix_organelles),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

@@ -300,7 +300,7 @@ class SkeletonTask(RegisteredTask):
   def _compute_fill_organelles(
     self, 
     all_labels:np.ndarray,
-    edge_hole_surface_threshold:int = 7,
+    edge_hole_surface_threshold:int = 3,
     fill_holes_threshold:int = int(1e6),
     anisotropy:tuple[float,float,float] = (1.0, 1.0, 1.0),
   ) -> tuple[np.ndarray, np.ndarray]:

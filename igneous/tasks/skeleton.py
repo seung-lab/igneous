@@ -473,20 +473,20 @@ class SkeletonTask(RegisteredTask):
     elif self.fill_holes > 0:
       fillfn = self._compute_fill_holes
 
-    if fillfn is not None:
-      filled_labels, hole_labels = fillfn(all_labels)
-      del all_labels
+    if fillfn is None:
+      return fn(all_labels)
 
-      skeletons = fn(filled_labels.numpy())
-      hole_skeletons = fn(hole_labels.numpy())
+    filled_labels, hole_labels = fillfn(all_labels)
+    del all_labels
 
-      for segid, hole_skel in hole_skeletons.items():
-        if segid in skeletons:
-          skeletons[segid] = Skeleton.simple_merge([ skeletons[segid], hole_skel ])
-        else:
-          skeletons[segid] = hole_skel
-    else:
-      skeletons = fn(all_labels)
+    skeletons = fn(filled_labels.numpy())
+    hole_skeletons = fn(hole_labels.numpy())
+
+    for segid, hole_skel in hole_skeletons.items():
+      if segid in skeletons:
+        skeletons[segid] = Skeleton.simple_merge([ skeletons[segid], hole_skel ])
+      else:
+        skeletons[segid] = hole_skel
 
     return skeletons
 

@@ -301,7 +301,7 @@ class SkeletonTask(RegisteredTask):
     self, 
     all_labels:np.ndarray,
     edge_hole_surface_threshold:int = 3,
-    fill_holes_threshold:int = int(1e6),
+    hole_merging_threshold:float = 0.98,
     anisotropy:tuple[float,float,float] = (1.0, 1.0, 1.0),
   ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -411,13 +411,22 @@ class SkeletonTask(RegisteredTask):
         (contact, surface_areas[tuple(sorted((hole, contact)))]) 
         for contact in edges
       ]
-      if len(contact_surfaces) == 1:
-        return contact_surfaces[0][0]
+      total_area = sum([ x[1] for x in contact_surfaces ])
+      
+      if total_area == 0:
+        if len(contact_surfaces) == 1:
+          return contact_surfaces[0][0]
+        else:
+          return 0
+
+      contact_surfaces.sort(key=lambda x: x[1])
+      max_contact, max_area = contact_surfaces[-1]
+      max_area /= total_area
+      
+      if max_area >= hole_merging_threshold:
+        return max_contact
       else:
         return 0
-
-      # contact_surfaces.sort(key=lambda x: x[1])
-      # return contact_surfaces[-1][0]
 
     remap = { i:i for i in range(N+1) }
 

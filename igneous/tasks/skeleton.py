@@ -337,12 +337,12 @@ class SkeletonTask(RegisteredTask):
     
     # Ensure bg 0 gets treated as a connected component
     dilated_labels += 1
-
     cc_labels, N = cc3d.connected_components(
       dilated_labels, 
       return_N=True, 
       connectivity=26,
     )
+    dilated_labels -= 1
 
     sentinel = np.iinfo(all_labels.dtype).max
 

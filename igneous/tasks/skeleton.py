@@ -411,8 +411,13 @@ class SkeletonTask(RegisteredTask):
         (contact, surface_areas[tuple(sorted((hole, contact)))]) 
         for contact in edges
       ]
-      contact_surfaces.sort(key=lambda x: x[1])
-      return contact_surfaces[-1][0]
+      if len(contact_surfaces) == 1:
+        return contact_surfaces[0][0]
+      else:
+        return 0
+
+      # contact_surfaces.sort(key=lambda x: x[1])
+      # return contact_surfaces[-1][0]
 
     remap = { i:i for i in range(N+1) }
 
@@ -454,7 +459,7 @@ class SkeletonTask(RegisteredTask):
     ).astype(dilated_labels.dtype, copy=False)
 
     filled_labels = crackle.compressa(filled_labels, parallel=self.parallel)
-    
+
     hole_labels = fastremap.mask_except(cc_labels, list(holes))
     hole_labels = np.where(hole_labels, dilated_labels, 0)
 

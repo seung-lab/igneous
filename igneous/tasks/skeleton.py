@@ -115,10 +115,6 @@ class SkeletonTask(RegisteredTask):
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
 
-    # aggressive morphological hole filling has a 1-2vx 
-    # edge effect that needs to be cropped away
-    self.hole_filling_padding = (self.fill_holes >= 3) * 2
-
   def execute(self):
     # For graphene volumes, if we've materialized the root IDs
     # into a static archive, let's use that because it's way more
@@ -138,7 +134,7 @@ class SkeletonTask(RegisteredTask):
     vol = CloudVolume(
       cloudpath,
       mip=self.mip,
-      bounded=(self.hole_filling_padding == 0),
+      bounded=True,
       info=self.info,
       cdn_cache=False,
       parallel=self.parallel,
@@ -148,9 +144,6 @@ class SkeletonTask(RegisteredTask):
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
-
-    bbox.minpt -= self.hole_filling_padding
-    bbox.maxpt += self.hole_filling_padding
 
     path = vol.info.get("skeletons", "skeletons")
     if self.frag_path is None:
@@ -274,223 +267,21 @@ class SkeletonTask(RegisteredTask):
       # with delta +250 
       return bigger_bbx.volume() * 6 > self.cross_sectional_area_low_memory_threshold
 
-  def _compute_fill_holes(self, all_labels):
-    filled_labels, hole_labels_set = fastmorph.fill_holes(
-      all_labels,
-      remove_enclosed=True,
-      return_removed=True,
-      fix_borders=(self.fill_holes >= 2),
-      morphological_closing=(self.fill_holes >= 3),
-      progress=self.progress,
-      parallel=self.parallel,
-    )
-
-    if self.fill_holes >= 3:
-      hp = self.hole_filling_padding
-      all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
-      filled_labels = np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
-
-    filled_labels = crackle.compressa(filled_labels, parallel=self.parallel)
-
-    hole_labels = fastremap.mask_except(all_labels, list(hole_labels_set))
-    hole_labels = crackle.compressa(hole_labels, parallel=self.parallel)
-
-    return (filled_labels, hole_labels)
-
-  def _compute_fill_organelles(
-    self, 
-    all_labels:np.ndarray,
-    edge_hole_surface_threshold:int = 3,
-    hole_merging_threshold:float = 0.98,
-    anisotropy:tuple[float,float,float] = (1.0, 1.0, 1.0),
-  ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Fill holes is too expensive to run on large images
-    (e.g. it can take hours to run on 800^3 voxel dense segmentation).
-    However, we can exploit a feature of connectomics datasets to do
-    this much faster (seconds). Most shapes of interest will touch
-    a border in a cutout, while smaller objects will not.
-
-    Algorithm:
-
-    1. Multi-label dilate labels (background only)
-    2. Color all connected components (even background)
-    3. Compute surface area of adjacent regions (26-connected)
-    4. Compute connection list { label: [neighbor labels], ... }
-    5. Create a set of candidate holes from all connected components
-      and then filter them by the set difference with labels touching
-      the edges of the cutout.
-        - The edges themselves are filtered to avoid organelles touching
-          the sides. Assign labels that are 4-connected surrounded by
-          a single label on each edge as holes.
-        - We also provide a facility for quantitatively relaxing that 
-        condition since some holes poke out slightly. So e.g. allow it
-        to have a surface area of up to X with other labels.
-    6. For each hole, identify its surrounding label by the highest 
-      surface area and remap it to that label.
-    """
-    dilated_labels = fastmorph.dilate(
-      all_labels, 
-      background_only=True, 
-      parallel=self.parallel,
-    )
-    
-    # Ensure bg 0 gets treated as a connected component
-    dilated_labels += 1
-    cc_labels, N = cc3d.connected_components(
-      dilated_labels, 
-      return_N=True, 
-      connectivity=26,
-    )
-    dilated_labels -= 1
-
-    sentinel = np.iinfo(all_labels.dtype).max
-
-    orig_map = fastremap.component_map(cc_labels, dilated_labels)
-    orig_map[0] = 0
-    orig_map[sentinel] = sentinel
-
-    surface_areas = cc3d.contacts(
-      cc_labels, 
-      connectivity=26, 
-      surface_area=True, 
-      anisotropy=tuple(anisotropy),
-    )
-
-    def pairs_to_connection_list(itr):
-      tmp = defaultdict(set)
-      for l1, l2 in itr:
-        tmp[l1].add(l2)
-        tmp[l2].add(l1)
-      return tmp
-
-    connections = pairs_to_connection_list(surface_areas.keys())
-
-    edge_labels = set()
-
-    slices = [
-      np.s_[:,:,0],
-      np.s_[:,:,-1],
-      np.s_[0,:,:],
-      np.s_[-1,:,:],
-      np.s_[:,0,:],
-      np.s_[:,-1,:],
-    ]
-
-    for slc in slices:
-      slice_labels = cc_labels[slc]
-      sa = cc3d.contacts(slice_labels, connectivity=4)
-      connections2d = pairs_to_connection_list(sa.keys())
-      holes2d = []
-      for segid, neighbors in connections2d.items():
-        neighbors.discard(0)
-        neighbors = [ 
-          n for n in neighbors 
-          if sa[tuple(sorted([ segid, n ]))] > edge_hole_surface_threshold
-        ]
-        if len(neighbors) == 1:
-          holes2d.append(segid)
-
-      uniq = set(fastremap.unique(slice_labels))
-      uniq -= set(holes2d)
-      edge_labels.update(uniq)
-
-    del uniq
-    del slice_labels
-    del connections2d
-
-    candidate_holes = set(range(1,N+1))
-    holes = candidate_holes.difference(edge_labels)
-    del candidate_holes
-
-    def best_contact(edges):
-      if not len(edges):
-        return sentinel
-
-      contact_surfaces = [ 
-        (contact, surface_areas[tuple(sorted((hole, contact)))]) 
-        for contact in edges
-      ]
-      total_area = sum([ x[1] for x in contact_surfaces ])
-      
-      if total_area == 0:
-        if len(contact_surfaces) == 1:
-          return contact_surfaces[0][0]
-        else:
-          return 0
-
-      contact_surfaces.sort(key=lambda x: x[1])
-      max_contact, max_area = contact_surfaces[-1]
-      max_area /= total_area
-      
-      if max_area >= hole_merging_threshold:
-        return max_contact
-      else:
-        return 0
-
-    remap = { i:i for i in range(N+1) }
-
-    for hole in holes:
-      if len(connections[hole]):
-        edges = connections[hole].intersection(edge_labels)
-        if not len(edges):
-          edges = connections[hole]
-        remap[hole] = best_contact(edges)
-      else:
-        remap[hole] = 0
-
-    del connections
-    del edge_labels
-
-    # stats = cc3d.statistics(cc_labels)
-    # fill_treatment = np.where(stats["voxel_counts"] > fill_holes_threshold)[0]
-    # for segid in fill_treatment:
-    #   if segid == 0:
-    #     continue
-    #   binimg = (cc_labels == segid)
-    #   binimg = fastmorph.fill_holes(
-    #     binimg,
-    #     fix_borders=True,
-    #     morphological_closing=False,
-    #     progress=False,
-    #     parallel=self.parallel,
-    #   )
-    #   more_holes = set(fastremap.unique(cc_labels[binimg]))
-    #   more_holes.discard(segid)
-    #   for hole in more_holes:
-    #     remap[hole] = segid
-    #   holes.update(more_holes)
-
-    remap = { k: orig_map[v] for k,v in remap.items()  }
-
-    filled_labels = fastremap.remap(
-      cc_labels, remap, in_place=False,
-    ).astype(dilated_labels.dtype, copy=False)
-
-    filled_labels = crackle.compressa(filled_labels, parallel=self.parallel)
-
-    hole_labels = fastremap.mask_except(cc_labels, list(holes))
-    hole_labels = np.where(hole_labels, dilated_labels, 0)
-
-    hole_labels = crackle.compressa(hole_labels, parallel=self.parallel)
-
-    return (filled_labels, hole_labels)
-
   def _do_operation(self, vol, all_labels, fn):
     if callable(all_labels):
       all_labels = all_labels()
 
-    fillfn = None
-
-    if self.fix_organelles:
-      fillfn = partial(self._compute_fill_organelles, anisotropy=vol.resolution)
-    elif self.fill_holes > 0:
-      fillfn = self._compute_fill_holes
-
-    if fillfn is None:
+    if self.fill_holes == 0:
       return fn(all_labels)
 
-    filled_labels, hole_labels = fillfn(all_labels)
+    filled_labels, hole_labels = fastmorph.fill_holes_v2(
+      all_labels,
+      fix_borders=(self.fill_holes >= 1), 
+      merge_threshold=1.0,
+      anisotropy=vol.resolution,
+      parallel=self.parallel,
+      return_crackle=True,
+    )
     del all_labels
 
     skeletons = fn(filled_labels.numpy())
@@ -604,7 +395,6 @@ class SkeletonTask(RegisteredTask):
     big_bbox = bbox.clone()
     big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
-    big_bbox.grow(self.hole_filling_padding)
 
     true_delta = bbox.minpt - big_bbox.minpt
 
@@ -681,7 +471,6 @@ class SkeletonTask(RegisteredTask):
     big_bbox = bbox.clone()
     big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
-    big_bbox.grow(self.hole_filling_padding)
 
     true_delta = bbox.minpt - big_bbox.minpt
 
@@ -732,12 +521,13 @@ class SkeletonTask(RegisteredTask):
         pbar.set_postfix(label=str(label))
 
         if self.fill_holes > 0:
-          binimg = fastmorph.fill_holes(
+          binimg = fastmorph.fill_holes_v1(
             binimg,
             remove_enclosed=True,
             fix_borders=(self.fill_holes >= 2),
             morphological_closing=(self.fill_holes >= 3),
             progress=False,
+            parallel=self.parallel,
           )
 
           if self.fill_holes >= 3:
@@ -806,9 +596,6 @@ class SkeletonTask(RegisteredTask):
       skel_bbx.grow(delta + shape // 2)
 
       skel_bbx = Bbox.clamp(skel_bbx, vol.bounds)
-
-      skel_bbx.minpt -= self.hole_filling_padding
-      skel_bbx.maxpt += self.hole_filling_padding
 
       binary_image = vol.download(
         skel_bbx, mip=vol.mip, label=skel.id

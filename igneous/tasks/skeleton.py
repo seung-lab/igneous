@@ -272,7 +272,7 @@ class SkeletonTask(RegisteredTask):
       all_labels = all_labels()
 
     if self.fill_holes == 0:
-      return fn(all_labels)
+      return (fn(all_labels), {})
 
     if self.fill_level >= 3:
       all_labels = fastmorph.dilate(
@@ -299,15 +299,8 @@ class SkeletonTask(RegisteredTask):
     skeletons = fn(filled_labels.numpy())
     del filled_labels
     hole_skeletons = fn(hole_labels.numpy())
-    del hole_labels
-
-    for segid, hole_skel in hole_skeletons.items():
-      if segid in skeletons:
-        skeletons[segid] = Skeleton.simple_merge([ skeletons[segid], hole_skel ])
-      else:
-        skeletons[segid] = hole_skel
-
-    return skeletons
+    
+    return (skeletons, hole_skeletons)
 
   def skeletonize(
     self, 
@@ -333,7 +326,15 @@ class SkeletonTask(RegisteredTask):
         voxel_graph=voxel_graph,
       )
 
-    return self._do_operation(vol, all_labels, do_skeletonize)
+    skeletons, hole_skeletons = self._do_operation(vol, all_labels, do_skeletonize)
+
+    for segid, hole_skel in hole_skeletons.items():
+      if segid in skeletons:
+        skeletons[segid] = Skeleton.simple_merge([ skeletons[segid], hole_skel ])
+      else:
+        skeletons[segid] = hole_skel
+
+    return skeletons
 
   def voxel_connectivity_graph(
     self, 
@@ -456,7 +457,7 @@ class SkeletonTask(RegisteredTask):
         fill_holes=False,
       )
 
-    skeletons = self._do_operation(vol, download_all_labels, do_cross_section)
+    skeletons, _ = self._do_operation(vol, download_all_labels, do_cross_section)
 
     mapping = { v:k for k,v in mapping.items() }
     skeletons = {

@@ -166,7 +166,7 @@ def create_meshing_tasks(
   ):
   shape = Vec(*shape)
 
-  assert 0 <= fill_holes <= 102, "fill_holes must be between 0 to 102 inclusive."
+  assert 0 <= fill_holes <= 103, "fill_holes must be between 0 to 103 inclusive."
 
   vol = CloudVolume(layer_path, mip)
 

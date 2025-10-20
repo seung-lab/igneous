@@ -205,9 +205,10 @@ def create_skeletonizing_tasks(
     0: off
     1: simple hole filling
     2: also fill borders in 2d on sides of image
-    3: also perform a morphological closing using 3x3x3 stencil
+    3: also perform a morphological dilation using 3x3x3 stencil
+    4+: also decrement merge_threshold by 1% for each point above 3
   """
-  assert 0 <= fill_holes <= 3, "fill_holes must be between 0 to 3 inclusive."
+  assert 0 <= fill_holes <= 103, "fill_holes must be between 0 to 103 inclusive."
 
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)

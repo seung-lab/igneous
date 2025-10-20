@@ -274,6 +274,14 @@ class SkeletonTask(RegisteredTask):
     if self.fill_holes == 0:
       return fn(all_labels)
 
+    if self.fill_level >= 3:
+      all_labels = fastmorph.dilate(
+        all_labels, 
+        mode=fastmorph.Mode.multilabel,
+        background_only=True,
+        parallel=self.parallel,
+      )
+
     merge_threshold=(
       1.0 if self.fill_level <= 3 else (1.0 - 0.01 * (self.fill_level - 3))
     )

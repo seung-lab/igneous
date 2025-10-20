@@ -208,7 +208,8 @@ class MeshTask(RegisteredTask):
         data = fastmorph.dilate(
           data, 
           mode=fastmorph.Mode.multilabel,
-          background_only=True
+          background_only=True,
+          parallel=1,
         )
 
       filled_labels, hole_labels = fastmorph.fill_holes_v2(

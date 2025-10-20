@@ -274,10 +274,14 @@ class SkeletonTask(RegisteredTask):
     if self.fill_holes == 0:
       return fn(all_labels)
 
+    merge_threshold=(
+      1.0 if self.fill_level <= 3 else (1.0 - 0.01 * (self.fill_level - 3))
+    )
+
     filled_labels, hole_labels = fastmorph.fill_holes_v2(
       all_labels,
-      fix_borders=(self.fill_holes >= 1), 
-      merge_threshold=1.0,
+      fix_borders=(self.fill_holes >= 2),
+      merge_threshold=merge_threshold,
       anisotropy=vol.resolution,
       parallel=self.parallel,
       return_crackle=True,

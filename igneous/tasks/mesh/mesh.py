@@ -203,7 +203,7 @@ class MeshTask(RegisteredTask):
     data = data[...,0]
 
     if fill_level > 0:
-      if fill_level >= 2:
+      if fill_level >= 3:
         data = fastmorph.dilate(
           data, 
           mode=fastmorph.Mode.multilabel,
@@ -215,7 +215,7 @@ class MeshTask(RegisteredTask):
         return_crackle=True,
         fix_borders=(fill_level >= 2),
         merge_threshold=(
-          1.0 if fill_level <= 3 else (1.0 - 0.01 * (fill_level - 2))
+          1.0 if fill_level <= 3 else (1.0 - 0.01 * (fill_level - 3))
         ),
         parallel=1,
       )

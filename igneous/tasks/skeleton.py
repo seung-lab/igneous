@@ -297,7 +297,9 @@ class SkeletonTask(RegisteredTask):
     del all_labels
 
     skeletons = fn(filled_labels.numpy())
+    del filled_labels
     hole_skeletons = fn(hole_labels.numpy())
+    del hole_labels
 
     for segid, hole_skel in hole_skeletons.items():
       if segid in skeletons:

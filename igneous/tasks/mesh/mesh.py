@@ -220,8 +220,8 @@ class MeshTask(RegisteredTask):
         parallel=1,
       )
       del data
-
       self._mesher.mesh(filled_labels.numpy())
+
       meshes = self.compute_meshes(renumbermap)
       del filled_labels
       self._mesher.mesh(hole_labels.numpy())
@@ -231,9 +231,9 @@ class MeshTask(RegisteredTask):
       for segid in list(hole_meshes.keys()):
         if segid in meshes:
           meshes[segid] = zmesh.Mesh.concatenate(meshes[segid], hole_meshes[segid], id=segid)
-        del hole_meshes[segid]
+        else:
+          meshes[segid] = hole_meshes[segid]
       del hole_meshes
-
     else:
       self._mesher.mesh(data)
       del data

@@ -455,6 +455,7 @@ class SkeletonTask(RegisteredTask):
         progress=self.progress,
         in_place=True,
         fill_holes=False,
+        multipass=True,
       )
 
     skeletons, _ = self._do_operation(vol, download_all_labels, do_cross_section)

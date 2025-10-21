@@ -856,8 +856,17 @@ def create_transfer_cloudvolume(
 
   return dest_vol
 
+def _select_compression_by_encoding(encoding:str) -> Union[bool,str]:
+  encoding = encoding.lower()
+
+  if encoding in ("raw", "compressed_segmentation", "compresso", "crackle"):
+    return "gzip"
+  
+  return False
+
 def create_transfer_tasks(
-  src_layer_path:str, dest_layer_path:str, 
+  src_layer_path:str, 
+  dest_layer_path:str, 
   chunk_size:ShapeType = None, 
   shape:ShapeType = None, 
   fill_missing:bool = False, 
@@ -865,13 +874,13 @@ def create_transfer_tasks(
   bounds:Optional[Bbox] = None, 
   mip:int = 0, 
   preserve_chunk_size:bool = True,
-  encoding=None, 
+  encoding:Optional[str] = None,
   skip_downsamples:bool = False,
   delete_black_uploads:bool = False, 
   background_color:int = 0,
   agglomerate:bool = False, 
   timestamp:Optional[int] = None, 
-  compress:Union[str,bool] = 'gzip',
+  compress:Union[str,bool] = "auto",
   factor:ShapeType = None, 
   sparse:bool = False, 
   dest_voxel_offset:ShapeType = None,
@@ -914,7 +923,7 @@ def create_transfer_tasks(
   clean_info: scrub additional fields from the info file that might interfere
     with later processing (e.g. mesh and skeleton related info).
   compress: None, 'gzip', or 'br' Determines which compression algorithm to use 
-    for new uploaded files.
+    for new uploaded files. if "auto", let Igneous pick for you.
   delete_black_uploads: issue delete commands instead of upload chunks
     that are all background.
   encoding: "raw", "jpeg", "compressed_segmentation", "compresso", "fpzip", or "kempressed"
@@ -989,6 +998,9 @@ def create_transfer_tasks(
     clean_info, cutout, bounds
   )
 
+  if compress == "auto":
+    compress = _select_compression_by_encoding(dest_vol.encoding)
+    
   # If translate is not set, but dest_voxel_offset is then it should naturally be
   # only be the difference between datasets.
   if translate is None:

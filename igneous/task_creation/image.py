@@ -521,7 +521,7 @@ def create_image_shard_transfer_tasks(
   clean_info: bool = False,
   encoding_level: Optional[int] = None,
   truncate_scales: bool = True,
-  compress:bool = True,
+  compress:Union[bool,str] = "auto",
   cutout:bool = False,
   minishard_index_encoding:str = "gzip",
   stop_layer:Optional[int] = None,
@@ -544,6 +544,16 @@ def create_image_shard_transfer_tasks(
     chunk_size, truncate_scales,
     clean_info, cutout, bounds
   )
+
+  if compress == "auto":
+    compress = _select_compression_by_encoding(dest_vol.encoding)
+
+  if compress in (True, "gzip"):
+    compress = True
+  elif isinstance(compress, str):
+    raise ValueError(f"{compress} can only be True or 'gzip' for sharded images.")
+  else:
+    compress = False
 
   # If translate is not set, but dest_voxel_offset is then it should naturally be
   # only be the difference between datasets.

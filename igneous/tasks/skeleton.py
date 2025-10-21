@@ -89,7 +89,6 @@ class SkeletonTask(RegisteredTask):
     fix_autapses:bool = False,
     timestamp:Optional[int] = None,
     root_ids_cloudpath:Optional[str] = None,
-    fix_organelles:bool = False,
   ):
     super().__init__(
       cloudpath, shape, offset, mip, 
@@ -108,7 +107,6 @@ class SkeletonTask(RegisteredTask):
       bool(dry_run), bool(strip_integer_attributes),
       bool(fix_autapses), timestamp,
       root_ids_cloudpath,
-      bool(fix_organelles),
     )
     if isinstance(self.frag_path, str):
       self.frag_path = cloudfiles.paths.normalize(self.frag_path)

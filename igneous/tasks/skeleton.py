@@ -528,6 +528,8 @@ class SkeletonTask(RegisteredTask):
         labels=skel_labels,
       )
 
+    hp = 2 # hole padding for morphological closure
+
     with tqdm(
       iterator,
       disable=(not self.progress),
@@ -537,6 +539,9 @@ class SkeletonTask(RegisteredTask):
         pbar.set_postfix(label=str(label))
 
         if self.fill_holes > 0:
+          if self.fill_holes >= 3:
+            binimg = np.pad(binimg, pad_width=hp, mode='constant')
+
           binimg = fastmorph.fill_holes_v1(
             binimg,
             remove_enclosed=True,
@@ -547,7 +552,6 @@ class SkeletonTask(RegisteredTask):
           )
 
           if self.fill_holes >= 3:
-            hp = self.hole_filling_padding
             binimg = np.asfortranarray(binimg[hp:-hp,hp:-hp,hp:-hp])
 
         bbx = Bbox.from_list(bbxes[label])
@@ -625,14 +629,22 @@ class SkeletonTask(RegisteredTask):
       segid = skel.id
       skel.id = 1
 
+      hp = 2 # hole padding
+
       if self.fill_holes > 0:
-        binary_image = fastmorph.fill_holes(
+        if self.fill_holes >= 3:
+          binary_image = np.pad(binary_image, pad_width=hp, mode='constant')
+
+        binary_image = fastmorph.fill_holes_v1(
           binary_image,
+          remove_enclosed=True,
           fix_borders=(self.fill_holes >= 2),
           morphological_closing=(self.fill_holes >= 3),
+          progress=False,
+          parallel=self.parallel,
         )
+
         if self.fill_holes >= 3:
-          hp = self.hole_filling_padding
           binary_image = np.asfortranarray(binary_image[hp:-hp,hp:-hp,hp:-hp])
           skel.vertices -= hp * vol.resolution
 

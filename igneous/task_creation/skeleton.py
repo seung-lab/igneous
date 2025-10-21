@@ -150,7 +150,6 @@ def create_skeletonizing_tasks(
     connectivity. Autapses can be distinguished at the L2 level, above that, they
     may not be (and certainly not at the root level). We extract the voxel connectivity
     graph from L2 and perform the overall trace at root connectivity.
-
   dust_threshold: don't skeletonize labels smaller than this number of voxels
     as seen by a single task.
   dust_global: Use global voxel counts for the dust threshold instead of from
@@ -202,9 +201,10 @@ def create_skeletonizing_tasks(
     0: off
     1: simple hole filling
     2: also fill borders in 2d on sides of image
-    3: also perform a morphological closing using 3x3x3 stencil
+    3: also perform a morphological dilation using 3x3x3 stencil
+    4+: also decrement merge_threshold by 1% for each point above 3
   """
-  assert 0 <= fill_holes <= 3, "fill_holes must be between 0 to 3 inclusive."
+  assert 0 <= fill_holes <= 103, "fill_holes must be between 0 to 103 inclusive."
 
   shape = Vec(*shape)
   vol = CloudVolume(cloudpath, mip=mip, info=info)
@@ -378,7 +378,7 @@ def create_skeletonizing_tasks(
           'cross_sectional_area_smoothing_window': int(cross_sectional_area_smoothing_window),
           'cross_sectional_area_repair_sec_per_label': int(cross_sectional_area_repair_sec_per_label),
           'root_ids_cloudpath': root_ids_cloudpath,
-          'fill_holes': int(fill_holes)
+          'fill_holes': int(fill_holes),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

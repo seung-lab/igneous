@@ -113,10 +113,6 @@ class SkeletonTask(RegisteredTask):
     self.bounds = Bbox(offset, Vec(*shape) + Vec(*offset))
     self.index_bounds = Bbox(offset, Vec(*spatial_grid_shape) + Vec(*offset))
 
-    # aggressive morphological hole filling has a 1-2vx 
-    # edge effect that needs to be cropped away
-    self.hole_filling_padding = (self.fill_holes >= 3) * 2
-
   def execute(self):
     # For graphene volumes, if we've materialized the root IDs
     # into a static archive, let's use that because it's way more
@@ -136,7 +132,7 @@ class SkeletonTask(RegisteredTask):
     vol = CloudVolume(
       cloudpath,
       mip=self.mip,
-      bounded=(self.hole_filling_padding == 0),
+      bounded=True,
       info=self.info,
       cdn_cache=False,
       parallel=self.parallel,
@@ -146,9 +142,6 @@ class SkeletonTask(RegisteredTask):
     )
     bbox = Bbox.clamp(self.bounds, vol.bounds)
     index_bbox = Bbox.clamp(self.index_bounds, vol.bounds)
-
-    bbox.minpt -= self.hole_filling_padding
-    bbox.maxpt += self.hole_filling_padding
 
     path = vol.info.get("skeletons", "skeletons")
     if self.frag_path is None:
@@ -272,43 +265,40 @@ class SkeletonTask(RegisteredTask):
       # with delta +250 
       return bigger_bbx.volume() * 6 > self.cross_sectional_area_low_memory_threshold
 
-  def _compute_fill_holes(self, all_labels):
-    filled_labels, hole_labels_set = fastmorph.fill_holes(
-      all_labels,
-      remove_enclosed=True,
-      return_removed=True,
-      fix_borders=(self.fill_holes >= 2),
-      morphological_closing=(self.fill_holes >= 3),
-      progress=self.progress,
-      parallel=self.parallel,
-    )
-
-    if self.fill_holes >= 3:
-      hp = self.hole_filling_padding
-      all_labels = np.asfortranarray(all_labels[hp:-hp,hp:-hp,hp:-hp])
-      filled_labels = np.asfortranarray(filled_labels[hp:-hp,hp:-hp,hp:-hp])
-
-    return (filled_labels, hole_labels_set, all_labels)
-
-  def _do_operation(self, all_labels, fn):
+  def _do_operation(self, vol, all_labels, fn):
     if callable(all_labels):
       all_labels = all_labels()
 
-    if self.fill_holes > 0:
-      filled_labels, hole_labels, all_labels = self._compute_fill_holes(all_labels)
-      all_labels = crackle.compress(all_labels)
-      skeletons = fn(filled_labels)
-      del filled_labels
+    if self.fill_holes == 0:
+      return (fn(all_labels), {})
 
-      all_labels = crackle.decompress(all_labels)
-      hole_labels = fastremap.mask_except(all_labels, list(hole_labels), in_place=True)
-      del all_labels
-      hole_skeletons = fn(hole_labels)
-      skeletons.update(hole_skeletons)
-    else:
-      skeletons = fn(all_labels)
+    if self.fill_holes >= 3:
+      all_labels = fastmorph.dilate(
+        all_labels, 
+        mode=fastmorph.Mode.multilabel,
+        background_only=True,
+        parallel=self.parallel,
+      )
 
-    return skeletons
+    merge_threshold=(
+      1.0 if self.fill_holes <= 3 else (1.0 - 0.01 * (self.fill_holes - 3))
+    )
+
+    filled_labels, hole_labels = fastmorph.fill_holes_v2(
+      all_labels,
+      fix_borders=(self.fill_holes >= 2),
+      merge_threshold=merge_threshold,
+      anisotropy=vol.resolution,
+      parallel=self.parallel,
+      return_crackle=True,
+    )
+    del all_labels
+
+    skeletons = fn(filled_labels.numpy())
+    del filled_labels
+    hole_skeletons = fn(hole_labels.numpy())
+    
+    return (skeletons, hole_skeletons)
 
   def skeletonize(
     self, 
@@ -334,7 +324,15 @@ class SkeletonTask(RegisteredTask):
         voxel_graph=voxel_graph,
       )
 
-    return self._do_operation(all_labels, do_skeletonize)
+    skeletons, hole_skeletons = self._do_operation(vol, all_labels, do_skeletonize)
+
+    for segid, hole_skel in hole_skeletons.items():
+      if segid in skeletons:
+        skeletons[segid] = Skeleton.simple_merge([ skeletons[segid], hole_skel ])
+      else:
+        skeletons[segid] = hole_skel
+
+    return skeletons
 
   def voxel_connectivity_graph(
     self, 
@@ -410,7 +408,6 @@ class SkeletonTask(RegisteredTask):
     big_bbox = bbox.clone()
     big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
-    big_bbox.grow(self.hole_filling_padding)
 
     true_delta = bbox.minpt - big_bbox.minpt
 
@@ -456,9 +453,10 @@ class SkeletonTask(RegisteredTask):
         progress=self.progress,
         in_place=True,
         fill_holes=False,
+        multipass=True,
       )
 
-    skeletons = self._do_operation(download_all_labels, do_cross_section)
+    skeletons, _ = self._do_operation(vol, download_all_labels, do_cross_section)
 
     mapping = { v:k for k,v in mapping.items() }
     skeletons = {
@@ -487,7 +485,6 @@ class SkeletonTask(RegisteredTask):
     big_bbox = bbox.clone()
     big_bbox.grow(delta)
     big_bbox = Bbox.clamp(big_bbox, vol.bounds)
-    big_bbox.grow(self.hole_filling_padding)
 
     true_delta = bbox.minpt - big_bbox.minpt
 
@@ -529,6 +526,8 @@ class SkeletonTask(RegisteredTask):
         labels=skel_labels,
       )
 
+    hp = 2 # hole padding for morphological closure
+
     with tqdm(
       iterator,
       disable=(not self.progress),
@@ -538,16 +537,19 @@ class SkeletonTask(RegisteredTask):
         pbar.set_postfix(label=str(label))
 
         if self.fill_holes > 0:
-          binimg = fastmorph.fill_holes(
+          if self.fill_holes >= 3:
+            binimg = np.pad(binimg, pad_width=hp, mode='constant')
+
+          binimg = fastmorph.fill_holes_v1(
             binimg,
             remove_enclosed=True,
             fix_borders=(self.fill_holes >= 2),
             morphological_closing=(self.fill_holes >= 3),
             progress=False,
+            parallel=self.parallel,
           )
 
           if self.fill_holes >= 3:
-            hp = self.hole_filling_padding
             binimg = np.asfortranarray(binimg[hp:-hp,hp:-hp,hp:-hp])
 
         bbx = Bbox.from_list(bbxes[label])
@@ -613,9 +615,6 @@ class SkeletonTask(RegisteredTask):
 
       skel_bbx = Bbox.clamp(skel_bbx, vol.bounds)
 
-      skel_bbx.minpt -= self.hole_filling_padding
-      skel_bbx.maxpt += self.hole_filling_padding
-
       binary_image = vol.download(
         skel_bbx, mip=vol.mip, label=skel.id
       )[...,0]
@@ -628,14 +627,22 @@ class SkeletonTask(RegisteredTask):
       segid = skel.id
       skel.id = 1
 
+      hp = 2 # hole padding
+
       if self.fill_holes > 0:
-        binary_image = fastmorph.fill_holes(
+        if self.fill_holes >= 3:
+          binary_image = np.pad(binary_image, pad_width=hp, mode='constant')
+
+        binary_image = fastmorph.fill_holes_v1(
           binary_image,
+          remove_enclosed=True,
           fix_borders=(self.fill_holes >= 2),
           morphological_closing=(self.fill_holes >= 3),
+          progress=False,
+          parallel=self.parallel,
         )
+
         if self.fill_holes >= 3:
-          hp = self.hole_filling_padding
           binary_image = np.asfortranarray(binary_image[hp:-hp,hp:-hp,hp:-hp])
           skel.vertices -= hp * vol.resolution
 

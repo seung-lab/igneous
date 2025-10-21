@@ -87,7 +87,8 @@ class MeshTask(RegisteredTask):
         0: off
         1: simple hole filling
         2: also fill borders in 2d on sides of image
-        3: also perform a morphological closing using 3x3x3 stencil
+        3: also perform a morphological dilation using 3x3x3 stencil
+        4+: also decrement merge_threshold by 1% for each point above 3
     """
     super(MeshTask, self).__init__(shape, offset, layer_path, **kwargs)
     self.shape = Vec(*shape)
@@ -147,17 +148,14 @@ class MeshTask(RegisteredTask):
 
     self._mesher = zmesh.Mesher(self._volume.resolution)
 
-    # aggressive morphological hole filling has a 1-2vx 
-    # edge effect that needs to be cropped away
     fill_level = self.options["fill_holes"]
-    hole_filling_padding = int(fill_level >= 3) * 2
 
     # Marching cubes loves its 1vx overlaps.
     # This avoids lines appearing between
     # adjacent chunks.
     data_bounds = self._bounds.clone()
-    data_bounds.minpt -= self.options['low_padding'] + hole_filling_padding
-    data_bounds.maxpt += self.options['high_padding'] + hole_filling_padding
+    data_bounds.minpt -= self.options['low_padding']
+    data_bounds.maxpt += self.options['high_padding']
 
     self._mesh_dir = self.get_mesh_dir()
 
@@ -203,43 +201,55 @@ class MeshTask(RegisteredTask):
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }
 
+    data = data[...,0]
+
     if fill_level > 0:
-      filled_data, hole_labels = fastmorph.fill_holes(
-        data[...,0],
-        remove_enclosed=True,
-        return_removed=True,
-        fix_borders=(fill_level > 1),
-        morphological_closing=(fill_level > 2),
-      )
-
       if fill_level >= 3:
-        hp = hole_filling_padding
-        data = np.asfortranarray(data[hp:-hp,hp:-hp,hp:-hp])
-        filled_data = np.asfortranarray(filled_data[hp:-hp,hp:-hp,hp:-hp])
+        data = fastmorph.dilate(
+          data, 
+          mode=fastmorph.Mode.multilabel,
+          background_only=True,
+          parallel=1,
+        )
 
-      data = crackle.compress(data)
-      self._mesher.mesh(filled_data)
-      meshes, bounding_boxes = self.compute_meshes(renumbermap, left_offset)
-      del filled_data
-      data = crackle.decompress(data)
-
-      data *= np.isin(data, list(hole_labels))
-
-      self._mesher.mesh(data)
-      hole_meshes, hole_bounding_boxes = self.compute_meshes(renumbermap, left_offset)
-      meshes.update(hole_meshes)
-      bounding_boxes.update(hole_bounding_boxes)
+      filled_labels, hole_labels = fastmorph.fill_holes_v2(
+        data,
+        return_crackle=True,
+        fix_borders=(fill_level >= 2),
+        merge_threshold=(
+          1.0 if fill_level <= 3 else (1.0 - 0.01 * (fill_level - 3))
+        ),
+        parallel=1,
+      )
       del data
+      self._mesher.mesh(filled_labels.numpy())
+
+      meshes = self.compute_meshes(renumbermap)
+      del filled_labels
+      self._mesher.mesh(hole_labels.numpy())
+      hole_meshes = self.compute_meshes(renumbermap)
+      del hole_labels
+
+      for segid in list(hole_meshes.keys()):
+        if segid in meshes:
+          meshes[segid] = zmesh.Mesh.concatenate(meshes[segid], hole_meshes[segid], id=segid)
+        else:
+          meshes[segid] = hole_meshes[segid]
       del hole_meshes
-      del hole_bounding_boxes
     else:
-      self._mesher.mesh(data[..., 0])
+      self._mesher.mesh(data)
       del data
-
-      meshes, bounding_boxes = self.compute_meshes(renumbermap, left_offset)
+      meshes = self.compute_meshes(renumbermap)
 
     if self.options['dry_run']:
       return (meshes, bounding_boxes)
+
+    bounding_boxes = {}
+    
+    for segid, mesh in meshes.items():
+      binary, mesh_bbx  = self._create_mesh_binary(mesh, left_offset)
+      meshes[segid] = binary
+      bounding_boxes[segid] = mesh_bbx.to_list()
 
     if self.options['sharded']:
       self._upload_batch(meshes, self._bounds)
@@ -353,17 +363,19 @@ class MeshTask(RegisteredTask):
     data = fastremap.mask_except(data, list(remap.keys()), in_place=True)
     return fastremap.remap(data, remap, in_place=True)
 
-  def compute_meshes(self, renumbermap, offset):
-    bounding_boxes = {}
+  def compute_meshes(self, renumbermap:dict) -> dict[int,zmesh.Mesh]:
     meshes = {}
-
-    for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Mesh"):
+    
+    for obj_id in tqdm(self._mesher.ids(), disable=(not self.progress), desc="Extracting Mesh"):
       remapped_id = renumbermap[obj_id]
-      mesh_binary, mesh_bounds = self._create_mesh(obj_id, offset)
-      bounding_boxes[remapped_id] = mesh_bounds.to_list()
-      meshes[remapped_id] = mesh_binary
+      meshes[remapped_id] = self._mesher.get(
+        obj_id,
+        reduction_factor=self.options['simplification_factor'],
+        max_error=self.options['max_simplification_error'],
+        voxel_centered=True,
+      )
 
-    return meshes, bounding_boxes
+    return meshes
 
   def _upload_batch(self, meshes, bbox):
     frag_path = self.options['frag_path'] or self.layer_path
@@ -412,16 +424,7 @@ class MeshTask(RegisteredTask):
         cache_control=self.options['cache_control'],
       )
 
-  def _create_mesh(self, obj_id, left_bound_offset):
-    mesh = self._mesher.get(
-      obj_id,
-      reduction_factor=self.options['simplification_factor'],
-      max_error=self.options['max_simplification_error'],
-      voxel_centered=True,
-    )
-
-    self._mesher.erase(obj_id)
-
+  def _create_mesh_binary(self, mesh:zmesh.Mesh, left_bound_offset:int) -> tuple[bytes, Bbox]:
     resolution = self._volume.resolution
     offset = (self._bounds.minpt - self.options['low_padding']).astype(np.float32)
     mesh.vertices[:] += (offset - left_bound_offset) * resolution

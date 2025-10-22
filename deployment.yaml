@@ -9,14 +9,14 @@ spec:
   selector:
     matchLabels:
       app: igneous
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: igneous
     spec:
       dnsPolicy: Default
-      strategy:
-        type: Recreate
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"

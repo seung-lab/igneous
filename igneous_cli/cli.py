@@ -1934,8 +1934,8 @@ def normalize_file_ext(filename):
     filename, ext2 = os.path.splitext(filename)
     if ext2 in ('.ckl', '.cpso'):
       return ext2
-	elif ext2 == '.nii':
-	  return ext2
+	  elif ext2 == '.nii':
+	    return ext2
     elif ext2 == '':
       return ext
     ext = ext2

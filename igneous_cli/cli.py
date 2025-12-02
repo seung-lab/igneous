@@ -1874,7 +1874,7 @@ def create(
 ):
   """Create a Precomputed volume from another data source.
 
-  Supports: .npy, .h5/.hdf5, .nii, .nrrd, and .ckl files
+  Supports: .npy, .h5/.hdf5, .nii/.nii.gz, .nrrd, and .ckl files
   
   Hopefully will support others such as TIFF in the future.
   """
@@ -1896,7 +1896,7 @@ def create(
     if arr.shape[0] == 3 and arr.ndim == 3:
       arr = arr[..., np.newaxis]
       arr = np.transpose(arr, axes=[1,2,3,0])
-  elif ext == ".nii":
+  elif ext == ".nii" or ext == ".nii.gz":
     import nibabel as nib
     arr = nib.load(src)
     arr = np.array(arr.dataobj)
@@ -1934,6 +1934,8 @@ def normalize_file_ext(filename):
     filename, ext2 = os.path.splitext(filename)
     if ext2 in ('.ckl', '.cpso'):
       return ext2
+	elif ext2 == '.nii':
+	  return ext2 + ext
     elif ext2 == '':
       return ext
     ext = ext2

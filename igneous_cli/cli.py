@@ -1935,7 +1935,7 @@ def normalize_file_ext(filename):
     if ext2 in ('.ckl', '.cpso'):
       return ext2
 	elif ext2 == '.nii':
-	  return ext2 + ext
+	  return ext2
     elif ext2 == '':
       return ext
     ext = ext2

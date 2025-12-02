@@ -1896,7 +1896,7 @@ def create(
     if arr.shape[0] == 3 and arr.ndim == 3:
       arr = arr[..., np.newaxis]
       arr = np.transpose(arr, axes=[1,2,3,0])
-  elif ext == ".nii" or ext == ".nii.gz":
+  elif ext == ".nii":
     import nibabel as nib
     arr = nib.load(src)
     arr = np.array(arr.dataobj)

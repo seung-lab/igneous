@@ -278,7 +278,7 @@ def downsample(
   """
   factor = (2,2,1)
   if volumetric:
-  	factor = (2,2,2)
+    factor = (2,2,2)
 
   if compress and compress.lower() in ("none", "false"):
     compress = False
@@ -379,7 +379,7 @@ def xfer(
   """
   factor = (2,2,1)
   if volumetric:
-  	factor = (2,2,2)
+    factor = (2,2,2)
 
   if compress and compress.lower() in ("none", "false"):
     compress = False
@@ -1934,8 +1934,8 @@ def normalize_file_ext(filename):
     filename, ext2 = os.path.splitext(filename)
     if ext2 in ('.ckl', '.cpso'):
       return ext2
-	  elif ext2 == '.nii':
-	    return ext2
+    elif ext2 == '.nii':
+      return ext2
     elif ext2 == '':
       return ext
     ext = ext2

@@ -156,14 +156,28 @@ def create_mesh_deletion_tasks(
 
 
 def create_meshing_tasks(
-    layer_path, mip, shape=(448, 448, 448), 
-    simplification=True, max_simplification_error=40,
-    mesh_dir=None, cdn_cache=False, dust_threshold=None,
-    object_ids=None, progress=False, fill_missing=False,
-    encoding='precomputed', spatial_index=True, frag_path=None, sharded=False,
-    compress='gzip', closed_dataset_edges=True, dust_global=False,
-    fill_holes=0, dry_run=False,
-  ):
+  layer_path:str, 
+  mip:int,
+  shape:tuple[int,int,int] = (448, 448, 448), 
+  simplification:bool = True,
+  max_simplification_error:float = 40.0,
+  mesh_dir:Optional[str] = None,
+  cdn_cache:bool = False,
+  dust_threshold:Optional[int] = None,
+  object_ids:Optional[list[int]] = None,
+  progress:bool = False,
+  fill_missing:bool = False,
+  encoding:str = 'precomputed',
+  spatial_index:bool = True,
+  frag_path:Optional[str] = None,
+  sharded:bool = False,
+  compress:Optional[str] = 'gzip',
+  closed_dataset_edges:bool = True,
+  dust_global:bool = False,
+  fill_holes:int = 0,
+  dry_run:bool = False,
+  exclude_object_ids:list[int] = [],
+):
   shape = Vec(*shape)
 
   assert 0 <= fill_holes <= 103, "fill_holes must be between 0 to 103 inclusive."
@@ -208,6 +222,7 @@ def create_meshing_tasks(
         dust_global=bool(dust_global),
         progress=progress,
         object_ids=object_ids,
+        exclude_object_ids=exclude_object_ids,
         fill_missing=fill_missing,
         encoding=encoding,
         spatial_index=spatial_index,
@@ -234,6 +249,7 @@ def create_meshing_tasks(
           'dust_threshold': dust_threshold,
           'encoding': encoding,
           'object_ids': object_ids,
+          'exclude_object_ids': exclude_object_ids,
           'spatial_index': spatial_index,
           'frag_path': frag_path,
           'sharded': sharded,

@@ -76,6 +76,7 @@ class MeshTask(RegisteredTask):
       draco_create_metadata: (bool: False) only applies to draco encoding
       progress: (bool: False) show progress bars for meshing 
       object_ids: (list of ints) if specified, only mesh these ids
+      exclude_object_ids: (list of ints) exclude any label present in this list from meshing
       fill_missing: (bool: False) replace missing segmentation files with zeros instead of erroring
       spatial_index: (bool: False) generate a JSON spatial index of which meshes are available in
         a given bounding box. 
@@ -112,6 +113,7 @@ class MeshTask(RegisteredTask):
       'frag_path': kwargs.get('frag_path', None),
       'mip': kwargs.get('mip', 0),
       'object_ids': kwargs.get('object_ids', None),
+      'exclude_object_ids': kwargs.get('exclude_object_ids', []),
       'parallel_download': kwargs.get('parallel_download', 1),
       'progress': kwargs.get('progress', False),
       'remap_table': kwargs.get('remap_table', None),
@@ -197,6 +199,9 @@ class MeshTask(RegisteredTask):
 
     if self.options['object_ids']:
       data = fastremap.mask_except(data, self.options['object_ids'], in_place=True)
+
+    if self.options['exclude_object_ids']:
+      data = fastremap.mask(data, self.options['exclude_object_ids'], in_place=True)
 
     data, renumbermap = fastremap.renumber(data, in_place=True)
     renumbermap = { v:k for k,v in renumbermap.items() }

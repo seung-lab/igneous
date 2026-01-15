@@ -430,6 +430,36 @@ def test_mesh(compress):
     assert cf.get('mesh/10:0:0-64_0-64_0-64') is not None 
     assert list(cf.list('mesh/')) == ['mesh/10:0:0-64_0-64_0-64']
 
+def test_mesh_object_ids():
+    delete_layer()
+    cf, _ = create_layer(size=(64,64,64,1), offset=(0,0,0), layer_type="segmentation")
+    cv = CloudVolume(cf.cloudpath)
+    # create a box of ones surrounded by zeroes
+    data = np.zeros(shape=(64,64,64,1), dtype=np.uint32)
+    data[1:-1,1:-1,1:-1,:] = 1
+    data[1:-1,1:-1,32:63,:] = 2
+    cv[:] = data
+    cv.info['mesh'] = 'mesh'
+    cv.commit_info()
+
+    MeshTask(
+        shape=(64,64,64),
+        offset=(0,0,0),
+        layer_path=cf.cloudpath,
+        mip=0,
+        exclude_object_ids=[2],
+    ).execute()
+    assert cf.get('mesh/1:0:0-64_0-64_0-64') is not None 
+    assert list(cf.list('mesh/')) == ['mesh/1:0:0-64_0-64_0-64']
+
+    MeshTask(
+        shape=(64,64,64),
+        offset=(0,0,0),
+        layer_path=cf.cloudpath,
+        mip=0,
+        object_ids=[2],
+    ).execute()
+    assert cf.get('mesh/2:0:0-64_0-64_0-64') is not None 
 
 def test_quantize():
     qpath = 'file:///tmp/removeme/quantized/'

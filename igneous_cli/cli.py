@@ -1046,6 +1046,7 @@ def mesh_xfer(
 @click.option('--sharded', is_flag=True, default=False, help="Generate shard fragments instead of outputing mesh fragments.", show_default=True)
 @click.option('--closed-edge/--open-edge', is_flag=True, default=True, help="Whether meshes are closed on the side that contacts the dataset boundary.", show_default=True)
 @click.option('--labels', type=ListN(), default=None, help="Mesh only this comma separated list of labels.", show_default=True)
+@click.option('--exclude-labels', type=ListN(), default=[], help="Do not mesh labels in this comma separated list.", show_default=True)
 @click.pass_context
 def mesh_forge(
   ctx, path, queue, mip, shape, 
@@ -1053,6 +1054,7 @@ def mesh_forge(
   dust_threshold, dir, compress, 
   spatial_index, sharded, closed_edge,
   dust_global, labels, fill_holes,
+  exclude_labels,
 ):
   """
   (1) Synthesize meshes from segmentation cutouts.
@@ -1079,6 +1081,7 @@ def mesh_forge(
     encoding='precomputed', spatial_index=spatial_index, 
     sharded=sharded, compress=compress, closed_dataset_edges=closed_edge,
     dust_global=dust_global, fill_holes=fill_holes,
+    exclude_object_ids=exclude_labels,
   )
 
   enqueue_tasks(ctx, queue, tasks)

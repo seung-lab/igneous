@@ -789,7 +789,7 @@ def ImageShardDownsampleTask(
             continue
 
           if np.any(np.array(shard_cutout.shape) != target_shape):
-            pad_width = [ (0, int(t - s)) for s, t in zip(shard_cutout.shape, target_shape) ]
+            pad_width = [ (0, max(int(t - s), 0)) for s, t in zip(shard_cutout.shape, target_shape) ]
             shard_cutout = np.pad(shard_cutout, pad_width, mode="constant", constant_values=(src_vol.background_color,))
 
           if renumber:

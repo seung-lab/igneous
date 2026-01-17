@@ -743,17 +743,19 @@ def ImageShardDownsampleTask(
         renumber=True,
       )
       mapping = { v:k for k,v in mapping.items() }
+      mapping[src_vol.background_color] = src_vol.background_color
     else:
       img = src_vol.download(
         zbox, 
         agglomerate=agglomerate, 
         timestamp=timestamp,
-      )
+    )
 
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
 
     factor = np.array(factor, dtype=int)
+    target_shape = np.array([ shard_shape[0], shard_shape[1], chunk_size.z, src_vol.num_channels ], dtype=int)
 
     for i in range(num_mips):
       shard_shape = shard_shapefn(mip + i + 1)
@@ -785,6 +787,10 @@ def ImageShardDownsampleTask(
 
           if shard_cutout.size == 0:
             continue
+
+          if np.any(np.array(shard_cutout.shape) != target_shape):
+            pad_width = [ (0, int(t - s)) for s, t in zip(shard_cutout.shape, target_shape) ]
+            shard_cutout = np.pad(shard_cutout, pad_width, mode="constant", constant_values=(src_vol.background_color,))
 
           if renumber:
             shard_cutout = fastremap.remap(shard_cutout, mapping)

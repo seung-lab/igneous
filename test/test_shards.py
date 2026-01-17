@@ -5,9 +5,8 @@ from functools import reduce
 import numpy as np
 from cloudvolume import CloudVolume, Bbox, Vec
 import cloudvolume.lib as lib
-from cloudvolume.datasource.precomputed.image.common import (
-  gridpoints, compressed_morton_code
-)
+from cloudvolume.datasource.precomputed.common import compressed_morton_code
+from cloudvolume.datasource.precomputed.image.common import gridpoints
 from cloudvolume.datasource.precomputed.sharding import ShardReader, ShardingSpecification
 
 from igneous.task_creation.common import compute_shard_params_for_hashed

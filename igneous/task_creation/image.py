@@ -690,8 +690,11 @@ def create_image_shard_downsample_tasks(
   
   cv.mip = mip
 
-  for i in range(num_mips - 1):
-    set_encoding(cv, mip + i + 1, encoding, encoding_level, encoding_effort)
+  # Always set encoding on the level(s) we are about to generate.
+  # For num_mips == 1, this sets mip+1 as desired.
+  for i in range(num_mips):
+    next_mip = mip + i + 1
+    set_encoding(cv, next_mip, encoding, encoding_level, encoding_effort)
 
   # set final level to lossless unless someone is being explicit
   # about building levels one at a time

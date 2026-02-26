@@ -718,6 +718,7 @@ def create_sharded_multires_mesh_tasks(
   cache:Optional[bool] = False,
   min_chunk_size:Tuple[int,int,int] = (256,256,256),
   max_labels_per_shard:Optional[int] = None,
+  progress:bool = True,
 ) -> Iterator[MultiResShardedMeshMergeTask]: 
 
   mesh_info = configure_multires_info(
@@ -765,7 +766,7 @@ def create_sharded_multires_mesh_tasks(
   shard_labels = shardcomputer.assign_labels_to_shards(all_labels, preshift_bits, shard_bits, minishard_bits)
   del all_labels
 
-  cf = CloudFiles(cv.mesh.meta.layerpath, progress=True)
+  cf = CloudFiles(cv.mesh.meta.layerpath, progress=progress)
   files = ( 
     (str(shardno) + '.labels', labels) 
     for shardno, labels in shard_labels.items() 

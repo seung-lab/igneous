@@ -3,9 +3,11 @@ from typing import Optional, List, Dict, Tuple, Iterator
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 import functools
+from functools import reduce
 import itertools
 import json
 import math
+import operator
 import os
 import random
 import re
@@ -101,7 +103,7 @@ def process_mesh(
   max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_size)), 0))
   max_lod = min(max_lod, num_lod)
 
-  lods = generate_lods(label, mesh, max_lod)
+  lods = generate_lods(label, mesh, mesh_shape, min_chunk_size, max_lod)
   grid_origin, mesh_shape = determine_mesh_shape_from_lods(lods)
   chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
 
@@ -300,10 +302,13 @@ def MultiResShardedFromUnshardedMeshMergeTask(
 def generate_lods(
   label:int,
   mesh:Mesh,
+  mesh_shape:npt.NDArray[int],
+  min_chunk_size:npt.NDArray[int],
   num_lods:int,
   decimation_factor:int = 2, 
-  aggressiveness:float = 5.5,
+  aggressiveness:float = 7,
   progress:bool = False,
+  max_triangle_target_per_chunk = int(2e6),
 ):
   assert num_lods >= 0, num_lods
 
@@ -314,26 +319,37 @@ def generate_lods(
   # 
   # Threshold is the total error that can be tolerated by
   # deleting a vertex.
-  for i in range(1, num_lods+1):
+  for lod in tqdm(range(1, num_lods+1), disable=(not progress), desc="lod"):
     simplifier = pyfqmr.Simplify()
     simplifier.setMesh(mesh.vertices, mesh.faces)
+
+    target_count = int(len(mesh.faces) / (decimation_factor ** lod))
+    target_count = max(target_count, 4)
+
+     # Neuroglancer's draco decoder dies above probably 512 MB 
+     # (browser restriction on WASM memory). Make sure the meshes are not too big.
+    num_chunks = mesh_shape / (np.array(min_chunk_size) * (2**lod))
+    num_chunks = reduce(operator.mul, num_chunks)
+    max_triangles = int(num_chunks * max_triangle_target_per_chunk)
+    target_count = min(target_count, max_triangles)
+
     simplifier.simplify_mesh(
-      target_count=max(int(len(mesh.faces) / (decimation_factor ** i)), 4),
+      target_count=target_count,
       aggressiveness=aggressiveness,
       preserve_border=True,
       verbose=False,
       # Additional parameters to expose?
-      # max_iterations=
+      # max_iterations=1,
       # K=
       # alpha=
       # update_rate=  # Number of iterations between each update.
       # lossless=
       # threshold_lossless=
     )
-
     lods.append(
       Mesh(*simplifier.getMesh(), segid=label)
     )
+    mesh = lods[-1]
 
   return lods
 

@@ -772,8 +772,10 @@ def create_sharded_multires_mesh_tasks(
     for shardno, labels in shard_labels.items() 
   )
   cf.put_jsons(
-    files, compress="gzip", 
-    cache_control="no-cache", total=len(shard_labels)
+    files,
+    compress="gzip", 
+    cache_control="no-cache",
+    total=len(shard_labels),
   )
 
   cv.provenance.processing.append({

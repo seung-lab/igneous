@@ -526,6 +526,7 @@ def create_image_shard_transfer_tasks(
   minishard_index_encoding:str = "gzip",
   stop_layer:Optional[int] = None,
   encoding_effort:Optional[int] = None,
+  use_https_for_source:bool = False,
 ):
   src_vol = CloudVolume(src_layer_path, mip=mip)
 
@@ -603,6 +604,7 @@ def create_image_shard_transfer_tasks(
         agglomerate=agglomerate,
         timestamp=timestamp,
         stop_layer=stop_layer,
+        use_https_for_source=bool(use_https_for_source),
       )
 
     def on_finish(self):
@@ -620,15 +622,17 @@ def create_image_shard_transfer_tasks(
           "stop_layer": stop_layer,
           "encoding_effort": encoding_effort,
           "timestamp": timestamp,
+          "use_https_for_source": bool(use_https_for_source),
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),
       }
 
-      dvol = CloudVolume(dst_layer_path)
-      dvol.provenance.sources = [src_layer_path]
-      dvol.provenance.processing.append(job_details)
-      dvol.commit_provenance()
+      if not use_https_for_source:
+        dvol = CloudVolume(dst_layer_path)
+        dvol.provenance.sources = [src_layer_path]
+        dvol.provenance.processing.append(job_details)
+        dvol.commit_provenance()
 
   return ImageShardTransferTaskIterator(bounds, shape)
 
@@ -908,6 +912,7 @@ def create_transfer_tasks(
   stop_layer:Optional[int] = None,
   downsample_method:int = DownsampleMethods.AUTO,
   encoding_effort:Optional[int] = None,
+  use_https_for_source:bool = False,
 ) -> Iterator:
   """
   Transfer data to a new data layer. You can use this operation
@@ -988,6 +993,7 @@ def create_transfer_tasks(
     or above this layer.
   """
   src_vol = CloudVolume(src_layer_path, mip=mip)
+  no_src_update = no_src_update or use_https_for_source
 
   if dest_voxel_offset:
     dest_voxel_offset = Vec(*dest_voxel_offset, dtype=int)
@@ -1078,6 +1084,7 @@ def create_transfer_tasks(
         sparse=sparse,
         stop_layer=stop_layer,
         downsample_method=int(downsample_method),
+        use_https_for_source=use_https_for_source,
       )
 
     def on_finish(self):
@@ -1108,6 +1115,7 @@ def create_transfer_tasks(
           'encoding_effort': encoding_effort,
           'stop_layer': stop_layer,
           'downsample_method': int(downsample_method),
+          'use_https_for_source': bool(use_https_for_source),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

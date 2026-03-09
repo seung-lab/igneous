@@ -450,6 +450,7 @@ def TransferTask(
   max_mips:Optional[int] = None,
   stop_layer:Optional[int] = None,
   downsample_method:str = DownsampleMethods.AUTO,
+  use_https_for_source:bool = False,
 ):
   """
   Transfer an image to a new location while enabling
@@ -468,7 +469,7 @@ def TransferTask(
 
   src_cv = CloudVolume(
     src_path, fill_missing=fill_missing,
-    mip=mip, bounded=False
+    mip=mip, bounded=False, use_https=use_https_for_source,
   )
   dest_cv = CloudVolume(
     dest_path, fill_missing=fill_missing,
@@ -603,6 +604,7 @@ def ImageShardTransferTask(
   agglomerate: bool = False,
   timestamp: Optional[int] = None,
   stop_layer: Optional[int] = None,
+  use_https_for_source:bool = False,
 ):
   """
   Generates a sharded image volume from
@@ -623,7 +625,7 @@ def ImageShardTransferTask(
 
   src_vol = CloudVolume(
     src_path, fill_missing=fill_missing, 
-    mip=mip, bounded=False
+    mip=mip, bounded=False, use_https=use_https_for_source,
   )
   dst_vol = CloudVolume(
     dst_path,

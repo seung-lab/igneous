@@ -346,6 +346,7 @@ def downsample(
 @click.option('--bounds-mip', default=None, type=int, help="Which mip level are xrange, yrange, and zrange specified in?", show_default=True)
 @click.option('--cutout', is_flag=True, default=False, help="If bounds are specified and creating a new volume, restrict the new volume to the specified bounds.", show_default=True)
 @click.option('--downsample-method', default="auto", type=DownsampleMethodType(), help="Select the downsample method type. Options: auto, avg, mode, min, max, striding", show_default=True)
+@click.option('--use-https-src', is_flag=True, default=False, help="For public read-only datasets where you don't have a credential, use the https anonymous interface.", show_default=True)
 @click.pass_context
 def xfer(
 	ctx, src, dest, queue, translate, 
@@ -357,7 +358,7 @@ def xfer(
   dest_voxel_offset, clean_info, no_src_update,
   truncate_scales, 
   xrange, yrange, zrange, bounds_mip, cutout, 
-  downsample_method
+  downsample_method, use_https_src,
 ):
   """
   Copy, re-encode, or shard an image layer.
@@ -414,6 +415,7 @@ def xfer(
       encoding_level=encoding_level, truncate_scales=truncate_scales,
       bounds=bounds, bounds_mip=bounds_mip, cutout=cutout,
       downsample_method=downsample_method, encoding_effort=encoding_effort,
+      use_https_for_source=use_https_src,
     )
 
   enqueue_tasks(ctx, queue, tasks)

@@ -1966,15 +1966,39 @@ def rezero(path):
   """Reset collected statistics for queue."""
   TaskQueue(normalize_path(path)).rezero()
 
+
+def natural_time_delta(seconds:float) -> str:
+  sec = abs(seconds)
+  if sec == 0.0:
+    return f"just now"
+  elif sec < 60:
+    return f"{int(sec)} seconds {'from now' if seconds > 0 else 'ago'}"
+  elif sec < 3600:
+    minutes = int(sec / 60)
+    return f"{minutes} minutes {'from now' if seconds > 0 else 'ago'}"
+  elif sec < 86400:
+    hours = int(sec / 3600)
+    return f"{hours} hours {'from now' if seconds > 0 else 'ago'}"
+  elif sec < 86400 * 365 * 80:
+    days = int(sec / 86400)
+    return f"{days} days {'from now' if seconds > 0 else 'ago'}"
+  else:
+    return f"never"
+
 @queuegroup.command()
 @click.argument("path")
-def status(path):
+@click.option('--eta', type=float, default=0, help="Wait this many seconds to estimate ETA.", show_default=True)
+def status(path, eta):
   """Print vital statistics for queue."""
   tq = TaskQueue(normalize_path(path))
   ins = tq.inserted
   enq = tq.enqueued
   comp = tq.completed
   leased = tq.leased
+
+  print("Datetime:", time.strftime("%Y-%m-%d %H:%M:%S Z%z"))
+
+  start_t = time.monotonic()
 
   if not math.isnan(ins):
     print(f"Inserted: {ins}")
@@ -1992,6 +2016,26 @@ def status(path):
     print(f"Leased: {leased} ({leased / enq * 100:.1f}% of queue)")
   else:
     print(f"Leased: {leased} (--%) of queue")
+
+  if not eta or enq == 0:
+    return
+
+  time.sleep(eta)
+  enq_2 = tq.enqueued
+  end_t = time.monotonic()
+
+  if enq_2 == 0:
+    print("done.")
+    return
+
+  elapsed = end_t - start_t
+  rate = (enq - enq_2) / (end_t - start_t)
+  prediction = float('inf')
+  if rate != 0:
+    prediction = enq_2 / rate
+  print('--')
+  print(f"{rate:.1f} tasks per sec.")
+  print(f"done in {natural_time_delta(prediction)}")
 
 @queuegroup.command()
 @click.argument("path")

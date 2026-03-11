@@ -1,6 +1,72 @@
 CHANGES
 =======
 
+4.35.0
+------
+
+* release(4.35.0): fixes for skeletons, better mesh chunking, cross section, more
+* refactor: whitespace
+* perf: recursive lod creation, more aggressive, max triangle target
+* feat: allow disabling progress bar for sharded multires mesh creation
+* fix: single mip sharded encoding (#223)
+* fix(downsample): situation where padding can be negative
+* fix: cloudvolume changed the location of compressed\_morton\_code
+* fix(downsample): handle edge for sharded downsample
+* fix(downsample): generalize factor
+* feat(mesh): exclude certain segids from meshing (#221)
+* feat(cli): Add support for .nii.gz (#217)
+* fix: wrong spec
+* perf: add strategy: Recreate
+* perf: set more reasonable resource requests per a pod
+* perf: try to ensure pods are evenly distributed
+* fix: change sharded image transfer compress default to "auto"
+* fix: change default compression of TransferTask from "gzip" to "auto"
+* perf: rapid organelle hole filling for meshes and skeletons (#216)
+* fix: possibly resolved a segfault in cross section analysis
+* feat: better behaved fill\_holes (controllable threads)
+* perf(multires meshes): vastly faster mesh chunking (#214)
+* typo (#213)
+* feat: low memory but slow version of cross section analysis (#212)
+* fix(SkeletonTask): adjustment to all\_labels missed in refactor
+* docs: update support string in image create
+
+4.34.0
+------
+
+* release(4.34.0): adds support for nii, nrrd for image create
+* feat(cli): support for nrrd, nii in igneous image create
+* docs: reword --sharded help text for mesh xfer
+* docs: fix help text for --sharded for skeleton transfers
+* refactor: remove Storage import
+* fix(graphene\_meshing): adapt to fastremap sig
+* fix(ccl): adapt to new fastremap.remap call sig
+* fix: remove in\_place from sharded downsample
+* perf: reduce memory usage for segmentation
+* test: add test for offset sharded downsampling
+* fix(ImageShardDownsampleTask): fix z handling
+* feat(SkeletonTask): add progress bar to fill holes
+* refactor: remove unnecessary copy
+* perf(SkeletonTask): reduced memory usage
+* perf: lower memory skeletonization (#207)
+* perf(SkeletonTask): reduce memory usage
+* fix(SkeletonTask): prevent integer overflow
+* fix(SkeletonTask): correct for binary image crop
+* fix(SkeletonTask): handle clusters from biggest to least
+* refactor(SkeletonTask): missed a spot renaming delta
+* perf(SkeletonTask): increase LRU 10x
+* perf(SkeletonTask): use mask\_except when object\_ids is specified
+* refactor: rename delta to true\_delta to avoid overwriting
+* fix(SkeletonTask): can't actually reuse morphology calculation
+* feat(cli): support cross section repair time budget
+* feat(SkeletonTask): add a time budget for repair
+* feat(SkeletonTask): add toggle for expensive contact repair
+* perf: cache results of hole filling
+* fix(cross\_section): handle edge of volume better
+* fix: use time.monotonic to avoid datetime hiccups in elapsed time
+* fix: cross section was not extracted during merge
+* fix: add or remove cross section depending on input
+* chore: update AUTHORS, ChangeLog
+
 4.33.0
 ------
 

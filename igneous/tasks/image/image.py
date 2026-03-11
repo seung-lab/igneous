@@ -681,6 +681,7 @@ def ImageShardDownsampleTask(
   factor: ShapeType = (2,2,1),
   method: int = DownsampleMethods.AUTO,
   num_mips: int = 1,
+  progress: bool = False,
 ):
   """
   Generate a single downsample level for a shard.
@@ -736,7 +737,7 @@ def ImageShardDownsampleTask(
   # Need to save memory for segmentation... it's big.
   renumber = src_vol.layer_type == "segmentation"
 
-  for z in range(nz):
+  for z in tqdm(range(nz), disable=(not progress), desc="Z"):
     if renumber:
       img, mapping = src_vol.download(
         zbox, 

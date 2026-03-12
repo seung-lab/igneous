@@ -31,7 +31,6 @@ from taskqueue import queueable
 
 import DracoPy
 import fastremap
-import pyfqmr
 import zmesh
 
 from .draco import draco_encoding_settings
@@ -311,6 +310,8 @@ def generate_lods(
 ):
   assert num_lods >= 0, num_lods
 
+  mesh = zmesh.Mesh(mesh.vertices, mesh.faces)
+
   lods = [ mesh ]
 
   # from pyfqmr documentation:
@@ -319,9 +320,6 @@ def generate_lods(
   # Threshold is the total error that can be tolerated by
   # deleting a vertex.
   for lod in tqdm(range(1, num_lods+1), disable=(not progress), desc="lod"):
-    simplifier = pyfqmr.Simplify()
-    simplifier.setMesh(mesh.vertices, mesh.faces)
-
     target_count = int(len(mesh.faces) / (decimation_factor ** lod))
     target_count = max(target_count, 4)
 
@@ -332,22 +330,20 @@ def generate_lods(
     max_triangles = int(num_chunks * max_triangle_target_per_chunk)
     target_count = min(target_count, max_triangles)
 
-    simplifier.simplify_mesh(
+    simplified_mesh = zmesh.simplify_fqmr(
+      mesh,
       target_count=target_count,
       aggressiveness=aggressiveness,
       preserve_border=True,
-      verbose=False,
+      # return_iterations=True,
       # Additional parameters to expose?
       # max_iterations=1,
-      # K=
-      # alpha=
+      # K=3
+      # alpha=1e-9
       # update_rate=  # Number of iterations between each update.
-      # lossless=
-      # threshold_lossless=
     )
-    lods.append(
-      Mesh(*simplifier.getMesh(), segid=label)
-    )
+    simplified_mesh.id = label
+    lods.append(simplified_mesh)
     mesh = lods[-1]
 
   return lods

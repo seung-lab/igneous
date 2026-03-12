@@ -15,7 +15,6 @@ numpy>=1.14.2
 opencv-python-headless
 pathos
 Pillow>=4.2.1
-pyfqmr
 pytest>=3.3.1
 pytz
 scipy
@@ -24,4 +23,4 @@ tinybrain>=1.5.0
 task-queue>=2.4.0
 tqdm
 xs3d>=1.12.2
-zmesh>=1.9.0,<2.0
+zmesh>=1.11.0,<2.0

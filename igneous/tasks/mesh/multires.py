@@ -32,7 +32,6 @@ from taskqueue import queueable
 import DracoPy
 import fastremap
 import pyfqmr
-import trimesh
 import zmesh
 
 from .draco import draco_encoding_settings

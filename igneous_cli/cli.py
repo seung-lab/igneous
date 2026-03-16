@@ -1755,7 +1755,8 @@ def is_port_in_use(port:int) -> bool:
 @click.option('--ng', default=None, help="Alternative Neuroglancer webpage to use.", show_default=True)
 @click.option('--pos', type=Tuple3(), default=None, help="Position in volume to open to.", show_default=True)
 @click.option('--indirect', is_flag=True, default=False, help="Route the visualization through CloudVolume (useful if data is not public).", show_default=True)
-def view(path, browser, port, ng, pos, indirect):
+@click.option('--name', type=str, default=None, help="Set a custom layer name.", show_default=True)
+def view(path, browser, port, ng, pos, indirect, name):
   """
   Open an on-disk dataset for viewing in neuroglancer.
   """
@@ -1776,17 +1777,25 @@ void main() {
 }"""
   cv = CloudVolume(path)
 
-  indirect = indirect or cv.meta.path.protocol == "file"
+  local_fs = cv.meta.path.protocol == "file"
+  indirect = indirect or local_fs
 
   if indirect:
     cloudpath = f"http://localhost:{port}"
-    layer_name = "igneous"
+
+    if local_fs:
+      layer_name = os.path.basename(path)
+    else:
+      layer_name = "igneous"
   elif cv.meta.path.protocol in ['matrix', 'tigerdata']:
     cloudpath = cloudvolume.paths.to_https_protocol(cv.cloudpath)
     layer_name = posixpath.basename(cloudpath)
   else:
     cloudpath = cv.cloudpath
     layer_name = posixpath.basename(cloudpath)
+
+  if name is not None:
+    layer_name = name
 
   has_alternative_codec = any([
      scale["encoding"] in ["crackle", "zfpc", "kempressed", "fpzip"]

@@ -645,7 +645,7 @@ def ImageShardTransferTask(
   fullpathfn = lambda vol, fname: vol.meta.join(vol.cloudpath, vol.meta.key(mip), fname)
   if (
     src_bbox == dst_bbox
-    and np.all(src_vol.chunk_size == dest_vol.chunk_size)
+    and np.all(src_vol.chunk_size == dst_vol.chunk_size)
     and agglomerate == False
   ):
     src_vol.image.transfer_to(

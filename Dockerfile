@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.13-slim
 LABEL maintainer="William Silversmith, Nico Kemnitz"
 
 ADD ./ /igneous
@@ -22,7 +22,7 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     # Cleanup temporary python files
-    && find /usr/local/lib/python3.12 -depth \
+    && find /usr/local/lib/python3.13 -depth \
       \( \
         \( -type d -a \( -name __pycache__ \) \) \
         -o \

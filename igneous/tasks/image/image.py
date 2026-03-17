@@ -652,6 +652,7 @@ def ImageShardTransferTask(
       dst_path,
       bbox=dst_bbox, 
       mip=mip,
+      sharded=True,
     )
   else:
     img = src_vol.download(

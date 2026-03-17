@@ -643,16 +643,15 @@ def ImageShardTransferTask(
   src_bbox = dst_bbox - translate
 
   fullpathfn = lambda vol, fname: vol.meta.join(vol.cloudpath, vol.meta.key(mip), fname)
-
   if (
-    src_vol.scale == dst_vol.scale 
-    and src_bbox == dst_bbox 
+    src_bbox == dst_bbox 
     and agglomerate == False
   ):
-    filename = dst_vol.image.shard_filename(dst_bbox, mip=mip)
-    dst_fullpath = fullpathfn(dst_vol, filename)
-    src_fullpath = fullpathfn(src_vol, filename)
-    CloudFile(dst_fullpath).transfer_from(src_fullpath)
+    src_vol.image.transfer_to(
+      dst_path,
+      bbox=dst_bbox, 
+      mip=mip,
+    )
   else:
     img = src_vol.download(
       src_bbox, 

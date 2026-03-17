@@ -888,24 +888,6 @@ def is_empty(tq, sqs_sec_to_wait=120):
 @main.command()
 @click.argument("queue", type=str)
 @click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
-@click.option('--rate', default=30.0, help=f"Number of seconds between each poll of the queue.", show_default=True)
-@click.pass_context
-def wait(ctx, queue, aws_region, rate):
-  """Wait for a queue to empty without executing tasks.
-
-  This can be useful for filling a queue and then waiting
-  for a cluster to finish processing before loading the next
-  set of tasks in a script.
-  """
-  tq = TaskQueue(normalize_path(queue), region_name=aws_region)
-  empty_fn = is_empty(tq)
-
-  while not empty_fn():
-    time.sleep(rate)
-
-@main.command()
-@click.argument("queue", type=str)
-@click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
 @click.option('--lease-sec', default=LEASE_SECONDS, help=f"Seconds to lease a task for.", type=int, show_default=True)
 @click.option('--tally/--no-tally', is_flag=True, default=True, help="Tally completed fq tasks. Does not apply to SQS.", show_default=True)
 @click.option('--min-sec', default=-1, help='Execute for at least this many seconds and quit after the last task finishes. Special values: (0) Run at most a single task. (-1) Loop forever (default).', type=float)
@@ -1970,11 +1952,28 @@ def queuegroup():
   pass
 
 @queuegroup.command()
+@click.argument("queue", type=str)
+@click.option('--aws-region', default=SQS_REGION_NAME, help=f"AWS region in which the SQS queue resides.", show_default=True)
+@click.option('--rate', default=30.0, help=f"Number of seconds between each poll of the queue.", show_default=True)
+@click.pass_context
+def wait(ctx, queue, aws_region, rate):
+  """Wait for a queue to empty without executing tasks.
+
+  This can be useful for filling a queue and then waiting
+  for a cluster to finish processing before loading the next
+  set of tasks in a script.
+  """
+  tq = TaskQueue(normalize_path(queue), region_name=aws_region)
+  empty_fn = is_empty(tq)
+
+  while not empty_fn():
+    time.sleep(rate)
+
+@queuegroup.command()
 @click.argument("path")
 def rezero(path):
   """Reset collected statistics for queue."""
   TaskQueue(normalize_path(path)).rezero()
-
 
 def natural_time_delta(seconds:float) -> str:
   sec = abs(seconds)

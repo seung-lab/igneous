@@ -319,6 +319,7 @@ def generate_lods(
   # 
   # Threshold is the total error that can be tolerated by
   # deleting a vertex.
+  num_iterations = 0
   for lod in tqdm(range(1, num_lods+1), disable=(not progress), desc="lod"):
     target_count = int(len(mesh.faces) / (decimation_factor ** lod))
     target_count = max(target_count, 4)
@@ -330,18 +331,19 @@ def generate_lods(
     max_triangles = int(num_chunks * max_triangle_target_per_chunk)
     target_count = min(target_count, max_triangles)
 
-    simplified_mesh = zmesh.simplify_fqmr(
+    simplified_mesh, N_iter = zmesh.simplify_fqmr(
       mesh,
       target_count=target_count,
       aggressiveness=aggressiveness,
-      preserve_border=True,
-      # return_iterations=True,
+      preserve_border=(lod <= 2),
+      return_iterations=True,
       # Additional parameters to expose?
       # max_iterations=1,
-      # K=3
+      K=(num_iterations + 3),
       # alpha=1e-9
       # update_rate=  # Number of iterations between each update.
     )
+    num_iterations += N_iter
     simplified_mesh.id = label
     lods.append(simplified_mesh)
     mesh = lods[-1]

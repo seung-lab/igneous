@@ -227,7 +227,7 @@ class MeshTask(RegisteredTask):
         parallel=1,
       )
       del data
-      self._mesher.mesh(filled_labels.numpy())
+      self._mesher.mesh(filled_labels.numpy(), preserve_order=False)
 
       meshes = self.compute_meshes(renumbermap)
       del filled_labels
@@ -242,7 +242,7 @@ class MeshTask(RegisteredTask):
           meshes[segid] = hole_meshes[segid]
       del hole_meshes
     else:
-      self._mesher.mesh(data)
+      self._mesher.mesh(data, preserve_order=False)
       del data
       meshes = self.compute_meshes(renumbermap)
 
@@ -571,7 +571,7 @@ class GrapheneMeshTask(RegisteredTask):
 
   def compute_meshes(self, data):
     data = data.T
-    self.mesher.mesh(data)
+    self.mesher.mesh(data, preserve_order=False)
     del data
 
     meshes = {}

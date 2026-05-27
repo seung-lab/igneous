@@ -484,13 +484,20 @@ def labels_for_shard(
   if labels is not None:
     return labels
 
-  labels = cv.mesh.spatial_index.query(cv.bounds * cv.resolution)
+  import shardcomputer
+
+  all_labels = cv.mesh.spatial_index.query(cv.bounds * cv.resolution)
+  all_labels = np.fromiter(all_labels, dtype=np.uint64, count=len(all_labels))
   spec = cv.mesh.reader.spec
 
-  return [ 
-    lbl for lbl in tqdm(labels, desc="Computing Shard Numbers", disable=(not progress))  \
-    if spec.compute_shard_location(lbl).shard_number == shard_no 
-  ]
+  shard_labels = shardcomputer.assign_labels_to_shards(
+    all_labels, 
+    spec.preshift_bits, 
+    spec.shard_bits, 
+    spec.minishard_bits,
+  )
+
+  return shard_labels[shard_no]
   
 ## Below functions adapted from 
 ## https://github.com/google/neuroglancer/issues/272

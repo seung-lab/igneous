@@ -1077,7 +1077,7 @@ def mesh_forge(
 @click.option('--nlod', default=0, help="(multires) How many extra levels of detail to create.", show_default=True)
 @click.option('--vqb', default=16, help="(multires) Vertex quantization bits for stored model representation. 10 or 16 only.", show_default=True)
 @click.option('--min-chunk-size', type=Tuple3(), default="256,256,256",  help="(multires) Sets the minimum chunk size of the highest resolution mesh fragment.", show_default=True)
-@click.option('--dir', default=None, help="Write manifests into this directory instead of the one indicated in the info file.")
+@click.option('--dir', default=None, help="Write results into this directory instead of the one indicated in the info file.")
 @click.pass_context
 def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
   """
@@ -1115,13 +1115,14 @@ def mesh_merge(ctx, path, queue, magnitude, nlod, vqb, dir, min_chunk_size):
 @click.option('--minishard-index-encoding', default="gzip", help="Minishard indices can be compressed. gzip or raw.", show_default=True)
 @click.option('--spatial-index-db', default=None, help="CloudVolume generated SQL database for spatial index.", show_default=True)
 @click.option('--min-chunk-size', type=Tuple3(), default="256,256,256",  help="(multires) Sets the minimum chunk size of the highest resolution mesh fragment.", show_default=True)
+@click.option('--dir', 'mesh_dir', default=None, help="Target this directory instead of the one indicated in the info file.")
 @click.pass_context
 def mesh_sharded_merge(
   ctx, path, queue, 
   nlod, vqb, compress_level,
   shard_index_bytes, minishard_index_bytes, min_shards,
   max_labels_per_shard, minishard_index_encoding, 
-  spatial_index_db, min_chunk_size
+  spatial_index_db, min_chunk_size, mesh_dir,
 ):
   """
   (2) Postprocess fragments into finished sharded multires meshes.
@@ -1147,6 +1148,7 @@ def mesh_sharded_merge(
     spatial_index_db=spatial_index_db,
     min_chunk_size=min_chunk_size,
     max_labels_per_shard=max_labels_per_shard,
+    mesh_dir=mesh_dir,
   )
 
   enqueue_tasks(ctx, queue, tasks)

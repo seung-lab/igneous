@@ -94,19 +94,27 @@ def process_mesh(
   grid_origin = np.floor(np.min(mesh.vertices, axis=0))
   mesh_shape = (np.max(mesh.vertices, axis=0) - grid_origin).astype(int)
 
+  empty_value = (None, None)
+
   if np.any(mesh_shape == 0):
-    return (None, None)
+    return empty_value
 
   min_chunk_size = np.array(min_chunk_size, dtype=int)
   max_lod = int(max(np.min(np.log2(mesh_shape / min_chunk_size)), 0))
   max_lod = min(max_lod, num_lod)
 
   lods = generate_lods(label, mesh, mesh_shape, min_chunk_size, max_lod)
+  if not lods:
+    return empty_value
+
   grid_origin, mesh_shape = determine_mesh_shape_from_lods(lods)
+  if np.any(mesh_shape < 0):
+    return empty_value
+
   chunk_shape = np.ceil(mesh_shape / (2 ** (len(lods) - 1)))
 
   if np.any(chunk_shape == 0):
-    return (None, None)
+    return empty_value
 
   lods = [
     create_octree_level_from_mesh(

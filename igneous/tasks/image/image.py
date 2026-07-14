@@ -485,6 +485,7 @@ def TransferTask(
     and agglomerate == False
     and np.all(src_cv.chunk_size == dest_cv.chunk_size)
     and src_cv.dtype == dest_cv.dtype
+    and dst_bbox.is_chunk_aligned(src_cv.chunk_size, src_cv.voxel_offset)
     and np.all(translate == (0,0,0))
   ):
     # most efficient transfer type, just copy

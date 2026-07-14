@@ -636,17 +636,14 @@ def ImageShardTransferTask(
   )
 
   dst_bbox = Bbox(offset, offset + shape)
-  dst_bbox = Bbox.clamp(dst_bbox, dst_vol.meta.bounds(mip))
-  dst_bbox = dst_bbox.expand_to_chunk_size(
-    dst_vol.meta.chunk_size(mip), 
-    offset=dst_vol.meta.voxel_offset(mip)
-  )
   src_bbox = dst_bbox - translate
 
   edge_of_volume = (
     not src_vol.image.is_sharded(mip) 
     and not src_vol.meta.bounds(mip).contains_bbox(src_bbox)
   )
+
+  src_vol.fill_missing = src_vol.fill_missing or edge_of_volume
 
   fullpathfn = lambda vol, fname: vol.meta.join(vol.cloudpath, vol.meta.key(mip), fname)
   if (

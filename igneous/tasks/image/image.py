@@ -780,7 +780,7 @@ def ImageShardDownsampleTask(
       num_x_shards = max(num_x_shards, 1)
       num_y_shards = max(num_y_shards, 1)
 
-      shard_z = int(z / shard_shape[2])
+      shard_z = int(z * cz / (factor[2] ** (i+1)) / shard_shape[2]) 
 
       for shard_y in range(num_y_shards):
         for shard_x in range(num_x_shards):

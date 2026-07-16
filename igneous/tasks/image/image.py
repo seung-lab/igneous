@@ -786,6 +786,7 @@ def ImageShardDownsampleTask(
         for shard_x in range(num_x_shards):
           xoff = int(shard_shape[0] * shard_x)
           yoff = int(shard_shape[1] * shard_y)
+          zoff = int(shard_shape[2] * shard_z)
 
           shard_cutout = ds_imgs[i][
             xoff:int(xoff+shard_shape[0]), 
@@ -803,15 +804,17 @@ def ImageShardDownsampleTask(
           shard_bbox.minpt //= (factor ** (i+1))
           shard_bbox.maxpt //= (factor ** (i+1))
 
-          shard_bbox.minpt += np.array([ xoff, yoff, 0 ])
+          shard_bbox.minpt += np.array([ xoff, yoff, zoff ])
           shard_bbox.maxpt = shard_bbox.minpt + np.array([
             shard_cutout.shape[0],
             shard_cutout.shape[1],
             shard_cutout.shape[2],
           ])
 
-          if shard_bbox.minpt.z >= src_vol.meta.bounds(i+1).maxpt.z:
+          if shard_bbox.minpt.z >= src_vol.meta.bounds(mip+i+1).maxpt.z:
             continue
+          
+          shard_bbox = Bbox.clamp(shard_bbox, src_vol.meta.bounds(mip+i+1))
 
           if renumber:
             shard_cutout = shard_cutout.astype(src_vol.dtype, copy=False)

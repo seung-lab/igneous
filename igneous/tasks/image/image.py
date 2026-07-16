@@ -789,7 +789,7 @@ def ImageShardDownsampleTask(
           shard_cutout = ds_imgs[i][
             xoff:int(xoff+shard_shape[0]), 
             yoff:int(yoff+shard_shape[1]),
-            :
+            zoff:int(zoff+shard_shape[2]),
           ]
 
           if shard_cutout.size == 0:
@@ -800,8 +800,7 @@ def ImageShardDownsampleTask(
             shard_cutout = fastremap.remap(shard_cutout, mapping, in_place=True)
 
           shard_bbox = zbox.clone()
-          shard_bbox.minpt //= (factor ** (i+1))
-          shard_bbox.maxpt //= (factor ** (i+1))
+          shard_bbox //= (factor ** (i+1))
 
           shard_bbox.minpt += np.array([ xoff, yoff, zoff ])
           shard_bbox.maxpt = shard_bbox.minpt + np.array([
@@ -832,8 +831,7 @@ def ImageShardDownsampleTask(
       minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], shard_z * shard_shape[2] ])
       shard_bbox = Bbox(minpt, minpt + shard_shape)
       mip_offset = src_vol.meta.voxel_offset(mip + i + 1)
-      shard_bbox.minpt += mip_offset
-      shard_bbox.maxpt += mip_offset
+      shard_bbox += mip_offset
 
       (filename, shard) = src_vol.image.make_shard(
         chunk_dict, shard_bbox, (mip + i + 1), progress=False

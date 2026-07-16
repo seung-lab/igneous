@@ -698,6 +698,7 @@ def ImageShardDownsampleTask(
   offset = Vec(*offset)
   mip = int(mip)
   fill_missing = bool(fill_missing)
+  factor = np.array(factor, dtype=int)
 
   src_vol = CloudVolume(
     src_path, fill_missing=fill_missing, 
@@ -761,9 +762,6 @@ def ImageShardDownsampleTask(
 
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
-
-    factor = np.array(factor, dtype=int)
-    target_shape = np.array([ shard_shape[0], shard_shape[1], chunk_size.z, src_vol.num_channels ], dtype=int)
 
     for i in range(num_mips):
       shard_shape = shard_shapefn(mip + i + 1)

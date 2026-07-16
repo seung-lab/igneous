@@ -671,6 +671,15 @@ def create_image_shard_downsample_tasks(
   if num_mips is None:
     num_mips = 3
 
+  factor = np.asarray(factor, dtype=int) 
+
+  if np.any(factor == 0):
+    print("Downsample factor is 0, no operation executed.")
+    return
+  elif np.all(factor == 1):
+    print("Downsample factor is 1, no operation executed.")
+    return
+
   cv = CloudVolume(cloudpath)
   if truncate_scales:
     cv.scales = cv.scales[:mip+1]
@@ -710,14 +719,42 @@ def create_image_shard_downsample_tasks(
 
   cv.commit_info()
 
-  sharding = cv.info["scales"][mip + 1]["sharding"]
-  base_shape = image_shard_shape_from_spec(
-    sharding, 
-    cv.meta.volume_size(mip + 1), 
-    cv.meta.chunk_size(mip + 1),
-  )
+  shapes = []
+  for i in range(1, num_mips+1):
+    sharding = cv.info["scales"][mip + i]["sharding"]
+    shard_shape = image_shard_shape_from_spec(
+      sharding, 
+      cv.meta.volume_size(mip + i), 
+      cv.meta.chunk_size(mip + i),
+    )
+    shapes.append(shard_shape)
 
-  shape = Vec(*base_shape) * (np.array(factor) ** num_mips)
+
+  # shard shapes can be different for each mip, need to create a stride
+  # that evenly contains all of them
+  max_sx = max([ shp[0] * (factor[0] ** i) for i, shp in enumerate(shapes) ])
+  max_sy = max([ shp[1] * (factor[1] ** i) for i, shp in enumerate(shapes) ])
+  max_sz = max([ shp[2] * (factor[2] ** i) for i, shp in enumerate(shapes) ])
+
+  shape = Vec(max_sx, max_sy, max_sz, dtype=int)
+
+  # This check is necessary to ensure that when we stride
+  # across the image, the upper mip levels are chunk aligned
+  num_chunks_per_dim = shape / cv.meta.chunk_size(mip + i)
+
+  max_mips = num_mips
+  for i in range(3):
+    if factor[i] == 1:
+      continue
+
+    max_mip_i = np.log2(num_chunks_per_dim[i]) / np.log2(factor[i])
+    max_mips = min(max_mip_i, max_mips)
+
+  max_mips = int(np.round(max_mips))
+
+  if max_mips < num_mips:
+    cv.scales = cv.scales[:mip + max_mips + 1]
+    cv.commit_info()
 
   cv.mip = mip
   bounds = get_bounds(
@@ -739,7 +776,7 @@ def create_image_shard_downsample_tasks(
         timestamp=timestamp,
         factor=tuple(factor),
         method=method,
-        num_mips=int(num_mips),
+        num_mips=int(max_mips),
       )
 
     def on_finish(self):
@@ -757,7 +794,7 @@ def create_image_shard_downsample_tasks(
           "method": method,
           "encoding_level": encoding_level,
           "encoding_effort": encoding_effort,
-          "num_mips": int(num_mips),
+          "num_mips": int(max_mips),
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),

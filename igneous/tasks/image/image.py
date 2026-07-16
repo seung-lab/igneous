@@ -798,7 +798,8 @@ def ImageShardDownsampleTask(
             continue
 
           if renumber:
-            shard_cutout = fastremap.remap(shard_cutout, mapping)
+            shard_cutout = np.asfortranarray(shard_cutout)
+            shard_cutout = fastremap.remap(shard_cutout, mapping, in_place=True)
 
           shard_bbox = zbox.clone()
           shard_bbox.minpt //= (factor ** (i+1))

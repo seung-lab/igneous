@@ -732,9 +732,9 @@ def create_image_shard_downsample_tasks(
 
   # shard shapes can be different for each mip, need to create a stride
   # that evenly contains all of them
-  max_sx = max([ shp[0] * (factor[0] ** i) for i, shp in enumerate(shapes) ])
-  max_sy = max([ shp[1] * (factor[1] ** i) for i, shp in enumerate(shapes) ])
-  max_sz = max([ shp[2] * (factor[2] ** i) for i, shp in enumerate(shapes) ])
+  max_sx = max([ shp[0] * (factor[0] ** (i+1)) for i, shp in enumerate(shapes) ])
+  max_sy = max([ shp[1] * (factor[1] ** (i+1)) for i, shp in enumerate(shapes) ])
+  max_sz = max([ shp[2] * (factor[2] ** (i+1)) for i, shp in enumerate(shapes) ])
 
   shape = Vec(max_sx, max_sy, max_sz, dtype=int)
 

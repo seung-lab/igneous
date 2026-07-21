@@ -636,7 +636,10 @@ def ImageShardTransferTask(
   )
 
   dst_bbox = Bbox(offset, offset + shape)
+  dst_bbox = Bbox.clamp(dst_bbox, dst_vol.meta.bounds(mip))
+
   src_bbox = dst_bbox - translate
+  src_bbox = Bbox.clamp(src_bbox, src_vol.meta.bounds(mip))
 
   edge_of_volume = (
     not src_vol.image.is_sharded(mip) 

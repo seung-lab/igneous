@@ -641,19 +641,17 @@ def ImageShardTransferTask(
   src_bbox = dst_bbox - translate
   src_bbox = Bbox.clamp(src_bbox, src_vol.meta.bounds(mip))
 
-  edge_of_volume = (
-    not src_vol.image.is_sharded(mip) 
-    and not src_vol.meta.bounds(mip).contains_bbox(src_bbox)
+  can_handle_edge = not dst_vol.image.is_sharded(mip) or (      
+    not np.any(dst_bbox.minpt >= dst_vol.meta.bounds(mip).maxpt)
+    and not np.any(dst_bbox.maxpt >= dst_vol.meta.bounds(mip).maxpt)
   )
-
-  src_vol.fill_missing = src_vol.fill_missing or edge_of_volume
 
   fullpathfn = lambda vol, fname: vol.meta.join(vol.cloudpath, vol.meta.key(mip), fname)
   if (
     src_bbox == dst_bbox
     and np.all(src_vol.chunk_size == dst_vol.chunk_size)
     and agglomerate == False
-    and not edge_of_volume
+    and can_handle_edge
   ):
     src_vol.image.transfer_to(
       dst_path,

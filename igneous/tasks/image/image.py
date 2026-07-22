@@ -636,21 +636,26 @@ def ImageShardTransferTask(
   )
 
   dst_bbox = Bbox(offset, offset + shape)
+  dst_bbox = Bbox.clamp(dst_bbox, dst_vol.meta.bounds(mip))
+
   src_bbox = dst_bbox - translate
+  src_bbox = Bbox.clamp(src_bbox, src_vol.meta.bounds(mip))
 
-  edge_of_volume = (
-    not src_vol.image.is_sharded(mip) 
-    and not src_vol.meta.bounds(mip).contains_bbox(src_bbox)
+  can_handle_edge = (
+    (not dst_vol.image.is_sharded(mip))
+    or np.all(np.mod(dst_vol.meta.bounds(mip).size(), dst_vol.meta.chunk_size(mip)) == 0)
+    or (      
+      not np.any(dst_bbox.minpt >= dst_vol.meta.bounds(mip).maxpt)
+      and not np.any(dst_bbox.maxpt >= dst_vol.meta.bounds(mip).maxpt)
+    )
   )
-
-  src_vol.fill_missing = src_vol.fill_missing or edge_of_volume
 
   fullpathfn = lambda vol, fname: vol.meta.join(vol.cloudpath, vol.meta.key(mip), fname)
   if (
     src_bbox == dst_bbox
     and np.all(src_vol.chunk_size == dst_vol.chunk_size)
     and agglomerate == False
-    and not edge_of_volume
+    and can_handle_edge
   ):
     src_vol.image.transfer_to(
       dst_path,
@@ -698,6 +703,7 @@ def ImageShardDownsampleTask(
   offset = Vec(*offset)
   mip = int(mip)
   fill_missing = bool(fill_missing)
+  factor = np.array(factor, dtype=int)
 
   src_vol = CloudVolume(
     src_path, fill_missing=fill_missing, 
@@ -762,17 +768,14 @@ def ImageShardDownsampleTask(
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
 
-    factor = np.array(factor, dtype=int)
-    target_shape = np.array([ shard_shape[0], shard_shape[1], chunk_size.z, src_vol.num_channels ], dtype=int)
-
     for i in range(num_mips):
       shard_shape = shard_shapefn(mip + i + 1)
 
       num_x_shards = int(factor[0] ** (num_mips - i))
       num_y_shards = int(factor[1] ** (num_mips - i))
       
-      num_x_shards = int(min(num_x_shards, np.ceil(zbox.size().x / shard_shape[0])) // (factor[0] ** i))
-      num_y_shards = int(min(num_y_shards, np.ceil(zbox.size().y / shard_shape[1])) // (factor[1] ** i))
+      num_x_shards = int(min(num_x_shards, np.ceil(zbox.size().x / shard_shape[0])) // (factor[0] ** (i+1)))
+      num_y_shards = int(min(num_y_shards, np.ceil(zbox.size().y / shard_shape[1])) // (factor[1] ** (i+1)))
 
       num_x_shards = int(min(num_x_shards, np.ceil(src_vol.meta.volume_size(mip+i).x / shard_shape[0])))
       num_y_shards = int(min(num_y_shards, np.ceil(src_vol.meta.volume_size(mip+i).y / shard_shape[1])))
@@ -780,7 +783,7 @@ def ImageShardDownsampleTask(
       num_x_shards = max(num_x_shards, 1)
       num_y_shards = max(num_y_shards, 1)
 
-      shard_z = int(z / shard_shape[2])
+      shard_z = int(z * cz / (factor[2] ** (i+1)) / shard_shape[2]) 
 
       for shard_y in range(num_y_shards):
         for shard_x in range(num_x_shards):
@@ -796,16 +799,12 @@ def ImageShardDownsampleTask(
           if shard_cutout.size == 0:
             continue
 
-          if np.any(np.array(shard_cutout.shape) != target_shape):
-            pad_width = [ (0, max(int(t - s), 0)) for s, t in zip(shard_cutout.shape, target_shape) ]
-            shard_cutout = np.pad(shard_cutout, pad_width, mode="constant", constant_values=(src_vol.background_color,))
-
           if renumber:
-            shard_cutout = fastremap.remap(shard_cutout, mapping)
+            shard_cutout = np.asfortranarray(shard_cutout)
+            shard_cutout = fastremap.remap(shard_cutout, mapping, in_place=True)
 
           shard_bbox = zbox.clone()
-          shard_bbox.minpt //= (factor ** (i+1))
-          shard_bbox.maxpt //= (factor ** (i+1))
+          shard_bbox //= (factor ** (i+1))
 
           shard_bbox.minpt += np.array([ xoff, yoff, 0 ])
           shard_bbox.maxpt = shard_bbox.minpt + np.array([
@@ -814,8 +813,10 @@ def ImageShardDownsampleTask(
             shard_cutout.shape[2],
           ])
 
-          if shard_bbox.minpt.z >= src_vol.meta.bounds(i+1).maxpt.z:
+          if shard_bbox.minpt.z >= src_vol.meta.bounds(mip+i+1).maxpt.z:
             continue
+          
+          shard_bbox = Bbox.clamp(shard_bbox, src_vol.meta.bounds(mip+i+1))
 
           if renumber:
             shard_cutout = shard_cutout.astype(src_vol.dtype, copy=False)
@@ -834,8 +835,7 @@ def ImageShardDownsampleTask(
       minpt = np.array([ shard_x * shard_shape[0], shard_y * shard_shape[1], shard_z * shard_shape[2] ])
       shard_bbox = Bbox(minpt, minpt + shard_shape)
       mip_offset = src_vol.meta.voxel_offset(mip + i + 1)
-      shard_bbox.minpt += mip_offset
-      shard_bbox.maxpt += mip_offset
+      shard_bbox += mip_offset
 
       (filename, shard) = src_vol.image.make_shard(
         chunk_dict, shard_bbox, (mip + i + 1), progress=False

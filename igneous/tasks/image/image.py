@@ -763,7 +763,7 @@ def ImageShardDownsampleTask(
         zbox, 
         agglomerate=agglomerate, 
         timestamp=timestamp,
-    )
+      )
 
     ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img

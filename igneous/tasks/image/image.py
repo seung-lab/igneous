@@ -712,10 +712,10 @@ def ImageShardDownsampleTask(
   chunk_size = src_vol.meta.chunk_size(mip)
 
   bbox = Bbox(offset, offset + shape)
-  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
   bbox = bbox.expand_to_chunk_size(
     chunk_size, offset=src_vol.meta.voxel_offset(mip)
   )
+  bbox = Bbox.clamp(bbox, src_vol.meta.bounds(mip))
 
   def shard_shapefn(mip):
     return igneous.shards.image_shard_shape_from_spec(

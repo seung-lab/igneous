@@ -227,7 +227,7 @@ class MeshTask(RegisteredTask):
         parallel=1,
       )
       del data
-      self._mesher.mesh(filled_labels.numpy(), preserve_order=False)
+      self._mesher.mesh(filled_labels.numpy())
 
       meshes = self.compute_meshes(renumbermap)
       del filled_labels

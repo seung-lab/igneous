@@ -242,6 +242,7 @@ class MeshTask(RegisteredTask):
           meshes[segid] = hole_meshes[segid]
       del hole_meshes
     else:
+      data = crackle.compressa(data)
       self._mesher.mesh(data)
       del data
       meshes = self.compute_meshes(renumbermap)

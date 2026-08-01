@@ -227,11 +227,11 @@ class MeshTask(RegisteredTask):
         parallel=1,
       )
       del data
-      self._mesher.mesh(filled_labels.numpy())
+      self._mesher.mesh(filled_labels)
 
       meshes = self.compute_meshes(renumbermap)
       del filled_labels
-      self._mesher.mesh(hole_labels.numpy())
+      self._mesher.mesh(hole_labels)
       hole_meshes = self.compute_meshes(renumbermap)
       del hole_labels
 

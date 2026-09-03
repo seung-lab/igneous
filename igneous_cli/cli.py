@@ -20,6 +20,7 @@ import numpy as np
 from taskqueue import TaskQueue, LocalTaskQueue
 from taskqueue.lib import toabs
 from taskqueue.paths import get_protocol
+from taskqueue.taskqueue import QueueEmptyError
 from tqdm import tqdm
 
 from igneous import task_creation as tc

@@ -654,6 +654,7 @@ def create_image_shard_downsample_tasks(
   method=DownsampleMethods.AUTO, 
   num_mips:Optional[int] = None,
   truncate_scales:bool = True,
+  codec_threads:int = 1,
 ) -> Iterator:
   """
   Downsamples an existing image layer that may be
@@ -777,6 +778,7 @@ def create_image_shard_downsample_tasks(
         factor=tuple(factor),
         method=method,
         num_mips=int(max_mips),
+        codec_threads=int(codec_threads),
       )
 
     def on_finish(self):
@@ -795,6 +797,7 @@ def create_image_shard_downsample_tasks(
           "encoding_level": encoding_level,
           "encoding_effort": encoding_effort,
           "num_mips": int(max_mips),
+          "codec_threads": int(codec_threads),
         },
         "by": operator_contact(),
         "date": strftime("%Y-%m-%d %H:%M %Z"),

@@ -692,6 +692,7 @@ def ImageShardDownsampleTask(
   method: int = DownsampleMethods.AUTO,
   num_mips: int = 1,
   progress: bool = False,
+  codec_threads: int = 1,
 ):
   """
   Generate a single downsample level for a shard.
@@ -707,7 +708,8 @@ def ImageShardDownsampleTask(
 
   src_vol = CloudVolume(
     src_path, fill_missing=fill_missing, 
-    mip=mip, bounded=False, progress=False
+    mip=mip, bounded=False, progress=False,
+    codec_threads=codec_threads,
   )
   chunk_size = src_vol.meta.chunk_size(mip)
 

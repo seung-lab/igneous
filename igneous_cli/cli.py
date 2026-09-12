@@ -255,13 +255,14 @@ def imagegroup():
 @click.option('--xrange', type=Tuple2(), default=None, help="If specified, set x-bounds for downsampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1024.", show_default=True)
 @click.option('--yrange', type=Tuple2(), default=None, help="If specified, set y-bounds for downsampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1024", show_default=True)
 @click.option('--zrange', type=Tuple2(), default=None, help="If specified, set z-bounds for downsampling in terms of selected mip. By default the whole dataset is selected. The bounds must be chunk aligned to the task size (maybe mysterious... use igneous design to investigate). e.g. 0,1", show_default=True)
+@click.option('--codec-threads', default=1, help="Some codecs, e.g. crackle, jxl, support multithreading. This sets the number of threads. 0 means num cpu cores.", show_default=True)
 @click.pass_context
 def downsample(
   ctx, path, queue, mip, fill_missing, 
   num_mips, encoding, encoding_level, encoding_effort, 
   sparse, chunk_size, compress, volumetric,
   delete_bg, bg_color, sharded, memory,
-  xrange, yrange, zrange, method,
+  xrange, yrange, zrange, method, codec_threads,
 ):
   """
   Create an image pyramid for grayscale or labeled images.
@@ -297,6 +298,7 @@ def downsample(
       factor=factor, bounds=bounds, bounds_mip=mip,
       encoding_level=encoding_level, method=method,
       encoding_effort=encoding_effort, num_mips=num_mips,
+      codec_threads=codec_threads,
     )
   else:
     tasks = tc.create_downsampling_tasks(
@@ -312,6 +314,7 @@ def downsample(
       encoding_level=encoding_level,
       method=method,
       encoding_effort=encoding_effort,
+      codec_threads=codec_threads,
     )
 
   enqueue_tasks(ctx, queue, tasks)

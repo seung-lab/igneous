@@ -451,6 +451,7 @@ def TransferTask(
   stop_layer:Optional[int] = None,
   downsample_method:str = DownsampleMethods.AUTO,
   use_https_for_source:bool = False,
+  codec_threads:int = 1,
 ):
   """
   Transfer an image to a new location while enabling
@@ -470,11 +471,13 @@ def TransferTask(
   src_cv = CloudVolume(
     src_path, fill_missing=fill_missing,
     mip=mip, bounded=False, use_https=use_https_for_source,
+    codec_threads=codec_threads,
   )
   dest_cv = CloudVolume(
     dest_path, fill_missing=fill_missing,
     mip=mip, delete_black_uploads=delete_black_uploads,
     background_color=background_color, compress=compress,
+    codec_threads=codec_threads,
   )
 
   dst_bbox = Bbox(offset, shape + offset)
@@ -519,10 +522,17 @@ def TransferTask(
 @queueable
 def DownsampleTask(
   layer_path, mip, shape, offset,
-  fill_missing=False, axis='z', sparse=False,
-  delete_black_uploads=False, background_color=0,
-  dest_path=None, compress="gzip", factor=None,
-  max_mips=None, method=DownsampleMethods.AUTO,
+  fill_missing=False,
+  axis='z',
+  sparse=False,
+  delete_black_uploads=False,
+  background_color=0,
+  dest_path=None,
+  compress="gzip",
+  factor=None,
+  max_mips=None,
+  method=DownsampleMethods.AUTO,
+  codec_threads:int = 1,
 ):
   """
   Downsamples a cutout of the volume. By default it performs
@@ -547,6 +557,7 @@ def DownsampleTask(
     factor=factor,
     max_mips=max_mips,
     downsample_method=DownsampleMethods.AUTO,
+    codec_threads=codec_threads,
   )
 
 @queueable

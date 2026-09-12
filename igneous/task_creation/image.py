@@ -213,6 +213,7 @@ def create_downsampling_tasks(
   encoding_level:Optional[int] = None,
   encoding_effort:Optional[int] = None,
   method:int = DownsampleMethods.AUTO,
+  codec_threads:int = 1,
 ):
   """
   Creates a set of unsharded downsampling tasks and inserts them into the queue.
@@ -311,6 +312,7 @@ def create_downsampling_tasks(
         factor=factor,
         max_mips=num_mips,
         method=method,
+        codec_threads=int(codec_threads),
       )
 
     def on_finish(self):
@@ -336,6 +338,7 @@ def create_downsampling_tasks(
           'compress': compress,
           'factor': (tuple(factor) if factor else None),
           'method': method,
+          'codec_threads': int(codec_threads),
         },
         'by': operator_contact(),
         'date': strftime('%Y-%m-%d %H:%M %Z'),

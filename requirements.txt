@@ -4,7 +4,7 @@ cloud-volume[all_codecs]>=12.12.1
 crackle-codec
 connected-components-3d>=3.10.1
 dbscan
-DracoPy>=1.0.1,<2.0.0
+DracoPy>=1.0.1,<3.0.0
 fastremap>=1.17.4
 fastmorph>=1.7.0
 google-cloud-logging

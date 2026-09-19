@@ -869,20 +869,25 @@ def is_empty(tq, sqs_sec_to_wait=120):
     nonlocal last_empty
 
     if tq.path.protocol == "sqs":
-      if tq.is_empty():
-        if last_empty:
-          elapsed_time = time.monotonic() - start_time
-          if elapsed_time >= sqs_sec_to_wait:
-            return True
+      import botocore.exceptions
+      try:
+        if tq.is_empty():
+          if last_empty:
+            elapsed_time = time.monotonic() - start_time
+            if elapsed_time >= sqs_sec_to_wait:
+              return True
+            else:
+              return False
           else:
+            print(f"Queue appearently empty. Waiting {sqs_sec_to_wait} sec. to confirm.")
+            start_time = time.monotonic()
+            last_empty = True
             return False
         else:
-          print(f"Queue appearently empty. Waiting {sqs_sec_to_wait} sec. to confirm.")
-          start_time = time.monotonic()
-          last_empty = True
+          last_empty = False
           return False
-      else:
-        last_empty = False
+      except botocore.exceptions.EndpointConnectionError:
+        print("Connection error. Will try again.")
         return False
     else:
       return tq.is_empty()

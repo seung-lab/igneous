@@ -22,4 +22,5 @@ from .image import (
   CCLFacesTask, CCLEquivalancesTask, RelabelCCLTask,
   CountVoxelsTask, CLAHETask,
 )
+from .file import TransferFilesTask
 from .spatial_index import SpatialIndexTask

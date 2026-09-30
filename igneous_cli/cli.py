@@ -2124,3 +2124,57 @@ def purge(queuepath):
   queuepath = normalize_path(queuepath)
   tq = TaskQueue(queuepath)
   tq.purge()
+
+@main.group("file")
+def filegroup():
+  """
+  Manipulate groups of files using distributed computing.
+  """
+  pass
+
+@filegroup.command("xfer")
+@click.argument("src")
+@click.argument("dest")
+@click.option('--reencode', default='preserve', help="What bitstream compression to apply. e.g. preserve, gzip, bz2, zstd, xz. preserve leaves existing encodings intact.", show_default=True)
+@click.option('--files-per-task', default=1000, help="What granularity to break up each task into.", show_default=True)
+@click.option('--files-per-chunk', default=64, help="How many files to transfer at once from the task file list. This can affect memory usage.", show_default=True)
+@click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
+@click.option('--allow-missing', is_flag=True, default=False, help="Allow for missing files to be skipped.", show_default=True)
+@click.option('--queue', default=None, help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue")
+@click.pass_context
+def file_xfer(
+  ctx,
+  src, dest,
+  reencode,
+  files_per_task,
+  files_per_chunk,
+  progress,
+  allow_missing,
+  queue,
+):
+  """
+  Perform a distributed file copy from one directory to another.
+  """
+  from cloudfiles.compression import COMPRESSION_TYPES
+
+  valid_types = [ x for x in COMPRESSION_TYPES if isinstance(x, str) and x ]
+
+  if reencode == "preserve":
+    reencode = None
+  elif reencode == '':
+    reencode = False
+  elif reencode not in valid_types:
+    print(f"{reencode} is not a supported compression type. Valid types: {', '.join(valid_types)}")
+    return
+
+  tasks = tc.create_directory_transfer_tasks(
+    src=src,
+    dest=dest,
+    files_per_task=files_per_task,
+    transfer_block_size=files_per_chunk,
+    reencode=reencode,
+    progress=progress,
+    allow_missing=allow_missing,
+  )
+
+  enqueue_tasks(ctx, queue, tasks)

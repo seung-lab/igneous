@@ -1791,7 +1791,7 @@ void main() {
     layer_name = name
 
   has_alternative_codec = any([
-     scale["encoding"] in ["crackle", "zfpc", "kempressed", "fpzip"]
+     scale["encoding"] in ["zfpc", "kempressed", "fpzip"]
      for scale in cv.scales
   ])
 

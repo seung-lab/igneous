@@ -1780,7 +1780,7 @@ void main() {
       layer_name = os.path.basename(path)
     else:
       layer_name = "igneous"
-  elif cv.meta.path.protocol in ['matrix', 'tigerdata']:
+  elif cv.meta.path.protocol in cloudfiles.paths.ALIASES:
     cloudpath = cloudvolume.paths.to_https_protocol(cv.cloudpath)
     layer_name = posixpath.basename(cloudpath)
   else:

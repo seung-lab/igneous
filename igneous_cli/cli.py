@@ -443,6 +443,31 @@ def image_roi(src, progress, suppress_faint, dust, z_step, max_axial_len):
   )
   print(f"{len(bboxes)} ROI detected. info file updated.")
 
+@imagegroup.command("redirect")
+@click.argument("src", type=CloudPath())
+@click.argument("dest", type=CloudPath())
+def image_redirect(src, dest):
+  """Assign a redirect from source to dest."""
+  cf_src = CloudFiles(src)
+  cf_dest = CloudFiles(dest)
+
+  if cf_src.protocol == "mem":
+    print("The source path may not be a RAM volume.")
+    return
+
+  if cf_dest.protocol == "mem":
+    print("The destination path may not be a RAM volume.")
+    return
+
+  info = cf_src.get_json("info")
+
+  dest_cloudpath = cf_dest.cloudpath
+  if cf_dest._path.alias:
+    dest_cloudpath = cloudfiles.paths.to_https_protocol(dest_cloudpath)
+
+  info["redirect"] =  f"{dest_cloudpath}|neuroglancer-precomputed:"
+  cf_src.put_json("info", info)
+
 @imagegroup.command("reorder")
 @click.argument("src", type=CloudPath())
 @click.argument("dest", type=CloudPath())

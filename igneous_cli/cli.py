@@ -1367,7 +1367,7 @@ def skeleton_forge(
     'max_paths': max_paths, # default None
   }
 
-  tasks = tc.create_skeletonizing_tasks(
+  tasks = tc.create_teasar_tasks(
     path, mip, shape, 
     teasar_params=teasar_params, 
     fix_branching=fix_branching, fix_borders=fix_borders, 

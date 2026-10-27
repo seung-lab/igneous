@@ -21,7 +21,7 @@ from igneous.tasks import (
   SkeletonTask, UnshardedSkeletonMergeTask, 
   ShardedSkeletonMergeTask, DeleteSkeletonFilesTask,
   ShardedFromUnshardedSkeletonMergeTask, SpatialIndexTask,
-  TransferSkeletonFilesTask
+  TransferSkeletonFilesTask, ThinWholeObjectTask,
 )
 
 from .common import (
@@ -30,7 +30,8 @@ from .common import (
 )
 
 __all__ = [
-  "create_skeletonizing_tasks",
+  "create_teasar_tasks",
+  "create_single_object_thinning_tasks",
   "create_unsharded_skeleton_merge_tasks",
   "create_sharded_skeleton_merge_tasks",
   "create_flat_graphene_skeleton_merge_tasks",
@@ -65,7 +66,7 @@ def bounds_from_mesh(
   bounds = bounds.expand_to_chunk_size(shape, offset=vol.voxel_offset)
   return Bbox.clamp(bounds, vol.bounds)
 
-def create_skeletonizing_tasks(
+def create_teasar_tasks(
   cloudpath:str,
   mip:int, 
   shape = Vec(512, 512, 512),
@@ -865,4 +866,44 @@ def create_spatial_index_skeleton_tasks(
       vol.commit_provenance()
 
   return SpatialIndexSkeletonTaskIterator(vol.bounds, shape)
+
+
+def create_single_object_thinning_tasks(
+  src_cloudpath:str,
+  dest_cloudpath:str,
+  labels:list[int],
+  mip:int,
+  radius:bool = True,
+  cross_sectional_area:bool = False,
+  cross_sectional_area_smoothing_window:int = 6,
+  timestamp:Optional[int] = None,
+  progress:bool = False,
+  threads:int = 1,
+  dry_run:bool = False,
+  format:Literal['ostd', 'swc', 'precomputed'] = 'ostd',
+):
+  
+  cv = CloudVolume(src_cloudpath, mip=mip)
+
+  def ThinWholeObjectTaskIterator():
+    for label in labels:
+      bbox = bounds_from_mesh(cv, [1,1,1], label)
+      yield partial(ThinWholeObjectTask, 
+        src_cloudpath=src_cloudpath,
+        dest_cloudpath=dest_cloudpath,
+        label=label,
+        mip=mip,
+        radius=bool(radius),
+        cross_sectional_area=cross_sectional_area,
+        cross_sectional_area_smoothing_window=cross_sectional_area_smoothing_window,
+        timestamp=int(timestamp),
+        threads=threads,
+        bbox=bbox,
+        dry_run=bool(dry_run),
+        format=format,
+        progress=progress,
+      )
+
+  return ThinWholeObjectTaskIterator()
+
 

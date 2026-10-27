@@ -8,6 +8,7 @@ DracoPy>=1.0.1,<3.0.0
 fastremap>=1.17.4
 fastmorph>=1.7.0
 google-cloud-logging
+gaara[big]
 kimimaro[accel]>=5.7.0
 mapbuffer>=0.7.1
 networkx

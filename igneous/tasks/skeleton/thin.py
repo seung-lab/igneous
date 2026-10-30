@@ -83,13 +83,13 @@ def ThinWholeObjectTask(
 		bbox.grow(1)
 		del mesh
 
-	binary_image = cv.download(bbox, label=label, timestamp=timestamp)
+	binary_image = cv.download(bbox, label=label, timestamp=timestamp)[...,0]
 
 	skeleton, binary_image = gaara.skeletonize(
 		binary_image,
 		binary_image=True,
 		in_place=True,
-		anisotropy=cv.resolution,
+		anisotropy=tuple(cv.resolution),
 		radius=radius,
 		cross_section=(
 			cross_sectional_area_smoothing_window

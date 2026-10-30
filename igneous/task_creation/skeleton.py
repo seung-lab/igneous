@@ -887,7 +887,7 @@ def create_single_object_thinning_tasks(
 
   def ThinWholeObjectTaskIterator():
     for label in labels:
-      bbox = bounds_from_mesh(cv, [1,1,1], label)
+      bbox = bounds_from_mesh(cv, [1,1,1], [label])
       yield partial(ThinWholeObjectTask, 
         src_cloudpath=src_cloudpath,
         dest_cloudpath=dest_cloudpath,
@@ -896,7 +896,7 @@ def create_single_object_thinning_tasks(
         radius=bool(radius),
         cross_sectional_area=cross_sectional_area,
         cross_sectional_area_smoothing_window=cross_sectional_area_smoothing_window,
-        timestamp=int(timestamp),
+        timestamp=timestamp,
         threads=threads,
         bbox=bbox,
         dry_run=bool(dry_run),

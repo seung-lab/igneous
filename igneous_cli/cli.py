@@ -1307,13 +1307,14 @@ def skeletongroup():
 @click.option('--progress', is_flag=True, default=False, help="Print progress bars.", show_default=True)
 @click.option('--threads', default=1, help="Use this number of compute threads (0 = all cores).", show_default=True)
 @click.option('--format', default="ostd", help="Write results in this format: ostd, precomputed, swc", show_default=True)
+@click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
 @click.pass_context
 def thin_command(
   ctx, src_path, dest_path,
   labels, mip, 
   radius, cross_section,
   timestamp, progress,
-  threads, format,
+  threads, format, queue,
 ):
   """
   Perform topology preserving skeletonization of individual
@@ -1330,7 +1331,7 @@ def thin_command(
     labels=labels,
     mip=mip,
     radius=radius,
-    cross_section=(cross_section > 0),
+    cross_sectional_area=(cross_section > 0),
     cross_sectional_area_smoothing_window=cross_section,
     timestamp=timestamp,
     progress=progress,

@@ -33,19 +33,19 @@ from taskqueue import queueable
 
 @queueable
 def ThinWholeObjectTask(
-    src_cloudpath:str,
-    dest_cloudpath:str,
-    label:int,
-    mip:int,
-    radius:bool = True,
-    cross_sectional_area:bool = False,
-    cross_sectional_area_smoothing_window:int = 6,
-    timestamp:Optional[int] = None,
-    progress:bool = False,
-    threads:int = 1,
-    bbox:Optional[Bbox] = None,
-    dry_run:bool = False,
-    format:Literal['ostd', 'swc', 'precomputed'] = 'ostd',
+  src_cloudpath:str,
+  dest_cloudpath:str,
+  label:int,
+  mip:int,
+  radius:bool = True,
+  cross_sectional_area:bool = False,
+  cross_sectional_area_smoothing_window:int = 6,
+  timestamp:Optional[int] = None,
+  progress:bool = False,
+  threads:int = 1,
+  bbox:Optional[Bbox] = None,
+  dry_run:bool = False,
+  format:Literal['ostd', 'swc', 'precomputed'] = 'ostd',
 ):
   """
   Compute a skeleton using gaara's Palyági thinning.

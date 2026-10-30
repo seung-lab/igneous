@@ -25,8 +25,7 @@ from cloudvolume.datasource.precomputed.sharding import synthesize_shard_files
 
 import cc3d
 import crackle
-import fastmorph
-import fastremap
+import fill_voids
 import gaara
 
 from taskqueue import queueable
@@ -84,7 +83,13 @@ def ThinWholeObjectTask(
     bbox.grow(1)
     del mesh
 
-  binary_image = cv.download(bbox, label=label, timestamp=timestamp)[...,0]
+  binary_image = cv.download(
+    bbox,
+    label=label,
+    timestamp=timestamp,
+  )[...,0]
+
+  fill_voids.fill(binary_image, in_place=True)
 
   skeleton, binary_image = gaara.skeletonize(
     binary_image,

@@ -892,6 +892,7 @@ def create_single_object_thinning_tasks(
       bounds = Bbox.from_points(mesh.vertices // cv.resolution)
       bounds.grow(1)
       bboxes[label] = bounds
+  meshes = {}
 
   def ThinWholeObjectTaskIterator():
     for label in labels:

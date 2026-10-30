@@ -47,69 +47,76 @@ def ThinWholeObjectTask(
     dry_run:bool = False,
     format:Literal['ostd', 'swc', 'precomputed'] = 'ostd',
 ):
-	"""
-	Compute a skeleton using gaara's Palyági thinning.
-	This is a topology preserving transformation.
+  """
+  Compute a skeleton using gaara's Palyági thinning.
+  This is a topology preserving transformation.
 
-	Note: requires a mesh 
+  Note: requires a mesh 
 
-	src_cloudpath: The image data source.
-	dest_cloudpath: where to write the skeletons
-	label: the segid of the skeleton to extract
-	mip: the image mip level to extract the skeleton from
-	radius: compute the distance transform and store the result
-		at each vertex
-	cross_sectional_area: compute the cross sectional area
-		at each vertex, normals are guided by the skeleton direction
-	cross_sectional_area_smoothing_window: number of vertices to average
-		over to prevent rapid oscillations in direction
-	progress: display progress bars
-	threads: use this many threads to perform the thinning computation
-	bbox: if specified, download the image from this bbox specified
-		in voxels at the specified mip level
-	timestamp: (graphene only) use this UNIX timestamp to fetch the
-		correct segmentation
-	"""
-	assert label >= 0
-	assert threads >= 0
-	assert cross_sectional_area_smoothing_window >= 1
-	assert format in ["swc", "precomputed", "ostd"]
+  src_cloudpath: The image data source.
+  dest_cloudpath: where to write the skeletons
+  label: the segid of the skeleton to extract
+  mip: the image mip level to extract the skeleton from
+  radius: compute the distance transform and store the result
+    at each vertex
+  cross_sectional_area: compute the cross sectional area
+    at each vertex, normals are guided by the skeleton direction
+  cross_sectional_area_smoothing_window: number of vertices to average
+    over to prevent rapid oscillations in direction
+  progress: display progress bars
+  threads: use this many threads to perform the thinning computation
+  bbox: if specified, download the image from this bbox specified
+    in voxels at the specified mip level
+  timestamp: (graphene only) use this UNIX timestamp to fetch the
+    correct segmentation
+  """
+  assert label >= 0
+  assert threads >= 0
+  assert cross_sectional_area_smoothing_window >= 1
+  assert format in ["swc", "precomputed", "ostd"]
 
-	bbox = Bbox.create(bbox)
-	cv = CloudVolume(src_cloudpath, mip=mip, agglomerate=True, progress=progress)
+  bbox = Bbox.create(bbox)
+  cv = CloudVolume(src_cloudpath, mip=mip, agglomerate=True, progress=progress)
 
-	if bbox is None:
-		mesh = cv.mesh.get(label)
-		bbox = Bbox.from_points(mesh.vertices // cv.resolution)
-		bbox.grow(1)
-		del mesh
+  if bbox is None:
+    mesh = cv.mesh.get(label)
+    bbox = Bbox.from_points(mesh.vertices // cv.resolution)
+    bbox.grow(1)
+    del mesh
 
-	binary_image = cv.download(bbox, label=label, timestamp=timestamp)[...,0]
+  binary_image = cv.download(bbox, label=label, timestamp=timestamp)[...,0]
 
-	skeleton, binary_image = gaara.skeletonize(
-		binary_image,
-		binary_image=True,
-		in_place=True,
-		anisotropy=tuple(cv.resolution),
-		radius=radius,
-		cross_section=(
-			cross_sectional_area_smoothing_window
-			if cross_sectional_area else 0
-		),
-		threads=threads,
-	)
+  skeleton, binary_image = gaara.skeletonize(
+    binary_image,
+    binary_image=True,
+    in_place=True,
+    anisotropy=tuple(cv.resolution),
+    radius=radius,
+    cross_section=(
+      cross_sectional_area_smoothing_window
+      if cross_sectional_area else 0
+    ),
+    threads=threads,
+  )
 
-	if dry_run:
-		return skeleton
+  # voxel centered (+0.5) and uses more accurate bounding box from mip 0
+  corrected_offset = (bbox.minpt.astype(np.float32) - vol.meta.voxel_offset(self.mip) + 0.5) * vol.meta.resolution(self.mip)
+  corrected_offset += vol.meta.voxel_offset(0) * vol.meta.resolution(0)
 
-	cf = CloudFiles(dest_cloudpath)
+  for segid, skel in skeletons.items():
+    skel.vertices[:] += corrected_offset
 
-	if format == "ostd":
-		cf.put(f"{label}.ostd", skeleton.to_ostd())
-	elif format == "swc":
-		cf.put(f"{label}.swc", skeleton.to_swc())
-	elif format == "precomputed":
-		cf.put(f"{label}", skeleton.to_precomputed())
-	else:
-		raise ValueError(f"Format {format} is not supported.")
+  if dry_run:
+    return skeleton
+
+  cf = CloudFiles(dest_cloudpath)
+
+  if format == "ostd":
+    cf.put(f"{label}.ostd", skeleton.to_ostd())
+  elif format == "swc":
+    cf.put(f"{label}.swc", skeleton.to_swc())
+  elif format == "precomputed":
+    cf.put(f"{label}", skeleton.to_precomputed())
+  else:
+    raise ValueError(f"Format {format} is not supported.")
 

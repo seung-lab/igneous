@@ -102,9 +102,7 @@ def ThinWholeObjectTask(
   # voxel centered (+0.5) and uses more accurate bounding box from mip 0
   corrected_offset = (bbox.minpt.astype(np.float32) - cv.meta.voxel_offset(mip) + 0.5) * cv.meta.resolution(mip)
   corrected_offset += cv.meta.voxel_offset(0) * cv.meta.resolution(0)
-
-  for segid, skel in skeletons.items():
-    skel.vertices[:] += corrected_offset
+  skeleton.vertices[:] += corrected_offset
 
   if dry_run:
     return skeleton

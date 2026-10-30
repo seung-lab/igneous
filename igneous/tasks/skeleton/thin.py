@@ -75,7 +75,8 @@ def ThinWholeObjectTask(
 	assert cross_sectional_area_smoothing_window >= 1
 	assert format in ["swc", "precomputed", "ostd"]
 
-	cv = CloudVolume(src_cloudpath, mip=mip, agglomerate=True)
+	bbox = Bbox.create(bbox)
+	cv = CloudVolume(src_cloudpath, mip=mip, agglomerate=True, progress=progress)
 
 	if bbox is None:
 		mesh = cv.mesh.get(label)

@@ -898,7 +898,7 @@ def create_single_object_thinning_tasks(
         cross_sectional_area_smoothing_window=cross_sectional_area_smoothing_window,
         timestamp=timestamp,
         threads=threads,
-        bbox=bbox,
+        bbox=bbox.to_list(),
         dry_run=bool(dry_run),
         format=format,
         progress=progress,

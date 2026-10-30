@@ -13,7 +13,7 @@ from tqdm import tqdm
 import shardcomputer
 
 from cloudvolume import CloudVolume
-from cloudvolume.lib import Vec, Bbox, max2, min2, xyzrange, find_closest_divisor, yellow, jsonify
+from cloudvolume.lib import Vec, Bbox, sip
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudfiles import CloudFiles, CloudFile
 
@@ -885,9 +885,17 @@ def create_single_object_thinning_tasks(
   
   cv = CloudVolume(src_cloudpath, mip=mip)
 
+  bboxes = {}
+  for subset in sip(labels, 20):
+    meshes = cv.mesh.get(subset)
+    for label, mesh in meshes.items():
+      bounds = Bbox.from_points(mesh.vertices // cv.resolution)
+      bounds.grow(1)
+      bboxes[label] = bounds
+
   def ThinWholeObjectTaskIterator():
     for label in labels:
-      bbox = bounds_from_mesh(cv, [1,1,1], [label])
+      bbox = bboxes[label]
       yield partial(ThinWholeObjectTask, 
         src_cloudpath=src_cloudpath,
         dest_cloudpath=dest_cloudpath,

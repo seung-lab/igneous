@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Dict, List
+from typing import Optional, Sequence, Dict, List, Literal
 
 from collections import defaultdict
 from functools import reduce, partial
@@ -31,12 +31,13 @@ import gaara
 
 from taskqueue import queueable
 
+@queueable
 def ThinWholeObjectTask(
-	src_cloudpath:str,
-	dest_cloudpath:str,
-	label:int,
-	mip:int,
-	radius:bool = True,
+    src_cloudpath:str,
+    dest_cloudpath:str,
+    label:int,
+    mip:int,
+    radius:bool = True,
     cross_sectional_area:bool = False,
     cross_sectional_area_smoothing_window:int = 6,
     timestamp:Optional[int] = None,

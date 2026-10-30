@@ -12,6 +12,7 @@ gaara[big]
 kimimaro[accel]>=5.7.0
 mapbuffer>=0.7.1
 networkx
+osteoid=0.8.0rc1
 numpy>=1.14.2
 opencv-python-headless
 pathos

@@ -1296,6 +1296,50 @@ def skeletongroup():
   """
   pass
 
+@skeletongroup.command("thin")
+@click.argument("src_path", type=CloudPath())
+@click.argument("dest_path", type=CloudPath())
+@click.option('--labels', type=ListN(), required=True, help="Skeletonize only this comma separated list of labels.", show_default=True)
+@click.option('--mip', default=0, help="Use this level of the image pyramid (0 is highest resolution).", show_default=True)
+@click.option('--radius', default=True, help="Compute the radius from the euclidean distance transform (requires more memory).", show_default=True)
+@click.option('--cross-section', type=int, default=6, help="Compute the cross sectional area for each skeleton vertex. May add substantial computation time. Integer value is the normal vector rolling average smoothing window over vertices. 0 means off.", show_default=True)
+@click.option('--timestamp', type=int, default=None, help="(graphene) Use the proofreading state at this UNIX timestamp.", show_default=True)
+@click.option('--progress', is_flag=True, default=False, help="Print progress bars.", show_default=True)
+@click.option('--threads', default=1, help="Use this number of compute threads (0 = all cores).", show_default=True)
+@click.option('--format', default="ostd", help="Write results in this format: ostd, precomputed, swc", show_default=True)
+@click.pass_context
+def thin_command(
+  ctx, src_path, dest_path,
+  labels, mip, 
+  radius, cross_section,
+  timestamp, progress,
+  threads, format,
+):
+  """
+  Perform topology preserving skeletonization of individual
+  whole neurons. 
+
+  We use gaara which implements Palayi 6-subiteration thinning.
+
+  The resulting skeletons will possibly contain loops.
+
+  https://github.com/seung-lab/gaara/
+  """
+  tasks = tc.create_single_object_thinning_tasks(
+    src_path, dest_path,
+    labels=labels,
+    mip=mip,
+    radius=radius,
+    cross_section=(cross_section > 0),
+    cross_sectional_area_smoothing_window=cross_section,
+    timestamp=timestamp,
+    progress=progress,
+    threads=threads,
+    format=format,
+  )
+  enqueue_tasks(ctx, queue, tasks)
+  
+
 @skeletongroup.command("forge")
 @click.argument("path", type=CloudPath())
 @click.option('--queue', help="AWS SQS queue or directory to be used for a task queue. e.g. sqs://my-queue or ./my-queue. See https://github.com/seung-lab/python-task-queue", type=str)
@@ -1336,7 +1380,7 @@ def skeleton_forge(
   cross_section_label_repair_sec,
 ):
   """
-  (1) Synthesize skeletons from segmentation cutouts.
+  (1) Compute TEASAR skeletons from segmentation.
 
   A large labeled image is divided into a regular
   grid. Kimimaro is applied to grid point, which performs

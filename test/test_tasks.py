@@ -713,7 +713,7 @@ def test_skeletonization_task(cross_sectional_area, object_ids):
     )
 
     tq = LocalTaskQueue()
-    tasks = tc.create_skeletonizing_tasks(
+    tasks = tc.create_teasar_tasks(
         layer_path,
         mip=0,
         teasar_params={

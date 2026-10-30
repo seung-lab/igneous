@@ -497,7 +497,7 @@ igneous execute $QUEUE
 import igneous.task_creation as tc 
 
 # First Pass: Generate Skeletons
-tasks = tc.create_skeletonizing_tasks(
+tasks = tc.create_teasar_tasks(
     cloudpath, 
     mip, # Which resolution to skeletionize at (near isotropic is often good)
     shape=Vec(512, 512, 512), # size of individual skeletonizing tasks (not necessary to be chunk aligned)

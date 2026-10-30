@@ -1,7 +1,8 @@
 from .skeleton import (
   SkeletonTask, UnshardedSkeletonMergeTask, 
   ShardedSkeletonMergeTask, DeleteSkeletonFilesTask,
-  TransferSkeletonFilesTask, ShardedFromUnshardedSkeletonMergeTask
+  TransferSkeletonFilesTask, ShardedFromUnshardedSkeletonMergeTask,
+  ThinWholeObjectTask,
 )
 from .mesh import (
   MeshTask, MeshManifestPrefixTask, 

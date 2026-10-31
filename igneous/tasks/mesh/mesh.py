@@ -13,7 +13,7 @@ from cloudfiles import CloudFiles, CloudFile
 import cloudfiles.paths
 
 from cloudvolume import CloudVolume
-from cloudvolume.lib import Vec, Bbox, jsonify
+from cloudvolume.lib import Vec, Bbox, jsonify, getprecision
 import mapbuffer
 from mapbuffer import MapBuffer, IntMap
 from taskqueue import RegisteredTask, queueable
@@ -452,8 +452,13 @@ class MeshTask(RegisteredTask):
 
   def _upload_spatial_index(self, bbox, mesh_bboxes):
     cf = CloudFiles(self.layer_path, progress=self.options['progress'])
-    precision = self._volume.mesh.spatial_index.precision
     resolution = self._volume.resolution 
+    mesh = self._volume.mesh
+    precision = (
+      mesh.spatial_index.precision
+      if mesh is not None
+      else max(map(getprecision, resolution))
+    )
 
     bbox = bbox.astype(resolution.dtype) * resolution
 

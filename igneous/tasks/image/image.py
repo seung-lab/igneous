@@ -760,9 +760,20 @@ def ImageShardDownsampleTask(
 
   # Need to save memory for segmentation... it's big.
   renumber = src_vol.layer_type == "segmentation"
+  use_crackle = (src_vol.layer_type == "segmentation") and (np.all(factor == np.array([2,2,1])))
+  if use_crackle:
+    renumber = False
 
   for z in tqdm(range(nz), disable=(not progress), desc="Z"):
-    if renumber:
+    if use_crackle:
+      img = src_vol.download(
+        zbox, 
+        agglomerate=agglomerate, 
+        timestamp=timestamp,
+        crackle=True,
+      )
+      img.parallel = codec_threads
+    elif renumber: # needed for e.g. volumetric downsampling
       img, mapping = src_vol.download(
         zbox, 
         agglomerate=agglomerate, 
@@ -778,7 +789,15 @@ def ImageShardDownsampleTask(
         timestamp=timestamp,
       )
 
-    ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
+    if use_crackle:
+      ds_imgs = [ img ]
+      for i in range(num_mips):
+        ds_imgs.append(
+          ds_imgs[-1].mode_pooling_2x2x1(sparse=sparse)
+        )
+      ds_imgs = ds_imgs[1:]
+    else:
+      ds_imgs = dsfn(img, factor, num_mips=num_mips, sparse=sparse)
     del img
 
     for i in range(num_mips):

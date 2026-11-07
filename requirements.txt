@@ -1,7 +1,7 @@
 click>=6.7
 cloud-files>=4.11.0
 cloud-volume[all_codecs]>=12.12.1
-crackle-codec
+crackle-codec>=0.55.0
 connected-components-3d>=3.10.1
 dbscan
 DracoPy>=1.0.1,<3.0.0

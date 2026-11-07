@@ -853,6 +853,9 @@ def ImageShardDownsampleTask(
           if renumber:
             shard_cutout = shard_cutout.astype(src_vol.dtype, copy=False)
 
+          while shard_cutout.ndim < 4:
+            shard_cutout = shard_cutout[..., np.newaxis]
+
           chunk_dict = src_vol.image.make_shard_chunks(shard_cutout, shard_bbox, mip + i + 1)
           output_shards_by_mip[i][(shard_x, shard_y, shard_z)].update(chunk_dict)
 

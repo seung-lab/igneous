@@ -2206,7 +2206,7 @@ def filegroup():
 @click.argument("src")
 @click.argument("dest")
 @click.option('--reencode', default='preserve', help="What bitstream compression to apply. e.g. preserve, gzip, bz2, zstd, xz. preserve leaves existing encodings intact.", show_default=True)
-@click.option('--files-per-task', default=1000, help="What granularity to break up each task into.", show_default=True)
+@click.option('--files-per-task', default=500, help="What granularity to break up each task into.", show_default=True)
 @click.option('--files-per-chunk', default=64, help="How many files to transfer at once from the task file list. This can affect memory usage.", show_default=True)
 @click.option('--progress', is_flag=True, default=False, help="Show progress bars.", show_default=True)
 @click.option('--allow-missing', is_flag=True, default=False, help="Allow for missing files to be skipped.", show_default=True)

@@ -1840,6 +1840,24 @@ void main() {
 }"""
   cv = CloudVolume(path)
 
+  # If this is a zarr volume and a mesh directory is found in the cloudpath, 
+  # we're looking at a segmentation dataset
+  # Determine the mesh source for the current mip level
+  mesh_source = cv.info.get("mesh")
+  if mesh_source is None and cv.meta.path.format == "zarr":
+    cf = CloudFiles(cv.cloudpath)
+    mesh_directories = sorted({
+      filename.rstrip("/")
+      for filename in cf.list(prefix="mesh_mip_", flat=True)
+      if filename.startswith("mesh_mip_") and filename.endswith("/")
+    })
+    matching_meshes = [
+      mesh_dir for mesh_dir in mesh_directories
+      if (cf.get_json(f"{mesh_dir}/info") or {}).get("mip") == int(cv.mip)
+    ]
+    if len(matching_meshes) == 1:
+      mesh_source = matching_meshes[0]
+
   local_fs = cv.meta.path.protocol == "file"
   indirect = indirect or local_fs
 
@@ -1909,6 +1927,13 @@ void main() {
     },
     "layout": "4panel"
   }
+
+  if mesh_source is not None and cv.meta.path.format == "zarr":
+    if not mesh_source.startswith("precomputed://"):
+      mesh_path = mesh_source.strip("/")
+      mesh_source = f"precomputed://{cloudpath.rstrip('/')}/{mesh_path}"
+    config["layers"][0]["type"] = "segmentation"
+    config["layers"][0]["mesh"] = mesh_source
 
   if pos:
     x, y, z = pos
